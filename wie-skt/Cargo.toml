@@ -20,6 +20,3 @@ wie-util = { workspace = true }
 wie-wipi-java = { workspace = true }
 
 jvm = { workspace = true }
-
-[dev-dependencies]
-test-utils = { workspace = true }

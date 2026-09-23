@@ -112,31 +112,28 @@ impl LgtEmulator {
         files: &BTreeMap<String, Vec<u8>>,
         options: Options,
     ) -> Result<Self> {
-        let core = ArmCore::new(options)?;
+        let mut core = ArmCore::new(options)?;
         let system = System::new(platform, pid, aid, LgtTaskRunner { core: core.clone() });
-        let mut emulator = Self { core, system };
 
         for (filename, data) in files {
             let filename = filename.trim_start_matches("P/");
-            emulator.system.filesystem().add_virtual(filename, data.clone())
+            system.filesystem().add_virtual(filename, data.clone())
         }
 
-        Allocator::init(&mut emulator.core)?;
+        Allocator::init(&mut core)?;
 
         let main_class_name = main_class_name.map(|x| x.replace('.', "/"));
 
-        let mut core_clone = emulator.core.clone();
-        let mut system_clone = emulator.system.clone();
+        let mut core_clone = core.clone();
+        let mut system_clone = system.clone();
         let main_class_name_clone = main_class_name.clone();
         // The filesystem keys above drop the `P/` prefix, so the classpath name must drop it
         // the same way, or an entrypoint stored as `P/<name>.jar` names an entry that does not exist.
         let jar_filename = jar_filename.trim_start_matches("P/").to_owned();
 
-        emulator
-            .system
-            .spawn(async move || Self::do_start(&mut core_clone, &mut system_clone, jar_filename, main_class_name_clone).await);
+        system.spawn(async move || Self::do_start(&mut core_clone, &mut system_clone, jar_filename, main_class_name_clone).await);
 
-        Ok(emulator)
+        Ok(Self { core, system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
@@ -172,13 +169,6 @@ impl LgtEmulator {
     }
 }
 
-impl Drop for LgtEmulator {
-    fn drop(&mut self) {
-        self.core.shutdown();
-        self.system.shutdown();
-    }
-}
-
 impl Emulator for LgtEmulator {
     fn is_preparing(&self) -> bool {
         self.core.is_preparing()
@@ -189,9 +179,7 @@ impl Emulator for LgtEmulator {
     }
 
     fn tick(&mut self) -> Result<()> {
-        self.core.check_running()?;
         self.system.tick().map_err(|x| {
-            self.core.shutdown();
             let reg_stack = self.core.dump_reg_stack(0x1000); // TODO: hardcode
             match x {
                 WieError::FatalError(msg) => WieError::FatalError(format!("{msg}\n{reg_stack}")),
@@ -237,75 +225,6 @@ impl LgtAppInfo {
 #[cfg(test)]
 mod tests {
     use super::LgtAppInfo;
-
-    #[test]
-    fn dropping_emulator_releases_tasks_and_stops_retained_core_clones() {
-        use alloc::{boxed::Box, sync::Arc};
-        use wie_backend::Emulator;
-
-        for started in [false, true] {
-            let resource = Arc::new(());
-            let weak = Arc::downgrade(&resource);
-            let platform = test_utils::TestPlatform::with_event_handler(move |_| {
-                let _ = &resource;
-            });
-            let mut core = wie_core_arm::ArmCore::new(wie_backend::Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })
-            .unwrap();
-            wie_core_arm::Allocator::init(&mut core).unwrap();
-            core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
-            let system = wie_backend::System::new(Box::new(platform), "", "", super::LgtTaskRunner { core: core.clone() });
-            let task_system = system.clone();
-            system.spawn(async move || {
-                task_system.sleep(10_000).await;
-                Ok(())
-            });
-            let mut emulator = super::LgtEmulator { core: core.clone(), system };
-            if started {
-                emulator.tick().unwrap();
-            }
-            drop(emulator);
-            let before = core.save_context();
-            assert!(matches!(
-                core::pin::pin!(core.run_function::<()>(0x1001, &[1, 2, 3, 4, 5]))
-                    .as_mut()
-                    .poll(&mut core::task::Context::from_waker(core::task::Waker::noop())),
-                core::task::Poll::Ready(Err(_))
-            ));
-            let after = core.save_context();
-            assert_eq!((after.r0, after.sp, after.pc, after.cpsr), (before.r0, before.sp, before.pc, before.cpsr));
-            assert!(core.run_in_thread(|| async { Ok(()) }).is_err());
-            drop(core);
-            assert!(weak.upgrade().is_none(), "started={started}");
-        }
-    }
-
-    #[test]
-    fn failed_tick_closes_the_core_and_stops_later_ticks() {
-        use wie_backend::Emulator;
-
-        let mut core = wie_core_arm::ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
-        wie_core_arm::Allocator::init(&mut core).unwrap();
-        let system = wie_backend::System::new(
-            alloc::boxed::Box::new(test_utils::TestPlatform::new()),
-            "",
-            "",
-            super::LgtTaskRunner { core: core.clone() },
-        );
-        system.spawn(|| async { Err(wie_util::WieError::FatalError("Initialization failed".into())) });
-        let mut emulator = super::LgtEmulator { core: core.clone(), system };
-        assert!(emulator.tick().is_err());
-        assert!(core.check_running().is_err());
-        assert!(emulator.tick().is_err());
-    }
 
     #[test]
     fn parse_app_info_name() {

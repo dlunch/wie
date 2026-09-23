@@ -254,7 +254,8 @@ mod tests {
                     reference.retire(1);
                 }
             }
-            core.shutdown();
+            drop(threads);
+            drop(core);
             let expected: BTreeMap<_, _> = reference
                 .take_profile(true)
                 .into_iter()
@@ -262,7 +263,6 @@ mod tests {
                 .collect();
             assert!(reference.sequence > 1000);
             assert_eq!(*observed.lock(), expected, "switch_threads={switch_threads}");
-            drop(threads);
         }
     }
 }

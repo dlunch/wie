@@ -17,6 +17,3 @@ wie-backend = { workspace = true }
 wie-jvm-support = { workspace = true }
 wie-midp = { workspace = true }
 wie-util = { workspace = true }
-
-[dev-dependencies]
-test-utils = { workspace = true }

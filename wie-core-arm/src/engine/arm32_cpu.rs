@@ -21,7 +21,6 @@ pub struct Arm32CpuEngine {
     mem: EmulatedMemory,
     sampler: Sampler,
     aot: Option<Aot>,
-    closed: bool,
 }
 
 enum InstructionCacheInvalidation {
@@ -36,7 +35,6 @@ impl Arm32CpuEngine {
             mem: EmulatedMemory::new(),
             sampler: Sampler::new(),
             aot: None,
-            closed: false,
         }
     }
 
@@ -118,9 +116,6 @@ impl Arm32CpuEngine {
 
 impl ArmEngine for Arm32CpuEngine {
     fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult> {
-        if self.closed {
-            return Err(WieError::FatalError("ARM core is shut down".into()));
-        }
         let mut budget_consumed = 0;
         let mut interpret_one = false;
         let mut lookup_entry = true;
@@ -297,11 +292,6 @@ impl ArmEngine for Arm32CpuEngine {
         {
             self.aot = None;
         }
-    }
-
-    fn shutdown(&mut self) {
-        self.closed = true;
-        self.aot = None;
     }
 }
 
@@ -969,50 +959,40 @@ mod tests {
     }
 
     #[test]
-    fn preparation_waits_without_running_image_code_and_shutdown_does_not_resume_it() {
-        for cancel in [false, true] {
-            let responses = Arc::new(Mutex::new(Responses::default()));
-            let mut core = crate::ArmCore::new(wie_backend::Options {
-                enable_gdbserver: false,
-                aot: Some(Box::new(DeferredExecutor(responses.clone()))),
-                profile: None,
-            })
-            .unwrap();
-            core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
-            let controller = core.clone();
-            let mut execution: core::pin::Pin<Box<dyn Future<Output = Result<u32>> + Send>> = Box::pin(async move {
-                core.prepare_execution().await?;
-                core.run_function(0x1001, &[]).await
-            });
-            let waker = futures::task::noop_waker();
-            let mut context = core::task::Context::from_waker(&waker);
-            assert!(execution.as_mut().poll(&mut context).is_pending());
-            assert!(controller.is_preparing());
-            assert_eq!(controller.inner.try_lock().unwrap().engine.reg_read(ArmRegister::R0), 0);
-            if cancel {
-                controller.shutdown();
-                assert!(execution.as_mut().poll(&mut context).is_pending());
-            }
-            assert!(
-                responses
-                    .lock()
-                    .ready
-                    .take()
-                    .unwrap()
-                    .send(Ok(CompiledArtifact {
-                        regions: Vec::new(),
-                        encoded_size: 0
-                    }))
-                    .is_ok()
-            );
-            if cancel {
-                assert!(matches!(execution.as_mut().poll(&mut context), Poll::Ready(Err(_))));
-            } else {
-                assert!(controller.is_preparing());
-                assert!(matches!(execution.as_mut().poll(&mut context), Poll::Ready(Ok(1))));
-                assert!(!controller.is_preparing());
-            }
-        }
+    fn preparation_waits_without_running_image_code() {
+        let responses = Arc::new(Mutex::new(Responses::default()));
+        let mut core = crate::ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            aot: Some(Box::new(DeferredExecutor(responses.clone()))),
+            profile: None,
+        })
+        .unwrap();
+        core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
+        let controller = core.clone();
+        let mut execution: core::pin::Pin<Box<dyn Future<Output = Result<u32>> + Send>> = Box::pin(async move {
+            core.prepare_execution().await?;
+            core.run_function(0x1001, &[]).await
+        });
+        let waker = futures::task::noop_waker();
+        let mut context = core::task::Context::from_waker(&waker);
+        assert!(execution.as_mut().poll(&mut context).is_pending());
+        assert!(controller.is_preparing());
+        assert_eq!(controller.inner.try_lock().unwrap().engine.reg_read(ArmRegister::R0), 0);
+        assert!(
+            responses
+                .lock()
+                .ready
+                .take()
+                .unwrap()
+                .send(Ok(CompiledArtifact {
+                    regions: Vec::new(),
+                    encoded_size: 0
+                }))
+                .is_ok()
+        );
+        assert!(controller.is_preparing());
+        assert!(matches!(execution.as_mut().poll(&mut context), Poll::Ready(Ok(1))));
+        assert!(!controller.is_preparing());
     }
 
     #[test]
@@ -1266,8 +1246,6 @@ mod tests {
         assert_eq!(samples[0].stack, [0x1000]);
         assert_eq!(samples[0].count, 1);
         assert_eq!(engine.sampler.sequence, 1);
-        engine.shutdown();
-        assert!(engine.run(0x2000, 1).is_err());
     }
 
     #[test]

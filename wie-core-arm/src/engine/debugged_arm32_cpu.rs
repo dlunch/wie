@@ -568,10 +568,6 @@ impl ArmEngine for DebuggedArm32CpuEngine {
     fn finish_preparation(&mut self, result: Result<wie_arm_jit_types::CompiledArtifact, alloc::string::String>) {
         self.debug.cpu.lock().finish_preparation(result);
     }
-
-    fn shutdown(&mut self) {
-        self.debug.cpu.lock().shutdown();
-    }
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

@@ -39,7 +39,6 @@ pub trait ArmEngine: Send + AsAny {
     fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>>;
     fn is_preparing(&self) -> bool;
     fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>);
-    fn shutdown(&mut self);
 }
 
 #[allow(clippy::enum_variant_names)]

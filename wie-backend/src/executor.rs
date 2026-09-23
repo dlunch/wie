@@ -28,7 +28,6 @@ impl Wake for TaskWake {
 }
 
 pub struct ExecutorInner {
-    closed: bool,
     current_task_id: Option<usize>,
     tasks: HashMap<usize, Task>,
     sleeping_tasks: HashMap<usize, Instant>,
@@ -83,7 +82,6 @@ impl Executor {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let inner = Arc::new(Mutex::new(ExecutorInner {
-            closed: false,
             current_task_id: None,
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
@@ -111,14 +109,14 @@ impl Executor {
             Ok(())
         };
 
-        let mut inner = self.inner.lock();
-        inner.last_task_id += 1;
-        let task_id = inner.last_task_id;
-        if !inner.closed {
-            inner.tasks.insert(task_id, Box::pin(fut));
-            self.wake.wake_by_ref();
-        }
-        drop(inner);
+        let task_id = {
+            let mut inner = self.inner.lock();
+            inner.last_task_id += 1;
+            inner.last_task_id
+        };
+
+        self.inner.lock().tasks.insert(task_id, Box::pin(fut));
+        self.wake.wake_by_ref();
 
         task_id
     }
@@ -138,9 +136,6 @@ impl Executor {
 
             {
                 let inner = self.inner.lock();
-                if inner.closed {
-                    break;
-                }
                 let running_task_count = inner.tasks.len() - inner.sleeping_tasks.len();
                 if running_task_count == 0 && !inner.sleeping_tasks.is_empty() {
                     let next_wakeup = *inner.sleeping_tasks.values().min().unwrap();
@@ -164,28 +159,12 @@ impl Executor {
         self.inner.lock().current_task_id.unwrap() as _
     }
 
-    pub fn shutdown(&self) {
-        let tasks = {
-            let mut inner = self.inner.lock();
-            inner.closed = true;
-            inner.sleeping_tasks.clear();
-            core::mem::take(&mut inner.tasks)
-        };
-        // Task destructors may reenter the executor.
-        drop(tasks);
-    }
-
     fn step(&mut self, now: Instant) -> Result<()> {
-        let (tasks, mut sleeping_tasks) = {
-            let mut inner = self.inner.lock();
-            if inner.closed {
-                return Ok(());
-            }
-            inner.last_now = now;
-            (core::mem::take(&mut inner.tasks), core::mem::take(&mut inner.sleeping_tasks))
-        };
+        self.inner.lock().last_now = now;
 
         let mut next_tasks = HashMap::new();
+        let tasks = self.inner.lock().tasks.drain().collect::<HashMap<_, _>>();
+        let mut sleeping_tasks = self.inner.lock().sleeping_tasks.drain().collect::<HashMap<_, _>>();
 
         let mut first_error = None;
         let waker = Waker::from(self.wake.clone());
@@ -202,13 +181,7 @@ impl Executor {
             }
 
             let mut context = Context::from_waker(&waker);
-            {
-                let mut inner = self.inner.lock();
-                if inner.closed {
-                    break;
-                }
-                inner.current_task_id = Some(task_id);
-            }
+            self.inner.lock().current_task_id = Some(task_id);
 
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(Ok(())) => {}
@@ -225,25 +198,17 @@ impl Executor {
             self.inner.lock().current_task_id = None;
         }
 
-        {
-            let mut inner = self.inner.lock();
-            if !inner.closed {
-                inner.sleeping_tasks.extend(sleeping_tasks);
-                inner.tasks.extend(next_tasks);
-            }
-        }
+        self.inner.lock().sleeping_tasks.extend(sleeping_tasks);
+        self.inner.lock().tasks.extend(next_tasks);
 
         if let Some(err) = first_error { Err(err) } else { Ok(()) }
     }
 
     pub(crate) fn sleep(&self, timeout: u64) {
-        let mut inner = self.inner.lock();
-        if inner.closed {
-            return;
-        }
-        let task_id = inner.current_task_id.unwrap();
-        let until = inner.last_now + timeout;
-        inner.sleeping_tasks.insert(task_id, until);
+        let task_id = self.inner.lock().current_task_id.unwrap();
+
+        let until = self.inner.lock().last_now + timeout;
+        self.inner.lock().sleeping_tasks.insert(task_id, until);
         self.wake.wake_by_ref();
     }
 }
@@ -253,7 +218,7 @@ mod tests {
     use alloc::sync::Arc;
     use core::{
         cell::Cell,
-        future::{Future, pending, poll_fn},
+        future::{Future, poll_fn},
         pin::Pin,
         sync::atomic::{AtomicBool, AtomicUsize, Ordering},
         task::{Context, Poll},
@@ -286,27 +251,6 @@ mod tests {
             let now = time.get();
             time.set(now + 1);
             Instant::from_epoch_millis(now)
-        }
-    }
-
-    struct SpawnOnDrop {
-        executor: Executor,
-        resource: Arc<()>,
-        dropped: Arc<AtomicUsize>,
-    }
-
-    impl Drop for SpawnOnDrop {
-        fn drop(&mut self) {
-            assert!(self.executor.inner.try_lock().is_some(), "task dropped under executor lock");
-            self.executor.shutdown();
-            let executor = self.executor.clone();
-            let resource = self.resource.clone();
-            self.executor.spawn(move || async move {
-                pending::<()>().await;
-                drop((executor, resource));
-            });
-            self.executor.clone().tick(advancing_clock(0)).unwrap();
-            self.dropped.fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -346,101 +290,6 @@ mod tests {
         });
         executor.tick(advancing_clock(0)).unwrap();
         assert!(completed.load(Ordering::Relaxed));
-    }
-
-    #[test]
-    fn test_shutdown_during_poll_does_not_resurrect_drained_tasks() {
-        for fail in [false, true] {
-            let mut executor = Executor::new();
-            let resource = Arc::new(());
-            let weak_resource = Arc::downgrade(&resource);
-            let sleeper_resource = resource.clone();
-            let sleeper_executor = executor.clone();
-            executor.spawn::<_, ()>(move || async move {
-                sleeper_executor.sleep(100);
-                YieldOnce(false).await;
-                drop(sleeper_resource);
-                panic!("sleeping task resumed after shutdown");
-            });
-            executor.step(Instant::from_epoch_millis(0)).unwrap();
-
-            let polls = Arc::new(AtomicUsize::new(0));
-            let dropped = Arc::new(AtomicUsize::new(0));
-            for _ in 0..3 {
-                let task_executor = executor.clone();
-                let polls = polls.clone();
-                let on_drop = SpawnOnDrop {
-                    executor: executor.clone(),
-                    resource: resource.clone(),
-                    dropped: dropped.clone(),
-                };
-                executor.spawn(move || async move {
-                    let _on_drop = on_drop;
-                    poll_fn(move |_| {
-                        polls.fetch_add(1, Ordering::Relaxed);
-                        let task_id = task_executor.current_task_id();
-                        task_executor.shutdown();
-                        assert_eq!(task_executor.current_task_id(), task_id);
-                        task_executor.sleep(100);
-                        task_executor.clone().tick(advancing_clock(0)).unwrap();
-                        assert_eq!(task_executor.current_task_id(), task_id);
-                        if fail {
-                            Poll::Ready(Err::<(), _>(WieError::FatalError("shutdown error".into())))
-                        } else {
-                            Poll::Pending
-                        }
-                    })
-                    .await
-                });
-            }
-            drop(resource);
-
-            let result = executor.step(Instant::from_epoch_millis(1));
-            if fail {
-                assert!(matches!(result, Err(WieError::FatalError(message)) if message == "shutdown error"));
-            } else {
-                result.unwrap();
-            }
-            assert_eq!(polls.load(Ordering::Relaxed), 1);
-            assert_eq!(dropped.load(Ordering::Relaxed), 3);
-            assert!(weak_resource.upgrade().is_none());
-            assert!(executor.inner.lock().tasks.is_empty());
-            assert!(executor.inner.lock().sleeping_tasks.is_empty());
-            assert!(executor.inner.lock().current_task_id.is_none());
-            executor.tick(advancing_clock(200)).unwrap();
-            assert_eq!(polls.load(Ordering::Relaxed), 1);
-        }
-    }
-
-    #[test]
-    fn test_shutdown_and_rejected_spawn_drop_outside_locks() {
-        for closed in [false, true] {
-            let executor = Executor::new();
-            let weak_executor = Arc::downgrade(&executor.inner);
-            let resource = Arc::new(());
-            let weak_resource = Arc::downgrade(&resource);
-            let dropped = Arc::new(AtomicUsize::new(0));
-            let on_drop = SpawnOnDrop {
-                executor: executor.clone(),
-                resource,
-                dropped: dropped.clone(),
-            };
-            if closed {
-                executor.shutdown();
-            }
-            let task_id = executor.spawn(move || async move {
-                pending::<()>().await;
-                drop(on_drop);
-            });
-            if !closed {
-                executor.shutdown();
-            }
-            assert_eq!(dropped.load(Ordering::Relaxed), 1);
-            assert!(weak_resource.upgrade().is_none());
-            assert!(executor.spawn(|| async {}) > task_id);
-            drop(executor);
-            assert!(weak_executor.upgrade().is_none());
-        }
     }
 
     #[test]
