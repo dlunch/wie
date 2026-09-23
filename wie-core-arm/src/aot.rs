@@ -12,6 +12,8 @@ use wie_util::Result;
 
 use crate::engine::EmulatedMemory;
 
+const PREPARATION_TIMEOUT_MS: f64 = 10_000.0;
+
 struct Translation {
     source: RefCell<Vec<CodePageStamp>>,
     source_bytes: Vec<(u32, Vec<u8>)>,
@@ -74,7 +76,7 @@ impl Aot {
             return Ok(None);
         }
         let started = self.executor.now();
-        self.deadline_ms = started + 10_000.0;
+        self.deadline_ms = started + PREPARATION_TIMEOUT_MS;
         tracing::info!(
             bytes = images.iter().map(|image| image.bytes.len()).sum::<usize>(),
             images = images.len(),
@@ -85,6 +87,8 @@ impl Aot {
         let images: Arc<[_]> = images.into();
         let request = CompileRequest {
             images: images.clone(),
+            max_region_instructions: analysis::MAX_REGION_INSTRUCTIONS,
+            max_region_blocks: analysis::MAX_REGION_BLOCKS,
             regions: Box::new(decoder::Decoder::new(images)),
         };
         Ok(Some(self.executor.prepare(request, self.deadline_ms)))
@@ -139,7 +143,7 @@ impl Aot {
         tracing::info!(
             regions = self.translations.len(),
             bytes = artifact.encoded_size,
-            elapsed_ms = finished - (self.deadline_ms - 10_000.0),
+            elapsed_ms = finished - (self.deadline_ms - PREPARATION_TIMEOUT_MS),
             "ARM AOT installed"
         );
         true
@@ -180,7 +184,10 @@ mod tests {
     use wie_arm_jit_types::{CodeImage, CodePageStamp, CompileRequest};
     use wie_core_arm_wasm::compile;
 
-    use super::decoder::Decoder;
+    use super::{
+        analysis::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS},
+        decoder::Decoder,
+    };
 
     fn image(address: u32, bytes: Vec<u8>) -> CodeImage {
         let end = u64::from(address) + bytes.len() as u64;
@@ -223,6 +230,8 @@ mod tests {
         let images: Arc<[_]> = images.into();
         let artifact = compile(CompileRequest {
             images: images.clone(),
+            max_region_instructions: MAX_REGION_INSTRUCTIONS,
+            max_region_blocks: MAX_REGION_BLOCKS,
             regions: Box::new(Decoder::new(images)),
         })
         .unwrap();
@@ -276,10 +285,12 @@ mod tests {
 
     #[test]
     fn analysis_limits_only_claim_emitted_instructions() {
-        for code in [vec![0x3001_u16; 513], vec![0xd1ff_u16; 200]] {
+        for code in [vec![0x3001_u16; MAX_REGION_INSTRUCTIONS + 1], vec![0xd1ff_u16; MAX_REGION_BLOCKS + 1]] {
             let images: Arc<[_]> = vec![image(0x1000, code.iter().flat_map(|op| op.to_le_bytes()).collect())].into();
             let artifact = compile(CompileRequest {
                 images: images.clone(),
+                max_region_instructions: MAX_REGION_INSTRUCTIONS,
+                max_region_blocks: MAX_REGION_BLOCKS,
                 regions: Box::new(Decoder::new(images)),
             })
             .unwrap();
@@ -287,7 +298,7 @@ mod tests {
             let regions: Vec<_> = artifact.manifest.iter().filter(|region| region.entry.thumb).collect();
             assert!(regions.len() > 1);
             for region in regions {
-                assert!(region.instruction_pcs.len() <= 512);
+                assert!(region.instruction_pcs.len() <= MAX_REGION_INSTRUCTIONS);
                 for &pc in &region.instruction_pcs {
                     assert!(pcs.insert(pc));
                 }

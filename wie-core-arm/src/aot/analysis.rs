@@ -6,8 +6,13 @@ use alloc::{
 use bytemuck::Contiguous;
 use hashbrown::HashMap;
 
+use wie_arm_jit_types::RegionKey;
 use wie_arm_jit_types::ir::{Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width};
-use wie_arm_jit_types::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, RegionKey};
+
+// Bound synchronous analysis/code generation and Wasm selector nesting, including coalesced regions.
+// These are policy limits, not ISA limits; larger regions trade fewer dispatches for longer preparation steps.
+pub(super) const MAX_REGION_INSTRUCTIONS: usize = 512;
+pub(super) const MAX_REGION_BLOCKS: usize = 128;
 
 pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64; 128]) -> Option<RegionIr> {
     let alignment = if entry.thumb { 2 } else { 4 };
@@ -1448,18 +1453,19 @@ mod tests {
             ir.blocks[0].instructions.last().unwrap().pc,
             0x1000 + (MAX_REGION_INSTRUCTIONS as u32 - 1) * 2
         );
-        let ir = thumb(&[0xd1ff; 200], 0x1000).unwrap();
+        let ir = thumb(&[0xd1ff; MAX_REGION_BLOCKS + 1], 0x1000).unwrap();
         assert_eq!(ir.blocks.len(), MAX_REGION_BLOCKS);
         for (index, block) in ir.blocks.iter().enumerate() {
             assert_eq!(block.instructions.len(), 1);
             assert_eq!(block.instructions[0].pc, 0x1000 + index as u32 * 2);
         }
         // Entry must survive the block cap even when branches reach many earlier blocks.
-        let mut code = vec![0xd1ff; 200];
-        code.push(0xe736); // b 0x1000 at 0x1190
-        let ir = thumb(&code, 0x1190).unwrap();
+        let mut code = vec![0xd1ff; MAX_REGION_BLOCKS + 1];
+        let entry = 0x1000 + code.len() as u32 * 2;
+        code.push(0xe000 | ((0x7fe - code.len() as u16) & 0x7ff)); // b 0x1000
+        let ir = thumb(&code, entry).unwrap();
         assert_eq!(ir.blocks.len(), MAX_REGION_BLOCKS);
-        assert_eq!(ir.blocks[0].instructions[0].pc, 0x1190);
+        assert_eq!(ir.blocks[0].instructions[0].pc, entry);
     }
 
     #[test]

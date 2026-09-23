@@ -9,7 +9,7 @@ use nom::{
     number::complete::le_u32,
 };
 
-use wie_arm_jit_types::{CodeImage, CompileRegion, CompileRequest, MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, ManifestRegion, RegionKey};
+use wie_arm_jit_types::{CodeImage, CompileRegion, CompileRequest, ManifestRegion, RegionKey};
 
 mod codegen;
 
@@ -122,8 +122,8 @@ impl Compiler {
                         && page == self.pending_page
                         && pending.ir.entry.thumb == region.ir.entry.thumb
                         && pending.ir.entry.cpu_mode == region.ir.entry.cpu_mode
-                        && self.pending_instructions + instructions <= MAX_REGION_INSTRUCTIONS
-                        && pending.ir.blocks.len() + region.ir.blocks.len() <= MAX_REGION_BLOCKS
+                        && self.pending_instructions + instructions <= self.request.max_region_instructions
+                        && pending.ir.blocks.len() + region.ir.blocks.len() <= self.request.max_region_blocks
                     {
                         self.pending_instructions += instructions;
                         pending.ir.blocks.append(&mut region.ir.blocks);
@@ -339,6 +339,8 @@ mod tests {
         let observed = calls.clone();
         let mut compiler = Compiler::new(CompileRequest {
             images: Arc::from([]),
+            max_region_instructions: 512,
+            max_region_blocks: 128,
             regions: Box::new(core::iter::from_fn(move || {
                 observed.fetch_add(1, Ordering::Relaxed);
                 inputs.next()

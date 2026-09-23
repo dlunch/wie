@@ -1206,6 +1206,8 @@ mod tests {
     fn large_batches_compile_into_a_single_module() {
         let request = CompileRequest {
             images: Arc::from([]),
+            max_region_instructions: 512,
+            max_region_blocks: 128,
             regions: Box::new((0..16).map(|step| {
                 if step % 2 == 0 {
                     return None;
