@@ -678,17 +678,13 @@ mod tests {
         requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
         ready: Option<futures::channel::oneshot::Sender<core::result::Result<CompiledArtifact, String>>>,
         now: f64,
-        advance: f64,
     }
 
     struct DeferredExecutor(Arc<Mutex<Responses>>);
 
     impl CompiledExecutor for DeferredExecutor {
         fn now(&self) -> f64 {
-            let mut state = self.0.lock();
-            let now = state.now;
-            state.now += state.advance;
-            now
+            self.0.lock().now
         }
 
         fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
@@ -784,7 +780,8 @@ mod tests {
         let preparation = aot.begin(&memory).unwrap().unwrap();
         let compiled = artifact(&responses.lock().requests[0].0);
         assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
-        aot.finish(futures::executor::block_on(preparation), &memory);
+        responses.lock().now = 10_001.0;
+        assert!(aot.finish(futures::executor::block_on(preparation), &memory));
         assert!(aot.state == PreparationState::Ready);
         let key = RegionKey {
             pc: 0x1000,
@@ -854,8 +851,8 @@ mod tests {
     }
 
     #[test]
-    fn failed_stale_and_timed_out_preparations_do_not_install_late_results() {
-        for cause in ["failed", "stale", "timeout", "installation-timeout"] {
+    fn failed_and_stale_preparations_do_not_install_late_results() {
+        for cause in ["failed", "stale"] {
             let responses = Arc::new(Mutex::new(Responses::default()));
             let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
             let mut memory = EmulatedMemory::new();
@@ -868,8 +865,6 @@ mod tests {
             if cause == "stale" {
                 memory.write_range(0x1000, &[1]).unwrap();
             }
-            responses.lock().now = if cause == "timeout" { 10_000.0 } else { 9_999.0 };
-            responses.lock().advance = if cause == "installation-timeout" { 1.0 } else { 0.0 };
             assert!(!aot.finish(futures::executor::block_on(preparation), &memory));
             assert!(aot.state == PreparationState::Ready, "{cause}");
             let key = RegionKey {
@@ -879,7 +874,6 @@ mod tests {
             };
             assert!(aot.lookup(RegionKey { ..key }, &memory).is_none(), "{cause}");
             let late = artifact(&responses.lock().requests[0].0);
-            responses.lock().now = 10_001.0;
             aot.finish(Ok(late), &memory);
             assert!(aot.lookup(key, &memory).is_none(), "{cause}");
             assert_eq!(responses.lock().requests.len(), 1);

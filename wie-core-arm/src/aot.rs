@@ -99,10 +99,6 @@ impl Aot {
             return false;
         }
         self.state = PreparationState::Ready;
-        if self.executor.now() >= self.deadline_ms {
-            tracing::warn!("ARM AOT preparation timed out; using interpreter");
-            return false;
-        }
         let mut artifact = match result {
             Ok(artifact) => artifact,
             Err(error) => {
@@ -132,18 +128,12 @@ impl Aot {
                 source_bytes: region.manifest.source_bytes,
             }));
         }
-        // Installation shares the compiler's deadline, including index construction.
-        let finished = self.executor.now();
-        if finished >= self.deadline_ms {
-            tracing::warn!("ARM AOT installation timed out; using interpreter");
-            return false;
-        }
         self.entries = entries;
         self.translations = translations;
         tracing::info!(
             regions = self.translations.len(),
             bytes = artifact.encoded_size,
-            elapsed_ms = finished - (self.deadline_ms - PREPARATION_TIMEOUT_MS),
+            elapsed_ms = self.executor.now() - (self.deadline_ms - PREPARATION_TIMEOUT_MS),
             "ARM AOT installed"
         );
         true

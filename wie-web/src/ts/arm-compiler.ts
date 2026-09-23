@@ -29,9 +29,7 @@ async function duringPreparation<T>(
         interrupt(new Error("ARM AOT preparation timed out"));
     }, Math.max(0, deadline - performance.now()));
     try {
-        const result = await Promise.race([interrupted, work(check)]);
-        check();
-        return result;
+        return await Promise.race([interrupted, work(check)]);
     } finally {
         settled = true;
         clearTimeout(timeout);
@@ -192,7 +190,7 @@ export async function compileArm(
             for (let slot = 0; slot < Math.max(regionCount, 1); slot++) {
                 // The boxed host frame has PC and return address 0x1000: no guest context is needed.
                 if (dispatcher(frame, 0, slot) !== 3) throw new Error(`compiled region ${slot} failed return-boundary warmup`);
-                if (performance.now() - groupStarted >= 4) {
+                if (slot + 1 < regionCount && performance.now() - groupStarted >= 4) {
                     await compilerTask();
                     check();
                     groupStarted = performance.now();

@@ -70,11 +70,10 @@ impl CompiledExecutor for WasmExecutor {
             let Some(state) = weak.upgrade() else { return };
             let mut state = state.borrow_mut();
             let result = match result {
-                Ok((artifact, dispatcher)) if now() < deadline_ms => {
+                Ok((artifact, dispatcher)) => {
                     *state = Some(dispatcher);
                     Ok(artifact)
                 }
-                Ok(_) => Err(String::from("ARM AOT preparation timed out")),
                 Err(error) => Err(format!("ARM AOT preparation: {error:?}")),
             };
             drop(state);
@@ -123,7 +122,6 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
     let mut region_count = 0;
     let result = async {
         let mut group_started = started;
-        preparation_checkpoint(&mut group_started, deadline).await?;
         let mut input = Vec::new();
         input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
         for image in request.images.iter() {
@@ -135,12 +133,10 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
         let input_copy = Uint8Array::from(input.as_slice());
         drop(input);
         input_ms = now() - started;
-        preparation_checkpoint(&mut group_started, deadline).await?;
         let lookup_started = now();
         let lookup = JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?;
         drop(input_copy);
         lookup_ms = now() - lookup_started;
-        preparation_checkpoint(&mut group_started, deadline).await?;
         let key = Reflect::get(&lookup, &"key".into())?;
         if key.is_undefined() {
             cache = "unavailable";
@@ -176,7 +172,6 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
                 }
                 .await;
                 manifest_ms += now() - manifest_started;
-                preparation_checkpoint(&mut group_started, deadline).await?;
                 let regions = restored?;
                 encoded_size = Reflect::get(&artifact, &"bytes".into())?.dyn_into::<Uint8Array>()?.length() as usize;
                 let digest = Reflect::get(&artifact, &"digest".into())?;
@@ -186,7 +181,6 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
                 Ok::<_, JsValue>((CompiledArtifact { regions, encoded_size }, dispatcher))
             }
             .await;
-            preparation_checkpoint(&mut group_started, deadline).await?;
             match restored {
                 Ok(result) => return Ok(result),
                 Err(error) => {
@@ -223,7 +217,6 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
             });
         }
         manifest_ms += now() - manifest_started;
-        preparation_checkpoint(&mut group_started, deadline).await?;
         let output_started = now();
         let artifact = Object::new();
         // Both arrays own their bytes before Rust allocations are freed or an await can grow memory.
@@ -235,9 +228,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
         Reflect::set(&artifact, &"manifest".into(), &manifest_copy)?;
         output_setup_ms += now() - output_started;
         region_count = regions.len();
-        preparation_checkpoint(&mut group_started, deadline).await?;
         let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, region_count, deadline, &mut output_setup_ms).await?;
-        preparation_checkpoint(&mut group_started, deadline).await?;
         Ok((CompiledArtifact { regions, encoded_size }, dispatcher))
     }
     .await;
@@ -263,11 +254,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
 }
 
 async fn preparation_checkpoint(group_started: &mut f64, deadline: f64) -> Result<(), JsValue> {
-    let current = now();
-    if current >= deadline {
-        return Err(JsValue::from_str("ARM AOT preparation timed out"));
-    }
-    if current - *group_started >= 4.0 {
+    if now() - *group_started >= 4.0 {
         JsFuture::from(compiler_task()).await?;
         *group_started = now();
         if *group_started >= deadline {
