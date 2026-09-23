@@ -4,6 +4,41 @@ use bytemuck::Contiguous;
 
 use crate::RegionKey;
 
+#[derive(Clone, Copy, PartialEq)]
+pub struct Reg(u8);
+
+impl Reg {
+    pub const SP: Self = Self(13);
+    pub const LR: Self = Self(14);
+    pub const PC: Self = Self(15);
+
+    pub const fn new(index: u8) -> Self {
+        Self(index)
+    }
+
+    pub const fn index(self) -> u8 {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct MemoryAddress(u32);
+
+impl MemoryAddress {
+    pub const fn new(address: u32) -> Self {
+        Self(address)
+    }
+
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+pub enum BranchTarget {
+    Register(Reg),
+    Address(MemoryAddress),
+}
+
 pub struct RegionIr {
     pub entry: RegionKey,
     pub blocks: Vec<BasicBlock>,
@@ -14,7 +49,7 @@ pub struct BasicBlock {
 }
 
 pub struct Instruction {
-    pub pc: u32,
+    pub pc: MemoryAddress,
     pub size: u8,
     pub condition: Condition,
     pub operation: Operation,
@@ -43,7 +78,7 @@ pub enum Condition {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Value {
-    Register(u8),
+    Register(Reg),
     Immediate(u32),
 }
 
@@ -59,7 +94,7 @@ pub enum Shift {
 #[derive(Clone, Copy, PartialEq)]
 pub enum ShiftAmount {
     Immediate(u8),
-    Register(u8),
+    Register(Reg),
 }
 
 pub struct Operand {
@@ -92,63 +127,63 @@ pub enum Width {
     Word,
 }
 
-pub struct Address {
+pub struct MemoryOperand {
     pub base: Value,
     pub offset: Operand,
     pub subtract: bool,
     pub pre_index: bool,
-    pub write_back: Option<u8>,
+    pub write_back: Option<Reg>,
 }
 
 pub enum Operation {
     Alu {
         op: AluOp,
-        destination: Option<u8>,
+        destination: Option<Reg>,
         left: Value,
         right: Operand,
         set_flags: bool,
     },
     Branch {
-        target: Value,
-        link: Option<u32>,
+        target: BranchTarget,
+        link: Option<MemoryAddress>,
         exchange: bool,
     },
     Load {
-        destination: u8,
-        address: Address,
+        destination: Reg,
+        address: MemoryOperand,
         width: Width,
         signed: bool,
     },
     Store {
         value: Value,
-        address: Address,
+        address: MemoryOperand,
         width: Width,
     },
     MultiplyAccumulate {
-        destination: u8,
-        left: u8,
-        right: u8,
-        accumulate: u8,
+        destination: Reg,
+        left: Reg,
+        right: Reg,
+        accumulate: Reg,
         set_flags: bool,
     },
     MultiplyLong {
-        low: u8,
-        high: u8,
-        left: u8,
-        right: u8,
+        low: Reg,
+        high: Reg,
+        left: Reg,
+        right: Reg,
         signed: bool,
         accumulate: bool,
         set_flags: bool,
     },
-    ReadStatus {
-        destination: u8,
+    ReadCpsr {
+        destination: Reg,
     },
-    WriteStatus {
+    WriteCpsr {
         value: Value,
         mask: u32,
     },
     MultipleTransfer {
-        base: u8,
+        base: Reg,
         registers: u16,
         increment: bool,
         before: bool,
@@ -156,14 +191,14 @@ pub enum Operation {
         load: bool,
     },
     DoubleTransfer {
-        register: u8,
-        address: Address,
+        register: Reg,
+        address: MemoryOperand,
         load: bool,
     },
     Swap {
-        destination: u8,
-        address: u8,
-        value: u8,
+        destination: Reg,
+        address: Reg,
+        value: Reg,
         width: Width,
     },
     Nop,
@@ -172,8 +207,12 @@ pub enum Operation {
 impl Operation {
     pub fn writes_pc(&self) -> bool {
         match self {
-            Self::Branch { .. } | Self::Alu { destination: Some(15), .. } | Self::Load { destination: 15, .. } => true,
-            Self::MultipleTransfer { registers, load: true, .. } => registers & 0x8000 != 0,
+            Self::Branch { .. }
+            | Self::Alu {
+                destination: Some(Reg::PC), ..
+            }
+            | Self::Load { destination: Reg::PC, .. } => true,
+            Self::MultipleTransfer { registers, load: true, .. } => registers & (1 << Reg::PC.index()) != 0,
             _ => false,
         }
     }

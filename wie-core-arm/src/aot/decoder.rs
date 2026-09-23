@@ -64,7 +64,7 @@ impl Iterator for Decoder {
                 continue;
             };
             for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
-                let offset = (instruction.pc - image.address) as usize;
+                let offset = (instruction.pc.get() - image.address) as usize;
                 self.covered[offset / 128] |= 1 << ((offset / 2) % 64);
             }
             let source = image
@@ -72,8 +72,8 @@ impl Iterator for Decoder {
                 .iter()
                 .filter(|stamp| {
                     ir.blocks.iter().flat_map(|block| &block.instructions).any(|instruction| {
-                        stamp.page >= (instruction.pc & !0xffff)
-                            && u64::from(stamp.page) <= ((u64::from(instruction.pc) + u64::from(instruction.size) - 1) & !0xffff)
+                        stamp.page >= (instruction.pc.get() & !0xffff)
+                            && u64::from(stamp.page) <= ((u64::from(instruction.pc.get()) + u64::from(instruction.size) - 1) & !0xffff)
                     })
                 })
                 .copied()
@@ -82,10 +82,10 @@ impl Iterator for Decoder {
                 .blocks
                 .iter()
                 .map(|block| {
-                    let first = block.instructions[0].pc;
+                    let first = block.instructions[0].pc.get();
                     let last = block.instructions.last().unwrap();
                     let start = (first - image.address) as usize;
-                    let end = (last.pc - image.address) as usize + usize::from(last.size);
+                    let end = (last.pc.get() - image.address) as usize + usize::from(last.size);
                     (first, image.bytes[start..end].to_vec())
                 })
                 .collect();

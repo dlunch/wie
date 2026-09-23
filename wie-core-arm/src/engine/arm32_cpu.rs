@@ -721,7 +721,7 @@ mod tests {
                             .iter()
                             .flat_map(|block| &block.instructions)
                             .take(2)
-                            .map(|instruction| instruction.pc)
+                            .map(|instruction| instruction.pc.get())
                             .collect(),
                         source: region.source.clone(),
                         source_bytes: region.source_bytes.clone(),
@@ -756,7 +756,7 @@ mod tests {
             .flat_map(|block| &block.instructions)
             .collect();
         assert_eq!(
-            instructions.iter().map(|instruction| instruction.pc).collect::<Vec<_>>(),
+            instructions.iter().map(|instruction| instruction.pc.get()).collect::<Vec<_>>(),
             [0x3ffe, 0x4000, 0x4002]
         );
         for (instruction, immediate) in instructions.iter().zip([1, 7]) {

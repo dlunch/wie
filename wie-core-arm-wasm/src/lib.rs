@@ -113,7 +113,7 @@ impl Compiler {
                         .iter()
                         .flat_map(|block| &block.instructions)
                         .fold((0, u32::MAX, 0), |(count, first, last), instruction| {
-                            (count + 1, first.min(instruction.pc), last.max(instruction.pc))
+                            (count + 1, first.min(instruction.pc.get()), last.max(instruction.pc.get()))
                         });
                     // Coalesce small fragments without expanding the selectors of larger regions.
                     let page = (instructions <= 16 && first >> 14 == last >> 14).then_some(first >> 14);
@@ -146,7 +146,7 @@ impl Compiler {
                     .blocks
                     .iter()
                     .flat_map(|block| &block.instructions)
-                    .map(|instruction| instruction.pc)
+                    .map(|instruction| instruction.pc.get())
                     .collect();
                 instruction_pcs.sort_unstable();
                 self.artifact.manifest.push(ManifestRegion {
@@ -268,7 +268,7 @@ mod tests {
 
     use wie_arm_jit_types::{
         CodeImage, CodePageStamp, CompileRegion, RegionKey,
-        ir::{BasicBlock, Condition, Instruction, Operation, RegionIr},
+        ir::{BasicBlock, Condition, Instruction, MemoryAddress, Operation, RegionIr},
     };
 
     use super::*;
@@ -295,7 +295,7 @@ mod tests {
                     .map(|(pc, count)| BasicBlock {
                         instructions: (0..*count)
                             .map(|index| Instruction {
-                                pc: pc + index as u32 * u32::from(size),
+                                pc: MemoryAddress::new(pc + index as u32 * u32::from(size)),
                                 size,
                                 condition: Condition::Always,
                                 operation: Operation::Nop,
