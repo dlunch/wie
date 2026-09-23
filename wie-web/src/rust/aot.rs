@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeSet, format, rc::Rc, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeSet, format, rc::Rc, vec::Vec};
 use core::cell::RefCell;
 
 use futures::channel::oneshot;
@@ -12,6 +12,7 @@ use wie_arm_jit_types::{
 };
 
 use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact, decode_manifest_region, encode_manifest_region, validate_manifest_region};
+use wie_util::{Result as WieResult, WieError};
 
 #[wasm_bindgen(inline_js = r#"
 export { compileArm, compilerTask, loadArmCache } from "@ts/arm-compiler.ts";
@@ -80,14 +81,14 @@ impl CompiledExecutor for WasmExecutor {
                     }
                     Ok(artifact)
                 }
-                Err(error) => Err(format!("ARM AOT preparation: {error:?}")),
+                Err(error) => Err(WieError::FatalError(format!("ARM AOT preparation: {error:?}"))),
             };
             if sender.send(result).is_err() {
                 state.remove(&module);
             }
         });
         // Only the Send receiver crosses the host initialization future's await.
-        Box::pin(async move { receiver.await.map_err(|_| String::from("ARM AOT owner was dropped"))? })
+        Box::pin(async move { receiver.await.map_err(|_| WieError::FatalError("ARM AOT owner was dropped".into()))? })
     }
 
     fn release(&mut self, handle: CompiledHandle) {
@@ -100,11 +101,11 @@ impl CompiledExecutor for WasmExecutor {
         }
     }
 
-    fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
+    fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> WieResult<CompiledExit> {
         let state = self.modules.borrow();
         let (function, _) = state
             .get(&handle.module)
-            .ok_or_else(|| String::from("compiled dispatcher is unavailable"))?;
+            .ok_or_else(|| WieError::FatalError("compiled dispatcher is unavailable".into()))?;
         let mut context = ExecutionContext {
             access,
             frame,
@@ -123,9 +124,9 @@ impl CompiledExecutor for WasmExecutor {
                 3.0 => Ok(CompiledExit::End),
                 4.0 => Ok(CompiledExit::InterpretOne),
                 6.0 => Ok(CompiledExit::GuestFault),
-                _ => Err(format!("compiled ABI returned invalid exit: {value:?}")),
+                _ => Err(WieError::FatalError(format!("compiled ABI returned invalid exit: {value:?}"))),
             },
-            Err(error) => Err(format!("generated code trapped: {error:?}")),
+            Err(error) => Err(WieError::FatalError(format!("generated code trapped: {error:?}"))),
         }
     }
 }

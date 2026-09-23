@@ -7017,6 +7017,9 @@ dependencies = [
 [[package]]
 name = "wie-arm-jit-types"
 version = "0.1.5"
+dependencies = [
+ "wie-util",
+]
 
 [[package]]
 name = "wie-backend"

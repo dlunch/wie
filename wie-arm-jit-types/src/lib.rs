@@ -1,8 +1,10 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use core::{future::Future, ops::Range, pin::Pin};
+
+use wie_util::Result;
 
 pub mod ir;
 
@@ -35,7 +37,7 @@ pub struct CompileRequest {
     /// Each step emits one region or makes bounded decoder progress without retaining IR.
     pub regions: Box<dyn Iterator<Item = Option<CompileRegion>> + Send>,
 }
-pub type PreparationFuture = Pin<Box<dyn Future<Output = Result<CompiledArtifact, String>> + Send>>;
+pub type PreparationFuture = Pin<Box<dyn Future<Output = Result<CompiledArtifact>> + Send>>;
 
 pub struct ManifestRegion {
     pub entry: RegionKey,
@@ -113,7 +115,7 @@ pub trait CompiledExecutor: Send {
     /// Both `Ok` and `Err` leave the completed instruction prefix in `frame`, including its next PC and counters.
     /// On `Err`, discard this executor and resume in the interpreter without replaying completed writes.
     /// Fallible host calls must fail before guest side effects; arbitrary code or memory corruption is not resumable.
-    fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String>;
+    fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit>;
 }
 
 #[cfg(test)]

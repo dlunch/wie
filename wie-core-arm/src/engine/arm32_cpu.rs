@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, vec::Vec};
+use alloc::{boxed::Box, format, vec::Vec};
 
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 use hashbrown::HashMap;
@@ -7,7 +7,7 @@ use wie_arm_jit_types::{
     CodeImage, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, PreparationFuture, PreparationState,
     RegionKey, RunFrame,
 };
-use wie_util::{Result as WieResult, WieError};
+use wie_util::{Result, WieError};
 
 use crate::{
     aot::Aot,
@@ -45,7 +45,7 @@ impl Arm32CpuEngine {
         self.cpu.reg_get(Mode::User, reg::PC) == 0x08 && (self.cpu.reg_get(Mode::User, reg::CPSR) & 0x1f) == 0x13
     }
 
-    fn read_svc_result(&mut self) -> WieResult<EngineStopReason> {
+    fn read_svc_result(&mut self) -> Result<EngineStopReason> {
         let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
         let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
 
@@ -87,7 +87,7 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32) -> WieResult<EngineRunResult> {
+    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult> {
         if let Some(aot) = &mut self.aot {
             aot.poll_recompilations();
         }
@@ -224,11 +224,11 @@ impl ArmEngine for Arm32CpuEngine {
         self.mem.map(address, size);
     }
 
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> WieResult<()> {
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()> {
         self.mem.write_range(address, data)
     }
 
-    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> WieResult<usize> {
+    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize> {
         self.mem.read_range(address, size, result)
     }
 
@@ -242,7 +242,7 @@ impl ArmEngine for Arm32CpuEngine {
         }
     }
 
-    fn begin_preparation(&mut self) -> WieResult<Option<PreparationFuture>> {
+    fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>> {
         if let Some(aot) = &mut self.aot {
             return aot.begin(&self.mem);
         }
@@ -253,7 +253,7 @@ impl ArmEngine for Arm32CpuEngine {
         self.aot.as_ref().is_some_and(|aot| aot.state != PreparationState::Ready)
     }
 
-    fn finish_preparation(&mut self, result: Result<CompiledArtifact, String>) {
+    fn finish_preparation(&mut self, result: Result<CompiledArtifact>) {
         if let Some(aot) = &mut self.aot
             && !aot.finish(result)
         {
@@ -369,7 +369,7 @@ impl EmulatedMemory {
         }
     }
 
-    fn read_range(&self, address: u32, size: usize, result: &mut [u8]) -> WieResult<usize> {
+    fn read_range(&self, address: u32, size: usize, result: &mut [u8]) -> Result<usize> {
         let mut remaining_size = size;
         let mut current_address = address;
 
@@ -390,7 +390,7 @@ impl EmulatedMemory {
         Ok(size)
     }
 
-    fn write_range(&mut self, address: u32, data: &[u8]) -> WieResult<()> {
+    fn write_range(&mut self, address: u32, data: &[u8]) -> Result<()> {
         let mut current_address = address;
         let mut data_index = 0;
 
@@ -409,7 +409,7 @@ impl EmulatedMemory {
         Ok(())
     }
 
-    pub(crate) fn code_image(&self, address: u32, size: usize) -> WieResult<CodeImage> {
+    pub(crate) fn code_image(&self, address: u32, size: usize) -> Result<CodeImage> {
         let mut bytes = alloc::vec![0; size];
         self.read_range(address, size, &mut bytes)?;
         Ok(CodeImage { address, bytes })
@@ -540,7 +540,7 @@ impl Memory for Arm32CpuMemory<'_> {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, string::String, sync::Arc};
+    use alloc::{boxed::Box, sync::Arc};
     use core::task::Poll;
 
     use arm32_cpu::Memory;
@@ -567,7 +567,7 @@ mod tests {
     #[derive(Default)]
     struct Responses {
         requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
-        ready: Option<futures::channel::oneshot::Sender<Result<CompiledArtifact, String>>>,
+        ready: Option<futures::channel::oneshot::Sender<Result<CompiledArtifact>>>,
         now: f64,
         released: Vec<CompiledHandle>,
         executed: Vec<u32>,
@@ -585,14 +585,18 @@ mod tests {
             let mut state = self.0.lock();
             state.requests.push((request.regions.flatten().collect(), deadline_ms));
             state.ready = Some(sender);
-            Box::pin(async move { receiver.await.unwrap_or_else(|_| Err("preparation cancelled".into())) })
+            Box::pin(async move {
+                receiver
+                    .await
+                    .unwrap_or_else(|_| Err(WieError::FatalError("preparation cancelled".into())))
+            })
         }
 
         fn release(&mut self, handle: CompiledHandle) {
             self.0.lock().released.push(handle);
         }
 
-        fn execute(&mut self, handle: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
+        fn execute(&mut self, handle: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> Result<CompiledExit> {
             self.0.lock().executed.push(handle.module);
             Ok(CompiledExit::InterpretOne)
         }
@@ -751,7 +755,15 @@ mod tests {
         assert!(engine.aot.as_ref().unwrap().entries.is_empty());
         engine.reg_write(ArmRegister::PC, 0x1001);
         engine.run(0x2000, 10).unwrap();
-        assert!(responses.lock().ready.take().unwrap().send(Err("compile failed".into())).is_ok());
+        assert!(
+            responses
+                .lock()
+                .ready
+                .take()
+                .unwrap()
+                .send(Err(WieError::FatalError("compile failed".into())))
+                .is_ok()
+        );
         engine.reg_write(ArmRegister::PC, 0x1001);
         engine.run(0x2000, 10).unwrap();
         assert!(!engine.aot.as_ref().unwrap().entries.contains_key(&key));
@@ -766,7 +778,15 @@ mod tests {
         memory.map(0x1000, 0x1000);
         aot.record_image(0x1000, 4);
         let preparation = aot.begin(&memory).unwrap().unwrap();
-        assert!(responses.lock().ready.take().unwrap().send(Err("compile failed".into())).is_ok());
+        assert!(
+            responses
+                .lock()
+                .ready
+                .take()
+                .unwrap()
+                .send(Err(WieError::FatalError("compile failed".into())))
+                .is_ok()
+        );
         assert!(!aot.finish(futures::executor::block_on(preparation)));
         assert!(aot.state == PreparationState::Ready);
         let late = artifact(&responses.lock().requests[0].0, 0);
@@ -792,7 +812,7 @@ mod tests {
 
         fn release(&mut self, _: CompiledHandle) {}
 
-        fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
+        fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit> {
             self.calls.lock().0 += 1;
             assert_eq!(access.resolve(frame.regs[15], frame.cpsr).map(|handle| handle.slot), Some(handle.slot));
             assert!(access.resolve(frame.regs[15], frame.cpsr | 0x0100_0000).is_none());
@@ -803,7 +823,7 @@ mod tests {
                     frame.regs[15] += completed * 2;
                     frame.executed = completed;
                 }
-                return Err("injected backend failure at an instruction boundary".into());
+                return Err(WieError::FatalError("injected backend failure at an instruction boundary".into()));
             }
             Ok(CompiledExit::InterpretOne)
         }
@@ -869,7 +889,7 @@ mod tests {
         .unwrap();
         core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         let controller = core.clone();
-        let mut execution: core::pin::Pin<Box<dyn Future<Output = WieResult<u32>> + Send>> = Box::pin(async move {
+        let mut execution: core::pin::Pin<Box<dyn Future<Output = Result<u32>> + Send>> = Box::pin(async move {
             core.prepare_execution().await?;
             core.run_function(0x1001, &[]).await
         });

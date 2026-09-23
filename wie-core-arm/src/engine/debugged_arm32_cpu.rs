@@ -1,6 +1,5 @@
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
     sync::Arc,
     vec::Vec,
 };
@@ -560,7 +559,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().is_preparing()
     }
 
-    fn finish_preparation(&mut self, result: Result<CompiledArtifact, String>) {
+    fn finish_preparation(&mut self, result: WieResult<CompiledArtifact>) {
         self.debug.cpu.lock().finish_preparation(result);
     }
 }

@@ -1,7 +1,7 @@
 mod analysis;
 mod decoder;
 
-use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use core::{
     ops::Range,
     task::{Context, Poll, Waker},
@@ -12,7 +12,7 @@ use wie_arm_jit_types::{
     CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion, PreparationFuture, PreparationState,
     RegionKey,
 };
-use wie_util::Result as WieResult;
+use wie_util::Result;
 
 use crate::engine::EmulatedMemory;
 
@@ -57,7 +57,7 @@ impl Aot {
         }
     }
 
-    pub fn begin(&mut self, memory: &EmulatedMemory) -> WieResult<Option<PreparationFuture>> {
+    pub fn begin(&mut self, memory: &EmulatedMemory) -> Result<Option<PreparationFuture>> {
         if self.state != PreparationState::Loading {
             return Ok(None);
         }
@@ -71,7 +71,7 @@ impl Aot {
         Ok(Some(self.executor.prepare(request, deadline_ms)))
     }
 
-    pub fn finish(&mut self, result: Result<CompiledArtifact, String>) -> bool {
+    pub fn finish(&mut self, result: Result<CompiledArtifact>) -> bool {
         if self.state != PreparationState::Preparing {
             return false;
         }
@@ -170,7 +170,7 @@ impl Aot {
     }
 }
 
-fn compile_request(memory: &EmulatedMemory, mut ranges: Vec<Range<u64>>, mode: Option<bool>) -> WieResult<CompileRequest> {
+fn compile_request(memory: &EmulatedMemory, mut ranges: Vec<Range<u64>>, mode: Option<bool>) -> Result<CompileRequest> {
     ranges.sort_unstable_by_key(|range| range.start);
     let mut merged: Vec<Range<u64>> = Vec::new();
     for range in ranges {
