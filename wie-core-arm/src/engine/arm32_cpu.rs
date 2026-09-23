@@ -284,6 +284,7 @@ impl ExecutionAccess for MemoryAccess<'_> {
             })
             .copied()
     }
+
     fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])> {
         if !address.is_multiple_of(4) {
             return None;
