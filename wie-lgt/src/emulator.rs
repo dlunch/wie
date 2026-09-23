@@ -239,7 +239,7 @@ mod tests {
     use super::LgtAppInfo;
 
     #[test]
-    fn dropping_emulator_releases_queued_and_sleeping_tasks() {
+    fn dropping_emulator_releases_tasks_and_stops_retained_core_clones() {
         use alloc::{boxed::Box, sync::Arc};
         use wie_backend::Emulator;
 
@@ -256,43 +256,31 @@ mod tests {
             })
             .unwrap();
             wie_core_arm::Allocator::init(&mut core).unwrap();
+            core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
             let system = wie_backend::System::new(Box::new(platform), "", "", super::LgtTaskRunner { core: core.clone() });
             let task_system = system.clone();
             system.spawn(async move || {
                 task_system.sleep(10_000).await;
                 Ok(())
             });
-            let mut emulator = super::LgtEmulator { core, system };
+            let mut emulator = super::LgtEmulator { core: core.clone(), system };
             if started {
                 emulator.tick().unwrap();
             }
             drop(emulator);
+            let before = core.save_context();
+            assert!(matches!(
+                core::pin::pin!(core.run_function::<()>(0x1001, &[1, 2, 3, 4, 5]))
+                    .as_mut()
+                    .poll(&mut core::task::Context::from_waker(core::task::Waker::noop())),
+                core::task::Poll::Ready(Err(_))
+            ));
+            let after = core.save_context();
+            assert_eq!((after.r0, after.sp, after.pc, after.cpsr), (before.r0, before.sp, before.pc, before.cpsr));
+            assert!(core.run_in_thread(|| async { Ok(()) }).is_err());
+            drop(core);
             assert!(weak.upgrade().is_none(), "started={started}");
         }
-    }
-
-    #[test]
-    fn dropping_emulator_stops_retained_core_clones() {
-        let mut core = wie_core_arm::ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            enable_aot: false,
-            profile: None,
-        })
-        .unwrap();
-        core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
-        let system = wie_backend::System::new(
-            alloc::boxed::Box::new(test_utils::TestPlatform::new()),
-            "",
-            "",
-            super::LgtTaskRunner { core: core.clone() },
-        );
-        let emulator = super::LgtEmulator { core: core.clone(), system };
-        drop(emulator);
-        let mut run = core::pin::pin!(core.run_function::<()>(0x1001, &[]));
-        assert!(matches!(
-            run.as_mut().poll(&mut core::task::Context::from_waker(core::task::Waker::noop())),
-            core::task::Poll::Ready(Err(_))
-        ));
     }
 
     #[test]

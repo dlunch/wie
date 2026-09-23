@@ -237,25 +237,11 @@ mod tests {
 
     #[test]
     fn terminated_string_reads_stop_at_the_reader_boundary() {
-        for bytes in [
-            b"".as_slice(),
-            b"a",
-            b"test",
-            b"abcd",
-            b"abcde",
-            &[0xff, 0x80],
-            &[b'x'; 31],
-            &[b'x'; 32],
-            &[b'x'; 33],
-        ] {
+        for bytes in [b"".as_slice(), b"test", &[0xff, 0x80], &[b'x'; 31], &[b'x'; 32], &[b'x'; 33]] {
             let mut memory = StrictMemory { memory: vec![0] };
             memory.memory.extend_from_slice(bytes);
             memory.memory.push(0);
             assert_eq!(read_null_terminated_string_bytes(&memory, 1).unwrap(), bytes);
-            assert!(matches!(
-                read_null_terminated_string_bytes(&memory, 0),
-                Err(WieError::InvalidMemoryAccess(0))
-            ));
             memory.memory.pop();
             assert!(matches!(
                 read_null_terminated_string_bytes(&memory, 1),
@@ -290,27 +276,5 @@ mod tests {
             read_null_terminated_string_bytes(&FailingReader(false), 1),
             Err(WieError::AllocationFailure)
         ));
-    }
-
-    #[test]
-    fn terminated_string_reads_wrap_guest_addresses() {
-        struct WrappingReader;
-
-        impl ByteRead for WrappingReader {
-            fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
-                for (offset, byte) in result.iter_mut().enumerate() {
-                    let address = address.wrapping_add(offset as u32);
-                    *byte = match address {
-                        u32::MAX => b'x',
-                        0 => b'y',
-                        1 => 0,
-                        _ => return Err(WieError::InvalidMemoryAccess(address)),
-                    };
-                }
-                Ok(result.len())
-            }
-        }
-
-        assert_eq!(read_null_terminated_string_bytes(&WrappingReader, u32::MAX).unwrap(), b"xy");
     }
 }

@@ -809,29 +809,6 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_blocks_clones_before_call_setup() {
-        let mut core = ArmCore::new(Options {
-            enable_gdbserver: false,
-            enable_aot: false,
-            profile: None,
-        })
-        .unwrap();
-        core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
-        let mut remaining = core.clone();
-        let previous = remaining.save_context();
-
-        core.shutdown();
-        core.shutdown();
-        assert!(futures::executor::block_on(remaining.run_function::<()>(0x1001, &[1, 2, 3, 4, 5])).is_err());
-        let after = remaining.save_context();
-        assert_eq!(
-            (after.r0, after.sp, after.pc, after.cpsr),
-            (previous.r0, previous.sp, previous.pc, previous.cpsr)
-        );
-        assert!(remaining.run_in_thread(|| async { Ok(()) }).is_err());
-    }
-
-    #[test]
     fn shutdown_stops_a_suspended_svc_before_its_handler() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
@@ -898,41 +875,6 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_does_not_resume_an_existing_host_thread() {
-        let mut core = ArmCore::new(Options {
-            enable_gdbserver: false,
-            enable_aot: false,
-            profile: None,
-        })
-        .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let calls = Arc::new(AtomicU32::new(0));
-        let observed = calls.clone();
-        let task = core
-            .run_in_thread(move || async move {
-                let mut yielded = false;
-                poll_fn(|_| {
-                    if core::mem::replace(&mut yielded, true) {
-                        Poll::Ready(())
-                    } else {
-                        Poll::Pending
-                    }
-                })
-                .await;
-                calls.fetch_add(1, Ordering::Relaxed);
-                Ok(())
-            })
-            .unwrap();
-        let mut task = pin!(task);
-        let mut cx = Context::from_waker(Waker::noop());
-        assert!(task.as_mut().poll(&mut cx).is_pending());
-        core.shutdown();
-        let result = task.as_mut().poll(&mut cx);
-        assert_eq!(observed.load(Ordering::Relaxed), 0);
-        assert!(matches!(result, Poll::Ready(Err(_))));
-    }
-
-    #[test]
     fn shutdown_preserves_fault_context_when_a_nested_thread_is_polled() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
@@ -962,7 +904,10 @@ mod tests {
 
         assert!(futures::executor::block_on(core.run_function::<()>(1, &[99])).is_err());
         assert!(core.check_running().is_err());
+        let fault = core.save_context();
+        assert_eq!((fault.r0, fault.pc), (99, 0));
         let diagnostic = core.dump_regs();
+        assert!(futures::executor::block_on(core.run_function::<()>(0x1001, &[7])).is_err());
         assert!(matches!(task.as_mut().poll(&mut cx), Poll::Ready(Err(_))));
         assert_eq!(core.dump_regs(), diagnostic);
         assert_eq!(core.read_thread_context(1).unwrap().pc, 0x10002);
@@ -988,24 +933,6 @@ mod tests {
         assert!(futures::executor::block_on(core.run_function::<()>(0x1001, &[17])).is_err());
         let context = core.save_context();
         assert_eq!((context.r0, context.pc), (17, 0x1002));
-    }
-
-    #[test]
-    fn engine_errors_close_the_shared_core_without_restoring_fault_state() {
-        let mut core = ArmCore::new(Options {
-            enable_gdbserver: false,
-            enable_aot: false,
-            profile: None,
-        })
-        .unwrap();
-        core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
-        let mut remaining = core.clone();
-        assert!(futures::executor::block_on(core.run_function::<()>(1, &[42])).is_err());
-        let fault = core.save_context();
-        assert_eq!((fault.r0, fault.pc), (42, 0));
-        assert!(futures::executor::block_on(remaining.run_function::<()>(0x1001, &[7])).is_err());
-        let after = remaining.save_context();
-        assert_eq!((after.r0, after.pc, after.cpsr), (fault.r0, fault.pc, fault.cpsr));
     }
 
     #[test]

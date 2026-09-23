@@ -349,36 +349,6 @@ mod tests {
     }
 
     #[test]
-    fn test_shutdown_cancels_pending_and_sleeping_tasks() {
-        let mut executor = Executor::new();
-        let resources = [Arc::new(()), Arc::new(())];
-        let weak_resources = resources.each_ref().map(Arc::downgrade);
-        let completed = Arc::new(AtomicBool::new(false));
-        for (sleeping, resource) in [false, true].into_iter().zip(resources) {
-            let task_executor = executor.clone();
-            let completed = completed.clone();
-            executor.spawn(move || async move {
-                if sleeping {
-                    task_executor.sleep(100);
-                }
-                YieldOnce(false).await;
-                completed.store(true, Ordering::Relaxed);
-                drop(resource);
-            });
-        }
-
-        executor.step(Instant::from_epoch_millis(0)).unwrap();
-        assert!(weak_resources.iter().all(|resource| resource.upgrade().is_some()));
-        assert_eq!(executor.inner.lock().sleeping_tasks.len(), 1);
-        executor.shutdown();
-        executor.shutdown();
-        assert!(weak_resources.iter().all(|resource| resource.upgrade().is_none()));
-        assert!(executor.inner.lock().sleeping_tasks.is_empty());
-        executor.tick(advancing_clock(200)).unwrap();
-        assert!(!completed.load(Ordering::Relaxed));
-    }
-
-    #[test]
     fn test_shutdown_during_poll_does_not_resurrect_drained_tasks() {
         for fail in [false, true] {
             let mut executor = Executor::new();

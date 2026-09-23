@@ -967,21 +967,6 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_entry_is_not_a_region_but_executed_prefix_is_retained() {
-        assert!(thumb(&[0xdf00], 0x1000).is_none());
-        assert!(thumb(&[0xdf00, 0x2001], 0x1000).is_none());
-        assert!(arm(&[0x0f000000, 0xe3a00001]).is_none());
-        let ir = thumb(&[0x2001, 0xdf00, 0x3001], 0x1000).unwrap();
-        assert_eq!(ir.blocks.len(), 1);
-        assert_eq!(ir.blocks[0].instructions.len(), 1);
-        assert_eq!(ir.blocks[0].instructions[0].pc, 0x1000);
-        let ir = arm(&[0xe3a00001, 0x0f000000, 0xe2800001]).unwrap();
-        assert_eq!(ir.blocks.len(), 1);
-        assert_eq!(ir.blocks[0].instructions.len(), 1);
-        assert_eq!(ir.blocks[0].instructions[0].pc, 0x1000);
-    }
-
-    #[test]
     fn unsupported_branch_path_keeps_the_supported_alternative() {
         for (code, expected) in [
             ([0xd001, 0xdf00, 0x3001, 0x3101, 0x4770], [0x1000, 0x1006, 0x1008]),
@@ -1480,7 +1465,7 @@ mod tests {
     #[test]
     fn exceptions_newer_isa_and_unpredictable_encodings_stay_in_interpreter() {
         for opcode in [
-            0xef000000, 0xe1b0f00e, 0xf3a00001, 0xe6000010, 0xe1a00f11, 0xe4911004, 0xe5c0f000, 0xe1900fb1,
+            0xef000000, 0x0f000000, 0xe1b0f00e, 0xf3a00001, 0xe6000010, 0xe1a00f11, 0xe4911004, 0xe5c0f000, 0xe1900fb1,
         ] {
             assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
             let ir = arm(&[0xe3a00001, opcode, 0xe2800001]).unwrap();
@@ -1490,6 +1475,9 @@ mod tests {
         }
         for opcode in [0xdf00, 0xde00, 0xf000, 0xf800, 0xe800, 0xb200, 0x4600, 0x4701] {
             assert!(thumb(&[opcode], 0x1000).is_none(), "{opcode:04x}");
+            assert!(thumb(&[opcode, 0x3001], 0x1000).is_none(), "{opcode:04x}");
+            let ir = thumb(&[0x2001, opcode, 0x3001], 0x1000).unwrap();
+            assert_eq!(ir.blocks[0].instructions.len(), 1, "{opcode:04x}");
         }
     }
 

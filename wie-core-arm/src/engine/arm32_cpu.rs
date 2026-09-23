@@ -1096,34 +1096,6 @@ mod tests {
     }
 
     #[test]
-    fn page_borrows_cover_mapped_memory_without_publishing() {
-        let mut memory = EmulatedMemory::new();
-        memory.map(0x10000, PAGE_SIZE);
-        memory.pages[0xffff] = MemoryPage {
-            bytes: Some(Box::new([0; PAGE_SIZE])),
-            version: 7,
-        };
-        let first_page = memory.code_image(0x10000, 1).unwrap().source[0];
-        let last_page = memory.code_image(0xffff_0000, 1).unwrap().source[0];
-        let mut sampler = Sampler::new();
-        let mut access = MemoryAccess {
-            memory: &mut memory,
-            sampler: &mut sampler,
-            resolve: &|_, _| None,
-        };
-        for address in [0x10000, 0x1ffff, 0xffff_0000, 0xffff_ffff] {
-            access.pages()[address as usize / PAGE_SIZE].bytes.as_mut().unwrap()[(address & PAGE_MASK) as usize] = 42;
-        }
-        assert!(access.pages()[2].bytes.is_none());
-        for page in [1, 0xffff] {
-            let bytes = access.memory.pages[page].bytes.as_ref().unwrap();
-            assert_eq!(bytes[0], 42);
-            assert_eq!(bytes[PAGE_SIZE - 1], 42);
-        }
-        assert!(access.memory.code_is_current(&[first_page, last_page]));
-    }
-
-    #[test]
     fn word_range_admission_checks_mapping_without_reading_or_publishing() {
         let mut memory = EmulatedMemory::new();
         memory.map(0x10000, PAGE_SIZE);

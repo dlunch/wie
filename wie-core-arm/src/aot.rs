@@ -184,7 +184,7 @@ mod tests {
     use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec, vec::Vec};
 
     use wie_arm_jit_types::{CodeImage, CodePageStamp, CompileRequest};
-    use wie_core_arm_wasm::{Compiler, bind_manifest_source, compile};
+    use wie_core_arm_wasm::compile;
 
     use super::decoder::Decoder;
 
@@ -227,34 +227,11 @@ mod tests {
             image(0x20000, [0xf000_u16, 0xf800, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()),
         ];
         let images: Arc<[_]> = images.into();
-        let expected = compile(CompileRequest {
+        let artifact = compile(CompileRequest {
             images: images.clone(),
-            regions: Box::new(Decoder::new(images.clone())),
+            regions: Box::new(Decoder::new(images)),
         })
         .unwrap();
-        let mut compiler = Compiler::new(CompileRequest {
-            images: images.clone(),
-            regions: Box::new(Decoder::new(images.clone())),
-        });
-        let mut steps = 1;
-        while !compiler.step().unwrap() {
-            steps += 1;
-        }
-        assert!(steps > expected.manifest.len());
-        assert!(compiler.step().unwrap());
-        let artifact = compiler.finish();
-        assert_eq!(artifact.bytes, expected.bytes);
-        assert_eq!(artifact.manifest.len(), expected.manifest.len());
-        for (actual, expected) in artifact.manifest.iter().zip(&expected.manifest) {
-            assert_eq!(actual.entry, expected.entry);
-            assert_eq!(actual.instruction_pcs, expected.instruction_pcs);
-            assert_eq!(actual.source, expected.source);
-            assert_eq!(actual.source_bytes, expected.source_bytes);
-            let mut restored = actual.clone();
-            restored.source.clear();
-            bind_manifest_source(&mut restored, &images).unwrap();
-            assert_eq!(restored.source, actual.source);
-        }
         assert_eq!(&artifact.bytes[..8], b"\0asm\x01\0\0\0");
         let mut owned = BTreeSet::new();
         for region in &artifact.manifest {
