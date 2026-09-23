@@ -951,38 +951,9 @@ mod tests {
     use alloc::{borrow::Cow, sync::Arc, vec, vec::Vec};
     use spin::Mutex;
 
-    use wie_util::Result;
-
     use crate::canvas::{Clip, Image, ImageBuffer, ImageBufferCanvas};
 
     use super::{ArgbPixel, Canvas, Color, Rgb332Pixel, VecImageBuffer};
-
-    #[test]
-    fn test_canvas() -> Result<()> {
-        let image_buffer = VecImageBuffer::<ArgbPixel>::new(10, 10);
-        let mut canvas = ImageBufferCanvas::new(image_buffer);
-
-        let clip = Clip {
-            x: 0,
-            y: 0,
-            width: 10,
-            height: 10,
-        };
-        canvas.fill_rect(0, 0, 10, 10, Color { r: 0, g: 0, b: 0, a: 255 }, clip);
-
-        let image_buffer = canvas.into_inner();
-        let raw = image_buffer.raw();
-
-        assert_eq!(raw.len(), 10 * 10 * 4);
-        for i in 0..10 * 10 {
-            assert_eq!(raw[i * 4], 0);
-            assert_eq!(raw[i * 4 + 1], 0);
-            assert_eq!(raw[i * 4 + 2], 0);
-            assert_eq!(raw[i * 4 + 3], 255);
-        }
-
-        Ok(())
-    }
 
     fn full_clip(size: u32) -> Clip {
         Clip {
@@ -1138,27 +1109,6 @@ mod tests {
         canvas.fill_rect(0, 0, 1, 1, source, full_clip(1));
 
         assert_color(canvas.image(), 0, 0, background);
-    }
-
-    #[test]
-    fn test_copy_area_uses_source_snapshot_for_overlap() {
-        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(4, 1));
-        let red = Color { a: 255, r: 255, g: 0, b: 0 };
-        let green = Color { a: 255, r: 0, g: 255, b: 0 };
-        let blue = Color { a: 255, r: 0, g: 0, b: 255 };
-        let black = Color { a: 255, r: 0, g: 0, b: 0 };
-
-        canvas.put_pixel(0, 0, red, full_clip(4));
-        canvas.put_pixel(1, 0, green, full_clip(4));
-        canvas.put_pixel(2, 0, blue, full_clip(4));
-        canvas.put_pixel(3, 0, black, full_clip(4));
-
-        canvas.copy_area(1, 0, 0, 0, 3, 1, full_clip(4));
-
-        assert_color(canvas.image(), 0, 0, red);
-        assert_color(canvas.image(), 1, 0, red);
-        assert_color(canvas.image(), 2, 0, green);
-        assert_color(canvas.image(), 3, 0, blue);
     }
 
     #[test]

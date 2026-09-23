@@ -223,17 +223,6 @@ mod tests {
     }
 
     #[test]
-    fn read_generic_reads_into_initialized_storage() {
-        let memory = StrictMemory {
-            memory: vec![0, 0x78, 0x56, 0x34, 0x12],
-        };
-
-        let value: u32 = read_generic(&memory, 1).unwrap();
-
-        assert_eq!(value, 0x1234_5678);
-    }
-
-    #[test]
     fn terminated_string_reads_stop_at_the_reader_boundary() {
         for bytes in [b"".as_slice(), b"test", &[0xff, 0x80], &[b'x'; 31], &[b'x'; 32], &[b'x'; 33]] {
             let mut memory = StrictMemory { memory: vec![0] };

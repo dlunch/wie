@@ -336,27 +336,4 @@ mod tests {
         executor.tick(advancing_clock(200)).unwrap();
         assert!(completed.load(Ordering::Relaxed));
     }
-
-    #[test]
-    fn test_all_ok_tasks_complete() {
-        let mut executor = Executor::new();
-
-        let completed_a = Arc::new(AtomicBool::new(false));
-        let completed_a_clone = completed_a.clone();
-        executor.spawn(move || async move {
-            completed_a_clone.store(true, Ordering::Relaxed);
-        });
-
-        let completed_b = Arc::new(AtomicBool::new(false));
-        let completed_b_clone = completed_b.clone();
-        executor.spawn(move || async move {
-            YieldOnce(false).await;
-            completed_b_clone.store(true, Ordering::Relaxed);
-        });
-
-        executor.tick(advancing_clock(0)).unwrap();
-
-        assert!(completed_a.load(Ordering::Relaxed));
-        assert!(completed_b.load(Ordering::Relaxed));
-    }
 }

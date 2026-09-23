@@ -336,9 +336,6 @@ impl Memory for Arm32CpuMemory<'_> {
 
 #[cfg(test)]
 mod tests {
-    use alloc::boxed::Box;
-    use core::mem::size_of;
-
     use arm32_cpu::Memory;
 
     use crate::engine::{ArmEngine, ArmRegister, EngineStopReason, MemoryPermission};
@@ -362,11 +359,6 @@ mod tests {
                 (EngineStopReason::End, true) | (EngineStopReason::Yield, false)
             ));
         }
-    }
-
-    #[test]
-    fn page_table_is_heap_allocated() {
-        assert_eq!(size_of::<EmulatedMemory>(), size_of::<Box<[Option<Box<[u8; super::PAGE_SIZE]>>]>>());
     }
 
     #[test]

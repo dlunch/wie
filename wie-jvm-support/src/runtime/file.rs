@@ -164,9 +164,12 @@ mod tests {
         system.filesystem().add_virtual("res.png", vec![1, 2, 3]);
 
         let mut file = FileImpl::new(system.clone(), "res.png", READ_ONLY).await.unwrap();
+        assert_eq!(file.metadata().await.unwrap().size, 3);
         let mut buf = [0u8; 3];
         assert_eq!(file.read(&mut buf).await.unwrap(), 3);
         assert_eq!(buf, [1, 2, 3]);
+        file.seek(10).await.unwrap();
+        assert_eq!(file.read(&mut buf).await.unwrap(), 0);
 
         assert!(matches!(file.write(&[9]).await, Err(IOError::Unsupported)));
         assert!(matches!(file.set_len(1).await, Err(IOError::Unsupported)));
@@ -177,24 +180,20 @@ mod tests {
         let system = new_system();
         system.filesystem().add_virtual("cfg.dat", vec![0xAA, 0xBB, 0xCC]);
 
-        let mut file = FileImpl::new(system.clone(), "cfg.dat", WRITE_ONLY).await.unwrap();
+        let mut file = FileImpl::new(system.clone(), "cfg.dat", READ_WRITE).await.unwrap();
+        let mut buf = [0; 3];
+        assert_eq!(file.read(&mut buf).await.unwrap(), 3);
+        assert_eq!(buf, [0xAA, 0xBB, 0xCC]);
+        file.seek(0).await.unwrap();
         assert_eq!(file.write(&[1, 2, 3, 4]).await.unwrap(), 4);
 
         let mut reopened = FileImpl::new(system.clone(), "cfg.dat", READ_ONLY).await.unwrap();
+        let metadata = reopened.metadata().await.unwrap();
+        assert_eq!(metadata.size, 4);
+        assert!(matches!(metadata.r#type, FileType::File));
         let mut buf = [0u8; 4];
         assert_eq!(reopened.read(&mut buf).await.unwrap(), 4);
         assert_eq!(buf, [1, 2, 3, 4]);
-    }
-
-    #[futures_test::test]
-    async fn write_handle_sees_virtual_until_first_write() {
-        let system = new_system();
-        system.filesystem().add_virtual("big.bin", vec![7u8; 10]);
-
-        let mut file = FileImpl::new(system.clone(), "big.bin", READ_WRITE).await.unwrap();
-        let mut buf = [0u8; 10];
-        assert_eq!(file.read(&mut buf).await.unwrap(), 10);
-        assert_eq!(buf, [7u8; 10]);
     }
 
     #[futures_test::test]
@@ -242,32 +241,6 @@ mod tests {
         let system = new_system();
         let result = FileImpl::new(system, "nope.dat", READ_ONLY).await;
         assert!(matches!(result, Err(IOError::NotFound)));
-    }
-
-    #[futures_test::test]
-    async fn metadata_overlay_size() {
-        let system = new_system();
-        system.filesystem().add_virtual("f.bin", vec![0u8; 5]);
-
-        {
-            let mut writer = FileImpl::new(system.clone(), "f.bin", WRITE_ONLY).await.unwrap();
-            writer.write(&[1u8; 10]).await.unwrap();
-        }
-
-        let file = FileImpl::new(system.clone(), "f.bin", READ_ONLY).await.unwrap();
-        let meta = file.metadata().await.unwrap();
-        assert_eq!(meta.size, 10);
-        assert!(matches!(meta.r#type, FileType::File));
-    }
-
-    #[futures_test::test]
-    async fn metadata_falls_back_to_virtual() {
-        let system = new_system();
-        system.filesystem().add_virtual("only_virtual.bin", vec![0u8; 7]);
-
-        let file = FileImpl::new(system, "only_virtual.bin", READ_ONLY).await.unwrap();
-        let meta = file.metadata().await.unwrap();
-        assert_eq!(meta.size, 7);
     }
 
     #[futures_test::test]
