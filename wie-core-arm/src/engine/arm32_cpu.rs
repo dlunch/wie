@@ -287,8 +287,8 @@ impl ArmEngine for Arm32CpuEngine {
         Ok(None)
     }
 
-    fn preparation_state(&self) -> PreparationState {
-        self.aot.as_ref().map_or(PreparationState::Ready, |aot| aot.state)
+    fn is_preparing(&self) -> bool {
+        self.aot.as_ref().is_some_and(|aot| aot.state != PreparationState::Ready)
     }
 
     fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>) {
@@ -714,7 +714,7 @@ mod tests {
                 .enumerate()
                 .map(|(slot, region)| CompiledRegion {
                     manifest: ManifestRegion {
-                        entry: region.ir.entry,
+                        entry: RegionKey { ..region.ir.entry },
                         instruction_pcs: region
                             .ir
                             .blocks
@@ -765,12 +765,12 @@ mod tests {
             );
         }
         assert!(request.iter().all(|region| memory.code_is_current(&region.source)));
-        assert_eq!(aot.state, PreparationState::Preparing);
+        assert!(aot.state == PreparationState::Preparing);
         drop(state);
         responses.lock().now = 300.0;
         assert!(aot.begin(&memory).unwrap().is_none());
         assert_eq!(responses.lock().requests.len(), 1);
-        assert_eq!(aot.state, PreparationState::Preparing);
+        assert!(aot.state == PreparationState::Preparing);
     }
 
     #[test]
@@ -785,14 +785,14 @@ mod tests {
         let compiled = artifact(&responses.lock().requests[0].0);
         assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
         aot.finish(futures::executor::block_on(preparation), &memory);
-        assert_eq!(aot.state, PreparationState::Ready);
+        assert!(aot.state == PreparationState::Ready);
         let key = RegionKey {
             pc: 0x1000,
             thumb: true,
             cpu_mode: 0x1f,
         };
-        assert_eq!(aot.lookup(key, &memory), Some(CompiledHandle { slot: 0 }));
-        assert_eq!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory), Some(CompiledHandle { slot: 0 }));
+        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
+        assert_eq!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory).map(|handle| handle.slot), Some(0));
         for wrong in [
             RegionKey { pc: 0x1001, ..key },
             RegionKey { pc: 0x1004, ..key },
@@ -800,19 +800,19 @@ mod tests {
             RegionKey { cpu_mode: 0x10, ..key },
             RegionKey { cpu_mode: 0x13, ..key },
         ] {
-            assert_eq!(aot.lookup(wrong, &memory), None);
+            assert!(aot.lookup(wrong, &memory).is_none());
         }
         memory.as_arm32cpu_memory().w16(0x1000, 0x4770);
-        assert_eq!(aot.lookup(key, &memory), Some(CompiledHandle { slot: 0 }));
+        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
         {
             let (_, resolve) = aot.execution_parts();
-            assert_eq!(resolve(key, &memory), Some(CompiledHandle { slot: 0 }));
-            assert_eq!(resolve(RegionKey { cpu_mode: 0x13, ..key }, &memory), None);
+            assert_eq!(resolve(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
+            assert!(resolve(RegionKey { cpu_mode: 0x13, ..key }, &memory).is_none());
             memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
-            assert_eq!(resolve(key, &memory), None);
+            assert!(resolve(RegionKey { ..key }, &memory).is_none());
         }
-        assert_eq!(aot.lookup(key, &memory), None);
-        assert_eq!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory), None);
+        assert!(aot.lookup(RegionKey { ..key }, &memory).is_none());
+        assert!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory).is_none());
         memory.write_range(0x1000, &[0, 0]).unwrap();
         aot.record_image(0x1000, 2);
         assert!(aot.begin(&memory).unwrap().is_none());
@@ -836,22 +836,20 @@ mod tests {
             thumb: true,
             cpu_mode: 0x1f,
         };
-        let handle = Some(CompiledHandle { slot: 0 });
-
         memory.as_arm32cpu_memory().w16(0x1080, 42);
         memory.invalidate_instruction_cache(InstructionCacheInvalidation::All);
-        assert_eq!(aot.lookup(key, &memory), handle);
+        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
         memory.write_range(0x1082, &[7]).unwrap();
         {
             let (_, resolve) = aot.execution_parts();
-            assert_eq!(resolve(key, &memory), handle);
+            assert_eq!(resolve(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
         }
 
         memory.as_arm32cpu_memory().w16(0x1000, 0x3002);
-        assert_eq!(aot.lookup(key, &memory), handle);
+        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
         memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
-        assert_eq!(aot.lookup(key, &memory), None);
-        assert_eq!(aot.lookup(key, &memory), None);
+        assert!(aot.lookup(RegionKey { ..key }, &memory).is_none());
+        assert!(aot.lookup(key, &memory).is_none());
         assert_eq!(responses.lock().requests.len(), 1);
     }
 
@@ -873,17 +871,17 @@ mod tests {
             responses.lock().now = if cause == "timeout" { 10_000.0 } else { 9_999.0 };
             responses.lock().advance = if cause == "installation-timeout" { 1.0 } else { 0.0 };
             assert!(!aot.finish(futures::executor::block_on(preparation), &memory));
-            assert_eq!(aot.state, PreparationState::Ready, "{cause}");
+            assert!(aot.state == PreparationState::Ready, "{cause}");
             let key = RegionKey {
                 pc: 0x1000,
                 thumb: true,
                 cpu_mode: 0x1f,
             };
-            assert_eq!(aot.lookup(key, &memory), None, "{cause}");
+            assert!(aot.lookup(RegionKey { ..key }, &memory).is_none(), "{cause}");
             let late = artifact(&responses.lock().requests[0].0);
             responses.lock().now = 10_001.0;
             aot.finish(Ok(late), &memory);
-            assert_eq!(aot.lookup(key, &memory), None, "{cause}");
+            assert!(aot.lookup(key, &memory).is_none(), "{cause}");
             assert_eq!(responses.lock().requests.len(), 1);
         }
     }
@@ -910,8 +908,8 @@ mod tests {
             access: &mut dyn ExecutionAccess,
         ) -> core::result::Result<CompiledExit, String> {
             self.calls.lock().0 += 1;
-            assert_eq!(access.resolve(frame.regs[15], frame.cpsr), Some(handle));
-            assert_eq!(access.resolve(frame.regs[15], frame.cpsr | 0x0100_0000), None);
+            assert_eq!(access.resolve(frame.regs[15], frame.cpsr).map(|handle| handle.slot), Some(handle.slot));
+            assert!(access.resolve(frame.regs[15], frame.cpsr | 0x0100_0000).is_none());
             if let Some(completed) = self.completed {
                 if completed != 0 {
                     access.pages()[2].bytes.as_mut().unwrap()[..4].copy_from_slice(&42u32.to_le_bytes());
@@ -1068,14 +1066,14 @@ mod tests {
     fn code_versions_follow_host_publication_not_guest_stores() {
         let mut memory = EmulatedMemory::new();
         memory.map(0x10000, 0x10000);
-        let before = memory.code_image(0x10000, 1).unwrap().source[0];
+        let before = memory.code_image(0x10000, 1).unwrap().source;
         memory.as_arm32cpu_memory().w8(0x10000, 42);
         memory.as_arm32cpu_memory().w16(0x10000, 42);
         memory.as_arm32cpu_memory().w32(0x10000, 42);
-        assert!(memory.code_is_current(&[before]));
+        assert!(memory.code_is_current(&before));
         assert!(memory.write_range(0x1ffff, &[1, 2]).is_err());
-        assert!(!memory.code_is_current(&[before]));
-        let before = memory.code_image(0x10000, 1).unwrap().source[0];
+        assert!(!memory.code_is_current(&before));
+        let before = memory.code_image(0x10000, 1).unwrap().source;
         let mut sampler = Sampler::new();
         let mut access = MemoryAccess {
             memory: &mut memory,
@@ -1084,9 +1082,9 @@ mod tests {
         };
         assert!(access.pages()[2].bytes.is_none());
         access.pages()[1].bytes.as_mut().unwrap()[..2].copy_from_slice(&42u16.to_le_bytes());
-        assert!(access.memory.code_is_current(&[before]));
+        assert!(access.memory.code_is_current(&before));
         access.memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x10000));
-        assert!(!access.memory.code_is_current(&[before]));
+        assert!(!access.memory.code_is_current(&before));
     }
 
     #[test]
@@ -1098,7 +1096,7 @@ mod tests {
             version: 7,
         };
         memory.write_range(0x10000, &42u32.to_le_bytes()).unwrap();
-        let before = memory.code_image(0x10000, 1).unwrap().source[0];
+        let before = memory.code_image(0x10000, 1).unwrap().source;
         let mut sampler = Sampler::new();
         let mut access = MemoryAccess {
             memory: &mut memory,
@@ -1119,14 +1117,17 @@ mod tests {
         ] {
             assert_eq!(access.word_range(address, words).is_some(), admitted, "{address:#x}, words={words}");
         }
-        assert!(access.memory.code_is_current(&[before]));
+        assert!(access.memory.code_is_current(&before));
         assert_eq!(access.memory.as_arm32cpu_memory().r32(0x10000), 42);
         assert_eq!(access.sampler.remaining, 1024);
         assert_eq!(access.sampler.sequence, 0);
         access.memory.map(0x20000, PAGE_SIZE);
         access.memory.map(0, PAGE_SIZE);
         assert!(access.word_range(0xffff_fffd, 1).is_none());
-        let before = [0, 0x10000, 0x20000, 0xffff_0000].map(|address| access.memory.code_image(address, 1).unwrap().source[0]);
+        let before: Vec<_> = [0, 0x10000, 0x20000, 0xffff_0000]
+            .into_iter()
+            .flat_map(|address| access.memory.code_image(address, 1).unwrap().source)
+            .collect();
         for (address, words, first_len, second_len) in [
             (0x10000, 1, 4, 0),
             (0x1ffc0, 16, 64, 0),
@@ -1173,13 +1174,13 @@ mod tests {
             engine.reg_write(ArmRegister::R0, operand);
             engine.sampler.remaining = 1;
             engine.set_profiling(true);
-            let code = engine.mem.code_image(0x1000, 1).unwrap().source[0];
-            let data = engine.mem.code_image(0x20000, 1).unwrap().source[0];
+            let code = engine.mem.code_image(0x1000, 1).unwrap().source;
+            let data = engine.mem.code_image(0x20000, 1).unwrap().source;
             let result = engine.run(0x1004, 1).unwrap();
             assert_eq!(result.budget_consumed, 1);
             assert!(matches!(result.stop_reason, EngineStopReason::End));
-            assert_eq!(engine.mem.code_is_current(&[code]), code_current, "opcode={opcode:#x}");
-            assert_eq!(engine.mem.code_is_current(&[data]), data_current, "opcode={opcode:#x}");
+            assert_eq!(engine.mem.code_is_current(&code), code_current, "opcode={opcode:#x}");
+            assert_eq!(engine.mem.code_is_current(&data), data_current, "opcode={opcode:#x}");
             assert!(engine.mem.pages[3].bytes.is_none());
             assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
@@ -1204,9 +1205,9 @@ mod tests {
                 engine.run(0x1018, 1).unwrap();
                 let passed = engine.reg_read(ArmRegister::PC) == 0x1018;
                 engine.reg_write(ArmRegister::PC, 0x1000);
-                let before = engine.mem.code_image(0x1000, 1).unwrap().source[0];
+                let before = engine.mem.code_image(0x1000, 1).unwrap().source;
                 engine.run(0x1004, 1).unwrap();
-                assert_eq!(!engine.mem.code_is_current(&[before]), passed, "condition={condition}, cpsr={cpsr:#x}");
+                assert_eq!(!engine.mem.code_is_current(&before), passed, "condition={condition}, cpsr={cpsr:#x}");
             }
         }
     }
@@ -1225,12 +1226,12 @@ mod tests {
             engine.reg_write(ArmRegister::PC, 0x1000);
             engine.cpu.reg_set(Mode::User, register, 0x20000);
             engine.cpu.reg_set(mode, register, 0x30000);
-            let user_page = engine.mem.code_image(0x20000, 1).unwrap().source[0];
-            let active_page = engine.mem.code_image(0x30000, 1).unwrap().source[0];
+            let user_page = engine.mem.code_image(0x20000, 1).unwrap().source;
+            let active_page = engine.mem.code_image(0x30000, 1).unwrap().source;
 
             assert_eq!(engine.run(0x1004, 1).unwrap().budget_consumed, 1);
-            assert!(engine.mem.code_is_current(&[user_page]), "mode={mode:?}");
-            assert!(!engine.mem.code_is_current(&[active_page]), "mode={mode:?}");
+            assert!(engine.mem.code_is_current(&user_page), "mode={mode:?}");
+            assert!(!engine.mem.code_is_current(&active_page), "mode={mode:?}");
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), cpsr);
         }
     }

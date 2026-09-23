@@ -76,7 +76,7 @@ impl Iterator for Decoder {
                             && u64::from(stamp.page) <= ((u64::from(instruction.pc.get()) + u64::from(instruction.size) - 1) & !0xffff)
                     })
                 })
-                .copied()
+                .cloned()
                 .collect();
             let source_bytes = ir
                 .blocks

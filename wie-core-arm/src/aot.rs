@@ -251,8 +251,16 @@ mod tests {
         }
         assert!(!owned.contains(&(true, 0x200e)));
         assert_eq!(
-            artifact.manifest.iter().find(|region| region.entry.pc == 0xfffe).unwrap().source,
-            [CodePageStamp { page: 0, version: 7 }, CodePageStamp { page: 0x10000, version: 7 }]
+            artifact
+                .manifest
+                .iter()
+                .find(|region| region.entry.pc == 0xfffe)
+                .unwrap()
+                .source
+                .iter()
+                .map(|stamp| (stamp.page, stamp.version))
+                .collect::<Vec<_>>(),
+            [(0, 7), (0x10000, 7)]
         );
         assert_eq!(
             artifact.manifest.iter().find(|region| region.entry.pc == 0xfffe).unwrap().source_bytes,

@@ -4,7 +4,7 @@ mod sampler;
 
 use alloc::{string::String, vec::Vec};
 
-use wie_arm_jit_types::{CompiledArtifact, PreparationFuture, PreparationState};
+use wie_arm_jit_types::{CompiledArtifact, PreparationFuture};
 use wie_backend::ProfileSample;
 use wie_util::{AsAny, Result};
 
@@ -37,7 +37,7 @@ pub trait ArmEngine: Send + AsAny {
     fn take_profile(&mut self, force: bool) -> Vec<ProfileSample>;
     fn record_image(&mut self, address: u32, size: usize);
     fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>>;
-    fn preparation_state(&self) -> PreparationState;
+    fn is_preparing(&self) -> bool;
     fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>);
     fn shutdown(&mut self);
 }

@@ -7017,9 +7017,6 @@ dependencies = [
 [[package]]
 name = "wie-arm-jit-types"
 version = "0.1.5"
-dependencies = [
- "bytemuck",
-]
 
 [[package]]
 name = "wie-backend"

@@ -1,10 +1,8 @@
 use alloc::vec::Vec;
 
-use bytemuck::Contiguous;
-
 use crate::RegionKey;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq)]
 pub struct Reg(u8);
 
 impl Reg {
@@ -16,12 +14,11 @@ impl Reg {
         Self(index)
     }
 
-    pub const fn index(self) -> u8 {
+    pub const fn index(&self) -> u8 {
         self.0
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct MemoryAddress(u32);
 
 impl MemoryAddress {
@@ -29,7 +26,7 @@ impl MemoryAddress {
         Self(address)
     }
 
-    pub const fn get(self) -> u32 {
+    pub const fn get(&self) -> u32 {
         self.0
     }
 }
@@ -55,8 +52,7 @@ pub struct Instruction {
     pub operation: Operation,
 }
 
-/// ARM condition-field encodings; 0xf belongs to the unconditional instruction space.
-#[derive(Clone, Copy, PartialEq, Contiguous)]
+#[derive(PartialEq)]
 #[repr(u8)]
 pub enum Condition {
     Eq,
@@ -76,13 +72,13 @@ pub enum Condition {
     Always,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq)]
 pub enum Value {
     Register(Reg),
     Immediate(u32),
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq)]
 pub enum Shift {
     Lsl,
     Lsr,
@@ -91,7 +87,7 @@ pub enum Shift {
     Rrx,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq)]
 pub enum ShiftAmount {
     Immediate(u8),
     Register(Reg),
@@ -103,7 +99,7 @@ pub struct Operand {
     pub amount: ShiftAmount,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq)]
 pub enum AluOp {
     And,
     Xor,

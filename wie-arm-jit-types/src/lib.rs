@@ -4,29 +4,26 @@ extern crate alloc;
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use core::{future::Future, pin::Pin};
 
-use bytemuck::{Pod, Zeroable};
-
 pub mod ir;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RegionKey {
     pub pc: u32,
     pub thumb: bool,
     pub cpu_mode: u8,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct CodePageStamp {
     pub page: u32,
     pub version: u64,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy)]
 pub struct CompiledHandle {
     pub slot: u32,
 }
 
-#[derive(Clone, Debug)]
 pub struct CodeImage {
     pub address: u32,
     pub bytes: Vec<u8>,
@@ -48,7 +45,6 @@ pub struct CompileRequest {
 }
 pub type PreparationFuture = Pin<Box<dyn Future<Output = Result<CompiledArtifact, String>> + Send>>;
 
-#[derive(Clone, Debug)]
 pub struct ManifestRegion {
     pub entry: RegionKey,
     pub instruction_pcs: Vec<u32>,
@@ -66,14 +62,14 @@ pub struct CompiledArtifact {
     pub encoded_size: usize,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(PartialEq)]
 pub enum PreparationState {
     Loading,
     Preparing,
     Ready,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(PartialEq)]
 #[repr(u32)]
 pub enum CompiledExit {
     Dispatch = 0,
@@ -83,7 +79,7 @@ pub enum CompiledExit {
     GuestFault = 6,
 }
 
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+#[derive(Default)]
 #[repr(C)]
 pub struct RunFrame {
     pub regs: [u32; 16],
@@ -150,6 +146,5 @@ mod tests {
         assert_eq!(offset_of!(RunFrame, executed), 76);
         assert_eq!(offset_of!(RunFrame, fault_address), 80);
         assert_eq!(offset_of!(RunFrame, scratch), 84);
-        assert_eq!(bytemuck::bytes_of(&RunFrame::default()), &[0; 88]);
     }
 }

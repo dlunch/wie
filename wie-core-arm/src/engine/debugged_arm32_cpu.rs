@@ -561,8 +561,8 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().begin_preparation()
     }
 
-    fn preparation_state(&self) -> wie_arm_jit_types::PreparationState {
-        self.debug.cpu.lock().preparation_state()
+    fn is_preparing(&self) -> bool {
+        self.debug.cpu.lock().is_preparing()
     }
 
     fn finish_preparation(&mut self, result: Result<wie_arm_jit_types::CompiledArtifact, alloc::string::String>) {

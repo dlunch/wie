@@ -3,7 +3,6 @@ use core::{future::poll_fn, mem::size_of, pin::pin};
 
 use spin::Mutex;
 
-use wie_arm_jit_types::PreparationState;
 use wie_backend::{Options, ProfileCallback, YieldFuture};
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
@@ -147,7 +146,7 @@ impl ArmCore {
     }
 
     pub fn is_preparing(&self) -> bool {
-        self.inner.lock().engine.preparation_state() != PreparationState::Ready
+        self.inner.lock().engine.is_preparing()
     }
 
     pub fn run_in_thread<F, Fut>(&self, entry: F) -> Result<ArmCoreThreadWrapper>

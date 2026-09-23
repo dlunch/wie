@@ -241,7 +241,7 @@ pub fn bind_manifest_source(region: &mut ManifestRegion, images: &[CodeImage]) -
                     .source
                     .iter()
                     .filter(|stamp| u64::from(stamp.page) >= (address & !0xffff) && u64::from(stamp.page) <= ((address + size as u64 - 1) & !0xffff))
-                    .copied(),
+                    .cloned(),
             );
             address += size as u64;
             remaining = &remaining[size..];
@@ -316,7 +316,7 @@ mod tests {
             thumb: false,
             cpu_mode: 0x1f,
         };
-        let first = region_with_blocks(entry, &[(0x1004, 2)]);
+        let first = region_with_blocks(RegionKey { ..entry }, &[(0x1004, 2)]);
         let second = region_with_blocks(RegionKey { pc: 0x1010, ..entry }, &[(0x1010, 1)]);
         let expected_source_bytes = [first.source_bytes.as_slice(), second.source_bytes.as_slice()].concat();
         let mut image = CodeImage {
@@ -366,16 +366,22 @@ mod tests {
         let artifact = compiler.finish();
         assert_eq!(artifact.manifest.len(), 2);
         let merged = &artifact.manifest[0];
-        assert_eq!(merged.entry, entry);
+        assert!(merged.entry == entry);
         assert_eq!(merged.instruction_pcs, [0x1004, 0x1008, 0x1010]);
-        assert_eq!(merged.source, image.source);
+        assert_eq!(
+            merged.source.iter().map(|stamp| (stamp.page, stamp.version)).collect::<Vec<_>>(),
+            [(0, 7)]
+        );
         assert_eq!(merged.source_bytes, expected_source_bytes);
         assert_eq!(artifact.manifest[1].instruction_pcs, [0x4000]);
-        let mut restored = merged.clone();
+        let mut restored = artifact.manifest.into_iter().next().unwrap();
         restored.source.clear();
         image.bytes[0xc] ^= 1; // The gap between source spans is not translated code.
         bind_manifest_source(&mut restored, &[image]).unwrap();
-        assert_eq!(restored.source, merged.source);
+        assert_eq!(
+            restored.source.iter().map(|stamp| (stamp.page, stamp.version)).collect::<Vec<_>>(),
+            [(0, 7)]
+        );
     }
 
     #[test]
@@ -416,10 +422,13 @@ mod tests {
         }
         assert_eq!(restored.len(), manifest.len());
         for (actual, expected) in restored.iter().zip(&manifest) {
-            assert_eq!(actual.entry, expected.entry);
+            assert!(actual.entry == expected.entry);
             assert_eq!(actual.instruction_pcs, expected.instruction_pcs);
             assert_eq!(actual.source_bytes, expected.source_bytes);
-            assert_eq!(actual.source, images[0].source);
+            assert_eq!(
+                actual.source.iter().map(|stamp| (stamp.page, stamp.version)).collect::<Vec<_>>(),
+                [(0, 42), (0x10000, 43)]
+            );
         }
         restored[0].source_bytes[0].1[0] ^= 1;
         assert!(bind_manifest_source(&mut restored[0], &images).is_err());
@@ -458,13 +467,19 @@ mod tests {
             source_bytes: vec![(0xfffc, [images[0].bytes.as_slice(), images[1].bytes.as_slice()].concat())],
         };
         bind_manifest_source(&mut region, &images).unwrap();
-        assert_eq!(region.source, [images[0].source[0], images[1].source[0]]);
+        assert_eq!(
+            region.source.iter().map(|stamp| (stamp.page, stamp.version)).collect::<Vec<_>>(),
+            [(0, 11), (0x10000, 12)]
+        );
         assert!(bind_manifest_source(&mut region, &images[..1]).is_err());
         region.entry.pc = u32::MAX - 3;
         region.instruction_pcs = vec![region.entry.pc];
         region.source_bytes = vec![(region.entry.pc, images[2].bytes.clone())];
         bind_manifest_source(&mut region, &images).unwrap();
-        assert_eq!(region.source, images[2].source);
+        assert_eq!(
+            region.source.iter().map(|stamp| (stamp.page, stamp.version)).collect::<Vec<_>>(),
+            [(0xffff0000, 13)]
+        );
         region.source_bytes[0].1.extend_from_slice(&[0; 4]);
         assert!(bind_manifest_source(&mut region, &images).is_err());
     }
@@ -476,7 +491,7 @@ mod tests {
             bytes: vec![1, 0x30, 0x70, 0x47],
             source: vec![CodePageStamp { page: 0, version: 7 }],
         }];
-        let valid = ManifestRegion {
+        let valid = || ManifestRegion {
             entry: RegionKey {
                 pc: 0x1000,
                 thumb: true,
@@ -487,7 +502,7 @@ mod tests {
             source_bytes: vec![(0x1000, images[0].bytes.clone())],
         };
         for case in 0..12 {
-            let mut region = valid.clone();
+            let mut region = valid();
             match case {
                 0 => region.source_bytes.clear(),
                 1 => region.source_bytes[0].1.clear(),
@@ -506,7 +521,7 @@ mod tests {
             assert!(bind_manifest_source(&mut region, &images).is_err(), "case {case}");
         }
         let mut encoded = Vec::new();
-        encode_manifest_region(&valid, &mut encoded);
+        encode_manifest_region(&valid(), &mut encoded);
         for length in 0..encoded.len() {
             assert!(decode_manifest_region(&mut &encoded[..length]).is_none(), "length={length}");
         }

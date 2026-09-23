@@ -350,7 +350,7 @@ fn compile_region(ir: &RegionIr) -> Function {
 fn small_loop_body<'a>(ir: &'a RegionIr, header: &BasicBlock) -> Option<&'a BasicBlock> {
     let tail = header.instructions.last()?;
     let Operation::Branch {
-        target: BranchTarget::Address(target),
+        target: BranchTarget::Address(ref target),
         link: None,
         exchange: false,
     } = tail.operation
@@ -374,7 +374,7 @@ fn small_loop_body<'a>(ir: &'a RegionIr, header: &BasicBlock) -> Option<&'a Basi
             && header.instructions.len() + body.instructions.len() <= 32
             && backedge.condition == Condition::Always
             && matches!(backedge.operation, Operation::Branch {
-                target: BranchTarget::Address(pc), link: None, exchange: false
+                target: BranchTarget::Address(ref pc), link: None, exchange: false
             } if pc.get() & mask == header_pc)
             && [header, body].into_iter().all(|block| {
                 block.instructions[..block.instructions.len() - 1]
@@ -395,7 +395,7 @@ fn emit_instruction(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction: &In
     }
     let conditional = instruction.condition != Condition::Always;
     if conditional {
-        condition(s, instruction.condition);
+        condition(s, &instruction.condition);
         s.if_(BlockType::Empty);
     }
     operation(s, instruction, ir.entry.thumb, exit_depth + u32::from(conditional));
@@ -443,25 +443,29 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
     }
 }
 
-fn value(s: &mut InstructionSink<'_>, value: Value, pc: u32, thumb: bool) {
+fn register_value(s: &mut InstructionSink<'_>, register: &Reg, pc: u32, thumb: bool) {
+    if *register == Reg::PC {
+        s.i32_const(pc.wrapping_add(if thumb { 4 } else { 8 }) as i32);
+    } else {
+        s.local_get(0).i32_load(field(u64::from(register.index()) * 4));
+    }
+}
+
+fn value(s: &mut InstructionSink<'_>, value: &Value, pc: u32, thumb: bool) {
     match value {
         Value::Immediate(value) => {
-            s.i32_const(value as i32);
+            s.i32_const(*value as i32);
         }
-        Value::Register(Reg::PC) => {
-            s.i32_const(pc.wrapping_add(if thumb { 4 } else { 8 }) as i32);
-        }
-        Value::Register(reg) => {
-            s.local_get(0).i32_load(field(u64::from(reg.index()) * 4));
-        }
+        Value::Register(reg) => register_value(s, reg, pc, thumb),
     }
 }
 
 fn constant_operand(operand: &Operand) -> Option<(u32, Option<u32>)> {
-    let (Value::Immediate(value), ShiftAmount::Immediate(amount)) = (operand.value, operand.amount) else {
+    let (Value::Immediate(value), ShiftAmount::Immediate(amount)) = (&operand.value, &operand.amount) else {
         return None;
     };
-    let (result, carry) = match (operand.shift, u32::from(amount)) {
+    let value = *value;
+    let (result, carry) = match (&operand.shift, u32::from(*amount)) {
         (Shift::Rrx, _) => return None,
         (_, 0) => return Some((value, None)),
         (Shift::Lsl, amount) => (value.checked_shl(amount).unwrap_or(0), value.checked_shl(amount - 1).unwrap_or(0) >> 31),
@@ -491,7 +495,7 @@ fn operand(s: &mut InstructionSink<'_>, operand: &Operand, pc: u32, thumb: bool,
         }
         return;
     }
-    value(s, operand.value, pc, thumb);
+    value(s, &operand.value, pc, thumb);
     s.local_set(RIGHT);
     if operand.shift == Shift::Rrx {
         s.local_get(RIGHT).i32_const(1).i32_shr_u();
@@ -560,13 +564,13 @@ fn operand(s: &mut InstructionSink<'_>, operand: &Operand, pc: u32, thumb: bool,
             s.local_set(RIGHT);
             return;
         }
-        ShiftAmount::Register(reg) => reg,
+        ShiftAmount::Register(ref reg) => reg,
     };
     if set_carry {
         flag(s, 29);
         s.local_set(CARRY);
     }
-    value(s, Value::Register(reg), pc, thumb);
+    register_value(s, reg, pc, thumb);
     s.i32_const(255).i32_and();
     s.local_tee(AMOUNT).if_(BlockType::Empty);
     match operand.shift {
@@ -636,7 +640,7 @@ fn flag(s: &mut InstructionSink<'_>, bit: i32) {
     s.local_get(CPSR).i32_const(bit).i32_shr_u().i32_const(1).i32_and();
 }
 
-fn condition(s: &mut InstructionSink<'_>, condition: Condition) {
+fn condition(s: &mut InstructionSink<'_>, condition: &Condition) {
     match condition {
         Condition::Eq | Condition::Ne | Condition::Cs | Condition::Cc | Condition::Mi | Condition::Pl | Condition::Vs | Condition::Vc => {
             let shift = match condition {
@@ -712,7 +716,7 @@ fn multiply_flags(s: &mut InstructionSink<'_>, wide: bool) {
 
 // Capture both the effective address and final writeback before any destination changes.
 fn memory_address(s: &mut InstructionSink<'_>, address: &MemoryOperand, pc: u32, thumb: bool) {
-    value(s, address.base, pc, thumb);
+    value(s, &address.base, pc, thumb);
     s.local_set(LEFT);
     operand(s, &address.offset, pc, thumb, false);
     s.local_get(LEFT).local_get(RIGHT);
@@ -804,7 +808,7 @@ fn transfer_words(s: &mut InstructionSink<'_>, registers: u16, load: bool, pc: u
             if register == 15 {
                 s.i32_const(pc.wrapping_add(12) as i32);
             } else {
-                value(s, Value::Register(Reg::new(register)), pc, thumb);
+                register_value(s, &Reg::new(register), pc, thumb);
             }
             s.i32_store(field(0));
         }
@@ -814,9 +818,9 @@ fn transfer_words(s: &mut InstructionSink<'_>, registers: u16, load: bool, pc: u
 fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool, exit_depth: u32) {
     match instruction.operation {
         Operation::Alu {
-            op,
-            destination,
-            left,
+            ref op,
+            ref destination,
+            ref left,
             ref right,
             set_flags,
         } => {
@@ -826,7 +830,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 let result = match op {
                     AluOp::Add => Some(left.wrapping_add(right)),
                     AluOp::Sub => Some(left.wrapping_sub(right)),
-                    AluOp::ReverseSub => Some(right.wrapping_sub(left)),
+                    AluOp::ReverseSub => Some(right.wrapping_sub(*left)),
                     AluOp::And => Some(left & right),
                     AluOp::Or => Some(left | right),
                     AluOp::Xor => Some(left ^ right),
@@ -839,7 +843,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 };
                 if let Some(result) = result {
                     if let Some(destination) = destination {
-                        if destination == Reg::PC {
+                        if *destination == Reg::PC {
                             s.i32_const(result as i32);
                             commit_pc(s, thumb, false);
                         } else {
@@ -875,7 +879,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     right,
                     instruction.pc.get(),
                     thumb,
-                    set_flags && !arithmetic && op != AluOp::Multiply && !preserves_carry,
+                    set_flags && !arithmetic && *op != AluOp::Multiply && !preserves_carry,
                 );
             }
             match op {
@@ -954,7 +958,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             }
             s.local_set(RESULT);
             if let Some(destination) = destination {
-                if destination == Reg::PC {
+                if *destination == Reg::PC {
                     s.local_get(RESULT);
                     commit_pc(s, thumb, false);
                 } else {
@@ -966,7 +970,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     .local_get(CPSR)
                     .i32_const(if arithmetic {
                         0x0fff_ffff
-                    } else if op == AluOp::Multiply || preserves_carry {
+                    } else if *op == AluOp::Multiply || preserves_carry {
                         0x3fff_ffff
                     } else {
                         0x1fff_ffff
@@ -975,7 +979,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 s.local_get(RESULT).i32_const(i32::MIN).i32_and().i32_or();
                 s.local_get(RESULT).i32_eqz().i32_const(30).i32_shl().i32_or();
                 if zero_arithmetic {
-                    if op == AluOp::Sub {
+                    if *op == AluOp::Sub {
                         s.i32_const(1 << 29).i32_or();
                     }
                 } else if arithmetic {
@@ -989,18 +993,22 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     s.local_get(LEFT).local_get(RIGHT).i32_xor().i32_const(-1).i32_xor();
                     s.local_get(LEFT).local_get(RESULT).i32_xor().i32_and();
                     s.i32_const(31).i32_shr_u().i32_const(28).i32_shl().i32_or();
-                } else if op != AluOp::Multiply && !preserves_carry {
+                } else if *op != AluOp::Multiply && !preserves_carry {
                     s.local_get(CARRY).i32_const(29).i32_shl().i32_or();
                 }
                 s.local_tee(CPSR).i32_store(field(64));
             }
         }
-        Operation::Branch { ref target, link, exchange } => {
+        Operation::Branch {
+            ref target,
+            ref link,
+            exchange,
+        } => {
             match target {
                 BranchTarget::Address(address) => {
                     s.i32_const(address.get() as i32);
                 }
-                BranchTarget::Register(register) => value(s, Value::Register(*register), instruction.pc.get(), thumb),
+                BranchTarget::Register(register) => register_value(s, register, instruction.pc.get(), thumb),
             }
             commit_pc(s, thumb, exchange);
             if let Some(link) = link {
@@ -1012,8 +1020,8 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
         Operation::Load { ref address, ref width, .. } | Operation::Store { ref address, ref width, .. } => {
             memory_address(s, address, instruction.pc.get(), thumb);
             scalar_address(s, width, exit_depth);
-            if let Operation::Store { value: source, .. } = instruction.operation {
-                if source == Value::Register(Reg::PC) {
+            if let Operation::Store { value: ref source, .. } = instruction.operation {
+                if *source == Value::Register(Reg::PC) {
                     s.i32_const(instruction.pc.get().wrapping_add(12) as i32);
                 } else {
                     value(s, source, instruction.pc.get(), thumb);
@@ -1029,7 +1037,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                         s.i32_store(field(0));
                     }
                 }
-            } else if let Operation::Load { destination, signed, .. } = instruction.operation {
+            } else if let Operation::Load { ref destination, signed, .. } = instruction.operation {
                 match (width, signed) {
                     (Width::Byte, false) => {
                         s.i32_load8_u(MemArg { align: 0, ..field(0) });
@@ -1048,31 +1056,31 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     }
                 }
                 s.local_set(RIGHT);
-                if destination != Reg::PC {
+                if *destination != Reg::PC {
                     s.local_get(0);
                 }
                 s.local_get(RIGHT);
-                if destination == Reg::PC {
+                if *destination == Reg::PC {
                     commit_pc(s, thumb, true);
                 } else {
                     s.i32_store(field(u64::from(destination.index()) * 4));
                 }
             }
-            if let Some(register) = address.write_back {
+            if let Some(register) = &address.write_back {
                 s.local_get(0).local_get(RESULT).i32_store(field(u64::from(register.index()) * 4));
             }
         }
         Operation::MultiplyAccumulate {
-            destination,
-            left,
-            right,
-            accumulate,
+            ref destination,
+            ref left,
+            ref right,
+            ref accumulate,
             set_flags,
         } => {
-            value(s, Value::Register(left), instruction.pc.get(), thumb);
-            value(s, Value::Register(right), instruction.pc.get(), thumb);
+            register_value(s, left, instruction.pc.get(), thumb);
+            register_value(s, right, instruction.pc.get(), thumb);
             s.i32_mul();
-            value(s, Value::Register(accumulate), instruction.pc.get(), thumb);
+            register_value(s, accumulate, instruction.pc.get(), thumb);
             s.i32_add().local_set(RESULT);
             s.local_get(0).local_get(RESULT).i32_store(field(u64::from(destination.index()) * 4));
             if set_flags {
@@ -1080,16 +1088,16 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             }
         }
         Operation::MultiplyLong {
-            low,
-            high,
-            left,
-            right,
+            ref low,
+            ref high,
+            ref left,
+            ref right,
             signed,
             accumulate,
             set_flags,
         } => {
             for register in [left, right] {
-                value(s, Value::Register(register), instruction.pc.get(), thumb);
+                register_value(s, register, instruction.pc.get(), thumb);
                 if signed {
                     s.i64_extend_i32_s();
                 } else {
@@ -1098,9 +1106,9 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             }
             s.i64_mul();
             if accumulate {
-                value(s, Value::Register(low), instruction.pc.get(), thumb);
+                register_value(s, low, instruction.pc.get(), thumb);
                 s.i64_extend_i32_u();
-                value(s, Value::Register(high), instruction.pc.get(), thumb);
+                register_value(s, high, instruction.pc.get(), thumb);
                 s.i64_extend_i32_u().i64_const(32).i64_shl().i64_or().i64_add();
             }
             s.local_set(WIDE);
@@ -1115,16 +1123,16 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 multiply_flags(s, true);
             }
         }
-        Operation::ReadCpsr { destination } => {
+        Operation::ReadCpsr { ref destination } => {
             s.local_get(0).local_get(CPSR).i32_store(field(u64::from(destination.index()) * 4));
         }
-        Operation::WriteCpsr { value: source, mask } => {
+        Operation::WriteCpsr { value: ref source, mask } => {
             s.local_get(0).local_get(CPSR).i32_const(!mask as i32).i32_and();
             value(s, source, instruction.pc.get(), thumb);
             s.i32_const(mask as i32).i32_and().i32_or().local_tee(CPSR).i32_store(field(64));
         }
         Operation::MultipleTransfer {
-            base,
+            ref base,
             registers,
             increment,
             before,
@@ -1132,7 +1140,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             load,
         } => {
             let bytes = registers.count_ones() as i32 * 4;
-            value(s, Value::Register(base), instruction.pc.get(), thumb);
+            register_value(s, base, instruction.pc.get(), thumb);
             s.local_tee(LEFT)
                 .i32_const(if increment { bytes } else { -bytes })
                 .i32_add()
@@ -1148,22 +1156,26 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 s.local_get(0).local_get(RESULT).i32_store(field(u64::from(base.index()) * 4));
             }
         }
-        Operation::DoubleTransfer { register, ref address, load } => {
+        Operation::DoubleTransfer {
+            ref register,
+            ref address,
+            load,
+        } => {
             memory_address(s, address, instruction.pc.get(), thumb);
             transfer_words(s, 3 << register.index(), load, instruction.pc.get(), thumb, exit_depth);
-            if let Some(base) = address.write_back {
+            if let Some(base) = &address.write_back {
                 s.local_get(0).local_get(RESULT).i32_store(field(u64::from(base.index()) * 4));
             }
         }
         Operation::Swap {
-            destination,
-            address,
-            value: source,
+            ref destination,
+            ref address,
+            value: ref source,
             ref width,
         } => {
-            value(s, Value::Register(address), instruction.pc.get(), thumb);
+            register_value(s, address, instruction.pc.get(), thumb);
             s.local_set(LEFT);
-            value(s, Value::Register(source), instruction.pc.get(), thumb);
+            register_value(s, source, instruction.pc.get(), thumb);
             s.local_set(RIGHT);
             scalar_address(s, width, exit_depth);
             s.local_set(RANGE_FIRST);
@@ -1210,15 +1222,15 @@ mod tests {
                 vec![0x20, 6, 0x20, 6, 0x41, 3, 0x74, 0x73, 0x20, 6, 0x41, 1, 0x74, 0x72, 0x41, 0, 0x4e],
             ),
         ] {
-            for code in [positive, negative] {
+            for code in [&positive, &negative] {
                 let mut function = Function::new([]);
                 condition(&mut function.instructions(), code);
                 let mut expected = vec![0];
                 expected.extend_from_slice(&bytes);
-                if code == negative {
+                if *code == negative {
                     expected.push(0x45);
                 }
-                assert_eq!(function.into_raw_body(), expected, "condition {}", code as u8);
+                assert_eq!(function.into_raw_body(), expected, "condition {:?}", core::mem::discriminant(code));
             }
         }
     }
@@ -1314,6 +1326,7 @@ mod tests {
             (Shift::Asr, 32, 0x8000_0000, u32::MAX, Some(1)),
             (Shift::Asr, 255, 0x7fff_ffff, 0, Some(0)),
         ] {
+            let shift_id = core::mem::discriminant(&shift);
             let mut actual = Function::new([]);
             operand(
                 &mut actual.instructions(),
@@ -1338,8 +1351,7 @@ mod tests {
             assert_eq!(
                 actual.into_raw_body(),
                 expected.into_raw_body(),
-                "shift {}: {input:#x} by {amount}",
-                shift as u8
+                "shift {shift_id:?}: {input:#x} by {amount}"
             );
         }
     }
@@ -1462,7 +1474,7 @@ mod tests {
         .enumerate()
         {
             builder.add_region(&RegionIr {
-                entry: ir.entry,
+                entry: RegionKey { ..ir.entry },
                 blocks: vec![BasicBlock {
                     instructions: vec![Instruction {
                         pc: MemoryAddress::new(0x1000),
@@ -1489,7 +1501,7 @@ mod tests {
         }
         for width in [Width::Byte, Width::Word] {
             builder.add_region(&RegionIr {
-                entry: ir.entry,
+                entry: RegionKey { ..ir.entry },
                 blocks: vec![BasicBlock {
                     instructions: vec![Instruction {
                         pc: MemoryAddress::new(0x1000),
@@ -1893,6 +1905,9 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
             (AluOp::Not, 0, 0xff, Shift::Lsl, 0, 0xffff_ff00),
             (AluOp::Multiply, 0x8000_0001, 2, Shift::Lsl, 0, 2),
         ] {
+            let op_id = core::mem::discriminant(&op);
+            let set_flags = matches!(op, AluOp::Move | AluOp::Not);
+            let move_op = op == AluOp::Move;
             let mut actual = Function::new([]);
             operation(
                 &mut actual.instructions(),
@@ -1909,7 +1924,7 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
                             shift,
                             amount: ShiftAmount::Immediate(amount),
                         },
-                        set_flags: matches!(op, AluOp::Move | AluOp::Not),
+                        set_flags,
                     },
                 },
                 false,
@@ -1918,8 +1933,8 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
             let mut expected = Function::new([]);
             let mut s = expected.instructions();
             s.local_get(0).i32_const(result as i32).i32_store(field(0));
-            if matches!(op, AluOp::Move | AluOp::Not) {
-                let (mask, flags) = if op == AluOp::Move {
+            if set_flags {
+                let (mask, flags) = if move_op {
                     (0x1fff_ffff, 0xa000_0000_u32)
                 } else {
                     (0x3fff_ffff, 0x8000_0000)
@@ -1930,8 +1945,7 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
             assert_eq!(
                 actual.into_raw_body(),
                 expected.into_raw_body(),
-                "operation {}: {left:#x}, {input:#x}",
-                op as u8
+                "operation {op_id:?}: {left:#x}, {input:#x}"
             );
         }
     }

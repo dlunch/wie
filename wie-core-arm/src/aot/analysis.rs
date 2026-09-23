@@ -3,7 +3,6 @@ use alloc::{
     vec::Vec,
 };
 
-use bytemuck::Contiguous;
 use hashbrown::HashMap;
 
 use wie_arm_jit_types::RegionKey;
@@ -52,8 +51,8 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64;
         let next = pc.wrapping_add(u32::from(size));
         if operation.writes_pc() {
             if let Operation::Branch {
-                target: BranchTarget::Address(target),
-                link,
+                target: BranchTarget::Address(ref target),
+                ref link,
                 exchange,
             } = operation
             {
@@ -136,6 +135,14 @@ fn shifted(value: Value, kind: u8, amount: ShiftAmount) -> Operand {
         (_, amount) => (Shift::Ror, amount),
     };
     Operand { value, shift, amount }
+}
+
+fn decode_condition(bits: u8) -> Option<Condition> {
+    if bits > Condition::Always as u8 {
+        return None;
+    }
+    // SAFETY: Condition is repr(u8) with contiguous discriminants 0..=14; 0xf is excluded above.
+    Some(unsafe { core::mem::transmute::<u8, Condition>(bits) })
 }
 
 // Encodings are derived from ARM DDI 0100I, chapters A6/A7 (Thumb) and A3/A4/A5 (ARM).
@@ -362,7 +369,7 @@ fn decode_thumb(bytes: &[u8], pc: u32) -> Option<(u8, Condition, Operation)> {
             let offset = i32::from(raw as u8 as i8) * 2;
             return Some((
                 2,
-                Condition::from_integer(((raw >> 8) & 15) as u8)?,
+                decode_condition(((raw >> 8) & 15) as u8)?,
                 Operation::Branch {
                     target: BranchTarget::Address(MemoryAddress::new(pc.wrapping_add(4).wrapping_add_signed(offset))),
                     link: None,
@@ -503,7 +510,7 @@ fn decode_arm(raw: u32, pc: u32, cpu_mode: u8) -> Option<(Condition, Operation)>
             _ => None,
         };
     }
-    let condition = Condition::from_integer((raw >> 28) as u8)?;
+    let condition = decode_condition((raw >> 28) as u8)?;
     let immediate_status = raw & 0x0ff0_f000 == 0x0320_f000;
     let extra_memory = raw & 0x0e00_0090 == 0x0000_0090 && raw & 0x60 != 0;
     match raw {
@@ -849,6 +856,7 @@ mod tests {
 
     fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<RegionIr> {
         let ir = super::analyze(bytes, base, entry, &[0; 128])?;
+        let entry = &ir.entry;
         assert!(ir.blocks.len() <= MAX_REGION_BLOCKS);
         let mut pcs = BTreeSet::new();
         let mut occupied = BTreeSet::new();
@@ -886,7 +894,7 @@ mod tests {
         assert!(pcs.len() <= MAX_REGION_INSTRUCTIONS && pcs.contains(&entry.pc));
         for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
             if let Operation::Branch {
-                target: BranchTarget::Address(target),
+                target: BranchTarget::Address(ref target),
                 exchange,
                 ..
             } = instruction.operation
@@ -919,7 +927,7 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Move,
-            destination: Some(decoded_destination),
+            destination: Some(ref decoded_destination),
             left: Value::Immediate(0),
             right:
                 Operand {
@@ -936,7 +944,7 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Sub,
-            destination: Some(decoded_destination),
+            destination: Some(ref decoded_destination),
             ..
         } = ir.blocks[1].instructions[0].operation
         else {
@@ -958,7 +966,7 @@ mod tests {
         assert!(branch.condition == Condition::Ne);
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
+            target: BranchTarget::Address(ref decoded_target),
             link: None,
             exchange: false,
         } = branch.operation
@@ -968,7 +976,7 @@ mod tests {
         assert!(decoded_target.get() == 0x1002);
 
         let Operation::Branch {
-            target: BranchTarget::Register(decoded_target),
+            target: BranchTarget::Register(ref decoded_target),
             link: None,
             exchange: true,
         } = ir.blocks[2].instructions[0].operation
@@ -989,7 +997,7 @@ mod tests {
         );
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
+            target: BranchTarget::Address(ref decoded_target),
             link: None,
             exchange: false,
         } = ir.blocks[1].instructions[1].operation
@@ -1049,7 +1057,7 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Sub,
-            destination: Some(decoded_destination),
+            destination: Some(ref decoded_destination),
             set_flags: true,
             ..
         } = instructions[0].operation
@@ -1071,7 +1079,7 @@ mod tests {
         assert!(instructions[2].condition == Condition::Ne);
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
+            target: BranchTarget::Address(ref decoded_target),
             link: None,
             exchange: false,
         } = instructions[2].operation
@@ -1087,8 +1095,8 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Add,
-            destination: Some(decoded_destination),
-            left: Value::Register(decoded_left),
+            destination: Some(ref decoded_destination),
+            left: Value::Register(ref decoded_left),
             set_flags: false,
             ..
         } = ir.blocks[0].instructions[0].operation
@@ -1272,10 +1280,10 @@ mod tests {
         let ir = arm(&[0xe4d10001, 0xe5232004, 0xe1d540b6, 0xe19760d8, 0xe0ca90b2]).unwrap();
 
         let Operation::Load {
-            destination: decoded_destination,
+            destination: ref decoded_destination,
             address:
                 MemoryOperand {
-                    base: Value::Register(decoded_address_base),
+                    base: Value::Register(ref decoded_address_base),
                     offset:
                         Operand {
                             value: Value::Immediate(1),
@@ -1284,7 +1292,7 @@ mod tests {
                         },
                     subtract: false,
                     pre_index: false,
-                    write_back: Some(decoded_address_write_back),
+                    write_back: Some(ref decoded_address_write_back),
                 },
             width: Width::Byte,
             signed: false,
@@ -1295,13 +1303,13 @@ mod tests {
         assert!(decoded_destination.index() == 0 && decoded_address_base.index() == 1 && decoded_address_write_back.index() == 1);
 
         let Operation::Store {
-            value: Value::Register(decoded_value),
+            value: Value::Register(ref decoded_value),
             width: Width::Word,
             address:
                 MemoryOperand {
                     subtract: true,
                     pre_index: true,
-                    write_back: Some(decoded_address_write_back),
+                    write_back: Some(ref decoded_address_write_back),
                     ..
                 },
         } = ir.blocks[0].instructions[1].operation
@@ -1311,7 +1319,7 @@ mod tests {
         assert!(decoded_value.index() == 2 && decoded_address_write_back.index() == 3);
 
         let Operation::Load {
-            destination: decoded_destination,
+            destination: ref decoded_destination,
             width: Width::Half,
             signed: false,
             ..
@@ -1322,14 +1330,14 @@ mod tests {
         assert!(decoded_destination.index() == 4);
 
         let Operation::Load {
-            destination: decoded_destination,
+            destination: ref decoded_destination,
             width: Width::Byte,
             signed: true,
             address:
                 MemoryOperand {
                     offset:
                         Operand {
-                            value: Value::Register(decoded_address_offset_value),
+                            value: Value::Register(ref decoded_address_offset_value),
                             ..
                         },
                     write_back: None,
@@ -1342,12 +1350,12 @@ mod tests {
         assert!(decoded_destination.index() == 6 && decoded_address_offset_value.index() == 8);
 
         let Operation::Store {
-            value: Value::Register(decoded_value),
+            value: Value::Register(ref decoded_value),
             width: Width::Half,
             address:
                 MemoryOperand {
                     pre_index: false,
-                    write_back: Some(decoded_address_write_back),
+                    write_back: Some(ref decoded_address_write_back),
                     ..
                 },
         } = ir.blocks[0].instructions[4].operation
@@ -1381,7 +1389,7 @@ mod tests {
 
         let Operation::Store {
             address: MemoryOperand {
-                base: Value::Register(decoded_address_base),
+                base: Value::Register(ref decoded_address_base),
                 ..
             },
             width: Width::Word,
@@ -1394,7 +1402,7 @@ mod tests {
 
         let Operation::Load {
             address: MemoryOperand {
-                base: Value::Register(decoded_address_base),
+                base: Value::Register(ref decoded_address_base),
                 ..
             },
             width: Width::Word,
@@ -1412,7 +1420,7 @@ mod tests {
         assert_eq!(ir.blocks.len(), 2);
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
+            target: BranchTarget::Address(ref decoded_target),
             link: None,
             exchange: false,
         } = ir.blocks[0].instructions[0].operation
@@ -1425,8 +1433,8 @@ mod tests {
         let ir = arm(&[0xeb000010]).unwrap();
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
-            link: Some(decoded_link),
+            target: BranchTarget::Address(ref decoded_target),
+            link: Some(ref decoded_link),
             exchange: false,
         } = ir.blocks[0].instructions[0].operation
         else {
@@ -1574,7 +1582,7 @@ mod tests {
         );
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
+            target: BranchTarget::Address(ref decoded_target),
             link: None,
             exchange: false,
         } = ir.blocks[0].instructions[1].operation
@@ -1584,7 +1592,7 @@ mod tests {
         assert!(decoded_target.get() == 0x1008);
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
+            target: BranchTarget::Address(ref decoded_target),
             link: None,
             exchange: false,
         } = ir.blocks[1].instructions[1].operation
@@ -1595,8 +1603,8 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Add,
-            destination: Some(decoded_destination),
-            left: Value::Register(decoded_left),
+            destination: Some(ref decoded_destination),
+            left: Value::Register(ref decoded_left),
             right:
                 Operand {
                     value: Value::Immediate(3),
@@ -1613,8 +1621,8 @@ mod tests {
 
     #[test]
     fn arm_multiply_preserves_conditions_operands_and_flag_selection() {
-        for condition_bits in Condition::MIN_VALUE..=Condition::MAX_VALUE {
-            let condition = Condition::from_integer(condition_bits).unwrap();
+        for condition_bits in 0..15 {
+            let condition = decode_condition(condition_bits).unwrap();
             for set_flags in [false, true] {
                 for (rd, rm, rs) in [(0, 0, 1), (2, 1, 2), (14, 13, 12), (0, 0, 0)] {
                     let opcode = ((condition_bits as u32) << 28)
@@ -1628,17 +1636,17 @@ mod tests {
                     assert_eq!(ir.blocks[0].instructions.len(), 2, "{opcode:08x}");
                     assert_eq!(ir.blocks[0].instructions[1].pc.get(), 0x1004);
                     let Instruction {
-                        pc: decoded_pc,
+                        pc: ref decoded_pc,
                         size: 4,
-                        condition: actual_condition,
+                        condition: ref actual_condition,
                         operation:
                             Operation::Alu {
                                 op: AluOp::Multiply,
-                                destination: Some(actual_destination),
-                                left: Value::Register(actual_left),
+                                destination: Some(ref actual_destination),
+                                left: Value::Register(ref actual_left),
                                 right:
                                     Operand {
-                                        value: Value::Register(actual_value),
+                                        value: Value::Register(ref actual_value),
                                         shift: Shift::Lsl,
                                         amount: ShiftAmount::Immediate(0),
                                     },
@@ -1653,7 +1661,7 @@ mod tests {
                     let actual_value = actual_value.index();
                     assert!(decoded_pc.get() == 0x1000);
                     assert!(
-                        actual_condition == condition
+                        *actual_condition == condition
                             && actual_destination == rd
                             && actual_left == rm
                             && actual_value == rs
@@ -1675,17 +1683,17 @@ mod tests {
                 assert_eq!(ir.blocks[0].instructions.len(), 2, "{opcode:04x}");
                 assert_eq!(ir.blocks[0].instructions[1].pc.get(), 0x1002);
                 let Instruction {
-                    pc: decoded_pc,
+                    pc: ref decoded_pc,
                     size: 2,
                     condition: Condition::Always,
                     operation:
                         Operation::Alu {
                             op: AluOp::Multiply,
-                            destination: Some(actual_destination),
-                            left: Value::Register(actual_left),
+                            destination: Some(ref actual_destination),
+                            left: Value::Register(ref actual_left),
                             right:
                                 Operand {
-                                    value: Value::Register(actual_value),
+                                    value: Value::Register(ref actual_value),
                                     shift: Shift::Lsl,
                                     amount: ShiftAmount::Immediate(0),
                                 },
@@ -1732,10 +1740,10 @@ mod tests {
                 let ir = arm(&[opcode]).unwrap();
                 assert!(ir.blocks[0].instructions[0].condition == Condition::Eq);
                 let Operation::MultiplyAccumulate {
-                    destination: actual_destination,
-                    left: actual_left,
-                    right: actual_right,
-                    accumulate: actual_accumulate,
+                    destination: ref actual_destination,
+                    left: ref actual_left,
+                    right: ref actual_right,
+                    accumulate: ref actual_accumulate,
                     set_flags: actual_set_flags,
                 } = ir.blocks[0].instructions[0].operation
                 else {
@@ -1776,10 +1784,10 @@ mod tests {
                         let ir = arm(&[opcode]).unwrap();
                         assert!(ir.blocks[0].instructions[0].condition == Condition::Ne);
                         let Operation::MultiplyLong {
-                            low: actual_low,
-                            high: actual_high,
-                            left: actual_left,
-                            right: actual_right,
+                            low: ref actual_low,
+                            high: ref actual_high,
+                            left: ref actual_left,
+                            right: ref actual_right,
                             signed: actual_signed,
                             accumulate: actual_accumulate,
                             set_flags: actual_set_flags,
@@ -1816,11 +1824,11 @@ mod tests {
             let ir = arm(&[opcode]).unwrap();
             let Operation::Alu {
                 op: AluOp::CountLeadingZeros,
-                destination: Some(actual_destination),
+                destination: Some(ref actual_destination),
                 left: Value::Immediate(0),
                 right:
                     Operand {
-                        value: Value::Register(actual_value),
+                        value: Value::Register(ref actual_value),
                         shift: Shift::Lsl,
                         amount: ShiftAmount::Immediate(0),
                     },
@@ -1848,10 +1856,10 @@ mod tests {
             };
             for destination in [0, 14] {
                 let bytes = (0x010f0000 | (u32::from(destination) << 12)).to_le_bytes();
-                let ir = analyze(&bytes, 0x1000, entry).unwrap();
+                let ir = analyze(&bytes, 0x1000, RegionKey { ..entry }).unwrap();
                 assert!(ir.blocks[0].instructions[0].condition == Condition::Eq);
                 let Operation::ReadCpsr {
-                    destination: actual_destination,
+                    destination: ref actual_destination,
                 } = ir.blocks[0].instructions[0].operation
                 else {
                     panic!("unexpected decoded instruction")
@@ -1862,18 +1870,18 @@ mod tests {
             for fields in 1..16 {
                 for (opcode, value) in [(0xe120f003u32, Value::Register(Reg::new(3))), (0xe320f4ff, Value::Immediate(0xff000000))] {
                     let bytes = (opcode | (fields << 16)).to_le_bytes();
-                    let ir = analyze(&bytes, 0x1000, entry);
+                    let ir = analyze(&bytes, 0x1000, RegionKey { ..entry });
                     if cpu_mode == 0x1f && fields & 1 != 0 {
                         assert!(ir.is_none());
                     } else {
                         let Operation::WriteCpsr {
-                            value: actual_value,
+                            value: ref actual_value,
                             mask: actual_mask,
                         } = ir.unwrap().blocks[0].instructions[0].operation
                         else {
                             panic!("unexpected decoded instruction")
                         };
-                        assert!(actual_value == value && actual_mask == (if fields & 8 == 0 { 0 } else { 0xf0000000 }));
+                        assert!(*actual_value == value && actual_mask == (if fields & 8 == 0 { 0 } else { 0xf0000000 }));
                     }
                 }
             }
@@ -1889,7 +1897,7 @@ mod tests {
                 0xe128f013, // Reserved fields.
                 0xe320f001, // Newer hint encoding, not an ARMv5 flags write.
             ] {
-                assert!(analyze(&opcode.to_le_bytes(), 0x1000, entry).is_none(), "{opcode:08x}");
+                assert!(analyze(&opcode.to_le_bytes(), 0x1000, RegionKey { ..entry }).is_none(), "{opcode:08x}");
             }
         }
     }
@@ -1903,8 +1911,8 @@ mod tests {
             assert_eq!(ir.blocks[1].instructions[0].pc.get(), 0x1004);
             assert!(ir.blocks[0].instructions[0].condition == Condition::Always);
             let Operation::Branch {
-                target: BranchTarget::Address(actual_target),
-                link: Some(decoded_link),
+                target: BranchTarget::Address(ref actual_target),
+                link: Some(ref decoded_link),
                 exchange: true,
             } = ir.blocks[0].instructions[0].operation
             else {
@@ -1939,13 +1947,13 @@ mod tests {
             assert_eq!(ir.blocks.len(), 1);
             assert_eq!(ir.blocks[0].instructions.len(), 1);
             let Instruction {
-                pc: decoded_pc,
+                pc: ref decoded_pc,
                 size: 4,
                 condition: Condition::Always,
                 operation:
                     Operation::Branch {
-                        target: BranchTarget::Address(actual_target),
-                        link: Some(decoded_link),
+                        target: BranchTarget::Address(ref actual_target),
+                        link: Some(ref decoded_link),
                         exchange: actual_exchange,
                     },
             } = ir.blocks[0].instructions[0]
@@ -1967,8 +1975,8 @@ mod tests {
         assert_eq!(ir.blocks[0].instructions.len(), 2);
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
-            link: Some(decoded_link),
+            target: BranchTarget::Address(ref decoded_target),
+            link: Some(ref decoded_link),
             exchange: true,
         } = ir.blocks[0].instructions[1].operation
         else {
@@ -1998,12 +2006,12 @@ mod tests {
                 assert_eq!(ir.blocks.len(), if conditional { 2 } else { 1 });
                 assert_eq!(ir.blocks[0].instructions.len(), 1);
                 let Operation::Alu {
-                    op: actual_op,
-                    destination: Some(decoded_destination),
-                    left: actual_left,
+                    op: ref actual_op,
+                    destination: Some(ref decoded_destination),
+                    left: ref actual_left,
                     right:
                         Operand {
-                            value: actual_value,
+                            value: ref actual_value,
                             shift: Shift::Lsl,
                             amount: ShiftAmount::Immediate(0),
                         },
@@ -2013,7 +2021,7 @@ mod tests {
                     panic!("unexpected decoded instruction")
                 };
                 assert!(decoded_destination.index() == 15);
-                assert!(actual_op == op && actual_left == left && actual_value == right);
+                assert!(*actual_op == op && *actual_left == left && *actual_value == right);
                 if conditional {
                     assert_eq!(ir.blocks[1].instructions[0].pc.get(), 0x1004);
                 }
@@ -2028,12 +2036,12 @@ mod tests {
             assert_eq!(ir.blocks.len(), 1);
             assert_eq!(ir.blocks[0].instructions.len(), 1);
             let Operation::Alu {
-                op: actual_op,
-                destination: Some(decoded_destination),
-                left: actual_left,
+                op: ref actual_op,
+                destination: Some(ref decoded_destination),
+                left: ref actual_left,
                 right:
                     Operand {
-                        value: actual_value,
+                        value: ref actual_value,
                         shift: Shift::Lsl,
                         amount: ShiftAmount::Immediate(0),
                     },
@@ -2043,7 +2051,7 @@ mod tests {
                 panic!("unexpected decoded instruction")
             };
             assert!(decoded_destination.index() == 15);
-            assert!(actual_op == op && actual_left == left && actual_value == right);
+            assert!(*actual_op == op && *actual_left == left && *actual_value == right);
         }
         for opcode in [0xe1b0f001, 0xe1a0f211, 0xe08ff211, 0xe1a0021f, 0xe1a00f11] {
             assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
@@ -2053,8 +2061,8 @@ mod tests {
 
     #[test]
     fn arm_multiple_transfers_preserve_modes_masks_and_base_alias_rules() {
-        for bits in Condition::MIN_VALUE..=Condition::MAX_VALUE {
-            let condition = Condition::from_integer(bits).unwrap();
+        for bits in 0..15 {
+            let condition = decode_condition(bits).unwrap();
             for increment in [false, true] {
                 for before in [false, true] {
                     for write_back in [false, true] {
@@ -2068,7 +2076,7 @@ mod tests {
                             let ir = arm(&[opcode]).unwrap();
                             assert!(ir.blocks[0].instructions[0].condition == condition);
                             let Operation::MultipleTransfer {
-                                base: decoded_base,
+                                base: ref decoded_base,
                                 registers: 0x5018,
                                 increment: actual_increment,
                                 before: actual_before,
@@ -2097,7 +2105,7 @@ mod tests {
         ] {
             let ir = arm(&[opcode]).unwrap();
             let Operation::MultipleTransfer {
-                base: actual_base,
+                base: ref actual_base,
                 registers: actual_registers,
                 increment: true,
                 before: false,
@@ -2131,7 +2139,7 @@ mod tests {
             let ir = thumb(&[opcode], 0x1000).unwrap();
             assert_eq!(ir.blocks[0].instructions[0].size, 2);
             let Operation::MultipleTransfer {
-                base: actual_base,
+                base: ref actual_base,
                 registers: actual_registers,
                 increment: actual_increment,
                 before: actual_before,
@@ -2216,19 +2224,19 @@ mod tests {
                     ..ENTRY
                 };
                 for opcode in [normal, translated] {
-                    let ir = analyze(&opcode.to_le_bytes(), 0x1000, entry).unwrap();
+                    let ir = analyze(&opcode.to_le_bytes(), 0x1000, RegionKey { ..entry }).unwrap();
                     assert_eq!(ir.blocks.len(), 1);
                     assert_eq!(ir.blocks[0].instructions.len(), 1);
                     assert!(ir.blocks[0].instructions[0].condition == Condition::Always);
                     let address = match ir.blocks[0].instructions[0].operation {
                         Operation::Load {
-                            destination,
+                            ref destination,
                             ref address,
                             width: ref actual_width,
                             signed: false,
                         } if load && destination.index() == 2 && core::mem::discriminant(actual_width) == core::mem::discriminant(&width) => address,
                         Operation::Store {
-                            value: Value::Register(source),
+                            value: Value::Register(ref source),
                             ref address,
                             width: ref actual_width,
                         } if !load && source.index() == 2 && core::mem::discriminant(actual_width) == core::mem::discriminant(&width) => address,
@@ -2264,9 +2272,9 @@ mod tests {
             (0xe1012092, 2, 2, Width::Word),
         ] {
             let Operation::Swap {
-                destination: actual_destination,
-                address: decoded_address,
-                value: actual_value,
+                destination: ref actual_destination,
+                address: ref decoded_address,
+                value: ref actual_value,
                 width: ref actual_width,
             } = arm(&[opcode]).unwrap().blocks[0].instructions[0].operation
             else {
@@ -2297,29 +2305,29 @@ mod tests {
                             | (if load { 2 } else { 3 } << 5)
                             | bits;
                         let Operation::DoubleTransfer {
-                            register: decoded_register,
+                            register: ref decoded_register,
                             address:
                                 MemoryOperand {
-                                    base: Value::Register(decoded_address_base),
+                                    base: Value::Register(ref decoded_address_base),
                                     offset:
                                         Operand {
-                                            value: actual_value,
+                                            value: ref actual_value,
                                             shift: Shift::Lsl,
                                             amount: ShiftAmount::Immediate(0),
                                         },
                                     subtract: actual_subtract,
                                     pre_index: actual_pre_index,
-                                    write_back: actual_write_back,
+                                    write_back: ref actual_write_back,
                                 },
                             load: actual_load,
                         } = arm(&[opcode]).unwrap().blocks[0].instructions[0].operation
                         else {
                             panic!("{opcode:08x}")
                         };
-                        let actual_write_back = actual_write_back.map(Reg::index);
+                        let actual_write_back = actual_write_back.as_ref().map(Reg::index);
                         assert!(decoded_register.index() == 2 && decoded_address_base.index() == 7);
                         assert!(
-                            actual_value == value
+                            *actual_value == value
                                 && actual_subtract == subtract
                                 && actual_pre_index == pre_index
                                 && actual_write_back == (write_back.then_some(7))
@@ -2362,12 +2370,12 @@ mod tests {
         ] {
             let ir = arm(&[opcode]).unwrap();
             let Operation::Alu {
-                op: actual_op,
-                destination: Some(decoded_destination),
-                left: Value::Register(decoded_left),
+                op: ref actual_op,
+                destination: Some(ref decoded_destination),
+                left: Value::Register(ref decoded_left),
                 right:
                     Operand {
-                        value: Value::Register(decoded_right_value),
+                        value: Value::Register(ref decoded_right_value),
                         shift: Shift::Lsl,
                         amount: ShiftAmount::Immediate(0),
                     },
@@ -2377,13 +2385,13 @@ mod tests {
                 panic!("{opcode:08x}")
             };
             assert!(decoded_destination.index() == 2 && decoded_left.index() == 1 && decoded_right_value.index() == 3);
-            assert!(actual_op == op, "{opcode:08x}");
+            assert!(*actual_op == op, "{opcode:08x}");
         }
         let ir = arm(&[0xe1f02003, 0xe1710003]).unwrap();
 
         let Operation::Alu {
             op: AluOp::Not,
-            destination: Some(decoded_destination),
+            destination: Some(ref decoded_destination),
             left: Value::Immediate(0),
             ..
         } = ir.blocks[0].instructions[0].operation
@@ -2415,12 +2423,12 @@ mod tests {
         ] {
             let ir = thumb(&[opcode], 0x1000).unwrap();
             let Operation::Alu {
-                op: actual_op,
-                destination: Some(decoded_destination),
-                left: Value::Register(decoded_left),
+                op: ref actual_op,
+                destination: Some(ref decoded_destination),
+                left: Value::Register(ref decoded_left),
                 right:
                     Operand {
-                        value: Value::Register(decoded_right_value),
+                        value: Value::Register(ref decoded_right_value),
                         shift: Shift::Lsl,
                         amount: ShiftAmount::Immediate(0),
                     },
@@ -2430,7 +2438,7 @@ mod tests {
                 panic!("{opcode:04x}")
             };
             assert!(decoded_destination.index() == 0 && decoded_left.index() == 0 && decoded_right_value.index() == 1);
-            assert!(actual_op == op, "{opcode:04x}");
+            assert!(*actual_op == op, "{opcode:04x}");
         }
         // adds r2,r0,r1; subs r2,r0,r1; subs r2,r0,#3; movs r2,r0 (ADD #0)
         let ir = thumb(&[0x1842, 0x1a42, 0x1ec2, 0x1c02], 0x1000).unwrap();
@@ -2439,7 +2447,7 @@ mod tests {
         let Operation::Alu {
             op: AluOp::Add,
             right: Operand {
-                value: Value::Register(decoded_right_value),
+                value: Value::Register(ref decoded_right_value),
                 ..
             },
             ..
@@ -2452,7 +2460,7 @@ mod tests {
         let Operation::Alu {
             op: AluOp::Sub,
             right: Operand {
-                value: Value::Register(decoded_right_value),
+                value: Value::Register(ref decoded_right_value),
                 ..
             },
             ..
@@ -2490,8 +2498,8 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Add,
-            destination: Some(decoded_destination),
-            left: Value::Register(decoded_left),
+            destination: Some(ref decoded_destination),
+            left: Value::Register(ref decoded_left),
             set_flags: false,
             ..
         } = ir.blocks[0].instructions[0].operation
@@ -2502,7 +2510,7 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Sub,
-            destination: Some(decoded_destination),
+            destination: Some(ref decoded_destination),
             set_flags: false,
             ..
         } = ir.blocks[0].instructions[1].operation
@@ -2513,8 +2521,8 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Add,
-            destination: Some(decoded_destination),
-            left: Value::Register(decoded_left),
+            destination: Some(ref decoded_destination),
+            left: Value::Register(ref decoded_left),
             set_flags: false,
             ..
         } = ir.blocks[0].instructions[2].operation
@@ -2525,7 +2533,7 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Move,
-            destination: Some(decoded_destination),
+            destination: Some(ref decoded_destination),
             set_flags: false,
             ..
         } = ir.blocks[0].instructions[3].operation
@@ -2536,8 +2544,8 @@ mod tests {
 
         let Operation::Alu {
             op: AluOp::Add,
-            destination: Some(decoded_destination),
-            left: Value::Register(decoded_left),
+            destination: Some(ref decoded_destination),
+            left: Value::Register(ref decoded_left),
             set_flags: false,
             ..
         } = ir.blocks[0].instructions[4].operation
@@ -2549,7 +2557,7 @@ mod tests {
         let Operation::Alu {
             op: AluOp::Sub,
             destination: None,
-            left: Value::Register(decoded_left),
+            left: Value::Register(ref decoded_left),
             set_flags: true,
             ..
         } = ir.blocks[0].instructions[5].operation
@@ -2564,7 +2572,7 @@ mod tests {
         for (opcode, target) in [(0xd080, 0x0f04), (0xe400, 0x0804), (0xe3ff, 0x1802), (0xe7fe, 0x1000)] {
             let ir = thumb(&[opcode], 0x1000).unwrap();
             let Operation::Branch {
-                target: BranchTarget::Address(actual_target),
+                target: BranchTarget::Address(ref actual_target),
                 link: None,
                 exchange: false,
             } = ir.blocks[0].instructions[0].operation
@@ -2577,7 +2585,7 @@ mod tests {
         for (opcode, target) in [(0xea800000, 0xfe001008), (0xea7fffff, 0x02001004), (0xeafffffe, 0x1000)] {
             let ir = arm(&[opcode]).unwrap();
             let Operation::Branch {
-                target: BranchTarget::Address(actual_target),
+                target: BranchTarget::Address(ref actual_target),
                 link: None,
                 exchange: false,
             } = ir.blocks[0].instructions[0].operation
@@ -2605,7 +2613,7 @@ mod tests {
             }
         ));
         let key = RegionKey { pc: 0xffff_fffe, ..ENTRY };
-        let ir = analyze(&0x4678u16.to_le_bytes(), key.pc, key).unwrap();
+        let ir = analyze(&0x4678u16.to_le_bytes(), key.pc, RegionKey { ..key }).unwrap();
         assert!(matches!(
             ir.blocks[0].instructions[0].operation,
             Operation::Alu {
@@ -2638,8 +2646,8 @@ mod tests {
         let ir = arm(&[0xe12fff33]).unwrap();
 
         let Operation::Branch {
-            target: BranchTarget::Register(decoded_target),
-            link: Some(decoded_link),
+            target: BranchTarget::Register(ref decoded_target),
+            link: Some(ref decoded_link),
             exchange: true,
         } = ir.blocks[0].instructions[0].operation
         else {
@@ -2650,8 +2658,8 @@ mod tests {
         let ir = thumb(&[0x4798], 0x1000).unwrap();
 
         let Operation::Branch {
-            target: BranchTarget::Register(decoded_target),
-            link: Some(decoded_link),
+            target: BranchTarget::Register(ref decoded_target),
+            link: Some(ref decoded_link),
             exchange: true,
         } = ir.blocks[0].instructions[0].operation
         else {
@@ -2662,7 +2670,7 @@ mod tests {
         let ir = arm(&[0xe12fff1f]).unwrap();
 
         let Operation::Branch {
-            target: BranchTarget::Address(decoded_target),
+            target: BranchTarget::Address(ref decoded_target),
             link: None,
             exchange: true,
         } = ir.blocks[0].instructions[0].operation
