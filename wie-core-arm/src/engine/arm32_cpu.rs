@@ -74,31 +74,7 @@ impl Arm32CpuEngine {
         if instruction & 0x0fff_0f10 != 0x0e07_0f10 {
             return None;
         }
-        let n = cpsr & (1 << 31) != 0;
-        let z = cpsr & (1 << 30) != 0;
-        let c = cpsr & (1 << 29) != 0;
-        let v = cpsr & (1 << 28) != 0;
-        let passed = match instruction >> 28 {
-            0 => z,
-            1 => !z,
-            2 => c,
-            3 => !c,
-            4 => n,
-            5 => !n,
-            6 => v,
-            7 => !v,
-            8 => c && !z,
-            9 => !c || z,
-            10 => n == v,
-            11 => n != v,
-            12 => !z && n == v,
-            13 => z || n != v,
-            14 => true,
-            _ => false,
-        };
-        if !passed {
-            return None;
-        }
+        // ponytail: Ignore NZCV; check conditions only if over-invalidation proves costly.
         match (instruction & 15, (instruction >> 5) & 7) {
             (5, 0 | 2) | (7, 0) => Some(InstructionCacheInvalidation::All),
             (5, 1) => Some(InstructionCacheInvalidation::Address(
@@ -1081,6 +1057,7 @@ mod tests {
     fn coprocessor_instruction_cache_maintenance_publishes_code() {
         for (opcode, operand, code_current, data_current) in [
             (0xee070f15u32, 0, false, false),
+            (0x0e070f15, 0, false, false), // EQ still invalidates when Z is clear.
             (0xee070f17, 0, false, false),
             (0xee070f55, 0, false, false),
             (0xee070f35, 0x20020, true, false),
@@ -1108,27 +1085,6 @@ mod tests {
             assert!(engine.mem.pages[3].bytes.is_none());
             assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
-        }
-    }
-
-    #[test]
-    fn cache_maintenance_conditions_match_arm_branch_conditions() {
-        let mut engine = Arm32CpuEngine::new();
-        engine.mem_map(0x1000, 0x20, MemoryPermission::ReadWriteExecute);
-        for condition in 0..15 {
-            engine.mem_write(0x1000, &(0x0e070f15u32 | condition << 28).to_le_bytes()).unwrap();
-            engine.mem_write(0x1010, &(0x0a000000u32 | condition << 28).to_le_bytes()).unwrap();
-            for flags in 0..16 {
-                let cpsr = 0x1f | flags << 28;
-                engine.reg_write(ArmRegister::Cpsr, cpsr);
-                engine.reg_write(ArmRegister::PC, 0x1010);
-                engine.run(0x1018, 1).unwrap();
-                let passed = engine.reg_read(ArmRegister::PC) == 0x1018;
-                engine.reg_write(ArmRegister::PC, 0x1000);
-                let before = engine.mem.code_image(0x1000, 1).unwrap().source;
-                engine.run(0x1004, 1).unwrap();
-                assert_eq!(!engine.mem.code_is_current(&before), passed, "condition={condition}, cpsr={cpsr:#x}");
-            }
         }
     }
 
