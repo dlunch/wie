@@ -190,11 +190,22 @@ impl ChoiceGroup {
         let _: () = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
             .await?;
-        jvm.put_field(&mut this, "choiceType", "I", choice_type).await?;
-        jvm.put_field(&mut this, "elements", "Ljava/util/Vector;", elements.clone()).await?;
-        jvm.put_field(&mut this, "fitPolicy", "I", 0).await?;
-        jvm.put_field(&mut this, "highlightedIndex", "I", -1).await?;
-        jvm.put_field(&mut this, "popupOpen", "Z", false).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I", choice_type)
+            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "elements",
+            "Ljava/util/Vector;",
+            elements.clone(),
+        )
+        .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I", 0)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", -1)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z", false)
+            .await?;
 
         for (index, (text, image)) in strings.into_iter().zip(images).enumerate() {
             let element = jvm
@@ -215,7 +226,9 @@ impl ChoiceGroup {
     }
 
     async fn element_at(jvm: &Jvm, this: &ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<ChoiceElement>> {
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if index < 0 || index >= size {
             return Err(jvm
@@ -228,11 +241,13 @@ impl ChoiceGroup {
     }
 
     async fn selected_index(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<i32> {
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         for index in 0..size {
             let element = Self::element_at(jvm, this, index).await?;
-            if jvm.get_field(&element, "selected", "Z").await? {
+            if jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await? {
                 return Ok(index);
             }
         }
@@ -240,15 +255,18 @@ impl ChoiceGroup {
     }
 
     async fn select_only(jvm: &Jvm, this: &ClassInstanceRef<Self>, selected_index: i32) -> JvmResult<bool> {
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         let mut changed = false;
         for index in 0..size {
             let mut element = Self::element_at(jvm, this, index).await?;
-            let selected: bool = jvm.get_field(&element, "selected", "Z").await?;
+            let selected: bool = jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await?;
             let new_selected = index == selected_index;
             if selected != new_selected {
-                jvm.put_field(&mut element, "selected", "Z", new_selected).await?;
+                jvm.put_field(&mut element, "net/wie/ChoiceElement", "selected", "Z", new_selected)
+                    .await?;
                 changed = true;
             }
         }
@@ -256,27 +274,35 @@ impl ChoiceGroup {
     }
 
     async fn normalize_highlight(jvm: &Jvm, this: &mut ClassInstanceRef<Self>) -> JvmResult<()> {
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
-            jvm.put_field(this, "highlightedIndex", "I", -1).await?;
-            return jvm.put_field(this, "popupOpen", "Z", false).await;
+            jvm.put_field(this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", -1)
+                .await?;
+            return jvm.put_field(this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z", false).await;
         }
 
-        let highlighted_index: i32 = jvm.get_field(this, "highlightedIndex", "I").await?;
+        let highlighted_index: i32 = jvm
+            .get_field(this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+            .await?;
         let highlighted_index = if highlighted_index < 0 {
-            let choice_type: i32 = jvm.get_field(this, "choiceType", "I").await?;
+            let choice_type: i32 = jvm.get_field(this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
             if choice_type == 2 { 0 } else { Self::selected_index(jvm, this).await? }
         } else {
             highlighted_index.min(size - 1)
         };
-        jvm.put_field(this, "highlightedIndex", "I", highlighted_index).await
+        jvm.put_field(this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", highlighted_index)
+            .await
     }
 
     async fn element_content(jvm: &Jvm, element: &ClassInstanceRef<ChoiceElement>) -> JvmResult<ElementContent> {
-        let text: ClassInstanceRef<String> = jvm.get_field(element, "text", "Ljava/lang/String;").await?;
+        let text: ClassInstanceRef<String> = jvm.get_field(element, "net/wie/ChoiceElement", "text", "Ljava/lang/String;").await?;
         let text = JavaLangString::to_rust_string(jvm, &text).await?;
-        let display_image: ClassInstanceRef<Image> = jvm.get_field(element, "displayImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let display_image: ClassInstanceRef<Image> = jvm
+            .get_field(element, "net/wie/ChoiceElement", "displayImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
         let (image_width, image_height) = if display_image.is_null() {
             (0, 0)
         } else {
@@ -287,7 +313,9 @@ impl ChoiceGroup {
                     .await?,
             )
         };
-        let mut font: ClassInstanceRef<Font> = jvm.get_field(element, "font", "Ljavax/microedition/lcdui/Font;").await?;
+        let mut font: ClassInstanceRef<Font> = jvm
+            .get_field(element, "net/wie/ChoiceElement", "font", "Ljavax/microedition/lcdui/Font;")
+            .await?;
         if font.is_null() {
             font = jvm
                 .invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
@@ -572,7 +600,9 @@ impl ChoiceGroup {
     async fn size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::size({this:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await
     }
 
@@ -580,14 +610,15 @@ impl ChoiceGroup {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getString({this:?}, {index})");
 
         let element = Self::element_at(jvm, &this, index).await?;
-        jvm.get_field(&element, "text", "Ljava/lang/String;").await
+        jvm.get_field(&element, "net/wie/ChoiceElement", "text", "Ljava/lang/String;").await
     }
 
     async fn get_image(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getImage({this:?}, {index})");
 
         let element = Self::element_at(jvm, &this, index).await?;
-        jvm.get_field(&element, "image", "Ljavax/microedition/lcdui/Image;").await
+        jvm.get_field(&element, "net/wie/ChoiceElement", "image", "Ljavax/microedition/lcdui/Image;")
+            .await
     }
 
     async fn append(
@@ -599,7 +630,9 @@ impl ChoiceGroup {
     ) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::append({this:?}, {text:?}, {image:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let index: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         let _: () = jvm
             .invoke_virtual(
@@ -623,7 +656,9 @@ impl ChoiceGroup {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::insert({this:?}, {index}, {text:?}, {image:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if index < 0 || index > size {
             return Err(jvm
@@ -634,7 +669,7 @@ impl ChoiceGroup {
             return Err(jvm.exception("java/lang/NullPointerException", "Choice string is null").await);
         }
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
         let element = jvm
             .new_class(
                 "net/wie/ChoiceElement",
@@ -652,9 +687,12 @@ impl ChoiceGroup {
             )
             .await?;
 
-        let highlighted_index: i32 = jvm.get_field(&this, "highlightedIndex", "I").await?;
+        let highlighted_index: i32 = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+            .await?;
         jvm.put_field(
             &mut this,
+            "javax/microedition/lcdui/ChoiceGroup",
             "highlightedIndex",
             "I",
             if highlighted_index < 0 {
@@ -675,25 +713,36 @@ impl ChoiceGroup {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::delete({this:?}, {index})");
 
         let removed = Self::element_at(jvm, &this, index).await?;
-        let was_selected: bool = jvm.get_field(&removed, "selected", "Z").await?;
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let was_selected: bool = jvm.get_field(&removed, "net/wie/ChoiceElement", "selected", "Z").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let _: ClassInstanceRef<ChoiceElement> = jvm
             .invoke_virtual(&elements, "java/util/Vector", "remove", "(I)Ljava/lang/Object;", (index,))
             .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
         if was_selected && choice_type != 2 && size > 0 {
             let mut replacement = Self::element_at(jvm, &this, index.min(size - 1)).await?;
-            jvm.put_field(&mut replacement, "selected", "Z", true).await?;
+            jvm.put_field(&mut replacement, "net/wie/ChoiceElement", "selected", "Z", true).await?;
         }
 
-        let highlighted_index: i32 = jvm.get_field(&this, "highlightedIndex", "I").await?;
+        let highlighted_index: i32 = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+            .await?;
         let highlighted_index = if highlighted_index > index {
             highlighted_index - 1
         } else {
             highlighted_index
         };
-        jvm.put_field(&mut this, "highlightedIndex", "I", highlighted_index).await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "highlightedIndex",
+            "I",
+            highlighted_index,
+        )
+        .await?;
         Self::normalize_highlight(jvm, &mut this).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
@@ -702,10 +751,14 @@ impl ChoiceGroup {
     async fn delete_all(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::deleteAll({this:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let _: () = jvm.invoke_virtual(&elements, "java/util/Vector", "removeAllElements", "()V", ()).await?;
-        jvm.put_field(&mut this, "highlightedIndex", "I", -1).await?;
-        jvm.put_field(&mut this, "popupOpen", "Z", false).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", -1)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z", false)
+            .await?;
         Self::normalize_highlight(jvm, &mut this).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
@@ -736,10 +789,18 @@ impl ChoiceGroup {
             )
             .await?
         };
-        jvm.put_field(&mut element, "text", "Ljava/lang/String;", text).await?;
-        jvm.put_field(&mut element, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut element, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
+        jvm.put_field(&mut element, "net/wie/ChoiceElement", "text", "Ljava/lang/String;", text)
             .await?;
+        jvm.put_field(&mut element, "net/wie/ChoiceElement", "image", "Ljavax/microedition/lcdui/Image;", image)
+            .await?;
+        jvm.put_field(
+            &mut element,
+            "net/wie/ChoiceElement",
+            "displayImage",
+            "Ljavax/microedition/lcdui/Image;",
+            display_image,
+        )
+        .await?;
         Self::normalize_highlight(jvm, &mut this).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
@@ -749,13 +810,13 @@ impl ChoiceGroup {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::isSelected({this:?}, {index})");
 
         let element = Self::element_at(jvm, &this, index).await?;
-        jvm.get_field(&element, "selected", "Z").await
+        jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await
     }
 
     async fn get_selected_index(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getSelectedIndex({this:?})");
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
         if choice_type == 2 {
             return Ok(-1);
         }
@@ -773,7 +834,9 @@ impl ChoiceGroup {
         if selected_array.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "Selection array is null").await);
         }
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         let array_length = jvm.array_length(&selected_array).await?;
         if array_length < size as usize {
@@ -784,7 +847,7 @@ impl ChoiceGroup {
         let mut flags = vec![false; array_length];
         for index in 0..size {
             let element = Self::element_at(jvm, &this, index).await?;
-            let selected: bool = jvm.get_field(&element, "selected", "Z").await?;
+            let selected: bool = jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await?;
             flags[index as usize] = selected;
             selected_count += i32::from(selected);
         }
@@ -802,11 +865,11 @@ impl ChoiceGroup {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::setSelectedIndex({this:?}, {index}, {selected})");
 
         let mut target = Self::element_at(jvm, &this, index).await?;
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
         let changed = if choice_type == 2 {
-            let old_selected: bool = jvm.get_field(&target, "selected", "Z").await?;
+            let old_selected: bool = jvm.get_field(&target, "net/wie/ChoiceElement", "selected", "Z").await?;
             if old_selected != selected {
-                jvm.put_field(&mut target, "selected", "Z", selected).await?;
+                jvm.put_field(&mut target, "net/wie/ChoiceElement", "selected", "Z", selected).await?;
             }
             old_selected != selected
         } else if selected {
@@ -834,20 +897,22 @@ impl ChoiceGroup {
         if selected_array.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "Selection array is null").await);
         }
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if jvm.array_length(&selected_array).await? < size as usize {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Selection array is too short").await);
         }
         let flags: Vec<bool> = jvm.load_array(&selected_array, 0, size as usize).await?;
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
         let mut changed = false;
         if choice_type == 2 {
             for (index, selected) in flags.into_iter().enumerate() {
                 let mut element = Self::element_at(jvm, &this, index as i32).await?;
-                let old_selected: bool = jvm.get_field(&element, "selected", "Z").await?;
+                let old_selected: bool = jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await?;
                 if old_selected != selected {
-                    jvm.put_field(&mut element, "selected", "Z", selected).await?;
+                    jvm.put_field(&mut element, "net/wie/ChoiceElement", "selected", "Z", selected).await?;
                     changed = true;
                 }
             }
@@ -870,7 +935,8 @@ impl ChoiceGroup {
         if !(0..=2).contains(&fit_policy) {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid Choice fit policy").await);
         }
-        jvm.put_field(&mut this, "fitPolicy", "I", fit_policy).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I", fit_policy)
+            .await?;
         Self::normalize_highlight(jvm, &mut this).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
@@ -879,7 +945,7 @@ impl ChoiceGroup {
     async fn get_fit_policy(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getFitPolicy({this:?})");
 
-        jvm.get_field(&this, "fitPolicy", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I").await
     }
 
     async fn set_font(
@@ -892,7 +958,8 @@ impl ChoiceGroup {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::setFont({this:?}, {index}, {font:?})");
 
         let mut element = Self::element_at(jvm, &this, index).await?;
-        jvm.put_field(&mut element, "font", "Ljavax/microedition/lcdui/Font;", font).await?;
+        jvm.put_field(&mut element, "net/wie/ChoiceElement", "font", "Ljavax/microedition/lcdui/Font;", font)
+            .await?;
         Self::normalize_highlight(jvm, &mut this).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
@@ -902,7 +969,9 @@ impl ChoiceGroup {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getFont({this:?}, {index})");
 
         let element = Self::element_at(jvm, &this, index).await?;
-        let font: ClassInstanceRef<Font> = jvm.get_field(&element, "font", "Ljavax/microedition/lcdui/Font;").await?;
+        let font: ClassInstanceRef<Font> = jvm
+            .get_field(&element, "net/wie/ChoiceElement", "font", "Ljavax/microedition/lcdui/Font;")
+            .await?;
         if font.is_null() {
             jvm.invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
                 .await
@@ -914,14 +983,16 @@ impl ChoiceGroup {
     async fn minimum_content_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::minimumContentWidth({this:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
             return Ok(0);
         }
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
-        let fit_policy: i32 = jvm.get_field(&this, "fitPolicy", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
+        let fit_policy: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I").await?;
         let mut width = 0;
         for index in 0..size {
             let element = Self::element_at(jvm, &this, index).await?;
@@ -935,14 +1006,16 @@ impl ChoiceGroup {
     async fn minimum_content_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::minimumContentHeight({this:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
             return Ok(0);
         }
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
-        let popup_open: bool = jvm.get_field(&this, "popupOpen", "Z").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
+        let popup_open: bool = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z").await?;
         let selected_index = if choice_type == 4 && !popup_open {
             Self::selected_index(jvm, &this).await?
         } else {
@@ -962,13 +1035,15 @@ impl ChoiceGroup {
     async fn preferred_content_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::preferredContentWidth({this:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
             return Ok(0);
         }
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
         let mut width = 0;
         for index in 0..size {
             let element = Self::element_at(jvm, &this, index).await?;
@@ -982,15 +1057,17 @@ impl ChoiceGroup {
     async fn preferred_content_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::preferredContentHeight({this:?}, {width})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
             return Ok(0);
         }
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
-        let fit_policy: i32 = jvm.get_field(&this, "fitPolicy", "I").await?;
-        let popup_open: bool = jvm.get_field(&this, "popupOpen", "Z").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
+        let fit_policy: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I").await?;
+        let popup_open: bool = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z").await?;
         let selected_index = if choice_type == 4 && !popup_open {
             Self::selected_index(jvm, &this).await?
         } else {
@@ -1024,16 +1101,20 @@ impl ChoiceGroup {
         if width <= 0 || height <= 0 {
             return Ok(());
         }
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
             return Ok(());
         }
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
-        let fit_policy: i32 = jvm.get_field(&this, "fitPolicy", "I").await?;
-        let highlighted_index: i32 = jvm.get_field(&this, "highlightedIndex", "I").await?;
-        let popup_open: bool = jvm.get_field(&this, "popupOpen", "Z").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
+        let fit_policy: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I").await?;
+        let highlighted_index: i32 = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+            .await?;
+        let popup_open: bool = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z").await?;
         let popup_closed = choice_type == 4 && !popup_open;
 
         let (row_x, mut row_y, row_width) = if choice_type == 4 {
@@ -1072,7 +1153,7 @@ impl ChoiceGroup {
             let element = Self::element_at(jvm, &this, index).await?;
             let content = Self::element_content(jvm, &element).await?;
             let row_height = Self::element_row_height(jvm, &content, row_width, fit_policy).await?;
-            let selected: bool = jvm.get_field(&element, "selected", "Z").await?;
+            let selected: bool = jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await?;
             Self::paint_element(
                 jvm,
                 &graphics,
@@ -1102,12 +1183,14 @@ impl ChoiceGroup {
     ) -> JvmResult<ClassInstanceRef<Array<i32>>> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getFocusContentBounds({this:?}, {width})");
 
-        let highlighted_index: i32 = jvm.get_field(&this, "highlightedIndex", "I").await?;
+        let highlighted_index: i32 = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+            .await?;
         if highlighted_index < 0 {
             return Ok(None.into());
         }
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
-        let popup_open: bool = jvm.get_field(&this, "popupOpen", "Z").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
+        let popup_open: bool = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z").await?;
         let popup_closed = choice_type == 4 && !popup_open;
         let active_index = if popup_closed {
             Self::selected_index(jvm, &this).await?
@@ -1115,7 +1198,7 @@ impl ChoiceGroup {
             highlighted_index
         };
         let inset = if choice_type == 4 { POPUP_INSET } else { 0 };
-        let fit_policy: i32 = jvm.get_field(&this, "fitPolicy", "I").await?;
+        let fit_policy: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I").await?;
         let mut top = inset;
         let mut bottom = inset;
         for index in if popup_closed { active_index } else { 0 }..=active_index {
@@ -1132,7 +1215,9 @@ impl ChoiceGroup {
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::isFocusable({this:?})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         if jvm.invoke_virtual::<_, i32>(&elements, "java/util/Vector", "size", "()I", ()).await? > 0 {
             return Ok(true);
         }
@@ -1142,23 +1227,29 @@ impl ChoiceGroup {
     async fn handle_item_key(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::handleItemKey({this:?}, {key})");
 
-        let elements: ClassInstanceRef<Vector> = jvm.get_field(&this, "elements", "Ljava/util/Vector;").await?;
+        let elements: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
             return Ok(0);
         }
 
-        let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
-        let highlighted_index: i32 = jvm.get_field(&this, "highlightedIndex", "I").await?;
+        let choice_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I").await?;
+        let highlighted_index: i32 = jvm
+            .get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+            .await?;
         if choice_type == 4 {
-            let popup_open: bool = jvm.get_field(&this, "popupOpen", "Z").await?;
+            let popup_open: bool = jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z").await?;
             if !popup_open {
                 if key != MIDPKeyCode::FIRE as i32 {
                     return Ok(0);
                 }
                 let selected_index = Self::selected_index(jvm, &this).await?;
-                jvm.put_field(&mut this, "highlightedIndex", "I", selected_index).await?;
-                jvm.put_field(&mut this, "popupOpen", "Z", true).await?;
+                jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", selected_index)
+                    .await?;
+                jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z", true)
+                    .await?;
                 Self::normalize_highlight(jvm, &mut this).await?;
                 let _: () = jvm
                     .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
@@ -1173,7 +1264,8 @@ impl ChoiceGroup {
                     highlighted_index.saturating_add(1).min(size - 1)
                 };
                 if new_highlight != highlighted_index {
-                    jvm.put_field(&mut this, "highlightedIndex", "I", new_highlight).await?;
+                    jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", new_highlight)
+                        .await?;
                     let _: () = jvm
                         .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
                         .await?;
@@ -1182,7 +1274,8 @@ impl ChoiceGroup {
             }
             if key == MIDPKeyCode::FIRE as i32 {
                 let changed = Self::select_only(jvm, &this, highlighted_index).await?;
-                jvm.put_field(&mut this, "popupOpen", "Z", false).await?;
+                jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z", false)
+                    .await?;
                 Self::normalize_highlight(jvm, &mut this).await?;
                 let _: () = jvm
                     .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
@@ -1191,8 +1284,10 @@ impl ChoiceGroup {
             }
             if key == MIDPKeyCode::CLEAR as i32 {
                 let selected_index = Self::selected_index(jvm, &this).await?;
-                jvm.put_field(&mut this, "highlightedIndex", "I", selected_index).await?;
-                jvm.put_field(&mut this, "popupOpen", "Z", false).await?;
+                jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", selected_index)
+                    .await?;
+                jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z", false)
+                    .await?;
                 Self::normalize_highlight(jvm, &mut this).await?;
                 let _: () = jvm
                     .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
@@ -1211,7 +1306,8 @@ impl ChoiceGroup {
             if new_highlight < 0 || new_highlight >= size {
                 return Ok(0);
             }
-            jvm.put_field(&mut this, "highlightedIndex", "I", new_highlight).await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", new_highlight)
+                .await?;
             let _: () = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
                 .await?;
@@ -1222,9 +1318,9 @@ impl ChoiceGroup {
         }
 
         let mut element = Self::element_at(jvm, &this, highlighted_index).await?;
-        let selected: bool = jvm.get_field(&element, "selected", "Z").await?;
+        let selected: bool = jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await?;
         let changed = if choice_type == 2 {
-            jvm.put_field(&mut element, "selected", "Z", !selected).await?;
+            jvm.put_field(&mut element, "net/wie/ChoiceElement", "selected", "Z", !selected).await?;
             true
         } else if selected {
             false

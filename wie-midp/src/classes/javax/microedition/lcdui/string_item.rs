@@ -103,9 +103,18 @@ impl StringItem {
         let _: () = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
             .await?;
-        jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
-        jvm.put_field(&mut this, "appearanceMode", "I", appearance_mode).await?;
-        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", None).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/StringItem", "text", "Ljava/lang/String;", text)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I", appearance_mode)
+            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/StringItem",
+            "font",
+            "Ljavax/microedition/lcdui/Font;",
+            None,
+        )
+        .await?;
 
         Ok(())
     }
@@ -113,13 +122,15 @@ impl StringItem {
     async fn get_text(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.StringItem::getText({this:?})");
 
-        jvm.get_field(&this, "text", "Ljava/lang/String;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "text", "Ljava/lang/String;")
+            .await
     }
 
     async fn set_text(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.StringItem::setText({this:?}, {text:?})");
 
-        jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/StringItem", "text", "Ljava/lang/String;", text)
+            .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
@@ -127,13 +138,20 @@ impl StringItem {
     async fn get_appearance_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::getAppearanceMode({this:?})");
 
-        jvm.get_field(&this, "appearanceMode", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I").await
     }
 
     async fn set_font(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.StringItem::setFont({this:?}, {font:?})");
 
-        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", font).await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/StringItem",
+            "font",
+            "Ljavax/microedition/lcdui/Font;",
+            font,
+        )
+        .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
@@ -141,7 +159,9 @@ impl StringItem {
     async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::debug!("javax.microedition.lcdui.StringItem::getFont({this:?})");
 
-        let font: ClassInstanceRef<Font> = jvm.get_field(&this, "font", "Ljavax/microedition/lcdui/Font;").await?;
+        let font: ClassInstanceRef<Font> = jvm
+            .get_field(&this, "javax/microedition/lcdui/StringItem", "font", "Ljavax/microedition/lcdui/Font;")
+            .await?;
         if font.is_null() {
             jvm.invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
                 .await
@@ -180,7 +200,7 @@ impl StringItem {
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I").await?;
         let text_width = if appearance_mode == 2 {
             preferred_width(context.system().platform().font(), &text, 10.0)
         } else {
@@ -195,7 +215,7 @@ impl StringItem {
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I").await?;
         Ok(wrap(context.system().platform().font(), &text, 10.0, None).len() as i32 * Font::HEIGHT + Item::appearance_inset(appearance_mode) * 2)
     }
 
@@ -205,7 +225,7 @@ impl StringItem {
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I").await?;
         Ok(preferred_width(context.system().platform().font(), &text, 10.0) + Item::appearance_inset(appearance_mode) * 2)
     }
 
@@ -215,7 +235,7 @@ impl StringItem {
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I").await?;
         let inset = Item::appearance_inset(appearance_mode);
         let wrap_width = if appearance_mode == 2 || width < 0 {
             None
@@ -242,7 +262,7 @@ impl StringItem {
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(());
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I").await?;
         let _: () = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Item",
@@ -330,7 +350,9 @@ impl StringItem {
     }
 
     async fn text(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Option<RustString>> {
-        let text: ClassInstanceRef<String> = jvm.get_field(this, "text", "Ljava/lang/String;").await?;
+        let text: ClassInstanceRef<String> = jvm
+            .get_field(this, "javax/microedition/lcdui/StringItem", "text", "Ljava/lang/String;")
+            .await?;
         if text.is_null() {
             return Ok(None);
         }

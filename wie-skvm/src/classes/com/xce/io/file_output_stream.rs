@@ -72,7 +72,8 @@ impl FileOutputStream {
         }
         let whence = if !truncate && existed { SEEK_END } else { SEEK_SET };
         let _: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "seek", "(II)I", (0, whence)).await?;
-        jvm.put_field(&mut this, "file", "Lcom/xce/io/XFile;", file).await?;
+        jvm.put_field(&mut this, "com/xce/io/FileOutputStream", "file", "Lcom/xce/io/XFile;", file)
+            .await?;
 
         Ok(())
     }
@@ -86,7 +87,8 @@ impl FileOutputStream {
         }
 
         let file = jvm.new_class("com/xce/io/XFile", "(I)V", (fd,)).await?;
-        jvm.put_field(&mut this, "file", "Lcom/xce/io/XFile;", file).await?;
+        jvm.put_field(&mut this, "com/xce/io/FileOutputStream", "file", "Lcom/xce/io/XFile;", file)
+            .await?;
 
         Ok(())
     }
@@ -104,9 +106,9 @@ impl FileOutputStream {
             return Err(jvm.exception("java/lang/NullPointerException", "file is null").await);
         }
 
-        let file_type: i32 = jvm.get_field(&file, "type", "I").await?;
-        let mode: i32 = jvm.get_field(&file, "mode", "I").await?;
-        let fd: i32 = jvm.get_field(&file, "fd", "I").await?;
+        let file_type: i32 = jvm.get_field(&file, "com/xce/io/XFile", "type", "I").await?;
+        let mode: i32 = jvm.get_field(&file, "com/xce/io/XFile", "mode", "I").await?;
+        let fd: i32 = jvm.get_field(&file, "com/xce/io/XFile", "fd", "I").await?;
         let writable = match file_type {
             STDSTREAM => (fd == STDOUT || fd == STDERR) && mode == WRITE,
             NORMAL => mode == WRITE || mode == READ_WRITE,
@@ -115,7 +117,8 @@ impl FileOutputStream {
         if !writable {
             return Err(jvm.exception("java/io/IOException", "XFile is not open for writing").await);
         }
-        jvm.put_field(&mut this, "file", "Lcom/xce/io/XFile;", file).await?;
+        jvm.put_field(&mut this, "com/xce/io/FileOutputStream", "file", "Lcom/xce/io/XFile;", file)
+            .await?;
 
         Ok(())
     }
@@ -125,7 +128,7 @@ impl FileOutputStream {
 
         let mut buffer = jvm.instantiate_array("B", 1).await?;
         jvm.store_array(&mut buffer, 0, [byte as i8]).await?;
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileOutputStream", "file", "Lcom/xce/io/XFile;").await?;
         let _: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "write", "([BII)I", (buffer, 0, 1)).await?;
 
         Ok(())
@@ -152,7 +155,7 @@ impl FileOutputStream {
             return Ok(());
         }
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileOutputStream", "file", "Lcom/xce/io/XFile;").await?;
         let _: i32 = jvm
             .invoke_virtual(&file, "com/xce/io/XFile", "write", "([BII)I", (buffer, offset, length))
             .await?;
@@ -163,7 +166,7 @@ impl FileOutputStream {
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileOutputStream::close({this:?})");
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileOutputStream", "file", "Lcom/xce/io/XFile;").await?;
         let _: () = jvm.invoke_virtual(&file, "com/xce/io/XFile", "close", "()V", ()).await?;
 
         Ok(())
@@ -172,7 +175,7 @@ impl FileOutputStream {
     async fn flush(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileOutputStream::flush({this:?})");
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileOutputStream", "file", "Lcom/xce/io/XFile;").await?;
         let _: () = jvm.invoke_virtual(&file, "com/xce/io/XFile", "flush", "()V", ()).await?;
 
         Ok(())

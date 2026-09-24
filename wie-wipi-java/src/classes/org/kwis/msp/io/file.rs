@@ -155,12 +155,14 @@ impl File {
             .await?
             .into();
 
-        jvm.put_field(&mut this, "raf", "Ljava/io/RandomAccessFile;", raf).await?;
-        jvm.put_field(&mut this, "inputStream", "Ljava/io/InputStream;", input_stream).await?;
-        jvm.put_field(&mut this, "file", "Ljava/io/File;", file).await?;
-        jvm.put_field(&mut this, "mode", "I", mode as i32).await?;
-        jvm.put_field(&mut this, "closed", "Z", false).await?;
-        jvm.put_field(&mut this, "outputStreamOpen", "Z", false).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;", raf)
+            .await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "inputStream", "Ljava/io/InputStream;", input_stream)
+            .await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "file", "Ljava/io/File;", file).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "mode", "I", mode as i32).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "closed", "Z", false).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "outputStreamOpen", "Z", false).await?;
 
         Ok(())
     }
@@ -182,7 +184,7 @@ impl File {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::write({this:?}, {buf:?}, {offset:?}, {len:?})");
 
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buf, offset, len))
             .await?;
@@ -193,7 +195,7 @@ impl File {
     async fn seek(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, pos: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::seek({this:?}, {pos:?})");
 
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "seek", "(J)V", (pos as i64,))
             .await?;
@@ -218,7 +220,7 @@ impl File {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({this:?}, {buf:?})");
 
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let read = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (buf, offset, length))
             .await?;
@@ -229,14 +231,14 @@ impl File {
     async fn close(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::close({this:?})");
 
-        let closed: bool = jvm.get_field(&this, "closed", "Z").await?;
+        let closed: bool = jvm.get_field(&this, "org/kwis/msp/io/File", "closed", "Z").await?;
         if closed {
             return Ok(());
         }
 
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "close", "()V", ()).await?;
-        jvm.put_field(&mut this, "closed", "Z", true).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "closed", "Z", true).await?;
 
         Ok(())
     }
@@ -244,7 +246,7 @@ impl File {
     async fn size_of(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({this:?})");
 
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let length: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "length", "()J", ()).await?;
 
         Ok(length as _)
@@ -253,12 +255,14 @@ impl File {
     async fn open_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openInputStream({this:?})");
 
-        let closed: bool = jvm.get_field(&this, "closed", "Z").await?;
+        let closed: bool = jvm.get_field(&this, "org/kwis/msp/io/File", "closed", "Z").await?;
         if closed {
             return Err(jvm.exception("java/io/IOException", "File closed").await);
         }
 
-        let input_stream: ClassInstanceRef<InputStream> = jvm.get_field(&this, "inputStream", "Ljava/io/InputStream;").await?;
+        let input_stream: ClassInstanceRef<InputStream> = jvm
+            .get_field(&this, "org/kwis/msp/io/File", "inputStream", "Ljava/io/InputStream;")
+            .await?;
 
         Ok(input_stream)
     }
@@ -279,17 +283,17 @@ impl File {
     async fn open_output_stream(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<OutputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openOutputStream({this:?})");
 
-        let closed: bool = jvm.get_field(&this, "closed", "Z").await?;
+        let closed: bool = jvm.get_field(&this, "org/kwis/msp/io/File", "closed", "Z").await?;
         if closed {
             return Err(jvm.exception("java/io/IOException", "File closed").await);
         }
 
-        let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
+        let mode: i32 = jvm.get_field(&this, "org/kwis/msp/io/File", "mode", "I").await?;
         if mode == Mode::READ_ONLY as i32 {
             return Err(jvm.exception("java/io/IOException", "File is read-only").await);
         }
 
-        let output_stream_open: bool = jvm.get_field(&this, "outputStreamOpen", "Z").await?;
+        let output_stream_open: bool = jvm.get_field(&this, "org/kwis/msp/io/File", "outputStreamOpen", "Z").await?;
         if output_stream_open {
             return Err(jvm.exception("java/io/IOException", "Output stream already open").await);
         }
@@ -297,7 +301,7 @@ impl File {
         let output_stream = jvm
             .new_class("net/wie/WIPIFileOutputStream", "(Lorg/kwis/msp/io/File;)V", (this.clone(),))
             .await?;
-        jvm.put_field(&mut this, "outputStreamOpen", "Z", true).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/io/File", "outputStreamOpen", "Z", true).await?;
 
         Ok(output_stream.into())
     }
@@ -325,7 +329,7 @@ impl File {
         let mut buffer = jvm.instantiate_array("B", 1).await?;
         jvm.store_array(&mut buffer, 0, [byte as i8]).await?;
 
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buffer, 0, 1))
             .await?;
@@ -337,7 +341,7 @@ impl File {
         tracing::debug!("org.kwis.msp.io.File::read({this:?})");
 
         let buffer = jvm.instantiate_array("B", 1).await?;
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let read: i32 = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (buffer.clone(), 0, 1))
             .await?;
@@ -354,7 +358,7 @@ impl File {
     async fn tell(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::tell({this:?})");
 
-        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let position: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "getFilePointer", "()J", ()).await?;
 
         Ok(position as i32)

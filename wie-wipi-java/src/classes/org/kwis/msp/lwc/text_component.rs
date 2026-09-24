@@ -38,8 +38,14 @@ impl TextComponent {
         // TODO constant. 0: CONSTRAINT_ANY
         let im_handler = jvm.new_class("org/kwis/msp/lcdui/InputMethodHandler", "(I)V", (0,)).await?;
 
-        jvm.put_field(&mut this, "imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", im_handler)
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/lwc/TextComponent",
+            "imHandler",
+            "Lorg/kwis/msp/lcdui/InputMethodHandler;",
+            im_handler,
+        )
+        .await?;
 
         Ok(())
     }

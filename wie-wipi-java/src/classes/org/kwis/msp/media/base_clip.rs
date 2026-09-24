@@ -69,7 +69,14 @@ impl BaseClip {
             )
             .await?;
 
-        jvm.put_field(&mut this, "player", "Ljavax/microedition/media/Player;", player).await?;
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/media/BaseClip",
+            "player",
+            "Ljavax/microedition/media/Player;",
+            player,
+        )
+        .await?;
 
         Ok(length)
     }
@@ -77,14 +84,23 @@ impl BaseClip {
     async fn clear_data(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.BaseClip::clearData({this:?})");
 
-        let player: ClassInstanceRef<Player> = jvm.get_field(&this, "player", "Ljavax/microedition/media/Player;").await?;
+        let player: ClassInstanceRef<Player> = jvm
+            .get_field(&this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
+            .await?;
         if player.is_null() {
             return Ok(());
         }
 
         let _: () = jvm.invoke_virtual(&player, "javax/microedition/media/Player", "close", "()V", ()).await?;
 
-        jvm.put_field(&mut this, "player", "Ljavax/microedition/media/Player;", None).await?;
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/media/BaseClip",
+            "player",
+            "Ljavax/microedition/media/Player;",
+            None,
+        )
+        .await?;
 
         Ok(())
     }

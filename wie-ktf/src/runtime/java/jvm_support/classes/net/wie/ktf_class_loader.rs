@@ -76,7 +76,8 @@ impl KtfClassLoader {
             .await?;
 
         let native_strings = jvm.new_class("java/util/Vector", "()V", ()).await?;
-        jvm.put_field(&mut this, "nativeStrings", "Ljava/util/Vector;", native_strings).await?;
+        jvm.put_field(&mut this, "net/wie/KtfClassLoader", "nativeStrings", "Ljava/util/Vector;", native_strings)
+            .await?;
 
         jvm.put_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;", this.clone())
             .await?;
@@ -108,7 +109,8 @@ impl KtfClassLoader {
         .await
         .unwrap();
 
-        jvm.put_field(&mut this, "nativeFunctions", "I", native_functions as i32).await?;
+        jvm.put_field(&mut this, "net/wie/KtfClassLoader", "nativeFunctions", "I", native_functions as i32)
+            .await?;
 
         Ok(())
     }
@@ -121,7 +123,7 @@ impl KtfClassLoader {
     ) -> JvmResult<ClassInstanceRef<Class>> {
         tracing::debug!("net.wie.KtfClassLoader::findClass({this:?}, {name:?})");
 
-        let ptr_native_functions: i32 = jvm.get_field(&this, "nativeFunctions", "I").await?;
+        let ptr_native_functions: i32 = jvm.get_field(&this, "net/wie/KtfClassLoader", "nativeFunctions", "I").await?;
 
         if ptr_native_functions == 0 {
             return Ok(None.into());

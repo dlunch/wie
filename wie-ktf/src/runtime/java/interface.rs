@@ -241,7 +241,10 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
         .get_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;")
         .await
         .unwrap();
-    let strings_field: ClassInstanceRef<Vector> = jvm.get_field(&ktf_class_loader, "nativeStrings", "Ljava/util/Vector;").await.unwrap();
+    let strings_field: ClassInstanceRef<Vector> = jvm
+        .get_field(&ktf_class_loader, "net/wie/KtfClassLoader", "nativeStrings", "Ljava/util/Vector;")
+        .await
+        .unwrap();
     let _: bool = jvm
         .invoke_virtual(&strings_field, "java/util/Vector", "add", "(Ljava/lang/Object;)Z", (instance.clone(),))
         .await

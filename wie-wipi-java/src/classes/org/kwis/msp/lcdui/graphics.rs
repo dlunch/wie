@@ -110,11 +110,17 @@ impl Graphics {
             )
             .await?;
 
-        jvm.put_field(&mut this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;", midp_graphics)
-            .await?;
-        jvm.put_field(&mut this, "alpha", "I", 255).await?;
-        jvm.put_field(&mut this, "strokeStyle", "I", 0).await?;
-        jvm.put_field(&mut this, "xorMode", "Z", false).await?;
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/lcdui/Graphics",
+            "midpGraphics",
+            "Ljavax/microedition/lcdui/Graphics;",
+            midp_graphics,
+        )
+        .await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "alpha", "I", 255).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "strokeStyle", "I", 0).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "xorMode", "Z", false).await?;
 
         Ok(())
     }
@@ -127,11 +133,17 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::<init>({this:?})");
 
-        jvm.put_field(&mut this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;", midp_graphics)
-            .await?;
-        jvm.put_field(&mut this, "alpha", "I", 255).await?;
-        jvm.put_field(&mut this, "strokeStyle", "I", 0).await?;
-        jvm.put_field(&mut this, "xorMode", "Z", false).await?;
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/lcdui/Graphics",
+            "midpGraphics",
+            "Ljavax/microedition/lcdui/Graphics;",
+            midp_graphics,
+        )
+        .await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "alpha", "I", 255).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "strokeStyle", "I", 0).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "xorMode", "Z", false).await?;
 
         Ok(())
     }
@@ -139,7 +151,14 @@ impl Graphics {
     async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getFont({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let midp_font: ClassInstanceRef<MidpFont> = jvm
             .invoke_virtual(
                 &midp_graphics,
@@ -173,7 +192,14 @@ impl Graphics {
             return Ok(());
         }
 
-        let mut midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let mut midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let image = MidpGraphics::image(jvm, &mut midp_graphics).await?;
         let mut canvas = MidpImage::canvas(jvm, &image).await?;
 
@@ -200,7 +226,14 @@ impl Graphics {
     async fn set_color(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, color: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({this:?}, {color})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (color,))
             .await
     }
@@ -208,7 +241,14 @@ impl Graphics {
     async fn set_color_by_rgb(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, r: i32, g: i32, b: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({this:?}, {r}, {g}, {b})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setColor", "(III)V", (r, g, b))
             .await
     }
@@ -216,7 +256,14 @@ impl Graphics {
     async fn set_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setFont({this:?}, {font:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let midp_font = Font::midp_font(jvm, &font).await?;
 
         jvm.invoke_virtual(
@@ -232,12 +279,20 @@ impl Graphics {
     async fn set_alpha(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, alpha: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setAlpha({this:?}, {alpha})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let _: () = jvm
             .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setXORMode", "(Z)V", (false,))
             .await?;
-        jvm.put_field(&mut this, "alpha", "I", if alpha == 0 { 0 } else { 255 }).await?;
-        jvm.put_field(&mut this, "xorMode", "Z", false).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "alpha", "I", if alpha == 0 { 0 } else { 255 })
+            .await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "xorMode", "Z", false).await?;
 
         Ok(())
     }
@@ -253,7 +308,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRect({this:?}, {x}, {y}, {width}, {height})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -277,7 +339,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRoundRect({this:?}, {x}, {y}, {width}, {height}, {arc_width}, {arc_height})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -301,7 +370,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillArc({this:?}, {x}, {y}, {width}, {height}, {start_angle}, {arc_angle})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -327,7 +403,14 @@ impl Graphics {
     async fn draw_line(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawLine({this:?}, {x1}, {y1}, {x2}, {y2})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -349,7 +432,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRect({this:?}, {x}, {y}, {width}, {height})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -373,7 +463,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRoundRect({this:?}, {x}, {y}, {width}, {height}, {arc_width}, {arc_height})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -397,7 +494,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawArc({this:?}, {x}, {y}, {width}, {height}, {start_angle}, {arc_angle})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -431,7 +535,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawChar({this:?}, {ch:?}, {x}, {y}, {anchor})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -455,7 +566,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawChars({this:?}, {chars:?}, {offset}, {length}, {x}, {y}, {anchor})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -481,7 +599,14 @@ impl Graphics {
             return Err(jvm.exception("java/lang/NullPointerException", "string is null").await);
         }
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
 
         jvm.invoke_virtual(
             &midp_graphics,
@@ -506,7 +631,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawSubstring({this:?}, {string:?}, {offset}, {len}, {x}, {y}, {anchor})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
 
         jvm.invoke_virtual(
             &midp_graphics,
@@ -533,7 +665,14 @@ impl Graphics {
             return Err(jvm.exception("java/lang/NullPointerException", "image is null").await);
         }
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let midp_image = Image::midp_image(jvm, &image).await?;
 
         jvm.invoke_virtual(
@@ -557,7 +696,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setClip({this:?}, {x}, {y}, {width}, {height})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -579,7 +725,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::clipRect({this:?}, {x}, {y}, {width}, {height})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(
             &midp_graphics,
             "javax/microedition/lcdui/Graphics",
@@ -593,7 +746,14 @@ impl Graphics {
     async fn get_color(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getColor({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getColor", "()I", ())
             .await
     }
@@ -629,7 +789,7 @@ impl Graphics {
     async fn get_stroke_style(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getStrokeStyle({this:?})");
 
-        jvm.get_field(&this, "strokeStyle", "I").await
+        jvm.get_field(&this, "org/kwis/msp/lcdui/Graphics", "strokeStyle", "I").await
     }
 
     async fn set_stroke_style(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, style: i32) -> JvmResult<()> {
@@ -639,13 +799,20 @@ impl Graphics {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "invalid stroke style").await);
         }
 
-        jvm.put_field(&mut this, "strokeStyle", "I", style).await
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "strokeStyle", "I", style).await
     }
 
     async fn get_clip_x(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipX({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
             .await
     }
@@ -653,7 +820,14 @@ impl Graphics {
     async fn get_clip_y(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipY({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
             .await
     }
@@ -661,7 +835,14 @@ impl Graphics {
     async fn get_clip_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipWidth({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
             .await
     }
@@ -669,7 +850,14 @@ impl Graphics {
     async fn get_clip_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipHeight({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
             .await
     }
@@ -677,7 +865,14 @@ impl Graphics {
     async fn get_translate_x(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getTranslateX({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateX", "()I", ())
             .await
     }
@@ -685,7 +880,14 @@ impl Graphics {
     async fn get_translate_y(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getTranslateY({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateY", "()I", ())
             .await
     }
@@ -693,7 +895,14 @@ impl Graphics {
     async fn translate(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::translate({this:?}, {x}, {y})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (x, y))
             .await
     }
@@ -701,7 +910,14 @@ impl Graphics {
     async fn set_pixel(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setPixel({this:?}, {x}, {y})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "drawLine", "(IIII)V", (x, y, x, y))
             .await
     }
@@ -720,7 +936,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setRGBPixels({this:?}, {x}, {y}, {width}, {height}, {rgb_pixels:?}, {offset}, {bpl})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
 
         jvm.invoke_virtual(
             &midp_graphics,
@@ -735,7 +958,14 @@ impl Graphics {
     async fn set_gray_scale(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::SetGrayScale({this:?}, {value})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setGrayScale", "(I)V", (value,))
             .await
     }
@@ -743,17 +973,31 @@ impl Graphics {
     async fn set_xor_mode(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setXORMode({this:?}, {xor_mode})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let _: () = jvm
             .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setXORMode", "(Z)V", (xor_mode,))
             .await?;
-        jvm.put_field(&mut this, "xorMode", "Z", xor_mode).await
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "xorMode", "Z", xor_mode).await
     }
 
     async fn get_pixel(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getPixel({this:?}, {x}, {y})");
 
-        let mut midp_graphics: ClassInstanceRef<MidpGraphics> = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let mut midp_graphics: ClassInstanceRef<MidpGraphics> = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let image = MidpGraphics::image(jvm, &mut midp_graphics).await?;
         let backend_image = MidpImage::image(jvm, &image).await?;
         let translate_x: i32 = jvm
@@ -813,13 +1057,20 @@ impl Graphics {
     async fn reset(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::reset({this:?})");
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_graphics = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/Graphics",
+                "midpGraphics",
+                "Ljavax/microedition/lcdui/Graphics;",
+            )
+            .await?;
         let _: () = jvm
             .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "reset", "()V", ())
             .await?;
-        jvm.put_field(&mut this, "alpha", "I", 255).await?;
-        jvm.put_field(&mut this, "strokeStyle", "I", 0).await?;
-        jvm.put_field(&mut this, "xorMode", "Z", false).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "alpha", "I", 255).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "strokeStyle", "I", 0).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Graphics", "xorMode", "Z", false).await?;
 
         Ok(())
     }
@@ -827,13 +1078,13 @@ impl Graphics {
     async fn get_alpha(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getAlpha({this:?})");
 
-        jvm.get_field(&this, "alpha", "I").await
+        jvm.get_field(&this, "org/kwis/msp/lcdui/Graphics", "alpha", "I").await
     }
 
     async fn is_xor_mode(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::isXORMode({this:?})");
 
-        jvm.get_field(&this, "xorMode", "Z").await
+        jvm.get_field(&this, "org/kwis/msp/lcdui/Graphics", "xorMode", "Z").await
     }
 
     async fn encode_image(

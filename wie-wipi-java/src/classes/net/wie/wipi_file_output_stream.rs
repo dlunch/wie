@@ -35,8 +35,9 @@ impl WIPIFileOutputStream {
         tracing::debug!("net.wie.WIPIFileOutputStream::<init>({this:?}, {file:?})");
 
         let _: () = jvm.invoke_special(&this, "java/io/OutputStream", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "file", "Lorg/kwis/msp/io/File;", file).await?;
-        jvm.put_field(&mut this, "closed", "Z", false).await?;
+        jvm.put_field(&mut this, "net/wie/WIPIFileOutputStream", "file", "Lorg/kwis/msp/io/File;", file)
+            .await?;
+        jvm.put_field(&mut this, "net/wie/WIPIFileOutputStream", "closed", "Z", false).await?;
 
         Ok(())
     }
@@ -44,9 +45,11 @@ impl WIPIFileOutputStream {
     async fn write(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, byte: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIFileOutputStream::write({this:?}, {byte})");
 
-        let stream_closed: bool = jvm.get_field(&this, "closed", "Z").await?;
-        let file: ClassInstanceRef<File> = jvm.get_field(&this, "file", "Lorg/kwis/msp/io/File;").await?;
-        let file_closed: bool = jvm.get_field(&file, "closed", "Z").await?;
+        let stream_closed: bool = jvm.get_field(&this, "net/wie/WIPIFileOutputStream", "closed", "Z").await?;
+        let file: ClassInstanceRef<File> = jvm
+            .get_field(&this, "net/wie/WIPIFileOutputStream", "file", "Lorg/kwis/msp/io/File;")
+            .await?;
+        let file_closed: bool = jvm.get_field(&file, "org/kwis/msp/io/File", "closed", "Z").await?;
         if stream_closed || file_closed {
             return Err(jvm.exception("java/io/IOException", "Stream closed").await);
         }
@@ -54,7 +57,7 @@ impl WIPIFileOutputStream {
         let mut buffer = jvm.instantiate_array("B", 1).await?;
         jvm.store_array(&mut buffer, 0, [byte as i8]).await?;
 
-        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&file, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&file, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buffer, 0, 1))
             .await?;
@@ -65,14 +68,16 @@ impl WIPIFileOutputStream {
     async fn close(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIFileOutputStream::close({this:?})");
 
-        let closed: bool = jvm.get_field(&this, "closed", "Z").await?;
+        let closed: bool = jvm.get_field(&this, "net/wie/WIPIFileOutputStream", "closed", "Z").await?;
         if closed {
             return Ok(());
         }
 
-        let mut file: ClassInstanceRef<File> = jvm.get_field(&this, "file", "Lorg/kwis/msp/io/File;").await?;
-        jvm.put_field(&mut file, "outputStreamOpen", "Z", false).await?;
-        jvm.put_field(&mut this, "closed", "Z", true).await?;
+        let mut file: ClassInstanceRef<File> = jvm
+            .get_field(&this, "net/wie/WIPIFileOutputStream", "file", "Lorg/kwis/msp/io/File;")
+            .await?;
+        jvm.put_field(&mut file, "org/kwis/msp/io/File", "outputStreamOpen", "Z", false).await?;
+        jvm.put_field(&mut this, "net/wie/WIPIFileOutputStream", "closed", "Z", true).await?;
 
         Ok(())
     }

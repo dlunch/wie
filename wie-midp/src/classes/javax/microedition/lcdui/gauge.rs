@@ -148,10 +148,13 @@ impl Gauge {
         let _: () = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
             .await?;
-        jvm.put_field(&mut this, "interactive", "Z", interactive).await?;
-        jvm.put_field(&mut this, "maxValue", "I", max_value).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Gauge", "interactive", "Z", interactive)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Gauge", "maxValue", "I", max_value)
+            .await?;
         jvm.put_field(
             &mut this,
+            "javax/microedition/lcdui/Gauge",
             "value",
             "I",
             if max_value == -1 {
@@ -168,27 +171,28 @@ impl Gauge {
     async fn get_max_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::getMaxValue({this:?})");
 
-        jvm.get_field(&this, "maxValue", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "maxValue", "I").await
     }
 
     async fn set_max_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, max_value: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::setMaxValue({this:?}, {max_value})");
 
-        let interactive: bool = jvm.get_field(&this, "interactive", "Z").await?;
+        let interactive: bool = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "interactive", "Z").await?;
         if max_value <= 0 && (interactive || max_value != -1) {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid Gauge maximum value").await);
         }
 
-        let old_max: i32 = jvm.get_field(&this, "maxValue", "I").await?;
-        let old_value: i32 = jvm.get_field(&this, "value", "I").await?;
+        let old_max: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "maxValue", "I").await?;
+        let old_value: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "value", "I").await?;
         let value = match (old_max, max_value) {
             (-1, -1) => old_value,
             (-1, _) => 0,
             (_, -1) => 0,
             (_, _) => old_value.min(max_value),
         };
-        jvm.put_field(&mut this, "maxValue", "I", max_value).await?;
-        jvm.put_field(&mut this, "value", "I", value).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Gauge", "maxValue", "I", max_value)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Gauge", "value", "I", value).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
             .await
     }
@@ -196,21 +200,27 @@ impl Gauge {
     async fn get_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::getValue({this:?})");
 
-        jvm.get_field(&this, "value", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "value", "I").await
     }
 
     async fn set_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::setValue({this:?}, {value})");
 
-        let max_value: i32 = jvm.get_field(&this, "maxValue", "I").await?;
+        let max_value: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "maxValue", "I").await?;
         if max_value == -1 && !(0..=3).contains(&value) {
             return Err(jvm
                 .exception("java/lang/IllegalArgumentException", "Invalid indefinite Gauge state")
                 .await);
         }
 
-        jvm.put_field(&mut this, "value", "I", if max_value == -1 { value } else { value.clamp(0, max_value) })
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Gauge",
+            "value",
+            "I",
+            if max_value == -1 { value } else { value.clamp(0, max_value) },
+        )
+        .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
             .await
     }
@@ -218,7 +228,7 @@ impl Gauge {
     async fn is_interactive(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Gauge::isInteractive({this:?})");
 
-        jvm.get_field(&this, "interactive", "Z").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "interactive", "Z").await
     }
 
     async fn set_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
@@ -350,8 +360,8 @@ impl Gauge {
             )
             .await?;
 
-        let max_value: i32 = jvm.get_field(&this, "maxValue", "I").await?;
-        let value: i32 = jvm.get_field(&this, "value", "I").await?;
+        let max_value: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "maxValue", "I").await?;
+        let value: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "value", "I").await?;
         let (fill_x, fill_width) = if max_value > 0 {
             (track_x, track_width.saturating_mul(value) / max_value)
         } else {
@@ -393,7 +403,7 @@ impl Gauge {
     async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Gauge::canBeAlertIndicator({this:?})");
 
-        if jvm.get_field::<bool>(&this, "interactive", "Z").await? {
+        if jvm.get_field::<bool>(&this, "javax/microedition/lcdui/Gauge", "interactive", "Z").await? {
             return Ok(false);
         }
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "canBeAlertIndicator", "()Z", ())
@@ -403,7 +413,7 @@ impl Gauge {
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Gauge::isFocusable({this:?})");
 
-        if jvm.get_field::<bool>(&this, "interactive", "Z").await? {
+        if jvm.get_field::<bool>(&this, "javax/microedition/lcdui/Gauge", "interactive", "Z").await? {
             return Ok(true);
         }
 
@@ -413,13 +423,13 @@ impl Gauge {
     async fn handle_item_key(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::handleItemKey({this:?}, {key})");
 
-        let interactive: bool = jvm.get_field(&this, "interactive", "Z").await?;
+        let interactive: bool = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "interactive", "Z").await?;
         if !interactive || (key != MIDPKeyCode::LEFT as i32 && key != MIDPKeyCode::RIGHT as i32) {
             return Ok(0);
         }
 
-        let max_value: i32 = jvm.get_field(&this, "maxValue", "I").await?;
-        let value: i32 = jvm.get_field(&this, "value", "I").await?;
+        let max_value: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "maxValue", "I").await?;
+        let value: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "value", "I").await?;
         let new_value = if key == MIDPKeyCode::LEFT as i32 {
             value.saturating_sub(1).max(0)
         } else {
@@ -429,7 +439,8 @@ impl Gauge {
             return Ok(Item::INPUT_HANDLED);
         }
 
-        jvm.put_field(&mut this, "value", "I", new_value).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Gauge", "value", "I", new_value)
+            .await?;
         let _: () = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
             .await?;

@@ -184,7 +184,7 @@ async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let native_strings: ClassInstanceRef<Vector> = jvm
-        .get_field(&class_loader, "nativeStrings", "Ljava/util/Vector;")
+        .get_field(&class_loader, "net/wie/LgtClassLoader", "nativeStrings", "Ljava/util/Vector;")
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let _: bool = jvm
@@ -311,7 +311,7 @@ async fn java_register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) 
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let generated_classes: i32 = jvm
-        .get_field(&loader, "generatedClasses", "I")
+        .get_field(&loader, "net/wie/LgtClassLoader", "generatedClasses", "I")
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     LgtJvmSupport::register_generated_class(core, jvm, ptr_class, generated_classes as u32, loader).await?;
@@ -333,16 +333,22 @@ async fn java_resolve_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, _
 async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, callback: u32) -> Result<()> {
     let mut class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
     let ready: i32 = jvm
-        .get_field(&class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
+        .get_field(&class_object, "java/lang/Class", CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     if ready == 5 {
         return Ok(());
     }
 
-    jvm.put_field(&mut class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
-        .await
-        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    jvm.put_field(
+        &mut class_object,
+        "java/lang/Class",
+        CLASS_INITIALIZATION_STATE_FIELD,
+        WORD_FIELD_DESCRIPTOR,
+        5i32,
+    )
+    .await
+    .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     if callback != 0 {
         let _: () = core.run_function(callback, &[]).await?;
     }

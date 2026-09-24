@@ -76,7 +76,8 @@ impl Jlet {
         let midlet: ClassInstanceRef<MIDlet> = jvm
             .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
             .await?;
-        jvm.put_field(&mut this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;", midlet.clone()).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;", midlet.clone())
+            .await?;
         let _: () = jvm
             .invoke_virtual(
                 &midlet,
@@ -95,13 +96,15 @@ impl Jlet {
             )
             .await?;
 
-        jvm.put_field(&mut this, "dis", "Lorg/kwis/msp/lcdui/Display;", display).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;", display)
+            .await?;
 
         let event_queue = jvm
             .new_class("org/kwis/msp/lcdui/EventQueue", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
             .await?;
 
-        jvm.put_field(&mut this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Jlet", "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue)
+            .await?;
 
         jvm.put_static_field("org/kwis/msp/lcdui/Jlet", "currentJlet", "Lorg/kwis/msp/lcdui/Jlet;", this.clone())
             .await?;
@@ -122,7 +125,9 @@ impl Jlet {
     async fn get_event_queue(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({this:?})");
 
-        let eq = jvm.get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;").await?;
+        let eq = jvm
+            .get_field(&this, "org/kwis/msp/lcdui/Jlet", "eq", "Lorg/kwis/msp/lcdui/EventQueue;")
+            .await?;
 
         Ok(eq)
     }
@@ -135,7 +140,9 @@ impl Jlet {
     ) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getAppProperty({this:?}, {key:?})");
 
-        let midlet = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
+        let midlet = jvm
+            .get_field(&this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;")
+            .await?;
         let value = jvm
             .invoke_virtual(
                 &midlet,
@@ -152,7 +159,9 @@ impl Jlet {
     async fn notify_destroyed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({this:?})");
 
-        let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
+        let midlet: ClassInstanceRef<MIDlet> = jvm
+            .get_field(&this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;")
+            .await?;
         let _: () = jvm.invoke_virtual(&midlet, "net/wie/WIPIMIDlet", "notifyDestroyed", "()V", ()).await?;
 
         let _: () = jvm
@@ -163,10 +172,11 @@ impl Jlet {
     }
 
     pub async fn midlet(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MIDlet>> {
-        jvm.get_field(this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await
+        jvm.get_field(this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await
     }
 
     pub async fn display(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Display>> {
-        jvm.get_field(this, "dis", "Lorg/kwis/msp/lcdui/Display;").await
+        jvm.get_field(this, "org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")
+            .await
     }
 }

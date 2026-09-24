@@ -402,6 +402,7 @@ impl JavaClassDefinition {
 
         jvm.put_field(
             class_object,
+            "java/lang/Class",
             CLASS_NATIVE_NAME_FIELD,
             WORD_FIELD_DESCRIPTOR,
             self.descriptor()?.ptr_name as i32,
@@ -766,7 +767,13 @@ impl EmulatedFunction<(), u32, ()> for JavaClassGetterProxy {
                 JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
             })?;
             self.jvm
-                .put_field(&mut java_class, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
+                .put_field(
+                    &mut java_class,
+                    "java/lang/Class",
+                    CLASS_INITIALIZATION_STATE_FIELD,
+                    WORD_FIELD_DESCRIPTOR,
+                    5i32,
+                )
                 .await
                 .map_err(|error| match error {
                     JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),

@@ -57,12 +57,21 @@ impl ChoiceElement {
             .await?
         };
 
-        jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
-        jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
+        jvm.put_field(&mut this, "net/wie/ChoiceElement", "text", "Ljava/lang/String;", text)
             .await?;
-        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", None).await?;
-        jvm.put_field(&mut this, "selected", "Z", selected).await?;
+        jvm.put_field(&mut this, "net/wie/ChoiceElement", "image", "Ljavax/microedition/lcdui/Image;", image)
+            .await?;
+        jvm.put_field(
+            &mut this,
+            "net/wie/ChoiceElement",
+            "displayImage",
+            "Ljavax/microedition/lcdui/Image;",
+            display_image,
+        )
+        .await?;
+        jvm.put_field(&mut this, "net/wie/ChoiceElement", "font", "Ljavax/microedition/lcdui/Font;", None)
+            .await?;
+        jvm.put_field(&mut this, "net/wie/ChoiceElement", "selected", "Z", selected).await?;
 
         Ok(())
     }

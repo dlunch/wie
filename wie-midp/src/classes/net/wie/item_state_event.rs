@@ -42,13 +42,19 @@ impl ItemStateEvent {
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "form", "Ljavax/microedition/lcdui/Form;", form).await?;
-        jvm.put_field(&mut this, "item", "Ljavax/microedition/lcdui/Item;", item).await
+        jvm.put_field(&mut this, "net/wie/ItemStateEvent", "form", "Ljavax/microedition/lcdui/Form;", form)
+            .await?;
+        jvm.put_field(&mut this, "net/wie/ItemStateEvent", "item", "Ljavax/microedition/lcdui/Item;", item)
+            .await
     }
 
     async fn run(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        let form: ClassInstanceRef<Form> = jvm.get_field(&this, "form", "Ljavax/microedition/lcdui/Form;").await?;
-        let item: ClassInstanceRef<Item> = jvm.get_field(&this, "item", "Ljavax/microedition/lcdui/Item;").await?;
+        let form: ClassInstanceRef<Form> = jvm
+            .get_field(&this, "net/wie/ItemStateEvent", "form", "Ljavax/microedition/lcdui/Form;")
+            .await?;
+        let item: ClassInstanceRef<Item> = jvm
+            .get_field(&this, "net/wie/ItemStateEvent", "item", "Ljavax/microedition/lcdui/Item;")
+            .await?;
         jvm.invoke_virtual(
             &form,
             "javax/microedition/lcdui/Form",

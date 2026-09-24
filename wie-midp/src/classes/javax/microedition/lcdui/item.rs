@@ -279,9 +279,12 @@ impl Item {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
         let commands = jvm.new_class("java/util/Vector", "()V", ()).await?;
-        jvm.put_field(&mut this, "commands", "Ljava/util/Vector;", commands).await?;
-        jvm.put_field(&mut this, "preferredWidth", "I", -1).await?;
-        jvm.put_field(&mut this, "preferredHeight", "I", -1).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;", commands)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Item", "preferredWidth", "I", -1)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Item", "preferredHeight", "I", -1)
+            .await?;
 
         Ok(())
     }
@@ -289,7 +292,8 @@ impl Item {
     async fn get_owner(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Displayable>> {
         tracing::debug!("javax.microedition.lcdui.Item::getOwner({this:?})");
 
-        jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Item", "owner", "Ljavax/microedition/lcdui/Displayable;")
+            .await
     }
 
     async fn set_owner(
@@ -300,13 +304,22 @@ impl Item {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::setOwner({this:?}, {owner:?})");
 
-        jvm.put_field(&mut this, "owner", "Ljavax/microedition/lcdui/Displayable;", owner).await
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Item",
+            "owner",
+            "Ljavax/microedition/lcdui/Displayable;",
+            owner,
+        )
+        .await
     }
 
     async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getCommandCount({this:?})");
 
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        let commands: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;")
+            .await?;
         jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await
     }
 
@@ -318,7 +331,9 @@ impl Item {
     ) -> JvmResult<ClassInstanceRef<Command>> {
         tracing::debug!("javax.microedition.lcdui.Item::getCommandAt({this:?}, {index})");
 
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        let commands: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;")
+            .await?;
         jvm.invoke_virtual(&commands, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (index,))
             .await
     }
@@ -326,7 +341,14 @@ impl Item {
     async fn dispatch_default_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::dispatchDefaultCommand({this:?})");
 
-        let command: ClassInstanceRef<Command> = jvm.get_field(&this, "defaultCommand", "Ljavax/microedition/lcdui/Command;").await?;
+        let command: ClassInstanceRef<Command> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/Item",
+                "defaultCommand",
+                "Ljavax/microedition/lcdui/Command;",
+            )
+            .await?;
         if !command.is_null() {
             let _: () = jvm
                 .invoke_virtual(
@@ -344,30 +366,43 @@ impl Item {
     async fn has_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Item::hasPreferredSize({this:?})");
 
-        let width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
-        let height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
+        let width: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Item", "preferredWidth", "I").await?;
+        let height: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Item", "preferredHeight", "I").await?;
         Ok(width != -1 || height != -1)
     }
 
     async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Item::canBeAlertIndicator({this:?})");
 
-        let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        let owner: ClassInstanceRef<Displayable> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "owner", "Ljavax/microedition/lcdui/Displayable;")
+            .await?;
+        let commands: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;")
+            .await?;
         let command_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
         let listener: ClassInstanceRef<ItemCommandListener> = jvm
-            .get_field(&this, "itemCommandListener", "Ljavax/microedition/lcdui/ItemCommandListener;")
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/Item",
+                "itemCommandListener",
+                "Ljavax/microedition/lcdui/ItemCommandListener;",
+            )
             .await?;
-        let label: ClassInstanceRef<String> = jvm.get_field(&this, "label", "Ljava/lang/String;").await?;
+        let label: ClassInstanceRef<String> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "label", "Ljava/lang/String;")
+            .await?;
         let preferred: bool = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "hasPreferredSize", "()Z", ())
             .await?;
-        let layout: i32 = jvm.get_field(&this, "layout", "I").await?;
+        let layout: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Item", "layout", "I").await?;
         Ok(owner.is_null() && command_count == 0 && listener.is_null() && label.is_null() && !preferred && layout == 0)
     }
 
     async fn check_owner_mutation(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<()> {
-        let owner: ClassInstanceRef<Displayable> = jvm.get_field(this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+        let owner: ClassInstanceRef<Displayable> = jvm
+            .get_field(this, "javax/microedition/lcdui/Item", "owner", "Ljavax/microedition/lcdui/Displayable;")
+            .await?;
         if !owner.is_null() {
             let _: () = jvm
                 .invoke_virtual(
@@ -386,7 +421,9 @@ impl Item {
     async fn invalidate(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout_changed: bool) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::invalidate({this:?}, {layout_changed})");
 
-        let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+        let owner: ClassInstanceRef<Displayable> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "owner", "Ljavax/microedition/lcdui/Displayable;")
+            .await?;
         if !owner.is_null() {
             let _: () = jvm
                 .invoke_virtual(
@@ -410,7 +447,9 @@ impl Item {
             return Err(jvm.exception("java/lang/NullPointerException", "Command is null").await);
         }
 
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        let commands: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;")
+            .await?;
         let command_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
         let mut registered = false;
         for index in 0..command_count {
@@ -447,7 +486,9 @@ impl Item {
             return Ok(());
         }
 
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        let commands: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;")
+            .await?;
         let command_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
         for index in 0..command_count {
             let existing: ClassInstanceRef<Command> = jvm
@@ -460,10 +501,23 @@ impl Item {
             let _: () = jvm
                 .invoke_virtual(&commands, "java/util/Vector", "removeElementAt", "(I)V", (index,))
                 .await?;
-            let default_command: ClassInstanceRef<Command> = jvm.get_field(&this, "defaultCommand", "Ljavax/microedition/lcdui/Command;").await?;
+            let default_command: ClassInstanceRef<Command> = jvm
+                .get_field(
+                    &this,
+                    "javax/microedition/lcdui/Item",
+                    "defaultCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                )
+                .await?;
             if !default_command.is_null() && default_command.identity() == command.identity() {
-                jvm.put_field(&mut this, "defaultCommand", "Ljavax/microedition/lcdui/Command;", None)
-                    .await?;
+                jvm.put_field(
+                    &mut this,
+                    "javax/microedition/lcdui/Item",
+                    "defaultCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                    None,
+                )
+                .await?;
             }
             let _: () = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
@@ -477,14 +531,15 @@ impl Item {
     async fn get_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Item::getLabel({this:?})");
 
-        jvm.get_field(&this, "label", "Ljava/lang/String;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Item", "label", "Ljava/lang/String;").await
     }
 
     async fn set_label(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::setLabel({this:?}, {label:?})");
 
         Self::check_owner_mutation(jvm, &this).await?;
-        jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Item", "label", "Ljava/lang/String;", label)
+            .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
@@ -492,7 +547,7 @@ impl Item {
     async fn get_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getLayout({this:?})");
 
-        jvm.get_field(&this, "layout", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Item", "layout", "I").await
     }
 
     async fn set_layout(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, layout: i32) -> JvmResult<()> {
@@ -503,7 +558,7 @@ impl Item {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid Item layout").await);
         }
 
-        jvm.put_field(&mut this, "layout", "I", layout).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Item", "layout", "I", layout).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
@@ -539,7 +594,7 @@ impl Item {
     async fn get_preferred_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getPreferredWidth({this:?})");
 
-        let locked_width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
+        let locked_width: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Item", "preferredWidth", "I").await?;
         let minimum_width: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumWidth", "()I", ())
             .await?;
@@ -561,7 +616,7 @@ impl Item {
     async fn get_preferred_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getPreferredHeight({this:?})");
 
-        let preferred_height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
+        let preferred_height: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Item", "preferredHeight", "I").await?;
         let minimum_height: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumHeight", "()I", ())
             .await?;
@@ -591,10 +646,17 @@ impl Item {
         let minimum_height: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumHeight", "()I", ())
             .await?;
-        jvm.put_field(&mut this, "preferredWidth", "I", if width < 0 { -1 } else { width.max(minimum_width) })
-            .await?;
         jvm.put_field(
             &mut this,
+            "javax/microedition/lcdui/Item",
+            "preferredWidth",
+            "I",
+            if width < 0 { -1 } else { width.max(minimum_width) },
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Item",
             "preferredHeight",
             "I",
             if height < 0 { -1 } else { height.max(minimum_height) },
@@ -615,7 +677,9 @@ impl Item {
         Self::check_owner_mutation(jvm, &this).await?;
 
         if !command.is_null() {
-            let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+            let commands: ClassInstanceRef<Vector> = jvm
+                .get_field(&this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;")
+                .await?;
             let command_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
             let mut registered = false;
             for index in 0..command_count {
@@ -634,8 +698,14 @@ impl Item {
             }
         }
 
-        jvm.put_field(&mut this, "defaultCommand", "Ljavax/microedition/lcdui/Command;", command)
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Item",
+            "defaultCommand",
+            "Ljavax/microedition/lcdui/Command;",
+            command,
+        )
+        .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
             .await
     }
@@ -651,6 +721,7 @@ impl Item {
         Self::check_owner_mutation(jvm, &this).await?;
         jvm.put_field(
             &mut this,
+            "javax/microedition/lcdui/Item",
             "itemCommandListener",
             "Ljavax/microedition/lcdui/ItemCommandListener;",
             listener,
@@ -663,7 +734,9 @@ impl Item {
     async fn notify_state_changed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::notifyStateChanged({this:?})");
 
-        let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+        let owner: ClassInstanceRef<Displayable> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "owner", "Ljavax/microedition/lcdui/Displayable;")
+            .await?;
         if owner.is_null() {
             return Err(jvm.exception("java/lang/IllegalStateException", "Item is not owned by a Form").await);
         }
@@ -681,7 +754,7 @@ impl Item {
     async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::measureWidth({this:?}, {available_width})");
 
-        let layout: i32 = jvm.get_field(&this, "layout", "I").await?;
+        let layout: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Item", "layout", "I").await?;
         if layout & 0x800 != 0 {
             return Ok(available_width.max(0));
         }
@@ -697,7 +770,7 @@ impl Item {
         let minimum_height: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumHeight", "()I", ())
             .await?;
-        let preferred_height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
+        let preferred_height: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Item", "preferredHeight", "I").await?;
         if preferred_height >= 0 {
             return Ok(preferred_height.max(minimum_height));
         }
@@ -885,7 +958,9 @@ impl Item {
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Item::isFocusable({this:?})");
 
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        let commands: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Item", "commands", "Ljava/util/Vector;")
+            .await?;
         Ok(jvm.invoke_virtual::<_, i32>(&commands, "java/util/Vector", "size", "()I", ()).await? > 0)
     }
 
@@ -951,7 +1026,12 @@ impl Item {
         tracing::debug!("javax.microedition.lcdui.Item::dispatchCommand({this:?}, {command:?})");
 
         let listener: ClassInstanceRef<ItemCommandListener> = jvm
-            .get_field(&this, "itemCommandListener", "Ljavax/microedition/lcdui/ItemCommandListener;")
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/Item",
+                "itemCommandListener",
+                "Ljavax/microedition/lcdui/ItemCommandListener;",
+            )
             .await?;
         if !listener.is_null() {
             let event: ClassInstanceRef<CommandEvent> = jvm
@@ -974,7 +1054,9 @@ impl Item {
     }
 
     async fn label_text<T>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Option<RustString>> {
-        let label: ClassInstanceRef<String> = jvm.get_field(this, "label", "Ljava/lang/String;").await?;
+        let label: ClassInstanceRef<String> = jvm
+            .get_field(this, "javax/microedition/lcdui/Item", "label", "Ljava/lang/String;")
+            .await?;
         if label.is_null() {
             return Ok(None);
         }

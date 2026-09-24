@@ -111,10 +111,20 @@ impl Command {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
-        jvm.put_field(&mut this, "longLabel", "Ljava/lang/String;", long_label).await?;
-        jvm.put_field(&mut this, "commandType", "I", command_type).await?;
-        jvm.put_field(&mut this, "priority", "I", priority).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Command", "label", "Ljava/lang/String;", label)
+            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Command",
+            "longLabel",
+            "Ljava/lang/String;",
+            long_label,
+        )
+        .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Command", "commandType", "I", command_type)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Command", "priority", "I", priority)
+            .await?;
 
         Ok(())
     }
@@ -122,7 +132,9 @@ impl Command {
     async fn get_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Command::getLabel({this:?})");
 
-        let label: ClassInstanceRef<String> = jvm.get_field(&this, "label", "Ljava/lang/String;").await?;
+        let label: ClassInstanceRef<String> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Command", "label", "Ljava/lang/String;")
+            .await?;
 
         Ok(label)
     }
@@ -130,13 +142,14 @@ impl Command {
     async fn get_long_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Command::getLongLabel({this:?})");
 
-        jvm.get_field(&this, "longLabel", "Ljava/lang/String;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Command", "longLabel", "Ljava/lang/String;")
+            .await
     }
 
     async fn get_command_type(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Command::getCommandType({this:?})");
 
-        let command_type: i32 = jvm.get_field(&this, "commandType", "I").await?;
+        let command_type: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Command", "commandType", "I").await?;
 
         Ok(command_type)
     }
@@ -144,7 +157,7 @@ impl Command {
     async fn get_priority(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Command::getPriority({this:?})");
 
-        let priority: i32 = jvm.get_field(&this, "priority", "I").await?;
+        let priority: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Command", "priority", "I").await?;
 
         Ok(priority)
     }
