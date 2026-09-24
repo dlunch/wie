@@ -132,10 +132,12 @@ impl Form {
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Screen", "<init>", "()V", ()).await?;
         let items: ClassInstanceRef<Vector> = jvm.new_class("java/util/Vector", "()V", ()).await?.into();
-        jvm.put_field(&mut this, "items", "Ljava/util/Vector;", items.clone()).await?;
-        jvm.put_field(&mut this, "focusIndex", "I", -1).await?;
-        jvm.put_field(&mut this, "scrollY", "I", 0).await?;
-        jvm.put_field(&mut this, "contentScrolling", "Z", false).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;", items.clone())
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "focusIndex", "I", -1).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "scrollY", "I", 0).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "contentScrolling", "Z", false)
+            .await?;
         let _: () = jvm
             .invoke_virtual(
                 &this,
@@ -189,7 +191,9 @@ impl Form {
     }
 
     async fn checked_item(jvm: &Jvm, this: &ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Item>> {
-        let items: ClassInstanceRef<Vector> = jvm.get_field(this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         if index < 0 || index >= size {
             return Err(jvm
@@ -201,7 +205,9 @@ impl Form {
     }
 
     async fn load_items(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Vec<ClassInstanceRef<Item>>> {
-        let items: ClassInstanceRef<Vector> = jvm.get_field(this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         let mut result = Vec::with_capacity(size as usize);
         for index in 0..size {
@@ -257,11 +263,11 @@ impl Form {
         let viewport_height = viewport_height.max(0);
         let content_height = rows.last().map(|row| row.y.saturating_add(row.height)).unwrap_or(0);
         let maximum_scroll = content_height.saturating_sub(viewport_height).max(0);
-        let mut scroll: i32 = jvm.get_field(this, "scrollY", "I").await?;
+        let mut scroll: i32 = jvm.get_field(this, "javax/microedition/lcdui/Form", "scrollY", "I").await?;
         scroll = scroll.clamp(0, maximum_scroll);
 
-        let focus_index: i32 = jvm.get_field(this, "focusIndex", "I").await?;
-        let content_scrolling: bool = jvm.get_field(this, "contentScrolling", "Z").await?;
+        let focus_index: i32 = jvm.get_field(this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
+        let content_scrolling: bool = jvm.get_field(this, "javax/microedition/lcdui/Form", "contentScrolling", "Z").await?;
         if !content_scrolling
             && focus_index >= 0
             && let Some(row) = rows.get(focus_index as usize)
@@ -291,7 +297,7 @@ impl Form {
             scroll = scroll.clamp(0, maximum_scroll);
         }
 
-        jvm.put_field(this, "scrollY", "I", scroll).await
+        jvm.put_field(this, "javax/microedition/lcdui/Form", "scrollY", "I", scroll).await
     }
 
     async fn normalize_layout_state(
@@ -300,11 +306,12 @@ impl Form {
         this: &mut ClassInstanceRef<Self>,
         preferred_focus: i32,
     ) -> JvmResult<()> {
-        jvm.put_field(this, "contentScrolling", "Z", false).await?;
+        jvm.put_field(this, "javax/microedition/lcdui/Form", "contentScrolling", "Z", false)
+            .await?;
         let items = Self::load_items(jvm, this).await?;
         if items.is_empty() {
-            jvm.put_field(this, "focusIndex", "I", -1).await?;
-            return jvm.put_field(this, "scrollY", "I", 0).await;
+            jvm.put_field(this, "javax/microedition/lcdui/Form", "focusIndex", "I", -1).await?;
+            return jvm.put_field(this, "javax/microedition/lcdui/Form", "scrollY", "I", 0).await;
         }
 
         let mut focus_index = -1;
@@ -342,7 +349,8 @@ impl Form {
             }
         }
 
-        jvm.put_field(this, "focusIndex", "I", focus_index).await?;
+        jvm.put_field(this, "javax/microedition/lcdui/Form", "focusIndex", "I", focus_index)
+            .await?;
         let width: i32 = jvm
             .invoke_special(this, "javax/microedition/lcdui/Displayable", "getWidth", "()I", ())
             .await?;
@@ -354,7 +362,7 @@ impl Form {
     }
 
     async fn focused_item(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Item>> {
-        let focus_index: i32 = jvm.get_field(this, "focusIndex", "I").await?;
+        let focus_index: i32 = jvm.get_field(this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
         if focus_index < 0 {
             return Ok(None.into());
         }
@@ -364,7 +372,9 @@ impl Form {
     async fn append(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, item: ClassInstanceRef<Item>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Form::append({this:?}, {item:?})");
 
-        let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         let index: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         let _: () = jvm
             .invoke_virtual(
@@ -435,7 +445,9 @@ impl Form {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Form::insert({this:?}, {index}, {item:?})");
 
-        let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         if index < 0 || index > size {
             return Err(jvm
@@ -469,7 +481,7 @@ impl Form {
         let _: () = jvm
             .invoke_virtual(&items, "java/util/Vector", "insertElementAt", "(Ljava/lang/Object;I)V", (item, index))
             .await?;
-        let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+        let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
         let preferred_focus = if focus_index >= index { focus_index + 1 } else { focus_index };
         Self::normalize_layout_state(jvm, context, &mut this, preferred_focus).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "decorationChanged", "()V", ())
@@ -502,7 +514,9 @@ impl Form {
             return Err(jvm.exception("java/lang/IllegalStateException", "Form item already has an owner").await);
         }
 
-        let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         jvm.invoke_virtual::<_, ()>(
             &old_item,
             "javax/microedition/lcdui/Item",
@@ -522,7 +536,7 @@ impl Form {
         let _: () = jvm
             .invoke_virtual(&items, "java/util/Vector", "setElementAt", "(Ljava/lang/Object;I)V", (item, index))
             .await?;
-        let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+        let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
         Self::normalize_layout_state(jvm, context, &mut this, focus_index).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "decorationChanged", "()V", ())
             .await
@@ -538,7 +552,9 @@ impl Form {
         tracing::debug!("javax.microedition.lcdui.Form::delete({this:?}, {index})");
 
         let item = Self::checked_item(jvm, &this, index).await?;
-        let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         let _: ClassInstanceRef<Item> = jvm
             .invoke_virtual(&items, "java/util/Vector", "remove", "(I)Ljava/lang/Object;", (index,))
             .await?;
@@ -552,7 +568,7 @@ impl Form {
         .await?;
 
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
-        let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+        let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
         let preferred_focus = if size == 0 {
             -1
         } else if focus_index > index {
@@ -568,7 +584,9 @@ impl Form {
     async fn delete_all(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Form::deleteAll({this:?})");
 
-        let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
             return Ok(());
@@ -587,9 +605,10 @@ impl Form {
             .await?;
         }
         let _: () = jvm.invoke_virtual(&items, "java/util/Vector", "removeAllElements", "()V", ()).await?;
-        jvm.put_field(&mut this, "focusIndex", "I", -1).await?;
-        jvm.put_field(&mut this, "scrollY", "I", 0).await?;
-        jvm.put_field(&mut this, "contentScrolling", "Z", false).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "focusIndex", "I", -1).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "scrollY", "I", 0).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "contentScrolling", "Z", false)
+            .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "decorationChanged", "()V", ())
             .await
     }
@@ -597,7 +616,9 @@ impl Form {
     async fn size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Form::size({this:?})");
 
-        let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
+        let items: ClassInstanceRef<Vector> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Form", "items", "Ljava/util/Vector;")
+            .await?;
         jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await
     }
 
@@ -609,8 +630,14 @@ impl Form {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Form::setItemStateListener({this:?}, {listener:?})");
 
-        jvm.put_field(&mut this, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;", listener)
-            .await
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Form",
+            "itemStateListener",
+            "Ljavax/microedition/lcdui/ItemStateListener;",
+            listener,
+        )
+        .await
     }
 
     async fn get_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -741,7 +768,7 @@ impl Form {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Form::itemInvalidated({this:?}, {_item:?}, {_layout_changed})");
 
-        let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+        let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
         Self::normalize_layout_state(jvm, context, &mut this, focus_index).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "decorationChanged", "()V", ())
             .await
@@ -779,7 +806,12 @@ impl Form {
         tracing::debug!("javax.microedition.lcdui.Form::dispatchItemStateChanged({this:?}, {item:?})");
 
         let listener: ClassInstanceRef<ItemStateListener> = jvm
-            .get_field(&this, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;")
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/Form",
+                "itemStateListener",
+                "Ljavax/microedition/lcdui/ItemStateListener;",
+            )
             .await?;
         if listener.is_null() {
             return Ok(());
@@ -818,12 +850,15 @@ impl Form {
             let rows = Self::layout_items(jvm, &items, width).await?;
             let content_height = rows.last().map(|row| row.y.saturating_add(row.height)).unwrap_or(0);
             let maximum_scroll = content_height.saturating_sub(viewport_height).max(0);
-            let mut scroll: i32 = jvm.get_field(&this, "scrollY", "I").await?;
+            let mut scroll: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "scrollY", "I").await?;
             scroll = scroll.clamp(0, maximum_scroll);
-            jvm.put_field(&mut this, "scrollY", "I", scroll).await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "scrollY", "I", scroll).await?;
 
-            if jvm.get_field::<bool>(&this, "contentScrolling", "Z").await? {
-                let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+            if jvm
+                .get_field::<bool>(&this, "javax/microedition/lcdui/Form", "contentScrolling", "Z")
+                .await?
+            {
+                let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
                 let focus_visible = focus_index >= 0
                     && rows
                         .get(focus_index as usize)
@@ -836,7 +871,8 @@ impl Form {
                         scroll.saturating_add(step).min(maximum_scroll)
                     };
                     if new_scroll != scroll {
-                        jvm.put_field(&mut this, "scrollY", "I", new_scroll).await?;
+                        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "scrollY", "I", new_scroll)
+                            .await?;
                         let _: () = jvm
                             .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
                             .await?;
@@ -845,7 +881,7 @@ impl Form {
                 }
             }
 
-            let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+            let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
             if focus_index >= 0
                 && let Some(row) = rows.get(focus_index as usize)
                 && row.height > viewport_height
@@ -873,8 +909,10 @@ impl Form {
                     }
                     .clamp(0, maximum_scroll);
                     if new_scroll != scroll {
-                        jvm.put_field(&mut this, "scrollY", "I", new_scroll).await?;
-                        jvm.put_field(&mut this, "contentScrolling", "Z", true).await?;
+                        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "scrollY", "I", new_scroll)
+                            .await?;
+                        jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "contentScrolling", "Z", true)
+                            .await?;
                         return jvm
                             .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
                             .await;
@@ -923,7 +961,7 @@ impl Form {
         }
 
         let items = Self::load_items(jvm, &this).await?;
-        let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+        let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
         let mut next_focus = None;
         if code == MIDPKeyCode::UP as i32 {
             for index in (0..focus_index.max(0) as usize).rev() {
@@ -962,8 +1000,10 @@ impl Form {
             scroll.saturating_add(step).min(maximum_scroll)
         };
         if new_scroll != scroll {
-            jvm.put_field(&mut this, "scrollY", "I", new_scroll).await?;
-            jvm.put_field(&mut this, "contentScrolling", "Z", true).await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "scrollY", "I", new_scroll)
+                .await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/Form", "contentScrolling", "Z", true)
+                .await?;
             return jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
                 .await;
@@ -999,8 +1039,8 @@ impl Form {
         let rows = Self::layout_items(jvm, &items, width).await?;
         Self::update_scroll(jvm, context, &mut this, &rows, height).await?;
 
-        let scroll: i32 = jvm.get_field(&this, "scrollY", "I").await?;
-        let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
+        let scroll: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "scrollY", "I").await?;
+        let focus_index: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Form", "focusIndex", "I").await?;
         let viewport_bottom = scroll.saturating_add(height.max(0));
         for (index, row) in rows.iter().enumerate() {
             if row.y.saturating_add(row.height) <= scroll || row.y >= viewport_bottom {
@@ -1106,10 +1146,26 @@ mod test {
             focusable: bool,
         ) -> JvmResult<()> {
             let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "<init>", "()V", ()).await?;
-            jvm.put_field(&mut this, "contentHeight", "I", content_height).await?;
-            jvm.put_field(&mut this, "paintColor", "I", paint_color).await?;
-            jvm.put_field(&mut this, "focusable", "Z", focusable).await?;
-            jvm.put_field(&mut this, "lastPaintY", "I", -1).await
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItem",
+                "contentHeight",
+                "I",
+                content_height,
+            )
+            .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItem",
+                "paintColor",
+                "I",
+                paint_color,
+            )
+            .await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingFormItem", "focusable", "Z", focusable)
+                .await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingFormItem", "lastPaintY", "I", -1)
+                .await
         }
 
         async fn minimum_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -1117,7 +1173,8 @@ mod test {
         }
 
         async fn minimum_content_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-            jvm.get_field(&this, "contentHeight", "I").await
+            jvm.get_field(&this, "javax/microedition/lcdui/TestRecordingFormItem", "contentHeight", "I")
+                .await
         }
 
         async fn preferred_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -1125,7 +1182,8 @@ mod test {
         }
 
         async fn preferred_content_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, _width: i32) -> JvmResult<i32> {
-            jvm.get_field(&this, "contentHeight", "I").await
+            jvm.get_field(&this, "javax/microedition/lcdui/TestRecordingFormItem", "contentHeight", "I")
+                .await
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -1140,11 +1198,24 @@ mod test {
             height: i32,
             focused: bool,
         ) -> JvmResult<()> {
-            let paint_count: i32 = jvm.get_field(&this, "paintCount", "I").await?;
-            let color: i32 = jvm.get_field(&this, "paintColor", "I").await?;
-            jvm.put_field(&mut this, "paintCount", "I", paint_count + 1).await?;
-            jvm.put_field(&mut this, "lastPaintY", "I", y).await?;
-            jvm.put_field(&mut this, "lastFocused", "Z", focused).await?;
+            let paint_count: i32 = jvm
+                .get_field(&this, "javax/microedition/lcdui/TestRecordingFormItem", "paintCount", "I")
+                .await?;
+            let color: i32 = jvm
+                .get_field(&this, "javax/microedition/lcdui/TestRecordingFormItem", "paintColor", "I")
+                .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItem",
+                "paintCount",
+                "I",
+                paint_count + 1,
+            )
+            .await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingFormItem", "lastPaintY", "I", y)
+                .await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingFormItem", "lastFocused", "Z", focused)
+                .await?;
             let _: () = jvm
                 .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (color,))
                 .await?;
@@ -1159,7 +1230,10 @@ mod test {
         }
 
         async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
-            if jvm.get_field::<bool>(&this, "focusable", "Z").await? {
+            if jvm
+                .get_field::<bool>(&this, "javax/microedition/lcdui/TestRecordingFormItem", "focusable", "Z")
+                .await?
+            {
                 return Ok(true);
             }
             jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "isFocusable", "()Z", ()).await
@@ -1199,9 +1273,25 @@ mod test {
             mut this: ClassInstanceRef<Self>,
             item: ClassInstanceRef<Item>,
         ) -> JvmResult<()> {
-            let count: i32 = jvm.get_field(&this, "count", "I").await?;
-            jvm.put_field(&mut this, "count", "I", count + 1).await?;
-            jvm.put_field(&mut this, "lastItem", "Ljavax/microedition/lcdui/Item;", item).await
+            let count: i32 = jvm
+                .get_field(&this, "javax/microedition/lcdui/TestRecordingFormItemStateListener", "count", "I")
+                .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItemStateListener",
+                "count",
+                "I",
+                count + 1,
+            )
+            .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItemStateListener",
+                "lastItem",
+                "Ljavax/microedition/lcdui/Item;",
+                item,
+            )
+            .await
         }
     }
 
@@ -1240,11 +1330,33 @@ mod test {
             command: ClassInstanceRef<Command>,
             item: ClassInstanceRef<Item>,
         ) -> JvmResult<()> {
-            let count: i32 = jvm.get_field(&this, "count", "I").await?;
-            jvm.put_field(&mut this, "count", "I", count + 1).await?;
-            jvm.put_field(&mut this, "lastCommand", "Ljavax/microedition/lcdui/Command;", command)
+            let count: i32 = jvm
+                .get_field(&this, "javax/microedition/lcdui/TestRecordingFormItemCommandListener", "count", "I")
                 .await?;
-            jvm.put_field(&mut this, "lastItem", "Ljavax/microedition/lcdui/Item;", item).await
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                "count",
+                "I",
+                count + 1,
+            )
+            .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                "lastCommand",
+                "Ljavax/microedition/lcdui/Command;",
+                command,
+            )
+            .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                "lastItem",
+                "Ljavax/microedition/lcdui/Item;",
+                item,
+            )
+            .await
         }
     }
 
@@ -1285,18 +1397,58 @@ mod test {
             displayable: ClassInstanceRef<Displayable>,
         ) -> JvmResult<()> {
             let state_listener: ClassInstanceRef<ItemStateListener> = jvm
-                .get_field(&displayable, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;")
+                .get_field(
+                    &displayable,
+                    "javax/microedition/lcdui/Form",
+                    "itemStateListener",
+                    "Ljavax/microedition/lcdui/ItemStateListener;",
+                )
                 .await?;
             if !state_listener.is_null() {
-                let state_count: i32 = jvm.get_field(&state_listener, "count", "I").await?;
-                jvm.put_field(&mut this, "stateCountAtCommand", "I", state_count).await?;
-            }
-            let count: i32 = jvm.get_field(&this, "count", "I").await?;
-            jvm.put_field(&mut this, "count", "I", count + 1).await?;
-            jvm.put_field(&mut this, "lastCommand", "Ljavax/microedition/lcdui/Command;", command)
+                let state_count: i32 = jvm
+                    .get_field(
+                        &state_listener,
+                        "javax/microedition/lcdui/TestRecordingFormItemStateListener",
+                        "count",
+                        "I",
+                    )
+                    .await?;
+                jvm.put_field(
+                    &mut this,
+                    "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                    "stateCountAtCommand",
+                    "I",
+                    state_count,
+                )
                 .await?;
-            jvm.put_field(&mut this, "lastDisplayable", "Ljavax/microedition/lcdui/Displayable;", displayable)
-                .await
+            }
+            let count: i32 = jvm
+                .get_field(&this, "javax/microedition/lcdui/TestRecordingFormCommandListener", "count", "I")
+                .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                "count",
+                "I",
+                count + 1,
+            )
+            .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                "lastCommand",
+                "Ljavax/microedition/lcdui/Command;",
+                command,
+            )
+            .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                "lastDisplayable",
+                "Ljavax/microedition/lcdui/Displayable;",
+                displayable,
+            )
+            .await
         }
     }
 
@@ -1403,8 +1555,10 @@ mod test {
 
     async fn show_form(jvm: &Jvm, form: &ClassInstanceRef<Form>, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Display>> {
         let mut display: ClassInstanceRef<Display> = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?.into();
-        jvm.put_field(&mut display, "width", "I", width).await?;
-        jvm.put_field(&mut display, "height", "I", height).await?;
+        jvm.put_field(&mut display, "javax/microedition/lcdui/Display", "width", "I", width)
+            .await?;
+        jvm.put_field(&mut display, "javax/microedition/lcdui/Display", "height", "I", height)
+            .await?;
         let _: () = jvm
             .invoke_virtual(
                 &display,
@@ -1539,7 +1693,7 @@ mod test {
                 ],
             )
             .await?;
-            assert_eq!(jvm.get_field::<i32>(&form, "focusIndex", "I").await?, 1);
+            assert_eq!(jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?, 1);
 
             let inserted = recording_item(&jvm, 8, 0x550000, true).await?;
             let inserted_item: ClassInstanceRef<Item> = JavaValue::from(inserted.clone()).into();
@@ -1553,14 +1707,14 @@ mod test {
                 )
                 .await?;
             assert_eq!(
-                jvm.get_field::<i32>(&form, "focusIndex", "I").await?,
+                jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?,
                 2,
                 "insertion must preserve the focused Item"
             );
 
             let _: () = jvm.invoke_virtual(&form, "javax/microedition/lcdui/Form", "delete", "(I)V", (2,)).await?;
             assert_eq!(
-                jvm.get_field::<i32>(&form, "focusIndex", "I").await?,
+                jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?,
                 3,
                 "deleting focus must select the next focusable Item"
             );
@@ -1577,13 +1731,13 @@ mod test {
                 )
                 .await?;
             assert_eq!(
-                jvm.get_field::<i32>(&form, "focusIndex", "I").await?,
+                jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?,
                 0,
                 "focus must fall back to the preceding focusable Item"
             );
 
             let _: () = jvm.invoke_virtual(&form, "javax/microedition/lcdui/Form", "delete", "(I)V", (0,)).await?;
-            assert_eq!(jvm.get_field::<i32>(&form, "focusIndex", "I").await?, -1);
+            assert_eq!(jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?, -1);
 
             let command = make_command(&jvm, "Focus", 8, 0).await?;
             let _: () = jvm
@@ -1595,13 +1749,16 @@ mod test {
                     (command.clone(),),
                 )
                 .await?;
-            assert_eq!(jvm.get_field::<i32>(&form, "focusIndex", "I").await?, 1);
+            assert_eq!(jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?, 1);
 
             let display = show_form(&jvm, &form, 60, 40).await?;
             let _: () = jvm
                 .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                 .await?;
-            assert!(jvm.get_field::<bool>(&candidate, "lastFocused", "Z").await?);
+            assert!(
+                jvm.get_field::<bool>(&candidate, "javax/microedition/lcdui/TestRecordingFormItem", "lastFocused", "Z")
+                    .await?
+            );
 
             let _: () = jvm
                 .invoke_virtual(
@@ -1612,7 +1769,7 @@ mod test {
                     (command,),
                 )
                 .await?;
-            assert_eq!(jvm.get_field::<i32>(&form, "focusIndex", "I").await?, -1);
+            assert_eq!(jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?, -1);
 
             Ok(())
         })
@@ -1712,7 +1869,11 @@ mod test {
                         );
                     }
                 }
-                assert_eq!(jvm.get_field::<i32>(&following, "lastPaintY", "I").await?, height);
+                assert_eq!(
+                    jvm.get_field::<i32>(&following, "javax/microedition/lcdui/TestRecordingFormItem", "lastPaintY", "I")
+                        .await?,
+                    height
+                );
             }
 
             let _: () = jvm
@@ -1772,15 +1933,19 @@ mod test {
                 }
                 for index in 1..30 {
                     send_key(&jvm, &display, KeyboardEventType::KeyRepeated, MIDPKeyCode::DOWN).await?;
-                    assert_eq!(jvm.get_field::<i32>(&choice, "highlightedIndex", "I").await?, index);
+                    assert_eq!(
+                        jvm.get_field::<i32>(&choice, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+                            .await?,
+                        index
+                    );
                 }
-                let scroll: i32 = jvm.get_field(&form, "scrollY", "I").await?;
+                let scroll: i32 = jvm.get_field(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?;
                 assert!(scroll > 0, "the final choice must be revealed even without a following Item");
                 let _: () = jvm
                     .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                     .await?;
                 assert_eq!(
-                    jvm.get_field::<i32>(&form, "scrollY", "I").await?,
+                    jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?,
                     scroll,
                     "paint must preserve the reveal"
                 );
@@ -1818,33 +1983,45 @@ mod test {
                         (29, JavaLangString::from_rust_string(&jvm, &"line\n".repeat(30)).await?, None),
                     )
                     .await?;
-                let top: i32 = jvm.get_field(&form, "scrollY", "I").await?;
+                let top: i32 = jvm.get_field(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?;
                 send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::DOWN).await?;
-                assert_eq!(jvm.get_field::<i32>(&choice, "highlightedIndex", "I").await?, 29);
+                assert_eq!(
+                    jvm.get_field::<i32>(&choice, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+                        .await?,
+                    29
+                );
                 assert!(
-                    jvm.get_field::<i32>(&form, "scrollY", "I").await? > top,
+                    jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await? > top,
                     "the tall final element's tail must be reachable"
                 );
-                let tail: i32 = jvm.get_field(&form, "scrollY", "I").await?;
+                let tail: i32 = jvm.get_field(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?;
                 send_key(&jvm, &display, KeyboardEventType::KeyRepeated, MIDPKeyCode::DOWN).await?;
                 let _: () = jvm
                     .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                     .await?;
                 assert!(
-                    jvm.get_field::<i32>(&form, "scrollY", "I").await? >= tail,
+                    jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await? >= tail,
                     "boundary input and paint must not reset scrolling"
                 );
                 send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::UP).await?;
-                assert_eq!(jvm.get_field::<i32>(&choice, "highlightedIndex", "I").await?, 29);
+                assert_eq!(
+                    jvm.get_field::<i32>(&choice, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+                        .await?,
+                    29
+                );
                 for _ in 0..30 {
                     send_key(&jvm, &display, KeyboardEventType::KeyRepeated, MIDPKeyCode::UP).await?;
                 }
-                assert_eq!(jvm.get_field::<i32>(&choice, "highlightedIndex", "I").await?, 0);
+                assert_eq!(
+                    jvm.get_field::<i32>(&choice, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I")
+                        .await?,
+                    0
+                );
                 let _: () = jvm
                     .invoke_virtual(&choice, "javax/microedition/lcdui/ChoiceGroup", "deleteAll", "()V", ())
                     .await?;
                 assert_eq!(
-                    jvm.get_field::<i32>(&form, "scrollY", "I").await?,
+                    jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?,
                     0,
                     "content shrink must clamp scrolling"
                 );
@@ -1866,24 +2043,24 @@ mod test {
             )
             .await?;
             let display = show_form(&jvm, &form, 40, 10).await?;
-            assert_eq!(jvm.get_field::<i32>(&form, "focusIndex", "I").await?, -1);
+            assert_eq!(jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "focusIndex", "I").await?, -1);
 
             for _ in 0..8 {
                 send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::DOWN).await?;
             }
-            assert_eq!(jvm.get_field::<i32>(&form, "scrollY", "I").await?, 32);
+            assert_eq!(jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?, 32);
             let _: () = jvm
                 .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                 .await?;
             assert_eq!(
-                jvm.get_field::<i32>(&form, "scrollY", "I").await?,
+                jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?,
                 32,
                 "paint must preserve content scrolling when no Item can take focus"
             );
             for _ in 0..8 {
                 send_key(&jvm, &display, KeyboardEventType::KeyRepeated, MIDPKeyCode::UP).await?;
             }
-            assert_eq!(jvm.get_field::<i32>(&form, "scrollY", "I").await?, 0);
+            assert_eq!(jvm.get_field::<i32>(&form, "javax/microedition/lcdui/Form", "scrollY", "I").await?, 0);
 
             Ok(())
         })
@@ -1962,27 +2139,91 @@ mod test {
 
             let display = show_form(&jvm, &form, 120, 80).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::FIRE).await?;
-            assert_eq!(jvm.get_field::<i32>(&item_listener, "count", "I").await?, 1);
-            let dispatched: ClassInstanceRef<Command> = jvm.get_field(&item_listener, "lastCommand", "Ljavax/microedition/lcdui/Command;").await?;
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                1
+            );
+            let dispatched: ClassInstanceRef<Command> = jvm
+                .get_field(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "lastCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                )
+                .await?;
             assert_eq!(dispatched.identity(), default_command.identity());
 
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::LEFT_SOFT_KEY).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::FIRE).await?;
-            assert_eq!(jvm.get_field::<i32>(&item_listener, "count", "I").await?, 2);
-            let dispatched: ClassInstanceRef<Command> = jvm.get_field(&item_listener, "lastCommand", "Ljavax/microedition/lcdui/Command;").await?;
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                2
+            );
+            let dispatched: ClassInstanceRef<Command> = jvm
+                .get_field(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "lastCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                )
+                .await?;
             assert_eq!(dispatched.identity(), menu_command.identity());
-            assert_eq!(jvm.get_field::<i32>(&display_listener, "count", "I").await?, 0);
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &display_listener,
+                    "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                0
+            );
 
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::LEFT_SOFT_KEY).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::DOWN).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::DOWN).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::FIRE).await?;
-            assert_eq!(jvm.get_field::<i32>(&display_listener, "count", "I").await?, 1);
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &display_listener,
+                    "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                1
+            );
             let dispatched: ClassInstanceRef<Command> = jvm
-                .get_field(&display_listener, "lastCommand", "Ljavax/microedition/lcdui/Command;")
+                .get_field(
+                    &display_listener,
+                    "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                    "lastCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                )
                 .await?;
             assert_eq!(dispatched.identity(), screen_command.identity());
-            assert_eq!(jvm.get_field::<i32>(&item_listener, "count", "I").await?, 2);
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                2
+            );
 
             Ok(())
         })
@@ -2042,14 +2283,54 @@ mod test {
 
             let display = show_form(&jvm, &form, 120, 80).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::RIGHT_SOFT_KEY).await?;
-            assert_eq!(jvm.get_field::<i32>(&item_listener, "count", "I").await?, 1);
-            assert_eq!(jvm.get_field::<i32>(&form_listener, "count", "I").await?, 0);
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                1
+            );
+            assert_eq!(
+                jvm.get_field::<i32>(&form_listener, "javax/microedition/lcdui/TestRecordingFormCommandListener", "count", "I")
+                    .await?,
+                0
+            );
 
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::LEFT_SOFT_KEY).await?;
-            assert_eq!(jvm.get_field::<i32>(&item_listener, "count", "I").await?, 1);
-            assert_eq!(jvm.get_field::<i32>(&form_listener, "count", "I").await?, 1);
-            let item_command: ClassInstanceRef<Command> = jvm.get_field(&item_listener, "lastCommand", "Ljavax/microedition/lcdui/Command;").await?;
-            let form_command: ClassInstanceRef<Command> = jvm.get_field(&form_listener, "lastCommand", "Ljavax/microedition/lcdui/Command;").await?;
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                1
+            );
+            assert_eq!(
+                jvm.get_field::<i32>(&form_listener, "javax/microedition/lcdui/TestRecordingFormCommandListener", "count", "I")
+                    .await?,
+                1
+            );
+            let item_command: ClassInstanceRef<Command> = jvm
+                .get_field(
+                    &item_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemCommandListener",
+                    "lastCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                )
+                .await?;
+            let form_command: ClassInstanceRef<Command> = jvm
+                .get_field(
+                    &form_listener,
+                    "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                    "lastCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                )
+                .await?;
             assert_eq!(item_command.identity(), shared.identity());
             assert_eq!(form_command.identity(), shared.identity());
 
@@ -2143,13 +2424,37 @@ mod test {
                     .invoke_virtual(&event_queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?[2], key as i32);
-                assert_eq!(jvm.get_field::<i32>(&state_listener, "count", "I").await?, 0);
-                assert_eq!(jvm.get_field::<i32>(&command_listener, "count", "I").await?, 0);
+                assert_eq!(
+                    jvm.get_field::<i32>(
+                        &state_listener,
+                        "javax/microedition/lcdui/TestRecordingFormItemStateListener",
+                        "count",
+                        "I"
+                    )
+                    .await?,
+                    0
+                );
+                assert_eq!(
+                    jvm.get_field::<i32>(
+                        &command_listener,
+                        "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                        "count",
+                        "I"
+                    )
+                    .await?,
+                    0
+                );
                 let _: () = jvm
                     .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(
-                    jvm.get_field::<i32>(&state_listener, "count", "I").await?,
+                    jvm.get_field::<i32>(
+                        &state_listener,
+                        "javax/microedition/lcdui/TestRecordingFormItemStateListener",
+                        "count",
+                        "I"
+                    )
+                    .await?,
                     0,
                     "ItemStateListener must not run inside the input handler"
                 );
@@ -2160,10 +2465,44 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event,))
                 .await?;
-            assert_eq!(jvm.get_field::<i32>(&state_listener, "count", "I").await?, 2);
-            assert_eq!(jvm.get_field::<i32>(&command_listener, "count", "I").await?, 1);
-            assert_eq!(jvm.get_field::<i32>(&command_listener, "stateCountAtCommand", "I").await?, 2);
-            let delivered: ClassInstanceRef<Item> = jvm.get_field(&state_listener, "lastItem", "Ljavax/microedition/lcdui/Item;").await?;
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &state_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemStateListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                2
+            );
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &command_listener,
+                    "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                    "count",
+                    "I"
+                )
+                .await?,
+                1
+            );
+            assert_eq!(
+                jvm.get_field::<i32>(
+                    &command_listener,
+                    "javax/microedition/lcdui/TestRecordingFormCommandListener",
+                    "stateCountAtCommand",
+                    "I"
+                )
+                .await?,
+                2
+            );
+            let delivered: ClassInstanceRef<Item> = jvm
+                .get_field(
+                    &state_listener,
+                    "javax/microedition/lcdui/TestRecordingFormItemStateListener",
+                    "lastItem",
+                    "Ljavax/microedition/lcdui/Item;",
+                )
+                .await?;
             assert_eq!(delivered.identity(), second.identity());
             Ok(())
         })

@@ -47,12 +47,12 @@ clap = { version = "^4.6", features = ["derive"] }
 dyn-clone = { version = "^1.0", default-features = false }
 encoding_rs = { version = "^0.8", default-features = false, features = ["alloc"] }
 futures = { version = "^0.3", default-features = false, features = ["alloc"] }
-jvm = { version = "^0.2.0" }
-jvm-bytecode = { version = "^0.2.0" }
-jvm-class-proto = { version = "^0.2.0" }
-jvm-types = { version = "^0.2.0" }
+jvm = { version = "^0.3.0" }
+jvm-bytecode = { version = "^0.3.0" }
+jvm-class-proto = { version = "^0.3.0" }
+jvm-types = { version = "^0.3.0" }
 lazy_static = { version = "^1.5", default-features = false }
-rustjava-runtime = { version = "^0.2.0" }
+rustjava-runtime = { version = "^0.3.0" }
 serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
 # Use Rustls with ureq to support Android without OpenSSL or JVM certificate-verifier setup.
 sentry = { version = "^0.49", default-features = false, features = [

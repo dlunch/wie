@@ -176,11 +176,26 @@ impl ImageItem {
         let _: () = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Item", "setLayout", "(I)V", (layout,))
             .await?;
-        jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/ImageItem",
+            "image",
+            "Ljavax/microedition/lcdui/Image;",
+            image,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/ImageItem",
+            "displayImage",
+            "Ljavax/microedition/lcdui/Image;",
+            display_image,
+        )
+        .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ImageItem", "altText", "Ljava/lang/String;", alt_text)
             .await?;
-        jvm.put_field(&mut this, "altText", "Ljava/lang/String;", alt_text).await?;
-        jvm.put_field(&mut this, "appearanceMode", "I", appearance_mode).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ImageItem", "appearanceMode", "I", appearance_mode)
+            .await?;
 
         Ok(())
     }
@@ -202,16 +217,30 @@ impl ImageItem {
     async fn get_image(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.ImageItem::getImage({this:?})");
 
-        jvm.get_field(&this, "image", "Ljavax/microedition/lcdui/Image;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "image", "Ljavax/microedition/lcdui/Image;")
+            .await
     }
 
     async fn set_image(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ImageItem::setImage({this:?}, {image:?})");
 
         let display_image = Self::snapshot(jvm, &image).await?;
-        jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/ImageItem",
+            "image",
+            "Ljavax/microedition/lcdui/Image;",
+            image,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/ImageItem",
+            "displayImage",
+            "Ljavax/microedition/lcdui/Image;",
+            display_image,
+        )
+        .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
@@ -219,7 +248,8 @@ impl ImageItem {
     async fn get_alt_text(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.ImageItem::getAltText({this:?})");
 
-        jvm.get_field(&this, "altText", "Ljava/lang/String;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "altText", "Ljava/lang/String;")
+            .await
     }
 
     async fn set_alt_text(
@@ -230,7 +260,8 @@ impl ImageItem {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ImageItem::setAltText({this:?}, {alt_text:?})");
 
-        jvm.put_field(&mut this, "altText", "Ljava/lang/String;", alt_text).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/ImageItem", "altText", "Ljava/lang/String;", alt_text)
+            .await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
@@ -255,7 +286,7 @@ impl ImageItem {
     async fn get_appearance_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ImageItem::getAppearanceMode({this:?})");
 
-        jvm.get_field(&this, "appearanceMode", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "appearanceMode", "I").await
     }
 
     async fn minimum_content_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -264,7 +295,7 @@ impl ImageItem {
         let Some((_image, image_width, _image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "appearanceMode", "I").await?;
         let alt_width = Self::alt_text(jvm, &this)
             .await?
             .as_deref()
@@ -279,7 +310,7 @@ impl ImageItem {
         let Some((_image, _image_width, image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "appearanceMode", "I").await?;
         let alt_height = Self::alt_text(jvm, &this)
             .await?
             .map(|alt_text| wrap(context.system().platform().font(), &alt_text, 10.0, None).len() as i32 * Font::HEIGHT)
@@ -293,7 +324,7 @@ impl ImageItem {
         let Some((_image, image_width, _image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "appearanceMode", "I").await?;
         Ok(image_width + Item::appearance_inset(appearance_mode) * 2)
     }
 
@@ -303,7 +334,7 @@ impl ImageItem {
         let Some((_image, image_width, image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "appearanceMode", "I").await?;
         let inset = Item::appearance_inset(appearance_mode);
         let available_width = if width < 0 { image_width } else { (width - inset * 2).max(0) };
         if image_width <= available_width {
@@ -334,7 +365,7 @@ impl ImageItem {
         let Some((image, image_width, image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(());
         };
-        let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
+        let appearance_mode: i32 = jvm.get_field(&this, "javax/microedition/lcdui/ImageItem", "appearanceMode", "I").await?;
         let _: () = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Item",
@@ -433,7 +464,14 @@ impl ImageItem {
     }
 
     async fn display_image(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Option<(ClassInstanceRef<Image>, i32, i32)>> {
-        let image: ClassInstanceRef<Image> = jvm.get_field(this, "displayImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let image: ClassInstanceRef<Image> = jvm
+            .get_field(
+                this,
+                "javax/microedition/lcdui/ImageItem",
+                "displayImage",
+                "Ljavax/microedition/lcdui/Image;",
+            )
+            .await?;
         if image.is_null() {
             return Ok(None);
         }
@@ -448,7 +486,9 @@ impl ImageItem {
     }
 
     async fn alt_text(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Option<RustString>> {
-        let alt_text: ClassInstanceRef<String> = jvm.get_field(this, "altText", "Ljava/lang/String;").await?;
+        let alt_text: ClassInstanceRef<String> = jvm
+            .get_field(this, "javax/microedition/lcdui/ImageItem", "altText", "Ljava/lang/String;")
+            .await?;
         if alt_text.is_null() {
             return Ok(None);
         }

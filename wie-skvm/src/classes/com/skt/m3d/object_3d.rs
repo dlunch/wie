@@ -48,7 +48,7 @@ impl Object3D {
         tracing::debug!("com.skt.m3d.Object3D::<init>({this:?}, {name:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "name", "Ljava/lang/String;", name).await
+        jvm.put_field(&mut this, "com/skt/m3d/Object3D", "name", "Ljava/lang/String;", name).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -70,7 +70,7 @@ impl Object3D {
         );
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "name", "Ljava/lang/String;", name).await
+        jvm.put_field(&mut this, "com/skt/m3d/Object3D", "name", "Ljava/lang/String;", name).await
     }
 
     async fn add_triangle(
@@ -116,7 +116,7 @@ impl Object3D {
     }
 
     async fn get_name(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
-        jvm.get_field(&this, "name", "Ljava/lang/String;").await
+        jvm.get_field(&this, "com/skt/m3d/Object3D", "name", "Ljava/lang/String;").await
     }
 
     async fn rotate(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32, z: i32) -> JvmResult<()> {
@@ -130,7 +130,7 @@ impl Object3D {
     }
 
     async fn set_name(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
-        jvm.put_field(&mut this, "name", "Ljava/lang/String;", name).await
+        jvm.put_field(&mut this, "com/skt/m3d/Object3D", "name", "Ljava/lang/String;", name).await
     }
 
     async fn set_triangles(

@@ -85,10 +85,11 @@ impl Image {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        jvm.put_field(&mut this, "w", "I", width).await?;
-        jvm.put_field(&mut this, "h", "I", height).await?;
-        jvm.put_field(&mut this, "imgData", "[B", img_data).await?;
-        jvm.put_field(&mut this, "bpl", "I", bpl).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Image", "w", "I", width).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Image", "h", "I", height).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Image", "imgData", "[B", img_data)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Image", "bpl", "I", bpl).await?;
 
         Ok(())
     }
@@ -189,18 +190,18 @@ impl Image {
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Image::getWidth({this:?})");
 
-        jvm.get_field(&this, "w", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Image", "w", "I").await
     }
 
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Image::getHeight({this:?})");
 
-        jvm.get_field(&this, "h", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Image", "h", "I").await
     }
 
     pub async fn image(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn BackendImage>> {
-        let width: i32 = jvm.get_field(this, "w", "I").await?;
-        let bpl: i32 = jvm.get_field(this, "bpl", "I").await?;
+        let width: i32 = jvm.get_field(this, "javax/microedition/lcdui/Image", "w", "I").await?;
+        let bpl: i32 = jvm.get_field(this, "javax/microedition/lcdui/Image", "bpl", "I").await?;
 
         let bytes_per_pixel = bpl / width;
 
@@ -213,8 +214,8 @@ impl Image {
     }
 
     pub async fn canvas(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Canvas>> {
-        let width: i32 = jvm.get_field(this, "w", "I").await?;
-        let bpl: i32 = jvm.get_field(this, "bpl", "I").await?;
+        let width: i32 = jvm.get_field(this, "javax/microedition/lcdui/Image", "w", "I").await?;
+        let bpl: i32 = jvm.get_field(this, "javax/microedition/lcdui/Image", "bpl", "I").await?;
 
         let bytes_per_pixel = bpl / width;
 
@@ -256,11 +257,11 @@ where
     T: PixelType,
 {
     pub async fn new(jvm: &Jvm, this: &ClassInstanceRef<Image>) -> JvmResult<Self> {
-        let mut java_img_data = jvm.get_field(this, "imgData", "[B").await?;
+        let mut java_img_data = jvm.get_field(this, "javax/microedition/lcdui/Image", "imgData", "[B").await?;
         let raw_buffer = jvm.array_raw_buffer_mut(&mut java_img_data).await?;
 
-        let width: i32 = jvm.get_field(this, "w", "I").await?;
-        let height: i32 = jvm.get_field(this, "h", "I").await?;
+        let width: i32 = jvm.get_field(this, "javax/microedition/lcdui/Image", "w", "I").await?;
+        let height: i32 = jvm.get_field(this, "javax/microedition/lcdui/Image", "h", "I").await?;
 
         Ok(Self {
             width,

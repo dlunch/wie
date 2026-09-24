@@ -79,7 +79,8 @@ impl SmafPlayer {
         let data = JavaIoInputStream::read_until_end(jvm, &stream).await?;
         let audio_handle = context.system().audio().load_smaf(&data).unwrap();
 
-        jvm.put_field(&mut this, "audioHandle", "I", audio_handle as i32).await?;
+        jvm.put_field(&mut this, "net/wie/SmafPlayer", "audioHandle", "I", audio_handle as i32)
+            .await?;
 
         Ok(())
     }
@@ -91,7 +92,7 @@ impl SmafPlayer {
     async fn start_with_repeat(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, repeat: bool) -> Result<()> {
         tracing::debug!("net.wie.SmafPlayer::start({this:?}, {repeat})");
 
-        let audio_handle: i32 = jvm.get_field(&this, "audioHandle", "I").await?;
+        let audio_handle: i32 = jvm.get_field(&this, "net/wie/SmafPlayer", "audioHandle", "I").await?;
 
         context.system().audio().play(audio_handle as u32, repeat).unwrap();
 
@@ -101,7 +102,7 @@ impl SmafPlayer {
     async fn stop(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
         tracing::debug!("net.wie.SmafPlayer::stop({this:?})");
 
-        let audio_handle: i32 = jvm.get_field(&this, "audioHandle", "I").await?;
+        let audio_handle: i32 = jvm.get_field(&this, "net/wie/SmafPlayer", "audioHandle", "I").await?;
 
         let system = context.system();
 
@@ -113,7 +114,7 @@ impl SmafPlayer {
     async fn close(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
         tracing::debug!("net.wie.SmafPlayer::close({this:?})");
 
-        let audio_handle: i32 = jvm.get_field(&this, "audioHandle", "I").await?;
+        let audio_handle: i32 = jvm.get_field(&this, "net/wie/SmafPlayer", "audioHandle", "I").await?;
 
         let system = context.system();
 

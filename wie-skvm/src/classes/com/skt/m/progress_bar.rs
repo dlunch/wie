@@ -35,30 +35,31 @@ impl ProgressBar {
         tracing::debug!("com.skt.m.ProgressBar::<init>({this:?}, {name:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "maxValue", "I", 100).await?;
-        jvm.put_field(&mut this, "value", "I", 0).await
+        jvm.put_field(&mut this, "com/skt/m/ProgressBar", "maxValue", "I", 100).await?;
+        jvm.put_field(&mut this, "com/skt/m/ProgressBar", "value", "I", 0).await
     }
 
     async fn get_max_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        jvm.get_field(&this, "maxValue", "I").await
+        jvm.get_field(&this, "com/skt/m/ProgressBar", "maxValue", "I").await
     }
 
     async fn get_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        jvm.get_field(&this, "value", "I").await
+        jvm.get_field(&this, "com/skt/m/ProgressBar", "value", "I").await
     }
 
     async fn set_max_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
-        let current: i32 = jvm.get_field(&this, "value", "I").await?;
-        jvm.put_field(&mut this, "maxValue", "I", value).await?;
+        let current: i32 = jvm.get_field(&this, "com/skt/m/ProgressBar", "value", "I").await?;
+        jvm.put_field(&mut this, "com/skt/m/ProgressBar", "maxValue", "I", value).await?;
         if current > value {
-            jvm.put_field(&mut this, "value", "I", value).await?;
+            jvm.put_field(&mut this, "com/skt/m/ProgressBar", "value", "I", value).await?;
         }
         Ok(())
     }
 
     async fn set_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
-        let max_value: i32 = jvm.get_field(&this, "maxValue", "I").await?;
-        jvm.put_field(&mut this, "value", "I", value.min(max_value)).await
+        let max_value: i32 = jvm.get_field(&this, "com/skt/m/ProgressBar", "maxValue", "I").await?;
+        jvm.put_field(&mut this, "com/skt/m/ProgressBar", "value", "I", value.min(max_value))
+            .await
     }
 }
 

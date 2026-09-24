@@ -106,8 +106,14 @@ impl Graphics2D {
             return Err(jvm.exception("java/lang/NullPointerException", "graphics is null").await);
         }
 
-        jvm.put_field(&mut this, "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "com/skt/m/Graphics2D",
+            "graphics",
+            "Ljavax/microedition/lcdui/Graphics;",
+            graphics,
+        )
+        .await?;
 
         Ok(())
     }
@@ -186,13 +192,15 @@ impl Graphics2D {
             return Ok(());
         }
 
-        let mut graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "graphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let mut graphics: ClassInstanceRef<Graphics> = jvm
+            .get_field(&this, "com/skt/m/Graphics2D", "graphics", "Ljavax/microedition/lcdui/Graphics;")
+            .await?;
         if graphics.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "graphics is null").await);
         }
 
-        let translate_x: i32 = jvm.get_field(&graphics, "translateX", "I").await?;
-        let translate_y: i32 = jvm.get_field(&graphics, "translateY", "I").await?;
+        let translate_x: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateY", "I").await?;
         let clip = Graphics::clip(jvm, &graphics).await?;
         let src_image = Image::image(jvm, &src).await?;
 
@@ -238,13 +246,15 @@ impl Graphics2D {
     async fn get_pixel(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<i32> {
         tracing::debug!("com.skt.m.Graphics2D::getPixel({this:?}, {x}, {y})");
 
-        let mut graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "graphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let mut graphics: ClassInstanceRef<Graphics> = jvm
+            .get_field(&this, "com/skt/m/Graphics2D", "graphics", "Ljavax/microedition/lcdui/Graphics;")
+            .await?;
         if graphics.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "graphics is null").await);
         }
 
-        let translate_x: i32 = jvm.get_field(&graphics, "translateX", "I").await?;
-        let translate_y: i32 = jvm.get_field(&graphics, "translateY", "I").await?;
+        let translate_x: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateY", "I").await?;
         let image = Graphics::image(jvm, &mut graphics).await?;
         let canvas = Image::canvas(jvm, &image).await?;
 
@@ -280,13 +290,15 @@ impl Graphics2D {
             return Ok(());
         }
 
-        let mut graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "graphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let mut graphics: ClassInstanceRef<Graphics> = jvm
+            .get_field(&this, "com/skt/m/Graphics2D", "graphics", "Ljavax/microedition/lcdui/Graphics;")
+            .await?;
         if graphics.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "graphics is null").await);
         }
 
-        let translate_x: i32 = jvm.get_field(&graphics, "translateX", "I").await?;
-        let translate_y: i32 = jvm.get_field(&graphics, "translateY", "I").await?;
+        let translate_x: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateY", "I").await?;
         let clip = Graphics::clip(jvm, &graphics).await?;
         let image = Graphics::image(jvm, &mut graphics).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
@@ -304,13 +316,15 @@ impl Graphics2D {
     async fn set_pixel(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32, color: i32) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Graphics2D::setPixel({this:?}, {x}, {y}, {color})");
 
-        let mut graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "graphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let mut graphics: ClassInstanceRef<Graphics> = jvm
+            .get_field(&this, "com/skt/m/Graphics2D", "graphics", "Ljavax/microedition/lcdui/Graphics;")
+            .await?;
         if graphics.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "graphics is null").await);
         }
 
-        let translate_x: i32 = jvm.get_field(&graphics, "translateX", "I").await?;
-        let translate_y: i32 = jvm.get_field(&graphics, "translateY", "I").await?;
+        let translate_x: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&graphics, "javax/microedition/lcdui/Graphics", "translateY", "I").await?;
         let clip = Graphics::clip(jvm, &graphics).await?;
         let image = Graphics::image(jvm, &mut graphics).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;

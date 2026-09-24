@@ -170,7 +170,7 @@ impl KtfJvmSupport {
         main_class_name: &str,
     ) -> Result<()> {
         let ptr_functions: i32 = jvm
-            .get_field(&class_loader, "nativeFunctions", "I")
+            .get_field(&class_loader, "net/wie/KtfClassLoader", "nativeFunctions", "I")
             .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
             .await?;
         let functions: ExeInterfaceFunctions = read_generic(core, ptr_functions as u32)?;
@@ -387,7 +387,9 @@ mod test {
             let ptr_functions = Allocator::alloc(&mut core, size_of::<ExeInterfaceFunctions>() as u32)?;
             let mut functions = ExeInterfaceFunctions::zeroed();
             write_generic(&mut core, ptr_functions, functions)?;
-            jvm.put_field(&mut loader, "nativeFunctions", "I", ptr_functions as i32).await.unwrap();
+            jvm.put_field(&mut loader, "net/wie/KtfClassLoader", "nativeFunctions", "I", ptr_functions as i32)
+                .await
+                .unwrap();
 
             let missing_name = JavaLangString::from_rust_string(&jvm, "test/Missing").await.unwrap();
             let missing: ClassInstanceRef<Class> = jvm
@@ -558,12 +560,18 @@ mod test {
 
             let midlet: ClassInstanceRef<MIDlet> = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await.unwrap().into();
             let display: ClassInstanceRef<MidpDisplay> = MIDlet::display(&jvm, &midlet).await.unwrap();
-            let paint_disabled: bool = jvm.get_field(&display, "paintDisabled", "Z").await.unwrap();
+            let paint_disabled: bool = jvm
+                .get_field(&display, "javax/microedition/lcdui/Display", "paintDisabled", "Z")
+                .await
+                .unwrap();
             assert!(!paint_disabled);
 
             KtfJvmSupport::disable_midp_paint(&jvm).await.unwrap();
 
-            let paint_disabled: bool = jvm.get_field(&display, "paintDisabled", "Z").await.unwrap();
+            let paint_disabled: bool = jvm
+                .get_field(&display, "javax/microedition/lcdui/Display", "paintDisabled", "Z")
+                .await
+                .unwrap();
             assert!(paint_disabled);
 
             let string1 = JavaLangString::from_rust_string(&jvm, "test1").await.unwrap();

@@ -96,16 +96,30 @@ impl Image {
         tracing::debug!("org.kwis.msp.lcdui.Image::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "midpImage", "Ljavax/microedition/lcdui/Image;", None).await?;
-        jvm.put_field(&mut this, "mutable", "Z", false).await
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/lcdui/Image",
+            "midpImage",
+            "Ljavax/microedition/lcdui/Image;",
+            None,
+        )
+        .await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Image", "mutable", "Z", false).await
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Image>, image: ClassInstanceRef<MidpImage>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Image::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "midpImage", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut this, "mutable", "Z", false).await?;
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/lcdui/Image",
+            "midpImage",
+            "Ljavax/microedition/lcdui/Image;",
+            image,
+        )
+        .await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Image", "mutable", "Z", false).await?;
 
         Ok(())
     }
@@ -137,7 +151,7 @@ impl Image {
             .new_class("org/kwis/msp/lcdui/Image", "(Ljavax/microedition/lcdui/Image;)V", (midp_image,))
             .await?
             .into();
-        jvm.put_field(&mut instance, "mutable", "Z", true).await?;
+        jvm.put_field(&mut instance, "org/kwis/msp/lcdui/Image", "mutable", "Z", true).await?;
 
         Ok(instance)
     }
@@ -189,7 +203,9 @@ impl Image {
     async fn create_image_from_image(jvm: &Jvm, _: &mut WieJvmContext, image: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({image:?})");
 
-        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&image, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let midp_image: ClassInstanceRef<MidpImage> = jvm
+            .get_field(&image, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
         let midp_image_clone: ClassInstanceRef<MidpImage> = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Image",
@@ -209,7 +225,9 @@ impl Image {
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({this:?})");
 
-        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let midp_image: ClassInstanceRef<MidpImage> = jvm
+            .get_field(&this, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
 
         let midp_graphics: ClassInstanceRef<MidpGraphics> = jvm
             .invoke_virtual(
@@ -231,7 +249,9 @@ impl Image {
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({this:?})");
 
-        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let midp_image: ClassInstanceRef<MidpImage> = jvm
+            .get_field(&this, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
 
         jvm.invoke_virtual(&midp_image, "javax/microedition/lcdui/Image", "getWidth", "()I", ())
             .await
@@ -240,7 +260,9 @@ impl Image {
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({this:?})");
 
-        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let midp_image: ClassInstanceRef<MidpImage> = jvm
+            .get_field(&this, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
 
         jvm.invoke_virtual(&midp_image, "javax/microedition/lcdui/Image", "getHeight", "()I", ())
             .await
@@ -249,7 +271,7 @@ impl Image {
     async fn is_mutable(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Image::isMutable({this:?})");
 
-        jvm.get_field(&this, "mutable", "Z").await
+        jvm.get_field(&this, "org/kwis/msp/lcdui/Image", "mutable", "Z").await
     }
 
     async fn is_animated(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<bool> {
@@ -299,8 +321,12 @@ impl Image {
             return Err(jvm.exception("java/lang/NullPointerException", "image is null").await);
         }
 
-        let target: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
-        let source: ClassInstanceRef<MidpImage> = jvm.get_field(&image, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let target: ClassInstanceRef<MidpImage> = jvm
+            .get_field(&this, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
+        let source: ClassInstanceRef<MidpImage> = jvm
+            .get_field(&image, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
         let graphics: ClassInstanceRef<MidpGraphics> = jvm
             .invoke_virtual(
                 &target,
@@ -353,7 +379,8 @@ impl Image {
     }
 
     pub async fn midp_image(jvm: &Jvm, this: &ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<MidpImage>> {
-        jvm.get_field(this, "midpImage", "Ljavax/microedition/lcdui/Image;").await
+        jvm.get_field(this, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
+            .await
     }
 }
 

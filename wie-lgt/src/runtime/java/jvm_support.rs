@@ -780,9 +780,12 @@ mod tests {
             let initialized_class_object: u32 = core.run_function(descriptor.fn_get_initialized_class, &[]).await?;
             assert_eq!(initialized_class_object, class_object);
             assert_ne!(java_class_instance.ptr_fields()?, class_fields);
-            let native_name: i32 = jvm.get_field(&java_class, CLASS_NATIVE_NAME_FIELD, WORD_FIELD_DESCRIPTOR).await.unwrap();
+            let native_name: i32 = jvm
+                .get_field(&java_class, "java/lang/Class", CLASS_NATIVE_NAME_FIELD, WORD_FIELD_DESCRIPTOR)
+                .await
+                .unwrap();
             let initialization_state: i32 = jvm
-                .get_field(&java_class, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
+                .get_field(&java_class, "java/lang/Class", CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
                 .await
                 .unwrap();
             assert_eq!(native_name as u32, descriptor.ptr_name);
@@ -803,7 +806,7 @@ mod tests {
             let class_object_again: u32 = core.run_function(descriptor.fn_get_class, &[]).await?;
             assert_eq!(class_object_again, class_object);
             let initialization_state: i32 = jvm
-                .get_field(&java_class, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
+                .get_field(&java_class, "java/lang/Class", CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
                 .await
                 .unwrap();
             assert_eq!(initialization_state, 5);
@@ -857,7 +860,12 @@ mod tests {
             let short_initialized_class: u32 = core.run_function(short_descriptor.fn_get_initialized_class, &[]).await?;
             assert_eq!(short_initialized_class, short_class_object);
             let initialization_state: i32 = jvm
-                .get_field(&short_java_class, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
+                .get_field(
+                    &short_java_class,
+                    "java/lang/Class",
+                    CLASS_INITIALIZATION_STATE_FIELD,
+                    WORD_FIELD_DESCRIPTOR,
+                )
                 .await
                 .unwrap();
             assert_eq!(initialization_state, 5);
@@ -905,6 +913,7 @@ mod tests {
                 .await
                 .unwrap();
             let field_child_definition = field_child.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
+            jvm.register_class(field_child, None).await.unwrap();
             assert_eq!(field_child_definition.instance_field_word_count()?, 8);
             let own0 = ClassDefinition::field(&field_child_definition, "own0", "I", false).unwrap();
             let own1 = ClassDefinition::field(&field_child_definition, "own1", "I", false).unwrap();
@@ -924,10 +933,15 @@ mod tests {
 
             let mut field_child_instance: Box<dyn ClassInstance> = Box::new(JavaClassInstance::new(&mut core, &field_child_definition)?);
             let ptr_fields = field_child_instance.as_any().downcast_ref::<JavaClassInstance>().unwrap().ptr_fields()?;
-            jvm.put_field(&mut field_child_instance, "own0", "I", 0x1234_5678i32).await.unwrap();
+            jvm.put_field(&mut field_child_instance, "net/wie/test/FieldChild", "own0", "I", 0x1234_5678i32)
+                .await
+                .unwrap();
             assert_eq!(read_generic::<u32, _>(&core, ptr_fields + 6 * size_of::<u32>() as u32)?, 0x1234_5678);
             write_generic(&mut core, ptr_fields + 7 * size_of::<u32>() as u32, 0x7654_3210u32)?;
-            let own1: i32 = jvm.get_field(&field_child_instance, "own1", "I").await.unwrap();
+            let own1: i32 = jvm
+                .get_field(&field_child_instance, "net/wie/test/FieldChild", "own1", "I")
+                .await
+                .unwrap();
             assert_eq!(own1, 0x7654_3210);
 
             done_clone.store(true, Ordering::Relaxed);

@@ -215,14 +215,34 @@ impl Alert {
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Screen", "<init>", "()V", ()).await?;
         let display_image = Self::snapshot(jvm, &image).await?;
-        jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
-        jvm.put_field(&mut this, "type", "Ljavax/microedition/lcdui/AlertType;", alert_type)
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "text", "Ljava/lang/String;", text)
             .await?;
-        jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
-            .await?;
-        jvm.put_field(&mut this, "timeout", "I", 2000).await?;
-        jvm.put_field(&mut this, "scrollY", "I", 0).await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "type",
+            "Ljavax/microedition/lcdui/AlertType;",
+            alert_type,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "image",
+            "Ljavax/microedition/lcdui/Image;",
+            image,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "displayImage",
+            "Ljavax/microedition/lcdui/Image;",
+            display_image,
+        )
+        .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "timeout", "I", 2000).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "scrollY", "I", 0).await?;
         jvm.invoke_virtual(
             &this,
             "javax/microedition/lcdui/Displayable",
@@ -249,7 +269,9 @@ impl Alert {
 
     async fn content_layout(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>, width: i32) -> JvmResult<AlertContentLayout> {
         let width = width.max(0);
-        let image: ClassInstanceRef<Image> = jvm.get_field(this, "displayImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let image: ClassInstanceRef<Image> = jvm
+            .get_field(this, "javax/microedition/lcdui/Alert", "displayImage", "Ljavax/microedition/lcdui/Image;")
+            .await?;
         let (image_width, image_height): (i32, i32) = if image.is_null() {
             (0, 0)
         } else {
@@ -264,7 +286,9 @@ impl Alert {
         let image_height = image_height.max(0);
         let mut height: i32 = image_height;
 
-        let text: ClassInstanceRef<String> = jvm.get_field(this, "text", "Ljava/lang/String;").await?;
+        let text: ClassInstanceRef<String> = jvm
+            .get_field(this, "javax/microedition/lcdui/Alert", "text", "Ljava/lang/String;")
+            .await?;
         let text_lines = if text.is_null() {
             Vec::new()
         } else {
@@ -286,7 +310,9 @@ impl Alert {
             text_y
         };
 
-        let indicator: ClassInstanceRef<Gauge> = jvm.get_field(this, "indicator", "Ljavax/microedition/lcdui/Gauge;").await?;
+        let indicator: ClassInstanceRef<Gauge> = jvm
+            .get_field(this, "javax/microedition/lcdui/Alert", "indicator", "Ljavax/microedition/lcdui/Gauge;")
+            .await?;
         let indicator_height: i32 = if indicator.is_null() {
             0
         } else {
@@ -329,10 +355,11 @@ impl Alert {
         let viewport_height = viewport_height.max(0);
         let content = Self::content_layout(jvm, context, &this, width).await?;
         let maximum_scroll = content.height.saturating_sub(viewport_height).max(0);
-        let scroll: i32 = jvm.get_field(&this, "scrollY", "I").await?;
+        let scroll: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Alert", "scrollY", "I").await?;
         let clamped_scroll = scroll.clamp(0, maximum_scroll);
         if clamped_scroll != scroll {
-            jvm.put_field(&mut this, "scrollY", "I", clamped_scroll).await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "scrollY", "I", clamped_scroll)
+                .await?;
         }
 
         let application_command_count: i32 = jvm
@@ -341,7 +368,7 @@ impl Alert {
         if maximum_scroll > 0 || application_command_count > 1 {
             Ok(-2)
         } else {
-            jvm.get_field(&this, "timeout", "I").await
+            jvm.get_field(&this, "javax/microedition/lcdui/Alert", "timeout", "I").await
         }
     }
 
@@ -389,14 +416,16 @@ impl Alert {
         if timeout <= 0 && timeout != -2 {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid Alert timeout").await);
         }
-        jvm.put_field(&mut this, "timeout", "I", timeout).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "timeout", "I", timeout)
+            .await?;
         Self::invalidate_current(jvm, context, this, true).await
     }
 
     async fn get_type(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<AlertType>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getType({this:?})");
 
-        jvm.get_field(&this, "type", "Ljavax/microedition/lcdui/AlertType;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Alert", "type", "Ljavax/microedition/lcdui/AlertType;")
+            .await
     }
 
     async fn set_type(
@@ -406,43 +435,65 @@ impl Alert {
         alert_type: ClassInstanceRef<AlertType>,
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setType({this:?}, {alert_type:?})");
-        jvm.put_field(&mut this, "type", "Ljavax/microedition/lcdui/AlertType;", alert_type)
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "type",
+            "Ljavax/microedition/lcdui/AlertType;",
+            alert_type,
+        )
+        .await?;
         Self::invalidate_current(jvm, context, this, true).await
     }
 
     async fn get_string(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getString({this:?})");
 
-        jvm.get_field(&this, "text", "Ljava/lang/String;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Alert", "text", "Ljava/lang/String;").await
     }
 
     async fn set_string(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setString({this:?}, {text:?})");
-        jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "text", "Ljava/lang/String;", text)
+            .await?;
         Self::invalidate_current(jvm, context, this, true).await
     }
 
     async fn get_image(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getImage({this:?})");
 
-        jvm.get_field(&this, "image", "Ljavax/microedition/lcdui/Image;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Alert", "image", "Ljavax/microedition/lcdui/Image;")
+            .await
     }
 
     async fn set_image(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setImage({this:?}, {image:?})");
 
         let display_image = Self::snapshot(jvm, &image).await?;
-        jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "image",
+            "Ljavax/microedition/lcdui/Image;",
+            image,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "displayImage",
+            "Ljavax/microedition/lcdui/Image;",
+            display_image,
+        )
+        .await?;
         Self::invalidate_current(jvm, context, this, true).await
     }
 
     async fn get_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Gauge>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getIndicator({this:?})");
 
-        jvm.get_field(&this, "indicator", "Ljavax/microedition/lcdui/Gauge;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/Alert", "indicator", "Ljavax/microedition/lcdui/Gauge;")
+            .await
     }
 
     async fn set_indicator(
@@ -453,7 +504,9 @@ impl Alert {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setIndicator({this:?}, {indicator:?})");
 
-        let old_indicator: ClassInstanceRef<Gauge> = jvm.get_field(&this, "indicator", "Ljavax/microedition/lcdui/Gauge;").await?;
+        let old_indicator: ClassInstanceRef<Gauge> = jvm
+            .get_field(&this, "javax/microedition/lcdui/Alert", "indicator", "Ljavax/microedition/lcdui/Gauge;")
+            .await?;
         if (old_indicator.is_null() && indicator.is_null())
             || (!old_indicator.is_null() && !indicator.is_null() && old_indicator.identity() == indicator.identity())
         {
@@ -491,8 +544,14 @@ impl Alert {
             )
             .await?;
         }
-        jvm.put_field(&mut this, "indicator", "Ljavax/microedition/lcdui/Gauge;", indicator)
-            .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "indicator",
+            "Ljavax/microedition/lcdui/Gauge;",
+            indicator,
+        )
+        .await?;
         Self::invalidate_current(jvm, context, this, true).await
     }
 
@@ -633,9 +692,22 @@ impl Alert {
             return Ok(());
         }
 
-        let next: ClassInstanceRef<Displayable> = jvm.get_field(&this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;").await?;
-        jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", None)
+        let next: ClassInstanceRef<Displayable> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/Alert",
+                "nextDisplayable",
+                "Ljavax/microedition/lcdui/Displayable;",
+            )
             .await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "nextDisplayable",
+            "Ljavax/microedition/lcdui/Displayable;",
+            None,
+        )
+        .await?;
         let display: ClassInstanceRef<Display> = jvm
             .invoke_virtual(
                 &this,
@@ -681,8 +753,14 @@ impl Alert {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setNextDisplayable({this:?}, {next:?})");
 
-        jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", next)
-            .await
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/Alert",
+            "nextDisplayable",
+            "Ljavax/microedition/lcdui/Displayable;",
+            next,
+        )
+        .await
     }
 
     async fn set_display(
@@ -695,8 +773,14 @@ impl Alert {
         tracing::debug!("{log}");
 
         if display.is_null() {
-            jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", None)
-                .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/Alert",
+                "nextDisplayable",
+                "Ljavax/microedition/lcdui/Displayable;",
+                None,
+            )
+            .await?;
         }
         jvm.invoke_special(
             &this,
@@ -735,7 +819,7 @@ impl Alert {
             let viewport_height = viewport_height.max(0);
             let content = Self::content_layout(jvm, context, &this, width).await?;
             let maximum_scroll = content.height.saturating_sub(viewport_height).max(0);
-            let scroll: i32 = jvm.get_field(&this, "scrollY", "I").await?;
+            let scroll: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Alert", "scrollY", "I").await?;
             let scroll = scroll.clamp(0, maximum_scroll);
             let step = viewport_height.max(1);
             let next_scroll = if code == MIDPKeyCode::UP as i32 {
@@ -744,7 +828,8 @@ impl Alert {
                 scroll.saturating_add(step).min(maximum_scroll)
             };
             if next_scroll != scroll {
-                jvm.put_field(&mut this, "scrollY", "I", next_scroll).await?;
+                jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "scrollY", "I", next_scroll)
+                    .await?;
                 return jvm
                     .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
                     .await;
@@ -788,9 +873,9 @@ impl Alert {
         let viewport_height = viewport_height.max(0);
         let content = Self::content_layout(jvm, context, &this, width).await?;
         let maximum_scroll = content.height.saturating_sub(viewport_height).max(0);
-        let scroll: i32 = jvm.get_field(&this, "scrollY", "I").await?;
+        let scroll: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Alert", "scrollY", "I").await?;
         let scroll = scroll.clamp(0, maximum_scroll);
-        jvm.put_field(&mut this, "scrollY", "I", scroll).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "scrollY", "I", scroll).await?;
 
         if !content.image.is_null() && content.image_width > 0 && content.image_height > 0 {
             let image_x = ((width - content.image_width) / 2).max(0);
@@ -930,12 +1015,27 @@ mod test {
             command: ClassInstanceRef<Command>,
             displayable: ClassInstanceRef<Displayable>,
         ) -> JvmResult<()> {
-            let count: i32 = jvm.get_field(&this, "count", "I").await?;
-            jvm.put_field(&mut this, "count", "I", count + 1).await?;
-            jvm.put_field(&mut this, "lastCommand", "Ljavax/microedition/lcdui/Command;", command)
+            let count: i32 = jvm
+                .get_field(&this, "javax/microedition/lcdui/TestAlertCommandListener", "count", "I")
                 .await?;
-            jvm.put_field(&mut this, "lastDisplayable", "Ljavax/microedition/lcdui/Displayable;", displayable)
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestAlertCommandListener", "count", "I", count + 1)
                 .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestAlertCommandListener",
+                "lastCommand",
+                "Ljavax/microedition/lcdui/Command;",
+                command,
+            )
+            .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/TestAlertCommandListener",
+                "lastDisplayable",
+                "Ljavax/microedition/lcdui/Displayable;",
+                displayable,
+            )
+            .await?;
             Err(jvm.exception("java/lang/RuntimeException", "listener failure").await)
         }
     }
@@ -1061,8 +1161,8 @@ mod test {
     fn alert_renders_snapshots_indicator_updates_and_scrolls_overflow() -> Result<()> {
         run_jvm_test(test_protos(), |jvm| async move {
             let mut display = test_midlet_display(&jvm).await?;
-            jvm.put_field(&mut display, "width", "I", 60).await?;
-            jvm.put_field(&mut display, "height", "I", 80).await?;
+            jvm.put_field(&mut display, "javax/microedition/lcdui/Display", "width", "I", 60).await?;
+            jvm.put_field(&mut display, "javax/microedition/lcdui/Display", "height", "I", 80).await?;
             let source: ClassInstanceRef<Image> = jvm
                 .invoke_static(
                     "javax/microedition/lcdui/Image",
@@ -1202,7 +1302,7 @@ mod test {
                     (KeyboardEventType::KeyPressed as i32, MIDPKeyCode::DOWN as i32),
                 )
                 .await?;
-            assert!(jvm.get_field::<i32>(&alert, "scrollY", "I").await? > 0);
+            assert!(jvm.get_field::<i32>(&alert, "javax/microedition/lcdui/Alert", "scrollY", "I").await? > 0);
             let _: () = jvm
                 .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                 .await?;
@@ -1220,7 +1320,7 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&alert, "javax/microedition/lcdui/Alert", "setString", "(Ljava/lang/String;)V", (text,))
                 .await?;
-            assert_eq!(jvm.get_field::<i32>(&alert, "scrollY", "I").await?, 0);
+            assert_eq!(jvm.get_field::<i32>(&alert, "javax/microedition/lcdui/Alert", "scrollY", "I").await?, 0);
             let timeout: i32 = jvm
                 .invoke_virtual(&alert, "javax/microedition/lcdui/Alert", "getTimeout", "()I", ())
                 .await?;
@@ -1454,7 +1554,14 @@ mod test {
                 clock.advance(100);
                 pump_backend_queue(&jvm, &system).await?;
                 assert_eq!(current(&jvm, &display).await?.identity(), other.identity());
-                let next: ClassInstanceRef<Displayable> = jvm.get_field(&alert, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;").await?;
+                let next: ClassInstanceRef<Displayable> = jvm
+                    .get_field(
+                        &alert,
+                        "javax/microedition/lcdui/Alert",
+                        "nextDisplayable",
+                        "Ljavax/microedition/lcdui/Displayable;",
+                    )
+                    .await?;
                 assert!(next.is_null());
 
                 let _: () = jvm
@@ -1556,12 +1663,28 @@ mod test {
                     } else {
                         result?;
                     }
-                    assert_eq!(jvm.get_field::<i32>(&listener, "count", "I").await?, count);
+                    assert_eq!(
+                        jvm.get_field::<i32>(&listener, "javax/microedition/lcdui/TestAlertCommandListener", "count", "I")
+                            .await?,
+                        count
+                    );
                     assert_eq!(current(&jvm, &display).await?.identity(), alert.identity());
                 }
-                let delivered: ClassInstanceRef<Command> = jvm.get_field(&listener, "lastCommand", "Ljavax/microedition/lcdui/Command;").await?;
+                let delivered: ClassInstanceRef<Command> = jvm
+                    .get_field(
+                        &listener,
+                        "javax/microedition/lcdui/TestAlertCommandListener",
+                        "lastCommand",
+                        "Ljavax/microedition/lcdui/Command;",
+                    )
+                    .await?;
                 let target: ClassInstanceRef<Displayable> = jvm
-                    .get_field(&listener, "lastDisplayable", "Ljavax/microedition/lcdui/Displayable;")
+                    .get_field(
+                        &listener,
+                        "javax/microedition/lcdui/TestAlertCommandListener",
+                        "lastDisplayable",
+                        "Ljavax/microedition/lcdui/Displayable;",
+                    )
                     .await?;
                 assert_eq!(delivered.identity(), command.identity());
                 assert_eq!(target.identity(), alert.identity());
@@ -1585,7 +1708,11 @@ mod test {
                     )
                     .await?;
                 assert_eq!(current(&jvm, &display).await?.identity(), previous.identity());
-                assert_eq!(jvm.get_field::<i32>(&listener, "count", "I").await?, 1);
+                assert_eq!(
+                    jvm.get_field::<i32>(&listener, "javax/microedition/lcdui/TestAlertCommandListener", "count", "I")
+                        .await?,
+                    1
+                );
                 Ok(())
             },
         )

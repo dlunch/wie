@@ -50,7 +50,8 @@ impl FileInputStream {
         }
 
         let file = jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, READ)).await?;
-        jvm.put_field(&mut this, "file", "Lcom/xce/io/XFile;", file).await?;
+        jvm.put_field(&mut this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;", file)
+            .await?;
 
         Ok(())
     }
@@ -64,7 +65,8 @@ impl FileInputStream {
         }
 
         let file = jvm.new_class("com/xce/io/XFile", "(I)V", (fd,)).await?;
-        jvm.put_field(&mut this, "file", "Lcom/xce/io/XFile;", file).await?;
+        jvm.put_field(&mut this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;", file)
+            .await?;
 
         Ok(())
     }
@@ -82,9 +84,9 @@ impl FileInputStream {
             return Err(jvm.exception("java/lang/NullPointerException", "file is null").await);
         }
 
-        let file_type: i32 = jvm.get_field(&file, "type", "I").await?;
-        let mode: i32 = jvm.get_field(&file, "mode", "I").await?;
-        let fd: i32 = jvm.get_field(&file, "fd", "I").await?;
+        let file_type: i32 = jvm.get_field(&file, "com/xce/io/XFile", "type", "I").await?;
+        let mode: i32 = jvm.get_field(&file, "com/xce/io/XFile", "mode", "I").await?;
+        let fd: i32 = jvm.get_field(&file, "com/xce/io/XFile", "fd", "I").await?;
         let readable = match file_type {
             STDSTREAM => fd == STDIN && mode == READ,
             NORMAL => mode == READ || mode == READ_WRITE,
@@ -94,7 +96,8 @@ impl FileInputStream {
         if !readable {
             return Err(jvm.exception("java/io/IOException", "XFile is not open for reading").await);
         }
-        jvm.put_field(&mut this, "file", "Lcom/xce/io/XFile;", file).await?;
+        jvm.put_field(&mut this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;", file)
+            .await?;
 
         Ok(())
     }
@@ -102,7 +105,7 @@ impl FileInputStream {
     async fn available(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.FileInputStream::available({this:?})");
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;").await?;
         let available = jvm.invoke_virtual(&file, "com/xce/io/XFile", "available", "()I", ()).await?;
 
         Ok(available)
@@ -111,7 +114,7 @@ impl FileInputStream {
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::close({this:?})");
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;").await?;
         let _: () = jvm.invoke_virtual(&file, "com/xce/io/XFile", "close", "()V", ()).await?;
 
         Ok(())
@@ -120,19 +123,21 @@ impl FileInputStream {
     async fn mark(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, read_limit: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::mark({this:?}, {read_limit})");
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
-        let file_type: i32 = jvm.get_field(&file, "type", "I").await?;
-        let mode: i32 = jvm.get_field(&file, "mode", "I").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;").await?;
+        let file_type: i32 = jvm.get_field(&file, "com/xce/io/XFile", "type", "I").await?;
+        let mode: i32 = jvm.get_field(&file, "com/xce/io/XFile", "mode", "I").await?;
         if file_type == STDSTREAM || mode == READ_RESOURCE {
-            let stream: ClassInstanceRef<InputStream> = jvm.get_field(&file, "is", "Ljava/io/InputStream;").await?;
+            let stream: ClassInstanceRef<InputStream> = jvm.get_field(&file, "com/xce/io/XFile", "is", "Ljava/io/InputStream;").await?;
             let _: () = jvm.invoke_virtual(&stream, "java/io/InputStream", "mark", "(I)V", (read_limit,)).await?;
-            let position: i32 = jvm.get_field(&file, "offset", "I").await?;
-            jvm.put_field(&mut this, "markPosition", "I", position).await?;
+            let position: i32 = jvm.get_field(&file, "com/xce/io/XFile", "offset", "I").await?;
+            jvm.put_field(&mut this, "com/xce/io/FileInputStream", "markPosition", "I", position)
+                .await?;
         } else {
             let position: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "seek", "(II)I", (0, SEEK_CUR)).await?;
-            jvm.put_field(&mut this, "markPosition", "I", position).await?;
+            jvm.put_field(&mut this, "com/xce/io/FileInputStream", "markPosition", "I", position)
+                .await?;
         }
-        jvm.put_field(&mut this, "marked", "Z", true).await?;
+        jvm.put_field(&mut this, "com/xce/io/FileInputStream", "marked", "Z", true).await?;
 
         Ok(())
     }
@@ -144,7 +149,7 @@ impl FileInputStream {
     async fn read_byte(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.FileInputStream::read({this:?})");
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;").await?;
         let buffer: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 1).await?.into();
         let read: i32 = jvm
             .invoke_virtual(&file, "com/xce/io/XFile", "read", "([BII)I", (buffer.clone(), 0, 1))
@@ -195,7 +200,7 @@ impl FileInputStream {
             return Ok(0);
         }
 
-        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
+        let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;").await?;
         let read: i32 = jvm
             .invoke_virtual(&file, "com/xce/io/XFile", "read", "([BII)I", (buf, offset, length))
             .await?;
@@ -206,21 +211,21 @@ impl FileInputStream {
     async fn reset(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::reset({this:?})");
 
-        let marked: bool = jvm.get_field(&this, "marked", "Z").await?;
+        let marked: bool = jvm.get_field(&this, "com/xce/io/FileInputStream", "marked", "Z").await?;
         if !marked {
             return Err(jvm.exception("java/io/IOException", "Stream has not been marked").await);
         }
 
-        let mut file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
-        let file_type: i32 = jvm.get_field(&file, "type", "I").await?;
-        let mode: i32 = jvm.get_field(&file, "mode", "I").await?;
+        let mut file: ClassInstanceRef<XFile> = jvm.get_field(&this, "com/xce/io/FileInputStream", "file", "Lcom/xce/io/XFile;").await?;
+        let file_type: i32 = jvm.get_field(&file, "com/xce/io/XFile", "type", "I").await?;
+        let mode: i32 = jvm.get_field(&file, "com/xce/io/XFile", "mode", "I").await?;
         if file_type == STDSTREAM || mode == READ_RESOURCE {
-            let stream: ClassInstanceRef<InputStream> = jvm.get_field(&file, "is", "Ljava/io/InputStream;").await?;
+            let stream: ClassInstanceRef<InputStream> = jvm.get_field(&file, "com/xce/io/XFile", "is", "Ljava/io/InputStream;").await?;
             let _: () = jvm.invoke_virtual(&stream, "java/io/InputStream", "reset", "()V", ()).await?;
-            let position: i32 = jvm.get_field(&this, "markPosition", "I").await?;
-            jvm.put_field(&mut file, "offset", "I", position).await?;
+            let position: i32 = jvm.get_field(&this, "com/xce/io/FileInputStream", "markPosition", "I").await?;
+            jvm.put_field(&mut file, "com/xce/io/XFile", "offset", "I", position).await?;
         } else {
-            let position: i32 = jvm.get_field(&this, "markPosition", "I").await?;
+            let position: i32 = jvm.get_field(&this, "com/xce/io/FileInputStream", "markPosition", "I").await?;
             let _: i32 = jvm
                 .invoke_virtual(&file, "com/xce/io/XFile", "seek", "(II)I", (position, SEEK_SET))
                 .await?;

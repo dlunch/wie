@@ -96,7 +96,7 @@ impl SMSMessage {
         tracing::debug!("com.skt.m.SMSMessage::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "type", "I", UNKNOWN).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "type", "I", UNKNOWN).await?;
 
         Ok(())
     }
@@ -111,9 +111,10 @@ impl SMSMessage {
         tracing::debug!("com.skt.m.SMSMessage::<init>({this:?}, {data:?}, {sender:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "type", "I", SHORT_MESSAGE).await?;
-        jvm.put_field(&mut this, "shortMessage", "[B", data).await?;
-        jvm.put_field(&mut this, "sender", "Ljava/lang/String;", sender).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "type", "I", SHORT_MESSAGE).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "shortMessage", "[B", data).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "sender", "Ljava/lang/String;", sender)
+            .await?;
 
         Ok(())
     }
@@ -128,9 +129,10 @@ impl SMSMessage {
         tracing::debug!("com.skt.m.SMSMessage::<init>({this:?}, {cname:?}, {data:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "type", "I", APPLICATION_DATA).await?;
-        jvm.put_field(&mut this, "cname", "Ljava/lang/String;", cname).await?;
-        jvm.put_field(&mut this, "appData", "[B", data).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "type", "I", APPLICATION_DATA).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "cname", "Ljava/lang/String;", cname)
+            .await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "appData", "[B", data).await?;
 
         Ok(())
     }
@@ -146,32 +148,35 @@ impl SMSMessage {
         tracing::debug!("com.skt.m.SMSMessage::<init>({this:?}, {url:?}, {name:?}, {comment:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "type", "I", DOWNLOAD_NOTIFICATION).await?;
-        jvm.put_field(&mut this, "url", "Ljava/lang/String;", url).await?;
-        jvm.put_field(&mut this, "name", "Ljava/lang/String;", name).await?;
-        jvm.put_field(&mut this, "comment", "Ljava/lang/String;", comment).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "type", "I", DOWNLOAD_NOTIFICATION)
+            .await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "url", "Ljava/lang/String;", url).await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "name", "Ljava/lang/String;", name)
+            .await?;
+        jvm.put_field(&mut this, "com/skt/m/SMSMessage", "comment", "Ljava/lang/String;", comment)
+            .await?;
 
         Ok(())
     }
 
     async fn get_app_data(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Array<i8>>> {
-        jvm.get_field(&this, "appData", "[B").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "appData", "[B").await
     }
 
     async fn get_cname(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
-        jvm.get_field(&this, "cname", "Ljava/lang/String;").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "cname", "Ljava/lang/String;").await
     }
 
     async fn get_comment(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
-        jvm.get_field(&this, "comment", "Ljava/lang/String;").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "comment", "Ljava/lang/String;").await
     }
 
     async fn get_name(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
-        jvm.get_field(&this, "name", "Ljava/lang/String;").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "name", "Ljava/lang/String;").await
     }
 
     async fn get_sender(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
-        jvm.get_field(&this, "sender", "Ljava/lang/String;").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "sender", "Ljava/lang/String;").await
     }
 
     async fn get_service_option(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i8> {
@@ -181,15 +186,15 @@ impl SMSMessage {
     }
 
     async fn get_short_message(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Array<i8>>> {
-        jvm.get_field(&this, "shortMessage", "[B").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "shortMessage", "[B").await
     }
 
     async fn get_type(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        jvm.get_field(&this, "type", "I").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "type", "I").await
     }
 
     async fn get_url(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
-        jvm.get_field(&this, "url", "Ljava/lang/String;").await
+        jvm.get_field(&this, "com/skt/m/SMSMessage", "url", "Ljava/lang/String;").await
     }
 }
 

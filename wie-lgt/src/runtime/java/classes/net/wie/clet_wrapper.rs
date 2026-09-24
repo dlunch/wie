@@ -69,7 +69,14 @@ impl CletWrapper {
                 (clet_wrapper_card,),
             )
             .await?;
-        let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&display, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let midp_display: ClassInstanceRef<MidpDisplay> = jvm
+            .get_field(
+                &display,
+                "org/kwis/msp/lcdui/Display",
+                "midpDisplay",
+                "Ljavax/microedition/lcdui/Display;",
+            )
+            .await?;
         let _: () = jvm
             .invoke_virtual(&midp_display, "javax/microedition/lcdui/Display", "disablePaint", "()V", ())
             .await?;

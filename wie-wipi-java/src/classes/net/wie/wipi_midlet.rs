@@ -50,7 +50,8 @@ impl WIPIMIDlet {
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIMIDlet::setCurrentJlet({this:?}, {jlet:?})");
 
-        jvm.put_field(&mut this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;", jlet).await?;
+        jvm.put_field(&mut this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;", jlet)
+            .await?;
 
         Ok(())
     }
@@ -60,7 +61,7 @@ impl WIPIMIDlet {
 
         let args_array = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
 
-        let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
+        let jlet = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
         let _: () = jvm
             .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "startApp", "([Ljava/lang/String;)V", (args_array,))
             .await?;
@@ -71,7 +72,7 @@ impl WIPIMIDlet {
     async fn pause_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIMIDlet::pauseApp({this:?})");
 
-        let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
+        let jlet = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
         let _: () = jvm.invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "pauseApp", "()V", ()).await?;
 
         Ok(())
@@ -80,7 +81,7 @@ impl WIPIMIDlet {
     async fn destroy_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIMIDlet::destroyApp({this:?}, {unconditional:?})");
 
-        let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
+        let jlet = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
         let _: () = jvm
             .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (unconditional,))
             .await?;

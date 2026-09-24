@@ -56,11 +56,30 @@ impl CommandEvent {
         displayable: ClassInstanceRef<Displayable>,
     ) -> JvmResult<()> {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "command", "Ljavax/microedition/lcdui/Command;", command).await?;
-        jvm.put_field(&mut this, "listener", "Ljavax/microedition/lcdui/CommandListener;", listener)
-            .await?;
-        jvm.put_field(&mut this, "displayable", "Ljavax/microedition/lcdui/Displayable;", displayable)
-            .await
+        jvm.put_field(
+            &mut this,
+            "net/wie/CommandEvent",
+            "command",
+            "Ljavax/microedition/lcdui/Command;",
+            command,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "net/wie/CommandEvent",
+            "listener",
+            "Ljavax/microedition/lcdui/CommandListener;",
+            listener,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "net/wie/CommandEvent",
+            "displayable",
+            "Ljavax/microedition/lcdui/Displayable;",
+            displayable,
+        )
+        .await
     }
 
     async fn init_item(
@@ -72,18 +91,40 @@ impl CommandEvent {
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "command", "Ljavax/microedition/lcdui/Command;", command).await?;
-        jvm.put_field(&mut this, "itemListener", "Ljavax/microedition/lcdui/ItemCommandListener;", listener)
-            .await?;
-        jvm.put_field(&mut this, "item", "Ljavax/microedition/lcdui/Item;", item).await
+        jvm.put_field(
+            &mut this,
+            "net/wie/CommandEvent",
+            "command",
+            "Ljavax/microedition/lcdui/Command;",
+            command,
+        )
+        .await?;
+        jvm.put_field(
+            &mut this,
+            "net/wie/CommandEvent",
+            "itemListener",
+            "Ljavax/microedition/lcdui/ItemCommandListener;",
+            listener,
+        )
+        .await?;
+        jvm.put_field(&mut this, "net/wie/CommandEvent", "item", "Ljavax/microedition/lcdui/Item;", item)
+            .await
     }
 
     async fn run(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        let command: ClassInstanceRef<Command> = jvm.get_field(&this, "command", "Ljavax/microedition/lcdui/Command;").await?;
-        let item: ClassInstanceRef<Item> = jvm.get_field(&this, "item", "Ljavax/microedition/lcdui/Item;").await?;
+        let command: ClassInstanceRef<Command> = jvm
+            .get_field(&this, "net/wie/CommandEvent", "command", "Ljavax/microedition/lcdui/Command;")
+            .await?;
+        let item: ClassInstanceRef<Item> = jvm
+            .get_field(&this, "net/wie/CommandEvent", "item", "Ljavax/microedition/lcdui/Item;")
+            .await?;
         if item.is_null() {
-            let listener: ClassInstanceRef<CommandListener> = jvm.get_field(&this, "listener", "Ljavax/microedition/lcdui/CommandListener;").await?;
-            let displayable: ClassInstanceRef<Displayable> = jvm.get_field(&this, "displayable", "Ljavax/microedition/lcdui/Displayable;").await?;
+            let listener: ClassInstanceRef<CommandListener> = jvm
+                .get_field(&this, "net/wie/CommandEvent", "listener", "Ljavax/microedition/lcdui/CommandListener;")
+                .await?;
+            let displayable: ClassInstanceRef<Displayable> = jvm
+                .get_field(&this, "net/wie/CommandEvent", "displayable", "Ljavax/microedition/lcdui/Displayable;")
+                .await?;
             jvm.invoke_virtual(
                 &listener,
                 "javax/microedition/lcdui/CommandListener",
@@ -94,7 +135,12 @@ impl CommandEvent {
             .await
         } else {
             let listener: ClassInstanceRef<ItemCommandListener> = jvm
-                .get_field(&this, "itemListener", "Ljavax/microedition/lcdui/ItemCommandListener;")
+                .get_field(
+                    &this,
+                    "net/wie/CommandEvent",
+                    "itemListener",
+                    "Ljavax/microedition/lcdui/ItemCommandListener;",
+                )
                 .await?;
             jvm.invoke_virtual(
                 &listener,
