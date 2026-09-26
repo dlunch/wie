@@ -524,7 +524,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICDatabaseMethodId::Unk13 => Some(gen_stub(13, "MC_dbUnk13")),
             WIPICDatabaseMethodId::Unk14 => Some(gen_stub(14, "MC_dbUnk14")),
             WIPICDatabaseMethodId::Unk15 => Some(gen_stub(15, "MC_dbUnk15")),
-            WIPICDatabaseMethodId::Exists => Some(database::exists_database_ktf.into_body()),
+            WIPICDatabaseMethodId::Exists => Some(database::exists_database.into_body()),
         },
         WIPICTableId::Interface7 => {
             if function_id < 64 {

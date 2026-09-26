@@ -55,7 +55,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     // Guest-provided C string — invalid UTF-8 must not bring down the
     // emulator. Treat it as a bad parameter and return -22, matching the
     // fail-soft behaviour of the other name-keyed entry points in this
-    // file (`stat_by_name_ktf`, `exists_database_ktf`).
+    // file (`stat_by_name_ktf`, `exists_database`).
     let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
         tracing::warn!("MC_dbOpenDataBase: invalid utf8 name @ {ptr_name:#x}");
         return Ok(-22);
@@ -557,36 +557,6 @@ pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWor
     Ok(0)
 }
 
-/// KTF custom slot 16 — `MC_dbExists(name)`. Observed call shape across
-/// multiple titles is `(name_ptr, 1, size_hint_or_zero, callback_garbage)`.
-/// Titles call it before deciding whether to take the load or fresh-init
-/// path. Returning 1 unconditionally makes them try to load nonexistent
-/// state on first run and trip later, so we read the C string at `a0` and
-/// answer based on the real persisted state.
-pub async fn exists_database_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWord, _arg1: i32, _arg2: i32) -> Result<i32> {
-    let name = match read_null_terminated_string_bytes(context, name_ptr) {
-        Ok(bytes) => match String::from_utf8(bytes) {
-            Ok(s) => s,
-            Err(_) => {
-                tracing::warn!("MC_dbExists invalid utf8 name @ {name_ptr:#x}, defaulting to 0");
-                return Ok(0);
-            }
-        },
-        Err(_) => {
-            tracing::warn!("MC_dbExists unreadable name @ {name_ptr:#x}, defaulting to 0");
-            return Ok(0);
-        }
-    };
-
-    let system = context.system();
-    let pid = system.pid().to_owned();
-    let exists = system.platform().database_repository().exists(&name, &pid).await;
-
-    let result = if exists { 1 } else { 0 };
-    tracing::debug!("MC_dbExists({name:?}) -> {result}");
-    Ok(result)
-}
-
 /// Read a `DatabaseHandle` from guest memory if `db_id` looks like one.
 ///
 /// Returns `Ok(None)` for any pointer that's obviously not a handle —
@@ -656,7 +626,7 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn lgt_exists_database_reports_missing_and_existing_database() {
+    async fn exists_database_reports_missing_and_existing_database() {
         let mut context = database_test_context();
         context.write_bytes(0x1000, b"records\0").unwrap();
 
