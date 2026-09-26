@@ -305,8 +305,8 @@ mod test {
     use wipi_types::ktf::{
         ExeInterfaceFunctions,
         java::{
-            JavaClass as RawJavaClass, JavaClassInstance as RawJavaClassInstance, JavaFieldDefinition as RawJavaField,
-            JavaMethodDefinition as RawJavaMethod,
+            JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor, JavaClassInstance as RawJavaClassInstance,
+            JavaFieldDefinition as RawJavaField, JavaMethodDefinition as RawJavaMethod,
         },
     };
 
@@ -314,13 +314,13 @@ mod test {
     use wie_core_arm::{Allocator, ArmCore};
     use wie_jvm_support::native::encode_method_arguments;
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
-    use wie_util::{Result, WieError, read_generic, write_generic};
+    use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
     use crate::runtime::java::{JavaSvcFunctions, handle_java_svc};
 
     use super::{
         ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaClassInstance, JavaMethod, KtfClassLoader, KtfJvmSupport,
-        KtfJvmThreadContext, value::JavaValueCodec,
+        KtfJvmThreadContext, name::JavaFullName, value::JavaValueCodec,
     };
 
     use test_utils::{TestClock, TestPlatform};
@@ -623,6 +623,121 @@ mod test {
             }
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_native_virtual_overrides() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let mut system_clone = system.clone();
+        system.spawn(async move || {
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
+            let object = jvm.resolve_class("java/lang/Object").await.unwrap();
+            let ptr_object = KtfJvmSupport::class_definition_raw(&*object.definition)?;
+            let name = JavaFullName::new(0, "value", "()I").as_bytes();
+            let ptr_name = Allocator::alloc(&mut core, name.len() as u32)?;
+            core.write_bytes(ptr_name, &name)?;
+
+            let mut classes: Vec<u32> = Vec::new();
+            let mut methods = Vec::new();
+            for (name, parent, flags, slots, value) in [
+                ("test/Base", None, Some(MethodAccessFlags::PRIVATE), &[0][..], 1),
+                (
+                    "test/Abstract",
+                    Some(0),
+                    Some(MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+                    &[0, 1][..],
+                    0,
+                ),
+                ("other/Concrete", Some(1), Some(MethodAccessFlags::PUBLIC), &[0, 1, 2][..], 42),
+                ("other/Inherited", Some(2), None, &[0, 1, 2][..], 0),
+                ("other/Sibling", Some(1), Some(MethodAccessFlags::PUBLIC), &[0, 1, 3][..], 84),
+                ("test/PackageBase", Some(0), Some(MethodAccessFlags::empty()), &[0, 4][..], 10),
+                ("other/Unrelated", Some(5), Some(MethodAccessFlags::PUBLIC), &[0, 4, 5][..], 20),
+                ("test/Bridge", Some(5), Some(MethodAccessFlags::PROTECTED), &[0, 4, 6][..], 30),
+                ("other/BridgeLeaf", Some(7), Some(MethodAccessFlags::PUBLIC), &[0, 4, 6, 7][..], 40),
+            ] {
+                let ptr_class = Allocator::alloc(&mut core, size_of::<RawJavaClass>() as u32)?;
+                if let Some(flags) = flags {
+                    let ptr_method = Allocator::alloc(&mut core, size_of::<RawJavaMethod>() as u32)?;
+                    let mut method = RawJavaMethod::zeroed();
+                    if !flags.contains(MethodAccessFlags::ABSTRACT) {
+                        method.fn_body = Allocator::alloc(&mut core, 4)? | 1;
+                        core.write_bytes(method.fn_body & !1, &[value, 0x20, 0x70, 0x47])?; // movs r0, #value; bx lr
+                    }
+                    method.ptr_class = ptr_class;
+                    method.ptr_name = ptr_name;
+                    method.access_flags = flags.bits();
+                    method.index_in_vtable = (slots.len() - 1) as u16;
+                    write_generic(&mut core, ptr_method, method)?;
+                    methods.push(ptr_method);
+                }
+
+                // Native descriptors include inherited declarations, and their vtables
+                // have an explicit count rather than a terminating null pointer.
+                let ptr_methods = Allocator::alloc(&mut core, (slots.len() as u32 + 1) * 4)?;
+                let pointers = slots.iter().map(|&index| methods[index]).collect::<Vec<_>>();
+                write_null_terminated_table(&mut core, ptr_methods, &pointers)?;
+                let ptr_vtable = Allocator::alloc(&mut core, slots.len() as u32 * 4)?;
+                for (index, pointer) in pointers.iter().enumerate() {
+                    write_generic(&mut core, ptr_vtable + index as u32 * 4, *pointer)?;
+                }
+                let ptr_class_name = Allocator::alloc(&mut core, name.len() as u32 + 1)?;
+                write_null_terminated_string_bytes(&mut core, ptr_class_name, name.as_bytes())?;
+                let ptr_descriptor = Allocator::alloc(&mut core, size_of::<RawJavaClassDescriptor>() as u32)?;
+                let mut descriptor = RawJavaClassDescriptor::zeroed();
+                descriptor.ptr_name = ptr_class_name;
+                descriptor.ptr_parent_class = parent.map(|index: usize| classes[index]).unwrap_or(ptr_object);
+                descriptor.ptr_methods = ptr_methods;
+                descriptor.method_count = slots.len() as u16;
+                descriptor.access_flag = ClassAccessFlags::PUBLIC.bits();
+                if flags.is_some_and(|flags| flags.contains(MethodAccessFlags::ABSTRACT)) {
+                    descriptor.access_flag |= ClassAccessFlags::ABSTRACT.bits();
+                }
+                write_generic(&mut core, ptr_descriptor, descriptor)?;
+                write_generic(
+                    &mut core,
+                    ptr_class,
+                    RawJavaClass {
+                        ptr_next: ptr_class + 4,
+                        unk1: 0,
+                        ptr_descriptor,
+                        ptr_vtable,
+                        vtable_count: slots.len() as u16,
+                        unk_flag: 0x8080,
+                    },
+                )?;
+                let class = JavaClassDefinition::from_raw(ptr_class, &core);
+                jvm.register_class(Box::new(class), None).await.unwrap();
+                classes.push(ptr_class);
+            }
+
+            for (index, declaration, expected) in [(2, 1, 42), (3, 1, 42), (4, 1, 84), (6, 4, 10), (7, 4, 30), (8, 4, 40)] {
+                let class = JavaClassDefinition::from_raw(classes[index], &core);
+                let instance = jvm.instantiate_class(&class.name()?).await.unwrap();
+                let base_method: RawJavaMethod = read_generic(&core, methods[declaration])?;
+                let vtable = class.ptr_vtable()?;
+                let ptr_target: u32 = read_generic(&core, vtable + u32::from(base_method.index_in_vtable) * 4)?;
+                let target: RawJavaMethod = read_generic(&core, ptr_target)?;
+                assert_eq!(target.access_flags & MethodAccessFlags::ABSTRACT.bits(), 0);
+                let value: u32 = core
+                    .run_function(target.fn_body, &[0, KtfJvmSupport::class_instance_raw(&instance)])
+                    .await?;
+                assert_eq!(value, expected);
+                assert_eq!(read_generic::<u32, _>(&core, vtable)?, methods[0]);
+                assert_eq!(base_method.index_in_vtable, 1);
+            }
+            let abstract_class = JavaClassDefinition::from_raw(classes[1], &core);
+            assert_eq!(read_generic::<u32, _>(&core, abstract_class.ptr_vtable()? + 4)?, methods[1]);
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
         Ok(())
     }
 

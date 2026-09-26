@@ -318,8 +318,11 @@ impl ClassDefinition for JavaClassDefinition {
             .collect()
     }
 
-    async fn prepare(&self, _: &Jvm) -> JvmResult<()> {
-        Ok(())
+    async fn prepare(&self, jvm: &Jvm) -> JvmResult<()> {
+        match JavaVtable::resolve_overrides(&mut self.core.clone(), self) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(jvm.exception("net/wie/WieError", &format!("Failed to prepare class: {e}")).await),
+        }
     }
 
     fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Method>> {
