@@ -20,13 +20,13 @@ if [[ "$CHANNEL" == stable ]]; then
     release_id=$(jq -r '.id' <<< "$release")
   else
     initial_body=$(artifact_notes)
-    release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name="$tag" -f body="$initial_body" -F draft=true -F prerelease=false)
+    release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f name="$tag" -f body="$initial_body" -F draft=true -F prerelease=false)
     release_id=$(jq -r '.id' <<< "$release")
   fi
 
   gh release upload "$tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
-  generate_notes_args=(--method POST "$repo/releases/generate-notes" -f tag_name="$tag" -f target_commitish="$TARGET_SHA")
+  generate_notes_args=(--method POST "$repo/releases/generate-notes" -f tag_name="$tag")
   if [[ -n "$PREVIOUS_TAG" ]]; then
     generate_notes_args+=(-f previous_tag_name="$PREVIOUS_TAG")
   fi
