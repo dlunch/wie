@@ -20,27 +20,16 @@ jobs:
   tag:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: write
-      pull-requests: write
     env:
-      GH_TOKEN: ${{ github.token }}
       RELEASE_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
+          token: ${{ secrets.ADMIN_GH_TOKEN }}
           fetch-depth: 0
           submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Install required packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libasound2-dev
 
       - name: Install cargo-edit
         run: cargo install cargo-edit --locked --no-default-features --features set-version
