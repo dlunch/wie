@@ -16,9 +16,7 @@ EOF
 }
 
 if [[ "$CHANNEL" == stable ]]; then
-  if release=$(gh api "$repo/releases/tags/$tag" 2>/dev/null); then
-    release_id=$(jq -r '.id' <<< "$release")
-  else
+  if ! release_id=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json databaseId --jq '.databaseId' 2>/dev/null); then
     initial_body=$(artifact_notes)
     release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f name="$tag" -f body="$initial_body" -F draft=true -F prerelease=false)
     release_id=$(jq -r '.id' <<< "$release")
@@ -43,9 +41,7 @@ else
     exit 0
   fi
 
-  if release=$(gh api "$repo/releases/tags/$tag" 2>/dev/null); then
-    release_id=$(jq -r '.id' <<< "$release")
-  else
+  if ! release_id=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json databaseId --jq '.databaseId' 2>/dev/null); then
     initial_body=$(artifact_notes)
     release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name=nightly -f body="$initial_body" -F draft=true -F prerelease=true)
     release_id=$(jq -r '.id' <<< "$release")
