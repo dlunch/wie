@@ -31,7 +31,7 @@ opt-level = 1
 lto = true
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 description = "WIPI and J2ME emulator components"
@@ -74,20 +74,20 @@ tracing = { version = "^0.1", default-features = false, features = ["attributes"
 tracing-subscriber = { version = "^0.3", features = ["env-filter", "time"] }
 wipi-types = { version = "^0.0.2" }
 
-wie-backend = { version = "0.1.0", path = "wie-backend" }
-wie-j2me = { version = "0.1.0", path = "wie-j2me" }
-wie-ktf = { version = "0.1.0", path = "wie-ktf" }
-wie-lgt = { version = "0.1.0", path = "wie-lgt" }
-wie-midp = { version = "0.1.0", path = "wie-midp" }
-wie-skt = { version = "0.1.0", path = "wie-skt" }
-wie-util = { version = "0.1.0", path = "wie-util" }
-wie-core-arm = { version = "0.1.0", path = "wie-core-arm" }
-wie-arm-jit-types = { version = "0.1.0", path = "wie-arm-jit-types" }
-wie-core-arm-wasm = { version = "0.1.0", path = "wie-core-arm-wasm" }
-wie-jvm-support = { version = "0.1.0", path = "wie-jvm-support" }
-wie-skvm = { version = "0.1.0", path = "wie-skvm" }
-wie-wipi-c = { version = "0.1.0", path = "wie-wipi-c" }
-wie-wipi-java = { version = "0.1.0", path = "wie-wipi-java" }
+wie-backend = { version = "0.1.6", path = "wie-backend" }
+wie-j2me = { version = "0.1.6", path = "wie-j2me" }
+wie-ktf = { version = "0.1.6", path = "wie-ktf" }
+wie-lgt = { version = "0.1.6", path = "wie-lgt" }
+wie-midp = { version = "0.1.6", path = "wie-midp" }
+wie-skt = { version = "0.1.6", path = "wie-skt" }
+wie-util = { version = "0.1.6", path = "wie-util" }
+wie-core-arm = { version = "0.1.6", path = "wie-core-arm" }
+wie-arm-jit-types = { version = "0.1.6", path = "wie-arm-jit-types" }
+wie-core-arm-wasm = { version = "0.1.6", path = "wie-core-arm-wasm" }
+wie-jvm-support = { version = "0.1.6", path = "wie-jvm-support" }
+wie-skvm = { version = "0.1.6", path = "wie-skvm" }
+wie-wipi-c = { version = "0.1.6", path = "wie-wipi-c" }
+wie-wipi-java = { version = "0.1.6", path = "wie-wipi-java" }
 
 # dev-dependencies
 futures-test = { version = "^0.3" }
