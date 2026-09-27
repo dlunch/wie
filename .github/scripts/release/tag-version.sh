@@ -17,9 +17,4 @@ if ! git diff --cached --quiet; then
 fi
 git tag "$tag"
 
-cargo set-version --workspace --bump patch
-next_version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "wie-app") | .version')
-git add -- Cargo.toml Cargo.lock ':(glob)**/Cargo.toml'
-git commit -m "Start $next_version development"
-
 git push --atomic origin HEAD:refs/heads/main "refs/tags/$tag"

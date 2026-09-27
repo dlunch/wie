@@ -1,5 +1,5 @@
 name: Tag release
-run-name: Tag v${{ inputs.version }} and start the next development version
+run-name: Tag v${{ inputs.version }}
 
 on:
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
         with:
           tool: cargo-edit
 
-      - name: Tag release and prepare next version
+      - name: Set release version and tag
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
