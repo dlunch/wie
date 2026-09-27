@@ -32,7 +32,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-edit
-        run: cargo install cargo-edit --locked --no-default-features --features set-version
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit
 
       - name: Tag release and prepare next version
         run: |
