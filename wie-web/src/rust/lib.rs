@@ -237,10 +237,6 @@ impl WieWeb {
 
         Ok(())
     }
-
-    pub fn set_pcm_volume(&self, volume: f32) {
-        audio_sink::set_pcm_volume(volume);
-    }
 }
 
 #[wasm_bindgen(start)]

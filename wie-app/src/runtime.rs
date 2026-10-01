@@ -18,13 +18,15 @@ use futures::{
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, ipc::Channel};
 
-use wie::{DatabaseRepository, DiskFilesystem, load_emulator};
+use wie::load_emulator;
 use wie_backend::{
     AudioSink, DatabaseRepository as BackendDatabaseRepository, Event, Filesystem, Font, Instant as GuestInstant, KeyCode, Options, Platform, Screen,
 };
 
 use crate::{
     audio::{Audio, AudioSink as NativeAudioSink},
+    database::DatabaseRepository,
+    filesystem::DiskFilesystem,
     library::{Library, LibraryApp, Settings},
     screen::{NativeScreen, NativeView},
 };
@@ -117,7 +119,7 @@ pub async fn list_apps(state: State<'_, AppState>) -> Result<Vec<LibraryApp>, St
 }
 
 #[tauri::command]
-pub async fn import_app(state: State<'_, AppState>, filename: String, bytes: Vec<u8>) -> Result<LibraryApp, String> {
+pub async fn import_app(state: State<'_, AppState>, filename: String, bytes: Vec<u8>) -> Result<(), String> {
     state
         .runtime
         .lock()
@@ -552,7 +554,7 @@ pub(crate) mod tests {
         use tempfile::tempdir;
         use zip::{ZipWriter, write::SimpleFileOptions};
 
-        use super::{AppState, delete_app, import_app, key_event, start_game, stop_game};
+        use super::{AppState, delete_app, import_app, key_event, list_apps, start_game, stop_game};
 
         let root = tempdir().unwrap();
         app.manage(AppState::new(root.path().to_owned(), view));
@@ -564,7 +566,8 @@ pub(crate) mod tests {
             archive.write_all(&bytes).unwrap();
         }
         let bytes = archive.finish().unwrap().into_inner();
-        let imported = import_app(app.state(), "hello.zip".into(), bytes.clone()).await.unwrap();
+        import_app(app.state(), "hello.zip".into(), bytes.clone()).await.unwrap();
+        let imported = list_apps(app.state()).await.unwrap().pop().unwrap();
         let received = Arc::new(Mutex::new(Vec::<Value>::new()));
         let captured = received.clone();
         let (terminated, termination) = mpsc::channel();

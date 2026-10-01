@@ -1,6 +1,6 @@
 import { Check, CircleHelp, EllipsisVertical, Globe2, Plus, Settings, Trash2, Upload, X, createIcons } from "lucide";
 
-import type { Backend, LibraryApp } from "./backend";
+import type { LibraryApp, Wie } from "./backend";
 import type { SettingsController } from "./settings";
 
 const APPS_PER_PAGE = 12;
@@ -16,7 +16,7 @@ const icons = {
   X,
 };
 
-export const initializeLibrary = async (backend: Backend, launchApp: (app: LibraryApp) => Promise<void>, settings: SettingsController) => {
+export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryApp) => Promise<void>, settings: SettingsController) => {
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const libraryPages = document.getElementById("library-pages") as HTMLDivElement;
   const pageIndicators = document.getElementById("page-indicators") as HTMLDivElement;

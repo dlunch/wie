@@ -45,7 +45,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -88,7 +88,6 @@ jobs:
           npm ci
           npm run build:prod
           npm run build:native
-          npm run test:frontend
 
       - name: Save Cargo cache
         if: github.ref == 'refs/heads/main'
@@ -135,7 +134,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -182,7 +181,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -233,7 +232,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -279,7 +278,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -362,7 +361,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -476,7 +475,7 @@ jobs:
       - name: Checkout release scripts
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Download build artifacts

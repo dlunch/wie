@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/browser";
 import { extractAppMetadata, WieWeb } from "@pkg";
 
 import { AppLibraryStore } from "./app_library_store";
-import type { Backend, LibraryApp, PlayerSession } from "./backend";
+import type { LibraryApp, PlayerSession, Wie } from "./backend";
 import { configStore } from "./config_store";
 import { setMasterVolume, setPcmVolume } from "./midi";
 
@@ -12,7 +12,7 @@ Sentry.init({
 
 const store = AppLibraryStore.open();
 
-export const backend: Backend = {
+export const backend: Wie = {
   async listApps() {
     return (await store).list();
   },
@@ -36,7 +36,6 @@ export const backend: Backend = {
         }
         throw error;
       }
-      return app;
     } finally {
       extracted.free();
     }

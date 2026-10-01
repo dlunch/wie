@@ -105,7 +105,7 @@ impl Output {
         self.midi.set_volume(midi)
     }
 
-    #[cfg(any(mobile, test))]
+    #[cfg(mobile)]
     pub fn pause(&mut self) -> Result<()> {
         self.pcm.pause(true);
         #[cfg(target_os = "android")]
@@ -113,7 +113,7 @@ impl Output {
         Ok(())
     }
 
-    #[cfg(any(mobile, test))]
+    #[cfg(mobile)]
     pub fn resume(&mut self) -> Result<()> {
         #[cfg(target_os = "android")]
         self.midi.resume()?;

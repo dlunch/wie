@@ -15,7 +15,7 @@ impl DatabaseRepository {
     }
 
     fn get_path_for_database(&self, name: &str, app_id: &str) -> PathBuf {
-        let name: String = name.chars().map(|c| if matches!(c, '\\' | '\0') { '_' } else { c }).collect();
+        let name: String = name.chars().map(|c| if matches!(c, '\\' | '\0' | ':') { '_' } else { c }).collect();
         let mut normalized_name = PathBuf::new();
         for segment in name.trim_start_matches('/').split('/') {
             match segment {

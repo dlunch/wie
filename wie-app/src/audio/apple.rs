@@ -206,7 +206,7 @@ impl Output {
         Ok(())
     }
 
-    #[cfg(any(mobile, test))]
+    #[cfg(mobile)]
     pub fn pause(&mut self) -> Result<()> {
         unsafe {
             self.engine.pause();

@@ -8,8 +8,7 @@
     "build:prod": "webpack --config wie-web/webpack.config.prod.ts",
     "build:native": "webpack --config wie-web/webpack.config.prod.ts --env native",
     "start": "webpack serve --config wie-web/webpack.config.dev.ts",
-    "start:native": "webpack serve --config wie-web/webpack.config.dev.ts --env native",
-    "test:frontend": "node --test wie-web/src/ts/*.test.mjs"
+    "start:native": "webpack serve --config wie-web/webpack.config.dev.ts --env native"
   },
   "author": "",
   "dependencies": {

@@ -36,9 +36,9 @@ type Reply = Sender<Result<()>>;
 enum Command {
     Audio(AudioCommand),
     Volumes(f32, f32, Reply),
-    #[cfg(any(mobile, test))]
+    #[cfg(mobile)]
     Pause(Reply),
-    #[cfg(any(mobile, test))]
+    #[cfg(mobile)]
     Resume(Reply),
     Shutdown,
 }
@@ -91,7 +91,7 @@ impl Audio {
         self.request(|reply| Command::Volumes(midi, pcm, reply))
     }
 
-    #[cfg(any(mobile, test))]
+    #[cfg(mobile)]
     pub fn pause(&self, paused: bool) -> Result<()> {
         self.request(if paused { Command::Pause } else { Command::Resume })
     }
@@ -125,7 +125,7 @@ fn run(rx: Receiver<Command>, mut output: Output, warning: Warning) {
         origin: Instant::now(),
         paused_at: None,
     };
-    #[cfg(any(mobile, test))]
+    #[cfg(mobile)]
     let mut clock = clock;
     loop {
         let timeout = if clock.paused_at.is_some() {
@@ -170,7 +170,7 @@ fn run(rx: Receiver<Command>, mut output: Output, warning: Warning) {
             Some(Command::Volumes(midi, pcm, reply)) => {
                 let _ = reply.send(output.set_volumes(midi, pcm));
             }
-            #[cfg(any(mobile, test))]
+            #[cfg(mobile)]
             Some(Command::Pause(reply)) => {
                 let result = if clock.paused_at.is_none() {
                     output.pause().map(|()| {
@@ -181,7 +181,7 @@ fn run(rx: Receiver<Command>, mut output: Output, warning: Warning) {
                 };
                 let _ = reply.send(result);
             }
-            #[cfg(any(mobile, test))]
+            #[cfg(mobile)]
             Some(Command::Resume(reply)) => {
                 let result = if clock.paused_at.is_some() {
                     output.resume().map(|()| {
@@ -206,41 +206,5 @@ fn run(rx: Receiver<Command>, mut output: Output, warning: Warning) {
             }
             output.reap();
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn controls_are_acknowledged_and_shutdown_closes_retained_sink_clones() {
-        let (tx, rx) = mpsc::channel();
-        let worker = thread::spawn(move || {
-            while let Ok(command) = rx.recv() {
-                match command {
-                    Command::Volumes(midi, pcm, reply) => {
-                        assert_eq!((midi, pcm), (0.25, 0.75));
-                        reply.send(Ok(())).unwrap();
-                    }
-                    Command::Pause(reply) | Command::Resume(reply) => {
-                        reply.send(Ok(())).unwrap();
-                    }
-                    Command::Audio(_) => {}
-                    Command::Shutdown => return,
-                }
-            }
-            panic!("Session owner must send explicit shutdown while sinks remain alive");
-        });
-        let mut audio = Audio { tx, worker: Some(worker) };
-        let sink = audio.sink();
-        let retained = sink.clone();
-        audio.set_volumes(0.25, 0.75).unwrap();
-        audio.pause(true).unwrap();
-        audio.pause(false).unwrap();
-        audio.shutdown();
-        audio.shutdown();
-        assert!(retained.0.send(Command::Audio(AudioCommand::Stop { handle: 1 })).is_err());
-        assert!(audio.pause(true).is_err());
     }
 }

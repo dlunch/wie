@@ -62,6 +62,7 @@ const commonConfig = (mode: "development" | "production", native = false): webpa
     alias: {
       "@css": path.resolve(import.meta.dirname, "src/css"),
       "@ts": path.resolve(import.meta.dirname, "src/ts"),
+      [path.resolve(import.meta.dirname, "src/ts/backend")]: path.resolve(import.meta.dirname, `src/ts/backend.${native ? "native" : "browser"}.ts`),
     },
     extensions: [".ts", ".js"],
     plugins: [

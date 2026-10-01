@@ -1,5 +1,7 @@
+import { backend } from "@wie";
+
 import { runApp } from "./app";
-import type { Backend, LibraryApp } from "./backend";
+import type { LibraryApp } from "./backend";
 import { initializeLibrary } from "./library";
 import { initializeSettings } from "./settings";
 
@@ -9,7 +11,7 @@ console.error = (...args: unknown[]) => {
   originalConsoleError(...args);
 };
 
-const main = async (backend: Backend) => {
+const main = async () => {
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;
   const settings = await initializeSettings(backend);
@@ -28,16 +30,14 @@ const main = async (backend: Backend) => {
   await initializeLibrary(backend, routeToApp, settings);
 };
 
-export const start = (backend: Backend) => {
-  const initialize = () => {
-    void main(backend).catch(error => {
-      console.error(`라이브러리를 열 수 없습니다. ${String(error)}`, error);
-    });
-  };
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initialize);
-  } else {
-    initialize();
-  }
+const start = () => {
+  void main().catch(error => {
+    console.error(`라이브러리를 열 수 없습니다. ${String(error)}`, error);
+  });
 };
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", start);
+} else {
+  start();
+}

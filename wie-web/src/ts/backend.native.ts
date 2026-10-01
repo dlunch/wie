@@ -1,6 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-import type { Backend, LibraryApp, SessionEvent } from "./backend";
+import type { LibraryApp, SessionEvent, Wie } from "./backend";
 
 type NativeApp = Omit<LibraryApp, "icon"> & { icon: number[] | null };
 
@@ -9,13 +9,13 @@ const decodeApp = (app: NativeApp): LibraryApp => ({
   icon: app.icon?.length ? new Blob([Uint8Array.from(app.icon).buffer]) : undefined,
 });
 
-export const backend: Backend = {
+export const backend: Wie = {
   async listApps() {
     return (await invoke<NativeApp[]>("list_apps")).map(decodeApp);
   },
   async importApp(file) {
     const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
-    return decodeApp(await invoke<NativeApp>("import_app", { filename: file.name, bytes }));
+    await invoke("import_app", { filename: file.name, bytes });
   },
   deleteApp(id) {
     return invoke("delete_app", { id });

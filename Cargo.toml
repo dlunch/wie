@@ -103,9 +103,6 @@ description = "WIPI and J2ME emulator"
 repository.workspace = true
 exclude = ["docs"]
 
-[lib]
-name = "wie"
-
 [[bin]]
 name = "wie"
 path = "src/main.rs"
@@ -139,7 +136,7 @@ softbuffer = { version = "^0.4", optional = true }
 winit = { version = "^0.30", features = ["x11", "wayland"], optional = true }
 
 [dev-dependencies]
-test-utils = { workspace = true }
 futures = { workspace = true, features = ["executor"] }
+test-utils = { workspace = true }
 tempfile = "3"
 zip = { version = "^8.6", features = ["deflate"], default-features = false }

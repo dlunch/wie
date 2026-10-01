@@ -18,10 +18,10 @@ impl DiskFilesystem {
     }
 
     fn path_for(&self, aid: &str, path: &str) -> Option<PathBuf> {
-        let mut normalized = PathBuf::new();
+        let mut has_name = false;
         for component in Path::new(path).components() {
             match component {
-                Component::Normal(c) => normalized.push(c),
+                Component::Normal(_) => has_name = true,
                 Component::CurDir => {}
                 Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
                     tracing::error!(aid, path, "path traversal attempt rejected");
@@ -30,12 +30,12 @@ impl DiskFilesystem {
             }
         }
 
-        if normalized.as_os_str().is_empty() {
+        if !has_name {
             tracing::error!(aid, path, "rejected: empty normalized path");
             return None;
         }
 
-        Some(self.base_path.join(aid).join("fs").join(normalized))
+        Some(self.base_path.join(aid).join("fs").join(path))
     }
 }
 

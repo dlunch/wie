@@ -126,16 +126,7 @@ impl Midi {
         if !(0x80..0xf0).contains(&status) {
             connection.send(data)?;
             // A guest SysEx reset can restore device channel gains. Keep host volume authoritative.
-            for voice in self.voices.values() {
-                for channel in voice.channels.values() {
-                    connection.send(&[
-                        0xb0 | channel,
-                        7,
-                        (f32::from(self.channel_volumes[*channel as usize]) * self.volume).round() as u8,
-                    ])?;
-                }
-            }
-            return Ok(());
+            return self.set_volume(self.volume);
         }
         let channel = voice.channels[&(status & 0xf)];
         if channel == 9 {
@@ -295,8 +286,6 @@ impl Drop for Midi {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
     use super::*;
     use wie_backend::TimedAudioEvent;
 
@@ -355,20 +344,10 @@ mod tests {
 
         let percussion = AudioSequence {
             duration: 100,
-            events: vec![
-                TimedAudioEvent {
-                    time: 0,
-                    data: AudioEventData::Midi(vec![0x99, 36, 100]),
-                },
-                TimedAudioEvent {
-                    time: 0,
-                    data: AudioEventData::Wave {
-                        channels: 1,
-                        sampling_rate: 1000,
-                        samples: vec![8192; 100],
-                    },
-                },
-            ],
+            events: vec![TimedAudioEvent {
+                time: 0,
+                data: AudioEventData::Midi(vec![0x99, 36, 100]),
+            }],
         };
         midi.start(1, &percussion, true).unwrap();
         assert!(midi.connection.as_ref().unwrap().messages.ends_with(&[vec![0xb9, 7, 32]]));
@@ -439,24 +418,7 @@ mod tests {
                 .collect(),
         };
         midi.start(1, &full, true).unwrap();
-        let mixed = AudioSequence {
-            duration: 100,
-            events: vec![
-                TimedAudioEvent {
-                    time: 0,
-                    data: AudioEventData::Midi(vec![0x90, 60, 100]),
-                },
-                TimedAudioEvent {
-                    time: 0,
-                    data: AudioEventData::Wave {
-                        channels: 1,
-                        sampling_rate: 1000,
-                        samples: vec![8192; 100],
-                    },
-                },
-            ],
-        };
-        assert!(midi.start(2, &mixed, false).is_err());
+        assert!(midi.start(2, &sequence, false).is_err());
         midi.connection.as_mut().unwrap().messages.clear();
         midi.event(2, &[0x90, 60, 100]).unwrap();
         midi.event(2, &[0xf0, 0x7e, 0x7f, 9, 1, 0xf7]).unwrap();
@@ -468,6 +430,8 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn missing_synth_warns_once_without_failing_playback_controls() {
+        use std::sync::{Arc, Mutex};
+
         let messages = Arc::new(Mutex::new(Vec::new()));
         let received = messages.clone();
         let warning: Warning = Box::new(move |message| received.lock().unwrap().push(message));

@@ -26,11 +26,13 @@ export interface PlayerSession {
   stop(): Promise<void>;
 }
 
-export interface Backend {
+export interface Wie {
   listApps(): Promise<LibraryApp[]>;
-  importApp(file: File): Promise<LibraryApp>;
+  importApp(file: File): Promise<void>;
   deleteApp(id: string): Promise<void>;
   readSettings(): Promise<Settings>;
   writeSettings(settings: Settings): Promise<void>;
   startGame(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession>;
 }
+
+export declare const backend: Wie;

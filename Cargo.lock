@@ -6936,6 +6936,7 @@ version = "0.1.7"
 dependencies = [
  "alsa",
  "anyhow",
+ "async-trait",
  "block2 0.6.2",
  "futures",
  "gtk",

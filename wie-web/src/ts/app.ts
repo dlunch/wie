@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Settings, createIcons } from "lucide";
 
-import type { Backend, LibraryApp, PlayerSession } from "./backend";
+import type { LibraryApp, PlayerSession, Wie } from "./backend";
 import type { SettingsController } from "./settings";
 
 const KEY_MAP: Record<string, string> = {
@@ -33,7 +33,7 @@ const icons = {
   Settings,
 };
 
-export const runApp = (backend: Backend, app: LibraryApp, settings: SettingsController): Promise<void> => new Promise((resolve, reject) => {
+export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsController): Promise<void> => new Promise((resolve, reject) => {
   const playerView = document.getElementById("player-view") as HTMLElement;
   const playerTitle = document.getElementById("player-title") as HTMLElement;
   const playerStatus = document.getElementById("player-status") as HTMLElement;

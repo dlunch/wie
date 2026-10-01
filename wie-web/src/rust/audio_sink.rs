@@ -19,9 +19,6 @@ extern "C" {
 
     #[wasm_bindgen(method)]
     fn stop(this: &AudioPlayer, handle: u32);
-
-    #[wasm_bindgen(js_name = setPcmVolume)]
-    pub fn set_pcm_volume(value: f32);
 }
 
 pub struct AudioSink {

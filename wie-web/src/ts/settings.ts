@@ -1,6 +1,6 @@
 import { Cpu, Music2, Volume2, X, createIcons } from "lucide";
 
-import type { Backend, Settings } from "./backend";
+import type { Settings, Wie } from "./backend";
 
 export interface SettingsController {
   get<K extends keyof Settings>(key: K): Settings[K];
@@ -8,7 +8,7 @@ export interface SettingsController {
   open(): void;
 }
 
-export const initializeSettings = async (backend: Backend): Promise<SettingsController> => {
+export const initializeSettings = async (backend: Wie): Promise<SettingsController> => {
   const dialog = document.getElementById("settings-dialog") as HTMLDialogElement;
   const midiSlider = document.getElementById("volume-midi") as HTMLInputElement;
   const pcmSlider = document.getElementById("volume-pcm") as HTMLInputElement;

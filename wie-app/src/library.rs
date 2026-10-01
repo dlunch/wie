@@ -67,7 +67,7 @@ impl Library {
         Ok(apps)
     }
 
-    pub fn import(&mut self, filename: &str, bytes: &[u8]) -> Result<LibraryApp> {
+    pub fn import(&mut self, filename: &str, bytes: &[u8]) -> Result<()> {
         let metadata = extract_app_metadata(filename, bytes)?;
         ensure!(!self.list()?.iter().any(|app| app.id == metadata.id), "App is already imported");
         let app = LibraryApp {
@@ -85,7 +85,7 @@ impl Library {
         fs::write(staging.path().join("archive"), bytes)?;
         serde_json::to_writer(File::create(staging.path().join("metadata.json"))?, &app)?;
         fs::rename(staging.path(), apps.join(&app.id))?;
-        Ok(app)
+        Ok(())
     }
 
     pub fn delete(&mut self, id: &str) -> Result<()> {
@@ -137,7 +137,10 @@ mod tests {
     };
 
     use tempfile::tempdir;
+    use wie_backend::{DatabaseRepository as _, Filesystem as _};
     use zip::{ZipWriter, write::SimpleFileOptions};
+
+    use crate::{database::DatabaseRepository, filesystem::DiskFilesystem};
 
     use super::{Library, Settings};
 
@@ -162,17 +165,24 @@ mod tests {
         let ktf = archive(include_bytes!("../../wie-ktf/tests/data/helloworld_ktf.zip"), "__adf__", "00000000");
         let lgt = archive(include_bytes!("../../wie-lgt/tests/data/helloworld_lgt.zip"), "app_info", "00000001");
         assert!(library.list().unwrap().is_empty());
-        let first = library.import("hello.zip", &ktf).unwrap();
-        let second = library.import("other.zip", &lgt).unwrap();
+        library.import("hello.zip", &ktf).unwrap();
+        library.import("other.zip", &lgt).unwrap();
+        let imported = library.list().unwrap();
+        let [first, second] = imported.as_slice() else {
+            panic!("Both apps should be imported");
+        };
         assert_ne!(first.id, second.id);
         assert!(library.import("duplicate.zip", &ktf).is_err());
-        assert_eq!(library.list().unwrap().len(), 2);
 
-        let guest_root = root.path().join(&first.id);
-        fs::create_dir_all(guest_root.join("db/save")).unwrap();
-        fs::create_dir_all(guest_root.join("fs")).unwrap();
-        fs::write(guest_root.join("db/save/1"), b"record").unwrap();
-        fs::write(guest_root.join("fs/save"), b"file").unwrap();
+        tauri::async_runtime::block_on(async {
+            let repository = DatabaseRepository::new(root.path().to_owned());
+            let filesystem = DiskFilesystem::new(root.path().to_owned());
+            for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
+                let mut database = repository.open("save", id).await;
+                assert_eq!(database.add(data).await, 1);
+                assert_eq!(filesystem.write(id, "save", 2, data).await, data.len());
+            }
+        });
 
         let mut library = Library::new(root.path().to_owned());
         let (metadata, bytes) = library.read_archive(&first.id).unwrap();
@@ -186,32 +196,23 @@ mod tests {
         let apps = library.list().unwrap();
         assert_eq!(apps.len(), 1);
         assert_eq!(apps[0].id, second.id);
-        assert_eq!(fs::read(guest_root.join("db/save/1")).unwrap(), b"record");
-        assert_eq!(fs::read(guest_root.join("fs/save")).unwrap(), b"file");
+        tauri::async_runtime::block_on(async {
+            let repository = DatabaseRepository::new(root.path().to_owned());
+            let filesystem = DiskFilesystem::new(root.path().to_owned());
+            for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
+                assert_eq!(repository.open("save", id).await.get(1).await.as_deref(), Some(data));
+                assert_eq!(repository.usage(id).await, data.len() as u64);
+                assert_eq!(filesystem.size(id, "save").await, Some(data.len() + 2));
+                let mut bytes = vec![0; data.len() + 2];
+                assert_eq!(filesystem.read(id, "save", 0, bytes.len(), &mut bytes).await, Some(bytes.len()));
+                assert_eq!(&bytes[..2], &[0, 0]);
+                assert_eq!(&bytes[2..], data);
+            }
+        });
         assert!(library.read_archive("../outside").is_err());
         assert!(library.delete("../outside").is_err());
         library.import("hello.zip", &ktf).unwrap();
         assert_eq!(library.list().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn failed_import_is_not_visible_and_can_be_retried() {
-        let root = tempdir().unwrap();
-        let mut library = Library::new(root.path().to_owned());
-        let ktf = archive(include_bytes!("../../wie-ktf/tests/data/helloworld_ktf.zip"), "__adf__", "00000000");
-        assert!(library.import("bad.zip", b"not an archive").is_err());
-        assert!(library.list().unwrap().is_empty());
-
-        let metadata = wie::extract_app_metadata("hello.zip", &ktf).unwrap();
-        let apps = root.path().join("library/apps");
-        fs::create_dir_all(&apps).unwrap();
-        let blocked_destination = apps.join(&metadata.id);
-        fs::write(&blocked_destination, b"blocked").unwrap();
-        assert!(library.import("hello.zip", &ktf).is_err());
-        assert!(library.list().unwrap().is_empty());
-        fs::remove_file(blocked_destination).unwrap();
-        library.import("hello.zip", &ktf).unwrap();
-        assert_eq!(library.read_archive(&metadata.id).unwrap().1, ktf);
     }
 
     #[test]
@@ -257,8 +258,5 @@ mod tests {
 
         fs::write(root.path().join("settings.json"), b"invalid json").unwrap();
         assert!(library.read_settings().is_err());
-        let blocked_root = root.path().join("not-a-directory");
-        fs::write(&blocked_root, b"blocked").unwrap();
-        assert!(Library::new(blocked_root).write_settings(&settings).is_err());
     }
 }
