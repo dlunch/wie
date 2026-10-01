@@ -1,3 +1,8 @@
+mod audio_sink;
+mod database;
+mod filesystem;
+mod window;
+
 use core::str;
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -10,7 +15,6 @@ use std::{
 };
 
 use clap::Parser;
-use directories::ProjectDirs;
 use midir::MidiOutput;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
@@ -18,17 +22,17 @@ use wie::load_emulator;
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
 use wie_j2me::J2MEEmulator;
 
-use crate::{
-    audio_sink::{self, AudioSink},
+use self::{
+    audio_sink::AudioSink,
     database::DatabaseRepository,
-    filesystem::DiskFilesystem,
+    filesystem::CliFilesystem,
     window::{WindowCallbackEvent, WindowHandle, WindowImpl},
 };
 
 struct WieCliPlatform {
     audio_tx: Sender<AudioCommand>,
     database_repository: DatabaseRepository,
-    filesystem: DiskFilesystem,
+    filesystem: CliFilesystem,
     font: Font,
     window: WindowHandle,
 }
@@ -37,13 +41,11 @@ impl WieCliPlatform {
     fn new(window: WindowHandle, font: Font, midi_device: Option<usize>) -> Self {
         let (tx, rx) = channel();
         thread::spawn(move || audio_sink::run(rx, midi_device));
-        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
-        let base_path = base_dir.data_dir();
 
         Self {
             audio_tx: tx,
-            database_repository: DatabaseRepository::new(base_path.to_owned()),
-            filesystem: DiskFilesystem::new(base_path.to_owned()),
+            database_repository: DatabaseRepository::new(),
+            filesystem: CliFilesystem::new(),
             font,
             window,
         }
@@ -168,10 +170,12 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow
     let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device));
 
     let buf = fs::read(filename)?;
-    let mut emulator: Box<dyn Emulator> = if filename.to_ascii_lowercase().ends_with(".jad") {
-        let jar_path = PathBuf::from(filename).with_extension("jar");
-        let jar = fs::read(&jar_path)?;
-        let jar_filename = jar_path.file_name().unwrap().to_string_lossy().into_owned();
+    let mut emulator: Box<dyn Emulator> = if filename.ends_with("jad") {
+        let jar_filename = filename.replace(".jad", ".jar");
+        let jar = fs::read(&jar_filename)?;
+
+        let jar_filename = jar_filename[jar_filename.rfind('/').unwrap_or(0) + 1..].to_owned();
+
         Box::new(J2MEEmulator::from_jad_jar(platform, buf, jar_filename, jar)?)
     } else {
         load_emulator(filename, buf, platform, options)?
@@ -222,7 +226,7 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow
     })
 }
 
-pub(crate) fn select_midi_output_index(port_count: usize, requested: Option<usize>) -> Option<usize> {
+fn select_midi_output_index(port_count: usize, requested: Option<usize>) -> Option<usize> {
     requested.filter(|&index| index < port_count).or_else(|| port_count.checked_sub(1))
 }
 

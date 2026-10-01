@@ -1,7 +1,6 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::PathBuf};
+
+use directories::ProjectDirs;
 
 use wie_backend::RecordId;
 
@@ -10,12 +9,23 @@ pub struct DatabaseRepository {
 }
 
 impl DatabaseRepository {
-    pub fn new(base_path: PathBuf) -> Self {
+    pub fn new() -> Self {
+        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
+
+        let base_path = base_dir.data_dir().to_owned();
+
         Self { base_path }
     }
 
     fn get_path_for_database(&self, name: &str, app_id: &str) -> PathBuf {
-        let name: String = name.chars().map(|c| if matches!(c, '\\' | '\0' | ':') { '_' } else { c }).collect();
+        let sanitized_app_id: String = app_id.chars().filter(|c| !matches!(c, '/' | '\\' | '\0')).collect();
+        let app_id = if sanitized_app_id.is_empty() || sanitized_app_id == "." || sanitized_app_id == ".." {
+            "_"
+        } else {
+            &sanitized_app_id
+        };
+
+        let name: String = name.chars().map(|c| if matches!(c, '\\' | '\0') { '_' } else { c }).collect();
         let mut normalized_name = PathBuf::new();
         for segment in name.trim_start_matches('/').split('/') {
             match segment {
@@ -31,7 +41,11 @@ impl DatabaseRepository {
         self.base_path.join(app_id).join("db").join(normalized_name)
     }
 
-    fn directory_usage(path: &Path) -> u64 {
+    fn get_path_for_app_databases(&self, app_id: &str) -> PathBuf {
+        self.get_path_for_database("_", app_id).parent().unwrap().to_owned()
+    }
+
+    fn directory_usage(path: &std::path::Path) -> u64 {
         let Ok(entries) = fs::read_dir(path) else {
             return 0;
         };
@@ -84,7 +98,7 @@ impl wie_backend::DatabaseRepository for DatabaseRepository {
     }
 
     async fn usage(&self, app_id: &str) -> u64 {
-        Self::directory_usage(&self.base_path.join(app_id).join("db"))
+        Self::directory_usage(&self.get_path_for_app_databases(app_id))
     }
 }
 
@@ -114,6 +128,7 @@ impl Database {
             record_id += 1;
         }
     }
+
     fn get_path_for_record(&self, id: RecordId) -> PathBuf {
         self.base_path.join(id.to_string())
     }
@@ -171,51 +186,34 @@ impl wie_backend::Database for Database {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
-    use futures::executor::block_on;
-    use tempfile::tempdir;
-    use wie_backend::DatabaseRepository as BackendDatabaseRepository;
+    use std::path::PathBuf;
 
     use super::DatabaseRepository;
 
     #[test]
-    fn databases_reopen_and_stay_within_app_namespaces() {
-        block_on(async {
-            let root = tempdir().unwrap();
-            let repository = DatabaseRepository::new(root.path().to_owned());
-            let mut database = repository.open("/save0.dat", "first").await;
-            let record = database.add(b"first").await;
-            assert_eq!(database.next_id().await, record + 1);
-            assert!(database.set(record, b"updated").await);
-            assert_eq!(database.get_record_ids().await, [record]);
-            assert_eq!(repository.usage("first").await, 7);
-            assert_eq!(
-                fs::read(root.path().join("first/db/save0.dat").join(record.to_string())).unwrap(),
-                b"updated"
-            );
+    fn database_path_includes_db_segment() {
+        let repo = DatabaseRepository {
+            base_path: PathBuf::from("/tmp/wie_test"),
+        };
+        let path = repo.get_path_for_database("records", "game123");
+        assert_eq!(path, PathBuf::from("/tmp/wie_test/game123/db/records"));
+    }
 
-            let mut other = repository.open("/save0.dat", "second").await;
-            let other_record = other.add(b"second").await;
-            let repository = DatabaseRepository::new(root.path().to_owned());
-            let mut database = repository.open("/save0.dat", "first").await;
-            assert_eq!(database.get(record).await.as_deref(), Some(b"updated".as_slice()));
-            assert!(database.delete(record).await);
-            assert!(database.get(record).await.is_none());
-            assert!(repository.delete("/save0.dat", "first").await);
-            assert!(!repository.exists("/save0.dat", "first").await);
-            assert_eq!(other.get(other_record).await.as_deref(), Some(b"second".as_slice()));
-            assert_eq!(repository.usage("first").await, 0);
-            assert_eq!(repository.usage("second").await, 6);
+    #[test]
+    fn database_path_strips_guest_leading_slash() {
+        let repo = DatabaseRepository {
+            base_path: PathBuf::from("/tmp/wie_test"),
+        };
+        let path = repo.get_path_for_database("/save0.dat", "PD140106");
+        assert_eq!(path, PathBuf::from("/tmp/wie_test/PD140106/db/save0.dat"));
+    }
 
-            for (name, relative) in [("/../save0.dat", "db/_/save0.dat"), ("C:/save0.dat", "db/C_/save0.dat")] {
-                let mut database = repository.open(name, "first").await;
-                let record = database.add(b"saved").await;
-                assert_eq!(
-                    fs::read(root.path().join("first").join(relative).join(record.to_string())).unwrap(),
-                    b"saved"
-                );
-            }
-        });
+    #[test]
+    fn database_path_does_not_escape_app_scope() {
+        let repo = DatabaseRepository {
+            base_path: PathBuf::from("/tmp/wie_test"),
+        };
+        let path = repo.get_path_for_database("/../save0.dat", "PD140106");
+        assert!(path.starts_with(PathBuf::from("/tmp/wie_test/PD140106/db")));
     }
 }

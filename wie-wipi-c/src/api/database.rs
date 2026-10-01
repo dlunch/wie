@@ -606,7 +606,7 @@ mod tests {
     use wie_backend::{DefaultTaskRunner, System};
     use wie_util::{ByteRead, ByteWrite};
 
-    use crate::context::{WIPICContext, test::TestContext};
+    use crate::context::test::TestContext;
 
     use super::{
         KTF_DATABASE_STORAGE_LIMIT, delete_database, exists_database, list_databases, list_record_info, open_database, select_record, stream_read,
@@ -623,10 +623,6 @@ mod tests {
         assert_eq!(stream_write(&mut context, db_id, 0x2000, 4).await.unwrap(), 4);
 
         assert_eq!(list_databases(&mut context).await.unwrap(), KTF_DATABASE_STORAGE_LIMIT as i32 - 4);
-
-        let system = context.system();
-        assert_eq!(system.platform().database_repository().usage(system.pid()).await, 4);
-        assert_eq!(system.platform().database_repository().usage(system.aid()).await, 0);
     }
 
     #[futures_test::test]

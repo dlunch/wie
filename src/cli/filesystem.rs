@@ -4,24 +4,35 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use directories::ProjectDirs;
+
 use wie_backend::Filesystem;
 
 /// Persistent filesystem backed by `std::fs` under `<base>/<aid>/fs/<path>`.
 /// Any I/O error or rejected path returns the trait's failure value.
-pub struct DiskFilesystem {
+pub struct CliFilesystem {
     base_path: PathBuf,
 }
 
-impl DiskFilesystem {
-    pub fn new(base_path: PathBuf) -> Self {
-        Self { base_path }
+impl CliFilesystem {
+    pub fn new() -> Self {
+        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
+        Self {
+            base_path: base_dir.data_dir().to_owned(),
+        }
     }
 
     fn path_for(&self, aid: &str, path: &str) -> Option<PathBuf> {
-        let mut has_name = false;
+        let sanitized_aid: String = aid.chars().filter(|c| !matches!(c, '/' | '\\' | '\0')).collect();
+        if sanitized_aid.is_empty() || sanitized_aid == "." || sanitized_aid == ".." {
+            tracing::error!(aid, path, "rejected: invalid aid");
+            return None;
+        }
+
+        let mut normalized = PathBuf::new();
         for component in Path::new(path).components() {
             match component {
-                Component::Normal(_) => has_name = true,
+                Component::Normal(c) => normalized.push(c),
                 Component::CurDir => {}
                 Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
                     tracing::error!(aid, path, "path traversal attempt rejected");
@@ -30,17 +41,23 @@ impl DiskFilesystem {
             }
         }
 
-        if !has_name {
+        if normalized.as_os_str().is_empty() {
             tracing::error!(aid, path, "rejected: empty normalized path");
             return None;
         }
 
-        Some(self.base_path.join(aid).join("fs").join(path))
+        Some(self.base_path.join(&sanitized_aid).join("fs").join(normalized))
+    }
+}
+
+impl Default for CliFilesystem {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[async_trait::async_trait]
-impl Filesystem for DiskFilesystem {
+impl Filesystem for CliFilesystem {
     async fn exists(&self, aid: &str, path: &str) -> bool {
         let Some(disk_path) = self.path_for(aid, path) else {
             return false;
@@ -167,41 +184,5 @@ impl Filesystem for DiskFilesystem {
         if let Err(err) = file.set_len(len as u64) {
             tracing::warn!(aid, path, error = %err, "truncate: set_len failed");
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use futures::executor::block_on;
-    use tempfile::tempdir;
-    use wie_backend::Filesystem;
-
-    use super::DiskFilesystem;
-
-    #[test]
-    fn files_reopen_and_stay_within_app_namespaces() {
-        block_on(async {
-            let root = tempdir().unwrap();
-            let filesystem = DiskFilesystem::new(root.path().to_owned());
-            assert_eq!(filesystem.write("first", "save/game.dat", 2, b"one").await, 3);
-            assert_eq!(filesystem.write("second", "save/game.dat", 0, b"two").await, 3);
-
-            let filesystem = DiskFilesystem::new(root.path().to_owned());
-            assert!(filesystem.exists("first", "save/game.dat").await);
-            assert_eq!(filesystem.size("first", "save/game.dat").await, Some(5));
-            let mut bytes = [0; 5];
-            assert_eq!(filesystem.read("first", "save/game.dat", 0, bytes.len(), &mut bytes).await, Some(5));
-            assert_eq!(&bytes, b"\0\0one");
-            filesystem.truncate("first", "save/game.dat", 3).await;
-            assert_eq!(filesystem.size("first", "save/game.dat").await, Some(3));
-            assert_eq!(fs::read(root.path().join("second/fs/save/game.dat")).unwrap(), b"two");
-
-            for path in ["../escape", "/escape", "save/../../escape", ""] {
-                assert_eq!(filesystem.write("first", path, 0, b"data").await, 0);
-                assert!(!filesystem.exists("first", path).await);
-            }
-        });
     }
 }

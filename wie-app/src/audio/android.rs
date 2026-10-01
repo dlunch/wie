@@ -92,9 +92,11 @@ impl Midi {
     pub fn event(&mut self, _handle: AudioHandle, _data: &[u8]) -> Result<()> {
         Ok(())
     }
+
     pub fn finish(&mut self, _handle: AudioHandle) -> Result<()> {
         Ok(())
     }
+
     pub fn reap(&mut self) {}
 
     pub fn stop(&mut self, handle: AudioHandle) -> Result<()> {
@@ -110,6 +112,7 @@ impl Midi {
     pub fn pause(&mut self) -> Result<()> {
         self.call("pause", "(Z)V", &[JValue::Bool(1)])
     }
+
     pub fn resume(&mut self) -> Result<()> {
         self.call("pause", "(Z)V", &[JValue::Bool(0)])
     }

@@ -559,6 +559,7 @@ impl Graphics {
 
         Ok(())
     }
+
     async fn draw_substring(
         jvm: &Jvm,
         context: &mut WieJvmContext,

@@ -335,30 +335,39 @@ impl Platform for NativePlatform {
     fn font(&self) -> &Font {
         &self.font
     }
+
     fn screen(&self) -> &dyn Screen {
         &self.screen
     }
+
     fn now(&self) -> GuestInstant {
         self.clock.lock().unwrap().now()
     }
+
     fn database_repository(&self) -> &dyn BackendDatabaseRepository {
         &self.database
     }
+
     fn filesystem(&self) -> &dyn Filesystem {
         &self.filesystem
     }
+
     fn audio_sink(&self) -> Box<dyn AudioSink> {
         Box::new(self.audio.clone())
     }
+
     fn write_stdout(&self, bytes: &[u8]) {
         log::info!("{}", String::from_utf8_lossy(bytes));
     }
+
     fn write_stderr(&self, bytes: &[u8]) {
         log::warn!("{}", String::from_utf8_lossy(bytes));
     }
+
     fn exit(&self) {
         self.exited.store(true, Ordering::Release);
     }
+
     fn vibrate(&self, duration_ms: u64, intensity: u8) {
         #[cfg(mobile)]
         {

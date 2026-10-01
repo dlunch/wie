@@ -10,7 +10,7 @@ use midir::{MidiOutput, MidiOutputConnection};
 use rodio::{DeviceSinkBuilder, Player, buffer::SamplesBuffer, conversions::SampleTypeConverter};
 use wie_backend::{AudioCommand, AudioEventData, AudioHandle, AudioSequence, TimedAudioEvent};
 
-use crate::cli::select_midi_output_index;
+use super::select_midi_output_index;
 
 pub struct AudioSink {
     tx: Sender<AudioCommand>,

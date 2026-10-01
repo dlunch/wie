@@ -298,10 +298,12 @@ mod tests {
         pub fn new() -> Result<Self> {
             anyhow::bail!("No test MIDI endpoint")
         }
+
         pub fn send(&mut self, data: &[u8]) -> Result<()> {
             self.messages.push(data.to_vec());
             Ok(())
         }
+
         pub fn reap(&mut self) {}
     }
 
