@@ -245,19 +245,22 @@ impl RecordStore {
         let db_name_str = JavaLangString::to_rust_string(jvm, &db_name).await?;
 
         let system = context.system();
-        let pid = system.pid().to_owned();
+        let aid = system.aid().to_owned();
 
-        Ok(system.platform().database_repository().open(&db_name_str, &pid).await)
+        Ok(system.platform().database_repository().open(&db_name_str, &aid).await)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, sync::Arc};
+    use core::sync::atomic::{AtomicBool, Ordering};
 
     use jvm::{Array, ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
     use rustjava_runtime::classes::java::lang::String;
-    use test_utils::run_jvm_test;
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
     use wie_util::Result;
 
     use crate::get_protos;
@@ -266,54 +269,73 @@ mod test {
 
     #[test]
     fn delete_record_removes_record_and_rejects_unknown_id() -> Result<()> {
-        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "delete-record").await?.into();
-            let store: ClassInstanceRef<RecordStore> = jvm
-                .invoke_static(
-                    "javax/microedition/rms/RecordStore",
-                    "openRecordStore",
-                    "(Ljava/lang/String;Z)Ljavax/microedition/rms/RecordStore;",
-                    (name, true),
-                )
-                .await?;
+        let mut system = System::new(Box::new(TestPlatform::new()), "test-pid", "test-aid", DefaultTaskRunner);
+        let task_system = system.clone();
+        let completed = Arc::new(AtomicBool::new(false));
+        let task_completed = completed.clone();
+        system.spawn(async move || {
+            let jvm = JvmSupport::new_jvm(&task_system, None, Box::new([get_protos().into()]), &[], RustJavaJvmImplementation).await?;
+            let result: JvmResult<()> = async {
+                let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "delete-record").await?.into();
+                let store: ClassInstanceRef<RecordStore> = jvm
+                    .invoke_static(
+                        "javax/microedition/rms/RecordStore",
+                        "openRecordStore",
+                        "(Ljava/lang/String;Z)Ljavax/microedition/rms/RecordStore;",
+                        (name, true),
+                    )
+                    .await?;
 
-            let mut data = jvm.instantiate_array("B", 2).await?;
-            jvm.store_array(&mut data, 0, [1i8, 2]).await?;
-            let record_id: i32 = jvm
-                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "addRecord", "([BII)I", (data, 0, 2))
-                .await?;
-            assert_eq!(record_id, 1);
+                let mut data = jvm.instantiate_array("B", 2).await?;
+                jvm.store_array(&mut data, 0, [1i8, 2]).await?;
+                let record_id: i32 = jvm
+                    .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "addRecord", "([BII)I", (data, 0, 2))
+                    .await?;
+                assert_eq!(record_id, 1);
 
-            let count: i32 = jvm
-                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
-                .await?;
-            assert_eq!(count, 1);
+                assert_eq!(task_system.platform().database_repository().usage(task_system.aid()).await, 2);
+                assert_eq!(task_system.platform().database_repository().usage(task_system.pid()).await, 0);
 
-            let _: () = jvm
-                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "deleteRecord", "(I)V", (record_id,))
-                .await?;
-            let count: i32 = jvm
-                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
-                .await?;
-            assert_eq!(count, 0);
+                let count: i32 = jvm
+                    .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
+                    .await?;
+                assert_eq!(count, 1);
 
-            let deleted: JvmResult<ClassInstanceRef<Array<i8>>> = jvm
-                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getRecord", "(I)[B", (record_id,))
-                .await;
-            let Err(JavaError::JavaException(exception)) = deleted else {
-                panic!("deleted record lookup succeeded");
-            };
-            assert!(jvm.is_instance(&*exception, "javax/microedition/rms/InvalidRecordIDException"));
+                let _: () = jvm
+                    .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "deleteRecord", "(I)V", (record_id,))
+                    .await?;
+                let count: i32 = jvm
+                    .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
+                    .await?;
+                assert_eq!(count, 0);
+                assert_eq!(task_system.platform().database_repository().usage(task_system.aid()).await, 0);
 
-            let unknown: JvmResult<()> = jvm
-                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "deleteRecord", "(I)V", (99,))
-                .await;
-            let Err(JavaError::JavaException(exception)) = unknown else {
-                panic!("unknown record deletion succeeded");
-            };
-            assert!(jvm.is_instance(&*exception, "javax/microedition/rms/InvalidRecordIDException"));
+                let deleted: JvmResult<ClassInstanceRef<Array<i8>>> = jvm
+                    .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getRecord", "(I)[B", (record_id,))
+                    .await;
+                let Err(JavaError::JavaException(exception)) = deleted else {
+                    panic!("deleted record lookup succeeded");
+                };
+                assert!(jvm.is_instance(&*exception, "javax/microedition/rms/InvalidRecordIDException"));
 
+                let unknown: JvmResult<()> = jvm
+                    .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "deleteRecord", "(I)V", (99,))
+                    .await;
+                let Err(JavaError::JavaException(exception)) = unknown else {
+                    panic!("unknown record deletion succeeded");
+                };
+                assert!(jvm.is_instance(&*exception, "javax/microedition/rms/InvalidRecordIDException"));
+
+                Ok(())
+            }
+            .await;
+            result.unwrap();
+            task_completed.store(true, Ordering::Relaxed);
             Ok(())
-        })
+        });
+        while !completed.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+        Ok(())
     }
 }

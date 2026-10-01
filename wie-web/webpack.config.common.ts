@@ -49,11 +49,10 @@ class WasmPackPlugin {
   }
 }
 
-
-const commonConfig = (mode: "development" | "production"): webpack.Configuration => ({
+const commonConfig = (mode: "development" | "production", native = false): webpack.Configuration => ({
   context: import.meta.dirname,
   output: {
-    path: path.resolve(import.meta.dirname, "dist"),
+    path: path.resolve(import.meta.dirname, native ? "dist-native" : "dist"),
     clean: true,
   },
   ignoreWarnings: [
@@ -107,7 +106,7 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
       entry: {
         index: {
           import: "src/html/index.html",
-          data: { adtest: mode !== "production" },
+          data: { adtest: mode !== "production", native },
         },
       },
       js: {
@@ -117,8 +116,7 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
         filename: "assets/css/[name].[contenthash:8].css",
       },
     }),
-    new WasmPackPlugin(import.meta.dirname),
-    new CopyPlugin({
+    ...(!native ? [new WasmPackPlugin(import.meta.dirname), new CopyPlugin({
       patterns: [
         { from: path.resolve(import.meta.dirname, "public"), to: "." },
         {
@@ -126,7 +124,7 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
           to: ".",
         },
       ],
-    }),
+    })] : []),
   ],
 });
 

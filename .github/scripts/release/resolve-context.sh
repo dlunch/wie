@@ -33,6 +33,12 @@ elif [[ "$GITHUB_REF" =~ ^refs/tags/(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9]
     fi
     previous_tag=$candidate
   done < <(git tag --list 'v*' --sort=version:refname)
+elif [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$GITHUB_REF" == refs/heads/* ]]; then
+  channel=validation
+  release_tag=
+  app_version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "wie-app") | .version')
+  asset_identity="validation-${target_sha:0:12}"
+  should_build=true
 else
   echo "Unsupported release ref: $GITHUB_REF" >&2
   exit 1

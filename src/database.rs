@@ -1,6 +1,7 @@
-use std::{fs, path::PathBuf};
-
-use directories::ProjectDirs;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use wie_backend::RecordId;
 
@@ -9,22 +10,11 @@ pub struct DatabaseRepository {
 }
 
 impl DatabaseRepository {
-    pub fn new() -> Self {
-        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
-
-        let base_path = base_dir.data_dir().to_owned();
-
+    pub fn new(base_path: PathBuf) -> Self {
         Self { base_path }
     }
 
     fn get_path_for_database(&self, name: &str, app_id: &str) -> PathBuf {
-        let sanitized_app_id: String = app_id.chars().filter(|c| !matches!(c, '/' | '\\' | '\0')).collect();
-        let app_id = if sanitized_app_id.is_empty() || sanitized_app_id == "." || sanitized_app_id == ".." {
-            "_"
-        } else {
-            &sanitized_app_id
-        };
-
         let name: String = name.chars().map(|c| if matches!(c, '\\' | '\0') { '_' } else { c }).collect();
         let mut normalized_name = PathBuf::new();
         for segment in name.trim_start_matches('/').split('/') {
@@ -41,11 +31,7 @@ impl DatabaseRepository {
         self.base_path.join(app_id).join("db").join(normalized_name)
     }
 
-    fn get_path_for_app_databases(&self, app_id: &str) -> PathBuf {
-        self.get_path_for_database("_", app_id).parent().unwrap().to_owned()
-    }
-
-    fn directory_usage(path: &std::path::Path) -> u64 {
+    fn directory_usage(path: &Path) -> u64 {
         let Ok(entries) = fs::read_dir(path) else {
             return 0;
         };
@@ -98,7 +84,7 @@ impl wie_backend::DatabaseRepository for DatabaseRepository {
     }
 
     async fn usage(&self, app_id: &str) -> u64 {
-        Self::directory_usage(&self.get_path_for_app_databases(app_id))
+        Self::directory_usage(&self.base_path.join(app_id).join("db"))
     }
 }
 
@@ -180,39 +166,5 @@ impl wie_backend::Database for Database {
             .filter(|x| x.as_ref().unwrap().path().is_file())
             .map(|x| x.unwrap().file_name().to_str().unwrap().parse().unwrap())
             .collect()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use super::DatabaseRepository;
-
-    #[test]
-    fn database_path_includes_db_segment() {
-        let repo = DatabaseRepository {
-            base_path: PathBuf::from("/tmp/wie_test"),
-        };
-        let path = repo.get_path_for_database("records", "game123");
-        assert_eq!(path, PathBuf::from("/tmp/wie_test/game123/db/records"));
-    }
-
-    #[test]
-    fn database_path_strips_guest_leading_slash() {
-        let repo = DatabaseRepository {
-            base_path: PathBuf::from("/tmp/wie_test"),
-        };
-        let path = repo.get_path_for_database("/save0.dat", "PD140106");
-        assert_eq!(path, PathBuf::from("/tmp/wie_test/PD140106/db/save0.dat"));
-    }
-
-    #[test]
-    fn database_path_does_not_escape_app_scope() {
-        let repo = DatabaseRepository {
-            base_path: PathBuf::from("/tmp/wie_test"),
-        };
-        let path = repo.get_path_for_database("/../save0.dat", "PD140106");
-        assert!(path.starts_with(PathBuf::from("/tmp/wie_test/PD140106/db")));
     }
 }

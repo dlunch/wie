@@ -6,11 +6,15 @@
   "scripts": {
     "build:dev": "webpack --config wie-web/webpack.config.dev.ts",
     "build:prod": "webpack --config wie-web/webpack.config.prod.ts",
-    "start": "webpack serve --config wie-web/webpack.config.dev.ts"
+    "build:native": "webpack --config wie-web/webpack.config.prod.ts --env native",
+    "start": "webpack serve --config wie-web/webpack.config.dev.ts",
+    "start:native": "webpack serve --config wie-web/webpack.config.dev.ts --env native",
+    "test:frontend": "node --test wie-web/src/ts/*.test.mjs"
   },
   "author": "",
   "dependencies": {
     "@sentry/browser": "^11.0.0",
+    "@tauri-apps/api": "^2.12.1",
     "css-loader": "^7.1.5",
     "html-bundler-webpack-plugin": "^4.23.2",
     "lucide": "^1.48.0",

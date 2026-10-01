@@ -2,4 +2,5 @@
 .vscode
 .cargo
 wie-web/dist
+wie-web/dist-native
 **/node_modules

@@ -1,49 +1,59 @@
 import { Cpu, Music2, Volume2, X, createIcons } from "lucide";
 
-import { configStore } from "./config_store";
-import { setMasterVolume } from "./midi";
+import type { Backend, Settings } from "./backend";
 
 export interface SettingsController {
-  readonly pcmVolume: number;
-  readonly enableWasmAot: boolean;
+  get<K extends keyof Settings>(key: K): Settings[K];
+  set<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void>;
   open(): void;
-  onPcmVolumeChange(listener: (volume: number) => void): () => void;
 }
 
-export const initializeSettings = (): SettingsController => {
+export const initializeSettings = async (backend: Backend): Promise<SettingsController> => {
   const dialog = document.getElementById("settings-dialog") as HTMLDialogElement;
   const midiSlider = document.getElementById("volume-midi") as HTMLInputElement;
   const pcmSlider = document.getElementById("volume-pcm") as HTMLInputElement;
-  const aotCheckbox = document.getElementById("enable-wasm-aot") as HTMLInputElement;
+  const aotCheckbox = document.getElementById("enable-wasm-aot") as HTMLInputElement | null;
+  let values = await backend.readSettings();
+  let pending = Promise.resolve();
 
-  aotCheckbox.checked = configStore.get("enableWasmAot");
-  aotCheckbox.addEventListener("change", () => configStore.set("enableWasmAot", aotCheckbox.checked));
-
-  midiSlider.value = String(configStore.get("midiVolume") * 100);
-  pcmSlider.value = String(configStore.get("pcmVolume") * 100);
-  setMasterVolume(Number(midiSlider.value) / 100);
-  midiSlider.addEventListener("input", () => {
-    const volume = Number(midiSlider.value) / 100;
-    setMasterVolume(volume);
-    configStore.set("midiVolume", volume);
-  });
-  pcmSlider.addEventListener("input", () => configStore.set("pcmVolume", Number(pcmSlider.value) / 100));
-  createIcons({ icons: { Cpu, Music2, Volume2, X }, root: dialog });
-
-  return {
-    get enableWasmAot() {
-      return aotCheckbox.checked;
+  const settings: SettingsController = {
+    get(key) {
+      return values[key];
     },
-    get pcmVolume() {
-      return Number(pcmSlider.value) / 100;
+    set(key, value) {
+      const saved = pending.then(async () => {
+        const next = { ...values, [key]: value };
+        await backend.writeSettings(next);
+        values = next;
+      });
+      pending = saved.catch(() => {});
+      return saved;
     },
     open() {
       dialog.showModal();
     },
-    onPcmVolumeChange(listener) {
-      const updateVolume = () => listener(Number(pcmSlider.value) / 100);
-      pcmSlider.addEventListener("input", updateVolume);
-      return () => pcmSlider.removeEventListener("input", updateVolume);
-    },
   };
+
+  midiSlider.value = String(values.midiVolume * 100);
+  pcmSlider.value = String(values.pcmVolume * 100);
+  for (const [slider, key] of [[midiSlider, "midiVolume"], [pcmSlider, "pcmVolume"]] as const) {
+    slider.addEventListener("input", () => {
+      void settings.set(key, slider.valueAsNumber / 100).catch(error => {
+        slider.value = String(values[key] * 100);
+        window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
+      });
+    });
+  }
+  if (aotCheckbox) {
+    aotCheckbox.checked = values.enableWasmAot ?? false;
+    aotCheckbox.addEventListener("change", () => {
+      void settings.set("enableWasmAot", aotCheckbox.checked).catch(error => {
+        aotCheckbox.checked = values.enableWasmAot ?? false;
+        window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
+      });
+    });
+  }
+  createIcons({ icons: { Cpu, Music2, Volume2, X }, root: dialog });
+
+  return settings;
 };

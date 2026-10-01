@@ -1,10 +1,4 @@
-export interface AppMetadata {
-  id: string;
-  title: string;
-  filename: string;
-  icon?: Blob;
-  addedAt: number;
-}
+import type { LibraryApp } from "./backend";
 
 export class AppLibraryStore {
   private constructor(private readonly db: IDBDatabase) {}
@@ -23,15 +17,24 @@ export class AppLibraryStore {
     });
   }
 
-  public list(): Promise<AppMetadata[]> {
+  public list(): Promise<LibraryApp[]> {
     return new Promise((resolve, reject) => {
       const request = this.db.transaction("apps", "readonly").objectStore("apps").getAll();
 
       request.onsuccess = () => {
-        const apps = request.result as AppMetadata[];
+        const apps = request.result as LibraryApp[];
         apps.sort((left, right) => left.addedAt - right.addedAt || left.id.localeCompare(right.id));
         resolve(apps);
       };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  public getApp(id: string): Promise<LibraryApp | undefined> {
+    return new Promise((resolve, reject) => {
+      const request = this.db.transaction("apps", "readonly").objectStore("apps").get(id);
+
+      request.onsuccess = () => resolve(request.result as LibraryApp | undefined);
       request.onerror = () => reject(request.error);
     });
   }
@@ -45,7 +48,7 @@ export class AppLibraryStore {
     });
   }
 
-  public add(metadata: AppMetadata, archive: Uint8Array): Promise<void> {
+  public add(metadata: LibraryApp, archive: Uint8Array): Promise<void> {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(["apps", "archives"], "readwrite");
       transaction.objectStore("apps").add(metadata);

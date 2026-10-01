@@ -109,27 +109,37 @@ name = "wie"
 [[bin]]
 name = "wie"
 path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = ["dep:clap", "dep:directories", "dep:fast_image_resize", "dep:midir", "dep:rodio", "dep:sentry", "dep:softbuffer", "dep:tracing-subscriber", "dep:winit"]
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-async-trait = { workspace = true }
-clap = { workspace = true }
-sentry = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-
-directories = { version = "^6.0" }
-fast_image_resize = "6.0.0"
-midir = { version = "^0.11" }
-rodio = { version = "^0.22", features = ["playback"] }
-softbuffer = { version = "^0.4" }
-winit = { version = "^0.30", features = ["x11", "wayland"] }
-
 wie-backend = { workspace = true }
 wie-j2me = { workspace = true }
 wie-ktf = { workspace = true }
 wie-lgt = { workspace = true }
 wie-skt = { workspace = true }
 wie-util = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+async-trait = { workspace = true }
+clap = { workspace = true, optional = true }
+sentry = { workspace = true, optional = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, optional = true }
+
+directories = { version = "^6.0", optional = true }
+fast_image_resize = { version = "6.0.0", optional = true }
+midir = { version = "^0.11", optional = true }
+rodio = { version = "^0.22", features = ["playback"], optional = true }
+softbuffer = { version = "^0.4", optional = true }
+winit = { version = "^0.30", features = ["x11", "wayland"], optional = true }
+
+[dev-dependencies]
+test-utils = { workspace = true }
+futures = { workspace = true, features = ["executor"] }
+tempfile = "3"
+zip = { version = "^8.6", features = ["deflate"], default-features = false }

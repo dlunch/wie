@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="<%= native ? 'native' : 'browser' %>">
   <head>
     <meta
       charset="UTF-8"
@@ -19,7 +19,8 @@
     <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/png" href="../assets/favicon.png" />
     <link rel="stylesheet" href="@css/style.css" />
-    <script src="@ts/index.ts" defer="defer"></script>
+    <script src="@ts/index.<%= native ? 'native' : 'browser' %>.ts" defer="defer"></script>
+    <% if (!native) { %>
     <script
       async
       src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7838202724819744"
@@ -34,6 +35,7 @@
       gtag("js", new Date());
       gtag("config", "G-G6TBDLLPWK");
     </script>
+    <% } %>
   </head>
   <body>
     <div id="library-view" class="library-view">
@@ -83,6 +85,7 @@
         <div id="page-indicators" class="page-indicators" aria-label="라이브러리 페이지"></div>
       </main>
 
+      <% if (!native) { %>
       <div class="library-ad" aria-label="광고">
         <ins
           class="adsbygoogle"
@@ -97,6 +100,7 @@
           (adsbygoogle = window.adsbygoogle || []).push({});
         </script>
       </div>
+      <% } %>
     </div>
 
     <section id="player-view" class="player-view" hidden>
@@ -111,13 +115,16 @@
       </header>
 
       <main class="player-main">
-        <div class="canvas-wrapper">
+        <div class="<%= native ? 'native-preparation' : 'canvas-wrapper' %>">
+          <% if (!native) { %>
           <canvas id="canvas" width="240" height="320"></canvas>
+          <% } %>
           <div id="player-status" class="player-status" role="status" hidden>
             <span id="player-status-label">실행 준비중</span>
             <progress aria-labelledby="player-status-label"></progress>
           </div>
         </div>
+        <p id="player-warning" class="player-warning" role="status" hidden></p>
 
         <div class="button-container" aria-label="앱 키패드">
           <p>
@@ -175,11 +182,13 @@
             <span>효과음</span>
             <input type="range" id="volume-pcm" min="0" max="100" value="50" />
           </label>
+          <% if (!native) { %>
           <label>
             <i data-lucide="cpu"></i>
             <span>AOT 최적화(Experimental)</span>
             <input type="checkbox" id="enable-wasm-aot" />
           </label>
+          <% } %>
         </div>
       </form>
     </dialog>
@@ -189,7 +198,7 @@
         <header class="dialog-header">
           <h2>wie에 오신 것을 환영합니다</h2>
         </header>
-        <p>wie는 WIPI와 J2ME 앱을 브라우저에서 보관하고 실행할 수 있는 에뮬레이터입니다.</p>
+        <p>wie는 WIPI와 J2ME 앱을 <%= native ? '이 기기에서' : '브라우저에서' %> 보관하고 실행할 수 있는 에뮬레이터입니다.</p>
         <ol class="welcome-steps">
           <li><strong>앱 추가</strong><span>WIPI ZIP 또는 J2ME JAR 파일을 선택합니다.</span></li>
           <li><strong>앱 실행</strong><span>라이브러리에서 추가된 앱 아이콘을 누릅니다.</span></li>

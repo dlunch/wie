@@ -36,8 +36,5 @@ web-sys = { version = "^0.3", features = ["HtmlCanvasElement", "CanvasRenderingC
 wie-arm-jit-types = { workspace = true }
 wie-backend = { workspace = true }
 wie-core-arm-wasm = { workspace = true }
-wie-ktf = { workspace = true }
-wie-lgt = { workspace = true }
-wie-skt = { workspace = true }
-wie-j2me = { workspace = true }
+wie = { path = "..", default-features = false }
 wie-util = { workspace = true }

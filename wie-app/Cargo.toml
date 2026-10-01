@@ -14,10 +14,59 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.5", features = [] }
 
 [dependencies]
+anyhow = { workspace = true }
+futures = { workspace = true, features = ["std", "async-await"] }
 serde = { workspace = true }
 sentry = { workspace = true }
+spin = { workspace = true }
+tracing = { workspace = true }
+wie = { path = "..", default-features = false }
+wie-backend = { workspace = true }
+wie-util = { workspace = true }
 
 serde_json = "1.0"
 log = "0.4"
 tauri = { version = "2.10.2", features = [] }
 tauri-plugin-log = "2.8.0"
+tempfile = "3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+alsa = "0.11"
+gtk = "0.18"
+
+[target.'cfg(not(target_vendor = "apple"))'.dependencies]
+rodio = { version = "^0.22", features = ["playback"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+softbuffer = "0.4.8"
+raw-window-handle = "0.6"
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-quartz-core = "0.3"
+objc2-audio-toolbox = "0.3"
+objc2-avf-audio = "0.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = "0.3"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-ui-kit = "0.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Controls", "Win32_UI_Shell", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_Media_Audio"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk = "0.9"
+ndk-context = "0.1"
+midly = { version = "0.5", default-features = false, features = ["std"] }
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-haptics = "2"
+
+[dev-dependencies]
+midly = { version = "0.5", default-features = false, features = ["std"] }
+zip = { version = "^8.6", features = ["deflate"], default-features = false }

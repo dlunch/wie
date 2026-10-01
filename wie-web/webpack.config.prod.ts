@@ -4,7 +4,7 @@ import { merge } from "webpack-merge";
 // @ts-ignore: allowImportingTsExtensions
 import commonConfig from "./webpack.config.common.ts";
 
-const config: webpack.Configuration = merge(commonConfig("production"), {
+const config = (env: { native?: boolean } = {}): webpack.Configuration => merge(commonConfig("production", env.native), {
   mode: "production",
   devtool: false,
 });

@@ -4,31 +4,20 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use directories::ProjectDirs;
-
 use wie_backend::Filesystem;
 
 /// Persistent filesystem backed by `std::fs` under `<base>/<aid>/fs/<path>`.
 /// Any I/O error or rejected path returns the trait's failure value.
-pub struct CliFilesystem {
+pub struct DiskFilesystem {
     base_path: PathBuf,
 }
 
-impl CliFilesystem {
-    pub fn new() -> Self {
-        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
-        Self {
-            base_path: base_dir.data_dir().to_owned(),
-        }
+impl DiskFilesystem {
+    pub fn new(base_path: PathBuf) -> Self {
+        Self { base_path }
     }
 
     fn path_for(&self, aid: &str, path: &str) -> Option<PathBuf> {
-        let sanitized_aid: String = aid.chars().filter(|c| !matches!(c, '/' | '\\' | '\0')).collect();
-        if sanitized_aid.is_empty() || sanitized_aid == "." || sanitized_aid == ".." {
-            tracing::error!(aid, path, "rejected: invalid aid");
-            return None;
-        }
-
         let mut normalized = PathBuf::new();
         for component in Path::new(path).components() {
             match component {
@@ -46,18 +35,12 @@ impl CliFilesystem {
             return None;
         }
 
-        Some(self.base_path.join(&sanitized_aid).join("fs").join(normalized))
-    }
-}
-
-impl Default for CliFilesystem {
-    fn default() -> Self {
-        Self::new()
+        Some(self.base_path.join(aid).join("fs").join(normalized))
     }
 }
 
 #[async_trait::async_trait]
-impl Filesystem for CliFilesystem {
+impl Filesystem for DiskFilesystem {
     async fn exists(&self, aid: &str, path: &str) -> bool {
         let Some(disk_path) = self.path_for(aid, path) else {
             return false;

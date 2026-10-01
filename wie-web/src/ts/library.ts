@@ -1,9 +1,7 @@
-import { extractAppMetadata } from "@pkg";
 import { Check, CircleHelp, EllipsisVertical, Globe2, Plus, Settings, Trash2, Upload, X, createIcons } from "lucide";
 
-import { AppLibraryStore, AppMetadata } from "./app_library_store";
-import { configStore } from "./config_store";
-import { SettingsController } from "./settings";
+import type { Backend, LibraryApp } from "./backend";
+import type { SettingsController } from "./settings";
 
 const APPS_PER_PAGE = 12;
 const icons = {
@@ -18,8 +16,7 @@ const icons = {
   X,
 };
 
-export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: Uint8Array) => Promise<void>, settings: SettingsController) => {
-  const store = await AppLibraryStore.open();
+export const initializeLibrary = async (backend: Backend, launchApp: (app: LibraryApp) => Promise<void>, settings: SettingsController) => {
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const libraryPages = document.getElementById("library-pages") as HTMLDivElement;
   const pageIndicators = document.getElementById("page-indicators") as HTMLDivElement;
@@ -43,12 +40,12 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   const welcomeDialog = document.getElementById("welcome-dialog") as HTMLDialogElement;
   const dismissWelcome = document.getElementById("dismiss-welcome") as HTMLButtonElement;
 
-  hideHelp.checked = configStore.get("helpDismissed");
+  hideHelp.checked = settings.get("helpDismissed");
 
-  let apps = await store.list();
+  let apps = await backend.listApps();
   let manageMode = false;
   let appStarting = false;
-  let pendingDelete: AppMetadata;
+  let pendingDelete: LibraryApp;
   const iconUrls = new Set<string>();
   let dragPointer: number | undefined;
   let dragStartX = 0;
@@ -86,7 +83,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     manageIcon.dataset.lucide = manageMode ? "check" : "trash-2";
     oldManageIcon?.replaceWith(manageIcon);
 
-    const entries: Array<AppMetadata | undefined> = [...apps, undefined];
+    const entries: Array<LibraryApp | undefined> = [...apps, undefined];
     const pageCount = Math.ceil(entries.length / APPS_PER_PAGE);
     currentPageIndex = Math.max(0, Math.min(targetPageIndex, pageCount - 1));
     libraryPages.classList.toggle("draggable", pageCount > 1);
@@ -172,15 +169,11 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
           appStarting = true;
           launchButton.disabled = true;
           try {
-            const archive = await store.getArchive(app.id);
-            if (!archive) {
-              throw new Error("저장된 앱 파일을 찾을 수 없습니다.");
-            }
             if (!hideHelp.checked) {
               helpDialog.showModal();
               await new Promise<void>(resolve => helpDialog.addEventListener("close", () => resolve(), { once: true }));
             }
-            await launchApp(app, archive);
+            await launchApp(app);
           } catch (error) {
             window.alert(String(error));
           } finally {
@@ -324,7 +317,10 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     helpDialog.showModal();
   });
   helpDialog.addEventListener("close", () => {
-    configStore.set("helpDismissed", hideHelp.checked);
+    void settings.set("helpDismissed", hideHelp.checked).catch(error => {
+      hideHelp.checked = settings.get("helpDismissed");
+      window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
+    });
   });
 
   const importFiles = async (files: File[]) => {
@@ -337,7 +333,6 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     importStatus.textContent = `${files.length}개 앱 파일을 확인하는 중입니다.`;
 
     try {
-      const knownApps = new Map(apps.map(app => [app.id, app.title]));
       const failures: string[] = [];
       let addedCount = 0;
 
@@ -348,37 +343,15 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
             throw new Error("ZIP 또는 JAR 파일이 아닙니다.");
           }
 
-          const archive = new Uint8Array(await file.arrayBuffer());
-          const extracted = extractAppMetadata(file.name, archive);
-          try {
-            const duplicateTitle = knownApps.get(extracted.id);
-            if (duplicateTitle) {
-              throw new Error(`이미 라이브러리에 추가된 앱입니다: ${duplicateTitle}`);
-            }
-
-            const icon = extracted.icon;
-            const metadata: AppMetadata = {
-              id: extracted.id,
-              title: extracted.title,
-              filename: file.name,
-              addedAt: Date.now(),
-            };
-            if (icon.length > 0) {
-              metadata.icon = new Blob([new Uint8Array(icon).buffer]);
-            }
-            await store.add(metadata, archive);
-            knownApps.set(metadata.id, metadata.title);
-            addedCount += 1;
-          } finally {
-            extracted.free();
-          }
+          await backend.importApp(file);
+          addedCount += 1;
         } catch (error) {
           failures.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
       if (addedCount > 0) {
-        apps = await store.list();
+        apps = await backend.listApps();
         renderLibrary(Math.floor(apps.length / APPS_PER_PAGE));
       }
 
@@ -429,8 +402,8 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   confirmDelete.addEventListener("click", async () => {
     confirmDelete.disabled = true;
     try {
-      await store.delete(pendingDelete.id);
-      apps = await store.list();
+      await backend.deleteApp(pendingDelete.id);
+      apps = await backend.listApps();
       if (apps.length === 0) {
         manageMode = false;
       }
@@ -442,13 +415,17 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
       confirmDelete.disabled = false;
     }
   });
-  dismissWelcome.addEventListener("click", () => {
-    configStore.set("welcomeSeen", true);
-    welcomeDialog.close();
+  dismissWelcome.addEventListener("click", async () => {
+    try {
+      await settings.set("welcomeSeen", true);
+      welcomeDialog.close();
+    } catch (error) {
+      window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
+    }
   });
 
   renderLibrary();
-  if (!configStore.get("welcomeSeen")) {
+  if (!settings.get("welcomeSeen")) {
     welcomeDialog.showModal();
   }
 };

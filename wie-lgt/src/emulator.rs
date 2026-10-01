@@ -87,7 +87,7 @@ impl LgtEmulator {
     }
 
     pub fn archive_id(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
-        let id = LgtAppInfo::parse(files.get("app_info")?).pid;
+        let id = LgtAppInfo::parse(files.get("app_info")?).aid;
         (!id.is_empty()).then_some(id)
     }
 

@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/ios/GeneralUser-GS.sf2": "audio/GeneralUser-GS.sf2",
+      "resources/ios/LICENSE-GeneralUser-GS.txt": "audio/LICENSE-GeneralUser-GS.txt"
+    }
+  }
+}
