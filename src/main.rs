@@ -1,22 +1,21 @@
 extern crate alloc;
 
-#[cfg(not(target_arch = "wasm32"))]
-mod audio_sink;
-#[cfg(not(target_arch = "wasm32"))]
-mod cli;
-#[cfg(not(target_arch = "wasm32"))]
-mod database;
-#[cfg(not(target_arch = "wasm32"))]
-mod filesystem;
-#[cfg(not(target_arch = "wasm32"))]
-mod window;
+use cfg_if::cfg_if;
 
-#[cfg(not(target_arch = "wasm32"))]
-fn main() -> anyhow::Result<()> {
-    cli::run()
-}
+cfg_if! {
+    if #[cfg(not(target_arch = "wasm32"))] {
+        mod audio_sink;
+        mod cli;
+        mod database;
+        mod filesystem;
+        mod window;
 
-#[cfg(target_arch = "wasm32")]
-fn main() -> anyhow::Result<()> {
-    Ok(())
+        fn main() -> anyhow::Result<()> {
+            cli::run()
+        }
+    } else {
+        fn main() -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
 }

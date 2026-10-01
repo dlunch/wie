@@ -6908,6 +6908,7 @@ version = "0.1.7"
 dependencies = [
  "anyhow",
  "async-trait",
+ "cfg-if",
  "clap",
  "directories",
  "fast_image_resize",
@@ -6917,7 +6918,6 @@ dependencies = [
  "sentry",
  "softbuffer",
  "tempfile",
- "test-utils",
  "tracing",
  "tracing-subscriber",
  "wie-backend",
@@ -6927,7 +6927,6 @@ dependencies = [
  "wie-skt",
  "wie-util",
  "winit",
- "zip",
 ]
 
 [[package]]

@@ -33,8 +33,8 @@ wasm-bindgen = { version = "^0.2" }
 wasm-bindgen-futures = { version = "^0.4" }
 web-sys = { version = "^0.3", features = ["HtmlCanvasElement", "CanvasRenderingContext2d", "ImageData", "Window", "Navigator"] }
 
+wie = { workspace = true }
 wie-arm-jit-types = { workspace = true }
 wie-backend = { workspace = true }
 wie-core-arm-wasm = { workspace = true }
-wie = { path = "..", default-features = false }
 wie-util = { workspace = true }

@@ -74,6 +74,7 @@ tracing = { version = "^0.1", default-features = false, features = ["attributes"
 tracing-subscriber = { version = "^0.3", features = ["env-filter", "time"] }
 wipi-types = { version = "^0.0.2" }
 
+wie = { version = "0.1.7", path = ".", default-features = false }
 wie-backend = { version = "0.1.7", path = "wie-backend" }
 wie-j2me = { version = "0.1.7", path = "wie-j2me" }
 wie-ktf = { version = "0.1.7", path = "wie-ktf" }
@@ -114,6 +115,7 @@ cli = ["dep:clap", "dep:directories", "dep:fast_image_resize", "dep:midir", "dep
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
+cfg-if = "1"
 wie-backend = { workspace = true }
 wie-j2me = { workspace = true }
 wie-ktf = { workspace = true }
@@ -137,6 +139,4 @@ winit = { version = "^0.30", features = ["x11", "wayland"], optional = true }
 
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }
-test-utils = { workspace = true }
 tempfile = "3"
-zip = { version = "^8.6", features = ["deflate"], default-features = false }
