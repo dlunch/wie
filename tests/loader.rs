@@ -30,7 +30,7 @@ fn imported_archives_run_through_the_shared_loader() -> anyhow::Result<()> {
         }
         let bytes = writer.finish()?.into_inner();
         let metadata = extract_app_metadata(filename, &bytes)?;
-        assert_eq!(metadata.id, "00000000");
+        assert_eq!(metadata.id, "PD000000");
         assert!(!metadata.title.is_empty());
         let stdout = Arc::new(Mutex::new(Vec::new()));
         let exited = Arc::new(AtomicBool::new(false));

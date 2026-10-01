@@ -3,10 +3,10 @@
   "productName": "wie",
   "identifier": "net.dlunch.wie",
   "build": {
-    "frontendDist": "../wie-web/dist-native",
-    "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run start:native",
-    "beforeBuildCommand": "npm run build:native"
+    "frontendDist": "../wie-web/dist",
+    "devUrl": "http://localhost:8080",
+    "beforeDevCommand": "npm start",
+    "beforeBuildCommand": "npm run build:prod"
   },
   "app": {
     "windows": [

@@ -149,7 +149,7 @@ mod tests {
         files
             .get_mut(descriptor)
             .unwrap()
-            .extend_from_slice(format!("\nName:Test app\nAID:{id}\nPID:{id}\n").as_bytes());
+            .extend_from_slice(format!("\nName:Test app\nAID:{id}\nPID:PD{id}\n").as_bytes());
         let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
         for (name, bytes) in files {
             writer.start_file(name, SimpleFileOptions::default()).unwrap();

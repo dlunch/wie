@@ -50,7 +50,7 @@ impl Output {
         unsafe {
             #[cfg(target_os = "ios")]
             let soundbank = {
-                let path = _app.path().resolve("audio/GeneralUser-GS.sf2", BaseDirectory::Resource)?;
+                let path = _app.path().resolve("audio/1mgm.sf2", BaseDirectory::Resource)?;
                 NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()))
             };
             let engine = AVAudioEngine::new();

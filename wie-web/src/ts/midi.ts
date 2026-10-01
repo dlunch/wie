@@ -35,7 +35,7 @@ async function initAudio(ctx: AudioContext): Promise<AudioState> {
   try {
     await ctx.audioWorklet.addModule("/spessasynth_processor.min.js");
     synth = new WorkletSynthesizer(ctx);
-    const buffer = await fetch("GeneralUser.sf3").then(response => response.arrayBuffer());
+    const buffer = await fetch("1mgm.sf2").then(response => response.arrayBuffer());
     await synth.soundBankManager.addSoundBank(buffer, "main");
     await synth.isReady;
     synth.connect(midiGain);

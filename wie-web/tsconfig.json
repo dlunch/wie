@@ -6,7 +6,6 @@
     "target": "ESNext",
     "paths": {
       "@pkg": ["./pkg"],
-      "@wie": ["./src/ts/backend"],
       "*": ["./src/ts/*"]
     }
   }

@@ -1,11 +1,3 @@
-mod audio_sink;
-mod database;
-mod filesystem;
-mod window;
-
-#[cfg(test)]
-mod storage_tests;
-
 use core::str;
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -26,10 +18,12 @@ use wie::load_emulator;
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
 use wie_j2me::J2MEEmulator;
 
-use audio_sink::AudioSink;
-use database::DatabaseRepository;
-use filesystem::DiskFilesystem;
-use window::{WindowCallbackEvent, WindowHandle, WindowImpl};
+use crate::{
+    audio_sink::{self, AudioSink},
+    database::DatabaseRepository,
+    filesystem::DiskFilesystem,
+    window::{WindowCallbackEvent, WindowHandle, WindowImpl},
+};
 
 struct WieCliPlatform {
     audio_tx: Sender<AudioCommand>,

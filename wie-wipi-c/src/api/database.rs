@@ -72,8 +72,8 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     let packaged = read_packaged_database(context, &name).await?;
 
     let system = context.system();
-    let aid = system.aid().to_owned();
-    let exists = system.platform().database_repository().exists(&name, &aid).await;
+    let pid = system.pid().to_owned();
+    let exists = system.platform().database_repository().exists(&name, &pid).await;
 
     if !exists && packaged.is_none() && mode == 1 {
         return Ok(-12); // M_E_NOENT
@@ -84,7 +84,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     // buffer with the existing record or packaged data so seek+overlay writes
     // preserve unrelated bytes (multi-slot saves at fixed byte offsets).
     let initial: Vec<u8> = if exists {
-        let mut db = system.platform().database_repository().open(&name, &aid).await;
+        let mut db = system.platform().database_repository().open(&name, &pid).await;
         if mode == 4 && packaged.is_none() {
             db.delete(1).await;
             Vec::new()
@@ -97,11 +97,11 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
             Vec::new()
         }
     } else if let Some(data) = packaged {
-        let mut db = system.platform().database_repository().open(&name, &aid).await;
+        let mut db = system.platform().database_repository().open(&name, &pid).await;
         db.set(1, &data).await;
         data
     } else if mode == 4 {
-        system.platform().database_repository().open(&name, &aid).await;
+        system.platform().database_repository().open(&name, &pid).await;
         Vec::new()
     } else {
         Vec::new()
@@ -178,8 +178,8 @@ pub async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
 /// Known callers reject values below 0x100 and 0x1200 respectively.
 pub async fn list_databases(context: &mut dyn WIPICContext) -> Result<i32> {
     let system = context.system();
-    let aid = system.aid().to_owned();
-    let usage = system.platform().database_repository().usage(&aid).await;
+    let pid = system.pid().to_owned();
+    let usage = system.platform().database_repository().usage(&pid).await;
     let available = KTF_DATABASE_STORAGE_LIMIT.saturating_sub(usage).min(i32::MAX as u64) as i32;
 
     tracing::debug!("MC_dbListDataBase() = {available} (used={usage}, limit={KTF_DATABASE_STORAGE_LIMIT})");
@@ -214,9 +214,9 @@ pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWor
         return Ok(-22);
     };
     let system = context.system();
-    let aid = system.aid().to_owned();
+    let pid = system.pid().to_owned();
 
-    if !system.platform().database_repository().exists(&name, &aid).await {
+    if !system.platform().database_repository().exists(&name, &pid).await {
         if let Some(data) = read_packaged_database(context, &name).await? {
             if capacity > 0 {
                 write_generic(context, buf_ptr, 1u32)?;
@@ -228,7 +228,7 @@ pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWor
         return Ok(-12); // M_E_NOENT
     }
 
-    let db = system.platform().database_repository().open(&name, &aid).await;
+    let db = system.platform().database_repository().open(&name, &pid).await;
     let ids = db.get_record_ids().await;
 
     let mut written = 0;
@@ -262,8 +262,8 @@ pub async fn exists_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord
     }
 
     let system = context.system();
-    let aid = system.aid().to_owned();
-    if system.platform().database_repository().exists(&name, &aid).await {
+    let pid = system.pid().to_owned();
+    if system.platform().database_repository().exists(&name, &pid).await {
         Ok(0)
     } else {
         Ok(-12) // M_E_NOENT
@@ -392,10 +392,10 @@ pub async fn delete_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord
         return Ok(-22);
     };
     let system = context.system();
-    let aid = system.aid().to_owned();
+    let pid = system.pid().to_owned();
 
-    let deleted = system.platform().database_repository().delete(&name, &aid).await;
-    if deleted || !system.platform().database_repository().exists(&name, &aid).await {
+    let deleted = system.platform().database_repository().delete(&name, &pid).await;
+    if deleted || !system.platform().database_repository().exists(&name, &pid).await {
         Ok(0)
     } else {
         Ok(-12) // M_E_NOENT
@@ -535,8 +535,8 @@ pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWor
     };
 
     let system = context.system();
-    let aid = system.aid().to_owned();
-    let exists = system.platform().database_repository().exists(&name, &aid).await;
+    let pid = system.pid().to_owned();
+    let exists = system.platform().database_repository().exists(&name, &pid).await;
     if !exists {
         tracing::debug!("db.stat_by_name({name:?}, mode={mode}) -> -22 (not found)");
         return Ok(-22);
@@ -544,7 +544,7 @@ pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWor
 
     // Pull record 1's size as the "valid save" indicator the game checks
     // against 0xC7 in v2[2].
-    let db = system.platform().database_repository().open(&name, &aid).await;
+    let db = system.platform().database_repository().open(&name, &pid).await;
     let record_size = db.get(1).await.map(|x| x.len() as u32).unwrap_or(0);
 
     if out_buf != 0 {
@@ -578,9 +578,9 @@ async fn open_db_for_handle(context: &mut dyn WIPICContext, handle: &DatabaseHan
     let db_name = str::from_utf8(&handle.name[..name_length]).ok()?;
 
     let system = context.system();
-    let aid = system.aid().to_owned();
+    let pid = system.pid().to_owned();
 
-    Some(system.platform().database_repository().open(db_name, &aid).await)
+    Some(system.platform().database_repository().open(db_name, &pid).await)
 }
 
 async fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Result<Option<Box<dyn Database>>> {
@@ -625,8 +625,8 @@ mod tests {
         assert_eq!(list_databases(&mut context).await.unwrap(), KTF_DATABASE_STORAGE_LIMIT as i32 - 4);
 
         let system = context.system();
-        assert_eq!(system.platform().database_repository().usage(system.aid()).await, 4);
-        assert_eq!(system.platform().database_repository().usage(system.pid()).await, 0);
+        assert_eq!(system.platform().database_repository().usage(system.pid()).await, 4);
+        assert_eq!(system.platform().database_repository().usage(system.aid()).await, 0);
     }
 
     #[futures_test::test]

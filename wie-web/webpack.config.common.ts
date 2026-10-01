@@ -49,10 +49,10 @@ class WasmPackPlugin {
   }
 }
 
-const commonConfig = (mode: "development" | "production", native = false): webpack.Configuration => ({
+const commonConfig = (mode: "development" | "production"): webpack.Configuration => ({
   context: import.meta.dirname,
   output: {
-    path: path.resolve(import.meta.dirname, native ? "dist-native" : "dist"),
+    path: path.resolve(import.meta.dirname, "dist"),
     clean: true,
   },
   ignoreWarnings: [
@@ -62,7 +62,6 @@ const commonConfig = (mode: "development" | "production", native = false): webpa
     alias: {
       "@css": path.resolve(import.meta.dirname, "src/css"),
       "@ts": path.resolve(import.meta.dirname, "src/ts"),
-      [path.resolve(import.meta.dirname, "src/ts/backend")]: path.resolve(import.meta.dirname, `src/ts/backend.${native ? "native" : "browser"}.ts`),
     },
     extensions: [".ts", ".js"],
     plugins: [
@@ -107,7 +106,7 @@ const commonConfig = (mode: "development" | "production", native = false): webpa
       entry: {
         index: {
           import: "src/html/index.html",
-          data: { adtest: mode !== "production", native },
+          data: { adtest: mode !== "production" },
         },
       },
       js: {
@@ -117,15 +116,18 @@ const commonConfig = (mode: "development" | "production", native = false): webpa
         filename: "assets/css/[name].[contenthash:8].css",
       },
     }),
-    ...(!native ? [new WasmPackPlugin(import.meta.dirname), new CopyPlugin({
+    new WasmPackPlugin(import.meta.dirname),
+    new CopyPlugin({
       patterns: [
         { from: path.resolve(import.meta.dirname, "public"), to: "." },
+        { from: path.resolve(import.meta.dirname, "../assets/1mgm.sf2"), to: "." },
+        { from: path.resolve(import.meta.dirname, "../assets/1mgm.txt"), to: "." },
         {
           from: path.resolve(import.meta.dirname, "../node_modules/spessasynth_lib/dist/spessasynth_processor.min.js"),
           to: ".",
         },
       ],
-    })] : []),
+    }),
   ],
 });
 

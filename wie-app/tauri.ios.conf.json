@@ -4,8 +4,8 @@
       "frameworks": ["AVFAudio"]
     },
     "resources": {
-      "resources/ios/GeneralUser-GS.sf2": "audio/GeneralUser-GS.sf2",
-      "resources/ios/LICENSE-GeneralUser-GS.txt": "audio/LICENSE-GeneralUser-GS.txt"
+      "../assets/1mgm.sf2": "audio/1mgm.sf2",
+      "../assets/1mgm.txt": "audio/1mgm.txt"
     }
   }
 }

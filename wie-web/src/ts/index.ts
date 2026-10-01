@@ -1,7 +1,7 @@
-import { backend } from "@wie";
+import { isTauri } from "@tauri-apps/api/core";
 
 import { runApp } from "./app";
-import type { LibraryApp } from "./backend";
+import { initializeWie, type LibraryApp } from "./backend";
 import { initializeLibrary } from "./library";
 import { initializeSettings } from "./settings";
 
@@ -12,6 +12,26 @@ console.error = (...args: unknown[]) => {
 };
 
 const main = async () => {
+  const native = isTauri();
+  document.documentElement.classList.add(native ? "native" : "browser");
+  const output = document.getElementById("player-output") as HTMLDivElement;
+  const browserScripts = document.getElementById("browser-scripts") as HTMLTemplateElement;
+  if (native) {
+    output.className = "native-preparation";
+    document.querySelector(".library-ad")!.remove();
+    document.getElementById("enable-wasm-aot")!.closest("label")!.remove();
+  } else {
+    output.className = "canvas-wrapper";
+    const canvas = document.createElement("canvas");
+    canvas.id = "canvas";
+    canvas.width = 240;
+    canvas.height = 320;
+    output.prepend(canvas);
+    document.head.append(document.importNode(browserScripts.content, true));
+  }
+  browserScripts.remove();
+
+  const backend = await initializeWie();
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;
   const settings = await initializeSettings(backend);

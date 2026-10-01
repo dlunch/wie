@@ -37,7 +37,7 @@ jobs:
         run: bash .github/scripts/release/resolve-context.sh
 
   web:
-    name: Build browser and native frontends
+    name: Build web frontend
     needs: context
     if: needs.context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
@@ -83,11 +83,10 @@ jobs:
         with:
           tool: wasm-pack
 
-      - name: Build production frontends
+      - name: Build production frontend
         run: |
           npm ci
           npm run build:prod
-          npm run build:native
 
       - name: Save Cargo cache
         if: github.ref == 'refs/heads/main'
@@ -117,13 +116,6 @@ jobs:
           path: wie-web/dist
           if-no-files-found: error
 
-      - name: Upload native frontend
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-frontend
-          path: wie-web/dist-native
-          if-no-files-found: error
-
   windows:
     name: Build Windows x64
     needs:
@@ -143,11 +135,11 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Download native frontend
+      - name: Download web frontend
         uses: actions/download-artifact@v8
         with:
-          name: native-frontend
-          path: wie-web/dist-native
+          name: web-frontend
+          path: wie-web/dist
 
       - name: Build unsigned installers
         uses: tauri-apps/tauri-action@v1
@@ -195,11 +187,11 @@ jobs:
         with:
           targets: x86_64-unknown-linux-gnu
 
-      - name: Download native frontend
+      - name: Download web frontend
         uses: actions/download-artifact@v8
         with:
-          name: native-frontend
-          path: wie-web/dist-native
+          name: web-frontend
+          path: wie-web/dist
 
       - name: Build unsigned packages
         uses: tauri-apps/tauri-action@v1
@@ -241,11 +233,11 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: Download native frontend
+      - name: Download web frontend
         uses: actions/download-artifact@v8
         with:
-          name: native-frontend
-          path: wie-web/dist-native
+          name: web-frontend
+          path: wie-web/dist
 
       - name: Build unsigned universal bundles
         uses: tauri-apps/tauri-action@v1
@@ -300,11 +292,11 @@ jobs:
         with:
           targets: aarch64-linux-android
 
-      - name: Download native frontend
+      - name: Download web frontend
         uses: actions/download-artifact@v8
         with:
-          name: native-frontend
-          path: wie-web/dist-native
+          name: web-frontend
+          path: wie-web/dist
 
       - name: Install Tauri CLI
         uses: taiki-e/install-action@v2
@@ -370,11 +362,11 @@ jobs:
         with:
           targets: aarch64-apple-ios
 
-      - name: Download native frontend
+      - name: Download web frontend
         uses: actions/download-artifact@v8
         with:
-          name: native-frontend
-          path: wie-web/dist-native
+          name: web-frontend
+          path: wie-web/dist
 
       - name: Install iOS build dependencies
         run: arch -arm64 brew reinstall xcodegen libimobiledevice
