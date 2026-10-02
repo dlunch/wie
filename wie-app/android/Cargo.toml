@@ -6,7 +6,7 @@ license.workspace = true
 links = "wie-app-android"
 publish = false
 
-[dependencies]
+[target.'cfg(target_os = "android")'.dependencies]
 tauri = { version = "2.10.2", default-features = false }
 
 [build-dependencies]
