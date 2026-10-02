@@ -49,7 +49,6 @@ class WasmPackPlugin {
   }
 }
 
-
 const commonConfig = (mode: "development" | "production"): webpack.Configuration => ({
   context: import.meta.dirname,
   output: {
@@ -121,6 +120,8 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
     new CopyPlugin({
       patterns: [
         { from: path.resolve(import.meta.dirname, "public"), to: "." },
+        { from: path.resolve(import.meta.dirname, "../assets/1mgm.sf2"), to: "." },
+        { from: path.resolve(import.meta.dirname, "../assets/1mgm.txt"), to: "." },
         {
           from: path.resolve(import.meta.dirname, "../node_modules/spessasynth_lib/dist/spessasynth_processor.min.js"),
           to: ".",

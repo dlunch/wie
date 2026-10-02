@@ -1,0 +1,8 @@
+1mgm.sf2 - General MIDI sound bank
+Copyright (c) E-mu Systems, Inc., 1993.
+
+Source: https://musical-artifacts.com/artifacts/6620
+The source listing identifies the license as Creative Commons Attribution 3.0
+Unported: https://creativecommons.org/licenses/by/3.0/
+
+The sound bank is distributed unchanged.

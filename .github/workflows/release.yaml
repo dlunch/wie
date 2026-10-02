@@ -45,7 +45,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -126,7 +126,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -173,7 +173,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -224,7 +224,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -270,7 +270,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -353,7 +353,7 @@ jobs:
       - name: Checkout target
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
 
@@ -410,6 +410,7 @@ jobs:
 
   deploy_web:
     name: Deploy web frontend
+    if: needs.context.outputs.channel != 'validation'
     needs:
       - context
       - web
@@ -466,7 +467,7 @@ jobs:
       - name: Checkout release scripts
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.context.outputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Download build artifacts

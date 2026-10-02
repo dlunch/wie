@@ -13,6 +13,8 @@ const config: webpack.Configuration = merge(commonConfig("development"), {
   devtool: "eval-source-map",
   devServer: {
     open: false,
+    host: process.env.TAURI_DEV_HOST ?? "localhost",
+    port: 8080,
     static: [
       path.join(import.meta.dirname, "dist"),
       path.join(import.meta.dirname, "public"),

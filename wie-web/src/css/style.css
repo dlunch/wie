@@ -479,6 +479,32 @@ svg {
   accent-color: var(--accent);
 }
 
+.native-preparation {
+  width: min(100%, 480px);
+}
+
+.native-preparation .player-status {
+  position: static;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+}
+
+.player-warning {
+  width: min(100%, 480px);
+  margin: 0;
+  padding: 8px 16px;
+  color: #92400e;
+  background: #fffbeb;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.native .app-dialog form {
+  padding: 16px;
+}
+
 .button-container {
   display: flex;
   width: min(100%, 480px);
@@ -514,6 +540,51 @@ svg {
 .button-container svg {
   width: 16px;
   height: 16px;
+}
+
+.native .player-toolbar {
+  height: 44px;
+  padding-block: 2px;
+}
+
+.native .player-main {
+  height: calc(100dvh - 44px);
+}
+
+.native .player-warning {
+  flex: none;
+  max-height: 32px;
+  padding: 2px 12px;
+  overflow: auto;
+  font-size: 0.7rem;
+  line-height: 14px;
+}
+
+.native .button-container {
+  display: grid;
+  min-height: 0;
+  max-height: 212px;
+  flex: 1;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 4px 12px;
+  padding: 6px 12px 8px;
+}
+
+.native .button-container p {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.native .button-container p:nth-child(-n + 4) button:only-child {
+  grid-column: 2;
+}
+
+.native .button-container button {
+  width: 100%;
+  height: 100%;
 }
 
 .app-dialog {

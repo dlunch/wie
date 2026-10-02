@@ -10,9 +10,7 @@ mod util;
 mod window;
 
 use alloc::{
-    borrow::ToOwned,
     boxed::Box,
-    collections::BTreeMap,
     string::{String, ToString},
     sync::Arc,
     vec::Vec,
@@ -28,11 +26,7 @@ use tracing_web::MakeConsoleWriter;
 use wasm_bindgen::{JsError, prelude::*};
 use web_sys::HtmlCanvasElement;
 
-use wie_backend::{Emulator, Event, Font, Instant, KeyCode, Options, Platform, Screen, extract_zip};
-use wie_j2me::J2MEEmulator;
-use wie_ktf::KtfEmulator;
-use wie_lgt::LgtEmulator;
-use wie_skt::SktEmulator;
+use wie_backend::{Emulator, Event, Font, Instant, KeyCode, Options, Platform, Screen};
 
 use self::{
     audio_sink::{AudioPlayer, AudioSink},
@@ -40,40 +34,6 @@ use self::{
     filesystem::WebFilesystem,
     window::WindowImpl,
 };
-
-enum ArchivePlatform {
-    Ktf,
-    Lgt,
-    Skt,
-}
-
-fn parse_archive(buf: &[u8]) -> anyhow::Result<(ArchivePlatform, BTreeMap<String, Vec<u8>>)> {
-    let files = extract_zip(buf)?;
-
-    if !files.keys().any(|name| name.to_ascii_lowercase().ends_with(".jar")) {
-        anyhow::bail!("Archive does not contain a JAR file");
-    }
-
-    let platform = if KtfEmulator::loadable_archive(&files) {
-        ArchivePlatform::Ktf
-    } else if LgtEmulator::loadable_archive(&files) {
-        ArchivePlatform::Lgt
-    } else if SktEmulator::loadable_archive(&files) {
-        ArchivePlatform::Skt
-    } else {
-        anyhow::bail!("Unknown archive format");
-    };
-
-    Ok((platform, files))
-}
-
-fn jar_app_id<'a>(filename: &'a str, buf: &[u8]) -> &'a str {
-    if KtfEmulator::loadable_jar(buf) || LgtEmulator::loadable_jar(buf) || SktEmulator::loadable_jar(buf) {
-        &filename[..filename.len() - 4]
-    } else {
-        filename
-    }
-}
 
 struct WieWebPlatform {
     audio_player: AudioPlayer,
@@ -196,34 +156,11 @@ impl ImportedAppMetadata {
 
 #[wasm_bindgen(js_name = extractAppMetadata)]
 pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMetadata, JsError> {
-    let lowercase_filename = filename.to_ascii_lowercase();
-    let metadata = if lowercase_filename.ends_with(".zip") {
-        let (platform, files) = parse_archive(buf).map_err(|error| JsError::new(&error.to_string()))?;
-        match platform {
-            ArchivePlatform::Ktf => KtfEmulator::archive_id(&files)
-                .zip(KtfEmulator::archive_title(&files))
-                .map(|(id, title)| (id, title, KtfEmulator::archive_icon(&files))),
-            ArchivePlatform::Lgt => LgtEmulator::archive_id(&files)
-                .zip(LgtEmulator::archive_title(&files))
-                .map(|(id, title)| (id, title, LgtEmulator::archive_icon(&files))),
-            ArchivePlatform::Skt => SktEmulator::archive_id(&files)
-                .zip(SktEmulator::archive_title(&files))
-                .map(|(id, title)| (id, title, SktEmulator::archive_icon(&files))),
-        }
-    } else if lowercase_filename.ends_with(".jar") {
-        let filename = filename.rsplit('/').next().unwrap();
-        J2MEEmulator::jar_metadata(buf)
-            .map_err(|error| JsError::new(&error.to_string()))?
-            .map(|(title, icon)| (jar_app_id(filename, buf).to_owned(), title, icon))
-    } else {
-        return Err(JsError::new("Unknown file format"));
-    };
-    let (id, title, icon) = metadata.ok_or_else(|| JsError::new("App metadata does not contain an ID, title or entry point"))?;
-
+    let metadata = wie::extract_app_metadata(filename, buf).map_err(|error| JsError::new(&error.to_string()))?;
     Ok(ImportedAppMetadata {
-        id,
-        title,
-        icon: icon.unwrap_or_default(),
+        id: metadata.id,
+        title: metadata.title,
+        icon: metadata.icon.unwrap_or_default(),
     })
 }
 
@@ -243,46 +180,7 @@ impl WieWeb {
                 profile: None,
             };
 
-            let emulator: Box<dyn Emulator> = if filename.to_ascii_lowercase().ends_with(".zip") {
-                let (archive_platform, files) = parse_archive(buf)?;
-
-                match archive_platform {
-                    ArchivePlatform::Ktf => Box::new(KtfEmulator::from_archive(platform, files, options)?),
-                    ArchivePlatform::Lgt => Box::new(LgtEmulator::from_archive(platform, files, options)?),
-                    ArchivePlatform::Skt => Box::new(SktEmulator::from_archive(platform, files)?),
-                }
-            } else if filename.to_ascii_lowercase().ends_with(".jar") {
-                let filename_without_path = filename.rsplit('/').next().unwrap().to_owned();
-                let app_id = jar_app_id(&filename_without_path, buf);
-
-                if KtfEmulator::loadable_jar(buf) {
-                    Box::new(KtfEmulator::from_jar(
-                        platform,
-                        &filename_without_path,
-                        buf.to_vec(),
-                        app_id,
-                        app_id,
-                        None,
-                        options,
-                    )?)
-                } else if LgtEmulator::loadable_jar(buf) {
-                    Box::new(LgtEmulator::from_jar(
-                        platform,
-                        &filename_without_path,
-                        buf.to_vec(),
-                        app_id,
-                        app_id,
-                        None,
-                        options,
-                    )?)
-                } else if SktEmulator::loadable_jar(buf) {
-                    Box::new(SktEmulator::from_jar(platform, &filename_without_path, buf.to_vec(), app_id, None)?)
-                } else {
-                    Box::new(J2MEEmulator::from_jar(platform, &filename_without_path, buf.to_vec())?)
-                }
-            } else {
-                anyhow::bail!("Unknown file format");
-            };
+            let emulator = wie::load_emulator(filename, buf.to_vec(), platform, options)?;
 
             anyhow::Ok(Self {
                 emulator,
@@ -338,10 +236,6 @@ impl WieWeb {
         self.key_events.remove(&key);
 
         Ok(())
-    }
-
-    pub fn set_pcm_volume(&self, volume: f32) {
-        audio_sink::set_pcm_volume(volume);
     }
 }
 

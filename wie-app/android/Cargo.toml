@@ -1,0 +1,13 @@
+[package]
+name = "wie-app-android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+links = "wie-app-android"
+publish = false
+
+[target.'cfg(target_os = "android")'.dependencies]
+tauri = { version = "2.10.2", default-features = false }
+
+[build-dependencies]
+tauri-plugin = { version = "2.7", features = ["build"] }

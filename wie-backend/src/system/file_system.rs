@@ -192,9 +192,11 @@ mod tests {
         async fn exists(&self, aid: &str, path: &str) -> bool {
             self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
         }
+
         async fn size(&self, aid: &str, path: &str) -> Option<usize> {
             self.files.lock().get(&(aid.to_string(), path.to_string())).map(|v| v.len())
         }
+
         async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
             let files = self.files.lock();
             let data = files.get(&(aid.to_string(), path.to_string()))?;
@@ -205,6 +207,7 @@ mod tests {
             buf[..n].copy_from_slice(&data[offset..offset + n]);
             Some(n)
         }
+
         async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
             let write_len = self.write_limit.unwrap_or(data.len()).min(data.len());
             let mut files = self.files.lock();
@@ -215,6 +218,7 @@ mod tests {
             file[offset..offset + write_len].copy_from_slice(&data[..write_len]);
             write_len
         }
+
         async fn truncate(&self, aid: &str, path: &str, len: usize) {
             if self.fail_truncate {
                 return;
@@ -232,24 +236,33 @@ mod tests {
         fn font(&self) -> &Font {
             unimplemented!()
         }
+
         fn screen(&self) -> &dyn Screen {
             unimplemented!()
         }
+
         fn now(&self) -> Instant {
             Instant::from_epoch_millis(0)
         }
+
         fn database_repository(&self) -> &dyn DatabaseRepository {
             unimplemented!()
         }
+
         fn filesystem(&self) -> &dyn Filesystem {
             &self.fs
         }
+
         fn audio_sink(&self) -> Box<dyn AudioSink> {
             unimplemented!()
         }
+
         fn write_stdout(&self, _buf: &[u8]) {}
+
         fn write_stderr(&self, _buf: &[u8]) {}
+
         fn exit(&self) {}
+
         fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
     }
 

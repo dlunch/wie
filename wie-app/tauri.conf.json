@@ -14,6 +14,7 @@
         "title": "wie",
         "width": 800,
         "height": 600,
+        "dragDropEnabled": false,
         "resizable": true,
         "fullscreen": false
       }
@@ -32,6 +33,9 @@
   },
   "bundle": {
     "active": true,
+    "android": {
+      "minSdkVersion": 26
+    },
     "targets": "all",
     "icon": [
       "icons/icon.png",

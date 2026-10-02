@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "iOS": {
+      "frameworks": ["AVFAudio"]
+    },
+    "resources": {
+      "../assets/1mgm.sf2": "audio/1mgm.sf2",
+      "../assets/1mgm.txt": "audio/1mgm.txt"
+    }
+  }
+}

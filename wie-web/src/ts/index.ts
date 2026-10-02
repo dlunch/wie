@@ -1,13 +1,9 @@
-import * as Sentry from "@sentry/browser";
+import { isTauri } from "@tauri-apps/api/core";
 
 import { runApp } from "./app";
-import { AppMetadata } from "./app_library_store";
+import { initializeWie, type LibraryApp } from "./backend";
 import { initializeLibrary } from "./library";
 import { initializeSettings } from "./settings";
-
-Sentry.init({
-  dsn: "https://fa9187d6bd7dd43ae621f26d33641f81@o106536.ingest.us.sentry.io/4512048969678848",
-});
 
 const originalConsoleError = console.error;
 console.error = (...args: unknown[]) => {
@@ -16,51 +12,46 @@ console.error = (...args: unknown[]) => {
 };
 
 const main = async () => {
+  const native = isTauri();
+  document.documentElement.classList.add(native ? "native" : "browser");
+  const output = document.getElementById("player-output") as HTMLDivElement;
+  const browserScripts = document.getElementById("browser-scripts") as HTMLTemplateElement;
+  if (native) {
+    output.className = "native-preparation";
+    document.querySelector(".library-ad")!.remove();
+    document.getElementById("enable-wasm-aot")!.closest("label")!.remove();
+  } else {
+    output.className = "canvas-wrapper";
+    const canvas = document.createElement("canvas");
+    canvas.id = "canvas";
+    canvas.width = 240;
+    canvas.height = 320;
+    output.prepend(canvas);
+    document.head.append(document.importNode(browserScripts.content, true));
+  }
+  browserScripts.remove();
+
+  const backend = await initializeWie();
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;
-  const settings = initializeSettings();
-  const fontResponse = await fetch(
-    new URL("../../../assets/neodgm.ttf", import.meta.url),
-  );
-  if (!fontResponse.ok) {
-    throw new Error(
-      `Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`,
-    );
-  }
-  const fontData = new Uint8Array(await fontResponse.arrayBuffer());
+  const settings = await initializeSettings(backend);
 
-  const routeToApp = (app: AppMetadata, archive: Uint8Array) =>
-    new Promise<void>((resolve, reject) => {
-      libraryView.hidden = true;
-      playerView.hidden = false;
+  const routeToApp = async (app: LibraryApp) => {
+    libraryView.hidden = true;
+    playerView.hidden = false;
+    try {
+      await runApp(backend, app, settings);
+    } finally {
+      playerView.hidden = true;
+      libraryView.hidden = false;
+    }
+  };
 
-      let disposeApp: () => void;
-      const routeToLibrary = (error?: unknown) => {
-        disposeApp();
-        playerView.hidden = true;
-        libraryView.hidden = false;
-
-        if (error !== undefined) {
-          reject(error);
-        } else {
-          resolve();
-        }
-      };
-
-      try {
-        disposeApp = runApp(app, archive, fontData, settings, routeToLibrary);
-      } catch (error) {
-        playerView.hidden = true;
-        libraryView.hidden = false;
-        reject(error);
-      }
-    });
-
-  await initializeLibrary(routeToApp, settings);
+  await initializeLibrary(backend, routeToApp, settings);
 };
 
 const start = () => {
-  void main().catch((error) => {
+  void main().catch(error => {
     console.error(`라이브러리를 열 수 없습니다. ${String(error)}`, error);
   });
 };

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="file" path="datastore/" />
+    <include domain="root" path="state.sqlite" />
+    <include domain="root" path="state.sqlite-journal" />
+    <include domain="root" path="library.sqlite" requireFlags="deviceToDeviceTransfer" />
+    <include domain="root" path="library.sqlite-journal" requireFlags="deviceToDeviceTransfer" />
+</full-backup-content>

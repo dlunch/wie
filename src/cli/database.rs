@@ -128,6 +128,7 @@ impl Database {
             record_id += 1;
         }
     }
+
     fn get_path_for_record(&self, id: RecordId) -> PathBuf {
         self.base_path.join(id.to_string())
     }
