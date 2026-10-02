@@ -4,6 +4,8 @@ mod filesystem;
 mod library;
 mod runtime;
 mod screen;
+mod settings;
+mod store;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -25,7 +27,7 @@ pub fn run() {
             app.handle().plugin(tauri_plugin_haptics::init())?;
             let window = app.get_webview_window("main").ok_or("Main window is unavailable")?;
             let view = screen::NativeView::new(window)?;
-            app.manage(AppState::new(app.path().app_data_dir()?, view));
+            app.manage(AppState::new(app.handle().clone(), app.path().app_data_dir()?, view)?);
             #[cfg(target_os = "ios")]
             runtime::ios::register(app.handle())?;
 

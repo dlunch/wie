@@ -15,12 +15,12 @@ static APPLICATION_CONTEXT: OnceLock<GlobalRef> = OnceLock::new();
 
 pub(super) struct Midi {
     vm: JavaVM,
-    helper: GlobalRef,
+    helper: Option<GlobalRef>,
     volume: f32,
 }
 
 impl Midi {
-    pub fn new(app: &AppHandle, volume: f32, _warning: &Warning) -> Result<Self> {
+    pub fn new(app: &AppHandle, volume: f32, warning: &Warning) -> Result<Self> {
         let (tx, rx) = mpsc::channel();
         app.get_webview_window("main")
             .context("Main WebView is unavailable")?
@@ -38,39 +38,57 @@ impl Midi {
                             }
                             context
                         });
-                        let loader = env.call_method(activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
-                        let name = env.new_string("net.dlunch.wie.audio.NativeAudio")?;
-                        let class = env
-                            .call_method(loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?
-                            .l()?;
-                        let helper = env.new_object(JClass::from(class), "()V", &[])?;
-                        Ok((vm, env.new_global_ref(helper)?))
+                        let helper = (|| -> Result<_> {
+                            let loader = env.call_method(activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
+                            let name = env.new_string("net.dlunch.wie.audio.NativeAudio")?;
+                            let class = env
+                                .call_method(loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?
+                                .l()?;
+                            let helper = env.new_object(JClass::from(class), "()V", &[])?;
+                            Ok(env.new_global_ref(helper)?)
+                        })();
+                        Ok((vm, helper))
                     })();
+                    if result.is_err() || matches!(&result, Ok((_, Err(_)))) {
+                        let _ = env.exception_describe();
+                        let _ = env.exception_clear();
+                    }
                     let _ = tx.send(result);
                 });
             })?;
         let (vm, helper) = rx.recv().context("Android audio initialization was interrupted")??;
+        let helper = match helper {
+            Ok(helper) => Some(helper),
+            Err(error) => {
+                warning(format!("MIDI is unavailable; game and PCM audio will continue: {error:#}"));
+                None
+            }
+        };
         Ok(Self { vm, helper, volume })
     }
 
     pub fn start(&mut self, handle: AudioHandle, sequence: &AudioSequence, repeat: bool) -> Result<()> {
+        let Some(helper) = &self.helper else {
+            return Ok(());
+        };
         if !sequence.events.iter().any(|event| matches!(event.data, AudioEventData::Midi(_))) {
             return Ok(());
         }
         let bytes = smf::encode(sequence)?;
         let mut env = self.vm.attach_current_thread()?;
-        let bytes = env.byte_array_from_slice(&bytes)?;
-        let result = env.call_method(
-            self.helper.as_obj(),
-            "play",
-            "(J[BZF)V",
-            &[
-                JValue::Long(i64::from(handle)),
-                JValue::Object(&bytes),
-                JValue::Bool((repeat && sequence.duration != 0).into()),
-                JValue::Float(self.volume),
-            ],
-        );
+        let result = env.byte_array_from_slice(&bytes).and_then(|bytes| {
+            env.call_method(
+                helper.as_obj(),
+                "play",
+                "(J[BZF)V",
+                &[
+                    JValue::Long(i64::from(handle)),
+                    JValue::Object(&bytes),
+                    JValue::Bool((repeat && sequence.duration != 0).into()),
+                    JValue::Float(self.volume),
+                ],
+            )
+        });
         if let Err(error) = result {
             env.exception_describe()?;
             env.exception_clear()?;
@@ -80,8 +98,11 @@ impl Midi {
     }
 
     fn call(&self, method: &str, signature: &str, args: &[JValue<'_, '_>]) -> Result<()> {
+        let Some(helper) = &self.helper else {
+            return Ok(());
+        };
         let mut env = self.vm.attach_current_thread()?;
-        if let Err(error) = env.call_method(self.helper.as_obj(), method, signature, args) {
+        if let Err(error) = env.call_method(helper.as_obj(), method, signature, args) {
             env.exception_describe()?;
             env.exception_clear()?;
             return Err(anyhow!("Android audio {method} failed: {error}"));

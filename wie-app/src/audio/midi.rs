@@ -29,27 +29,20 @@ pub(super) struct Midi {
 }
 
 impl Midi {
-    pub fn new(volume: f32, warning: &Warning) -> Result<Self> {
-        let connection = Connection::new();
-        #[cfg(target_os = "linux")]
-        let connection = match connection {
+    pub fn new(volume: f32, warning: &Warning) -> Self {
+        let connection = match Connection::new() {
             Ok(connection) => Some(connection),
             Err(error) => {
                 warning(format!("MIDI is unavailable; game and PCM audio will continue: {error:#}"));
                 None
             }
         };
-        #[cfg(target_os = "windows")]
-        let connection = {
-            let _ = warning;
-            Some(connection?)
-        };
-        Ok(Self {
+        Self {
             connection,
             voices: BTreeMap::new(),
             channel_volumes: [100; 16],
             volume,
-        })
+        }
     }
 
     pub fn start(&mut self, handle: AudioHandle, sequence: &AudioSequence, repeat: bool) -> Result<()> {
@@ -429,7 +422,6 @@ mod tests {
         assert_eq!(midi.voices.len(), 1);
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn missing_synth_warns_once_without_failing_playback_controls() {
         use std::sync::{Arc, Mutex};
@@ -437,17 +429,26 @@ mod tests {
         let messages = Arc::new(Mutex::new(Vec::new()));
         let received = messages.clone();
         let warning: Warning = Box::new(move |message| received.lock().unwrap().push(message));
-        let mut midi = Midi::new(0.5, &warning).unwrap();
+        let mut midi = Midi::new(0.5, &warning);
         let sequence = AudioSequence {
             duration: 100,
-            events: vec![],
+            events: vec![TimedAudioEvent {
+                time: 0,
+                data: AudioEventData::Midi(vec![0x90, 60, 100]),
+            }],
         };
         for handle in 0..3 {
             midi.start(handle, &sequence, false).unwrap();
             midi.event(handle, &[0x90, 60, 100]).unwrap();
             midi.finish(handle).unwrap();
+            midi.stop(handle).unwrap();
+            midi.reap();
         }
         midi.set_volume(0.0).unwrap();
-        assert_eq!(messages.lock().unwrap().len(), 1);
+        assert!(midi.voices.is_empty());
+        drop(midi);
+        let messages = messages.lock().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert!(messages[0].contains("game and PCM audio will continue"));
     }
 }

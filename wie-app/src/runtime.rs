@@ -14,6 +14,7 @@ use futures::{
     FutureExt,
     channel::oneshot,
     future::{BoxFuture, Shared},
+    lock::Mutex as AsyncMutex,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, ipc::Channel};
@@ -26,9 +27,11 @@ use wie_backend::{
 use crate::{
     audio::{Audio, AudioSink as NativeAudioSink},
     database::DatabaseRepository,
-    filesystem::DiskFilesystem,
-    library::{Library, LibraryApp, Settings},
+    filesystem::SqliteFilesystem,
+    library::{Library, LibraryApp},
     screen::{NativeScreen, NativeView},
+    settings::{Settings, SettingsStore},
+    store::{self, Store},
 };
 
 #[cfg(target_os = "ios")]
@@ -62,7 +65,6 @@ enum Command {
 }
 
 struct Runtime {
-    library: Library,
     session: Option<Session>,
     next_id: u64,
     #[cfg(mobile)]
@@ -70,24 +72,28 @@ struct Runtime {
 }
 
 pub struct AppState {
-    root: PathBuf,
+    store: Store,
+    library: Arc<Mutex<Library>>,
+    settings: AsyncMutex<SettingsStore>,
     view: NativeView,
     runtime: Mutex<Runtime>,
 }
 
 impl AppState {
-    pub fn new(root: PathBuf, view: NativeView) -> Self {
-        Self {
+    pub fn new(app: AppHandle, root: PathBuf, view: NativeView) -> Result<Self> {
+        let store = store::open(&root)?;
+        Ok(Self {
             runtime: Mutex::new(Runtime {
-                library: Library::new(root.clone()),
                 session: None,
                 next_id: 1,
                 #[cfg(mobile)]
                 suspended: false,
             }),
-            root,
+            library: Arc::new(Mutex::new(Library::new(root)?)),
+            settings: AsyncMutex::new(SettingsStore::new(app)),
+            store,
             view,
-        }
+        })
     }
 
     pub fn stop(&self) -> Option<Completion> {
@@ -115,40 +121,48 @@ impl AppState {
 
 #[tauri::command]
 pub async fn list_apps(state: State<'_, AppState>) -> Result<Vec<LibraryApp>, String> {
-    state.runtime.lock().unwrap().library.list().map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-pub async fn import_app(state: State<'_, AppState>, filename: String, bytes: Vec<u8>) -> Result<(), String> {
-    state
-        .runtime
-        .lock()
-        .unwrap()
-        .library
-        .import(&filename, &bytes)
+    let library = state.library.clone();
+    tauri::async_runtime::spawn_blocking(move || library.lock().unwrap().list())
+        .await
+        .map_err(|error| error.to_string())?
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub async fn delete_app(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let mut runtime = state.runtime.lock().unwrap();
-    if runtime.session.as_ref().is_some_and(|session| session.app_id == id) {
-        return Err("Cannot delete a running app".into());
-    }
-    runtime.library.delete(&id).map_err(|error| error.to_string())
+pub async fn import_app(state: State<'_, AppState>, filename: String, bytes: Vec<u8>) -> Result<(), String> {
+    let library = state.library.clone();
+    tauri::async_runtime::spawn_blocking(move || library.lock().unwrap().import(&filename, &bytes))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_app(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let mut library = state.library.lock().unwrap();
+        if state.runtime.lock().unwrap().session.as_ref().is_some_and(|session| session.app_id == id) {
+            return Err("Cannot delete a running app".into());
+        }
+        library.delete(&id).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
 pub async fn read_settings(state: State<'_, AppState>) -> Result<Settings, String> {
-    state.runtime.lock().unwrap().library.read_settings().map_err(|error| error.to_string())
+    state.settings.lock().await.read().await.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 pub async fn write_settings(state: State<'_, AppState>, settings: Settings) -> Result<(), String> {
-    let mut runtime = state.runtime.lock().unwrap();
-    runtime.library.write_settings(&settings).map_err(|error| error.to_string())?;
-    if let Some(session) = &runtime.session {
-        let _ = session.commands.send(Command::Volumes(settings.midi_volume, settings.pcm_volume));
+    let store = state.settings.lock().await;
+    let volumes = Command::Volumes(settings.midi_volume, settings.pcm_volume);
+    store.write(settings).await.map_err(|error| error.to_string())?;
+    if let Some(session) = &state.runtime.lock().unwrap().session {
+        let _ = session.commands.send(volumes);
     }
     Ok(())
 }
@@ -156,68 +170,77 @@ pub async fn write_settings(state: State<'_, AppState>, settings: Settings) -> R
 #[tauri::command]
 pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, events: Channel<SessionEvent>) -> Result<u64, String> {
     let (session_id, startup, completion) = {
-        let mut runtime = state.runtime.lock().unwrap();
-        if runtime.session.is_some() {
-            return Err("A game is already running".into());
-        }
-        let (metadata, bytes) = runtime.library.read_archive(&id).map_err(|error| error.to_string())?;
-        let settings = runtime.library.read_settings().map_err(|error| error.to_string())?;
-        let session_id = runtime.next_id;
-        runtime.next_id += 1;
-        let (sender, receiver) = mpsc::channel();
-        let (started, startup) = oneshot::channel();
-        let initialized = Arc::new(AtomicBool::new(false));
-        let ready = initialized.clone();
-        let root = state.root.clone();
-        let view = state.view.clone();
-        let worker_app = app.clone();
-        let worker_events = events.clone();
-        #[cfg(mobile)]
-        let suspended = runtime.suspended;
-        let worker = tauri::async_runtime::spawn_blocking(move || {
-            SessionWorker {
-                app: worker_app,
-                root,
-                view,
-                filename: metadata.filename,
-                bytes,
-                settings,
-                events: worker_events,
-                initialized: ready,
-                #[cfg(mobile)]
-                suspended,
-            }
-            .run(receiver, started)
-            .map_err(|error| format!("{error:#}"))
-        });
-        let view = state.view.clone();
-        let completion = async move {
-            let result = match worker.await {
-                Ok(result) => result,
-                Err(error) => Err(format!("Game worker failed: {error}")),
-            };
-            let cleanup = view.set_playing(false).map_err(|error| error.to_string());
-            let result = result.and(cleanup);
+        let settings_store = state.settings.lock().await;
+        let settings = settings_store.read().await.map_err(|error| error.to_string())?;
+        tauri::async_runtime::spawn_blocking(move || {
             let state = app.state::<AppState>();
-            state.runtime.lock().unwrap().session = None;
-            if initialized.load(Ordering::Acquire) {
-                let event = match &result {
-                    Ok(()) => SessionEvent::Stopped,
-                    Err(message) => SessionEvent::Error { message: message.clone() },
-                };
-                let _ = events.send(event);
+            // Library operations serialize deletion with session registration without blocking input.
+            let library = state.library.lock().unwrap();
+            if state.runtime.lock().unwrap().session.is_some() {
+                return Err("A game is already running".to_owned());
             }
-            result
-        }
-        .boxed()
-        .shared();
-        runtime.session = Some(Session {
-            id: session_id,
-            app_id: id,
-            commands: sender,
-            completion: completion.clone(),
-        });
-        (session_id, startup, completion)
+            let (metadata, bytes) = library.read_archive(&id).map_err(|error| error.to_string())?;
+            let mut runtime = state.runtime.lock().unwrap();
+            let session_id = runtime.next_id;
+            runtime.next_id += 1;
+            let (sender, receiver) = mpsc::channel();
+            let (started, startup) = oneshot::channel();
+            let initialized = Arc::new(AtomicBool::new(false));
+            let ready = initialized.clone();
+            let store = state.store.clone();
+            let view = state.view.clone();
+            let worker_app = app.clone();
+            let worker_events = events.clone();
+            #[cfg(mobile)]
+            let suspended = runtime.suspended;
+            let worker = tauri::async_runtime::spawn_blocking(move || {
+                SessionWorker {
+                    app: worker_app,
+                    store,
+                    view,
+                    filename: metadata.filename,
+                    bytes,
+                    settings,
+                    events: worker_events,
+                    initialized: ready,
+                    #[cfg(mobile)]
+                    suspended,
+                }
+                .run(receiver, started)
+                .map_err(|error| format!("{error:#}"))
+            });
+            let view = state.view.clone();
+            let app = app.clone();
+            let completion = async move {
+                let result = match worker.await {
+                    Ok(result) => result,
+                    Err(error) => Err(format!("Game worker failed: {error}")),
+                };
+                let cleanup = view.set_playing(false).map_err(|error| error.to_string());
+                let result = result.and(cleanup);
+                let state = app.state::<AppState>();
+                state.runtime.lock().unwrap().session = None;
+                if initialized.load(Ordering::Acquire) {
+                    let event = match &result {
+                        Ok(()) => SessionEvent::Stopped,
+                        Err(message) => SessionEvent::Error { message: message.clone() },
+                    };
+                    let _ = events.send(event);
+                }
+                result
+            }
+            .boxed()
+            .shared();
+            runtime.session = Some(Session {
+                id: session_id,
+                app_id: id,
+                commands: sender,
+                completion: completion.clone(),
+            });
+            Ok((session_id, startup, completion))
+        })
+        .await
+        .map_err(|error| error.to_string())??
     };
     let watcher = completion.clone();
     tauri::async_runtime::spawn(async move {
@@ -325,7 +348,7 @@ struct NativePlatform {
     screen: NativeScreen,
     audio: NativeAudioSink,
     database: DatabaseRepository,
-    filesystem: DiskFilesystem,
+    filesystem: SqliteFilesystem,
     clock: Arc<Mutex<Clock>>,
     exited: Arc<AtomicBool>,
     font: Font,
@@ -386,7 +409,7 @@ impl Platform for NativePlatform {
 
 struct SessionWorker {
     app: AppHandle,
-    root: PathBuf,
+    store: Store,
     view: NativeView,
     filename: String,
     bytes: Vec<u8>,
@@ -401,7 +424,7 @@ impl SessionWorker {
     fn run(self, commands: Receiver<Command>, started: oneshot::Sender<()>) -> Result<()> {
         let Self {
             app,
-            root,
+            store,
             view,
             filename,
             bytes,
@@ -427,8 +450,8 @@ impl SessionWorker {
             app,
             screen: NativeScreen::new(view.clone(), 240, 320, redraw.clone()),
             audio: audio.sink(),
-            database: DatabaseRepository::new(root.clone()),
-            filesystem: DiskFilesystem::new(root),
+            database: DatabaseRepository { store: store.clone() },
+            filesystem: SqliteFilesystem { store },
             clock: clock.clone(),
             exited: exited.clone(),
             font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf"))?,
@@ -553,20 +576,20 @@ pub(crate) mod tests {
     #[cfg(target_os = "linux")]
     pub(crate) async fn check_session_lifecycle(app: AppHandle, view: NativeView) {
         use std::{
-            fs,
             io::{Cursor, Write},
             sync::{Arc, Mutex, mpsc},
         };
 
+        use rusqlite::{Connection, params};
         use serde_json::Value;
         use tauri::{Manager, ipc::Channel};
         use tempfile::tempdir;
         use zip::{ZipWriter, write::SimpleFileOptions};
 
-        use super::{AppState, delete_app, import_app, key_event, list_apps, start_game, stop_game};
+        use super::{AppState, Settings, delete_app, import_app, key_event, list_apps, read_settings, start_game, stop_game, write_settings};
 
         let root = tempdir().unwrap();
-        app.manage(AppState::new(root.path().to_owned(), view));
+        app.manage(AppState::new(app.clone(), root.path().to_owned(), view).unwrap());
         let mut files = wie_backend::extract_zip(include_bytes!("../../wie-ktf/tests/data/helloworld_ktf.zip")).unwrap();
         files.get_mut("__adf__").unwrap().extend_from_slice(b"\nName:Hello\n");
         let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
@@ -590,13 +613,26 @@ pub(crate) mod tests {
             Ok(())
         });
 
-        let (started, duplicate) = futures::join!(
+        assert_eq!(read_settings(app.state()).await.unwrap().midi_volume, 0.5);
+        let (started, duplicate, updated) = futures::join!(
             start_game(app.clone(), app.state(), imported.id.clone(), events.clone()),
             start_game(app.clone(), app.state(), imported.id.clone(), events.clone()),
+            write_settings(
+                app.state(),
+                Settings {
+                    midi_volume: 0.25,
+                    pcm_volume: 0.75,
+                    ..Settings::default()
+                }
+            ),
         );
+        updated.unwrap();
+        let settings = read_settings(app.state()).await.unwrap();
+        assert_eq!(settings.midi_volume, 0.25);
+        assert_eq!(settings.pcm_volume, 0.75);
         let session = started.unwrap();
         assert!(duplicate.unwrap_err().contains("already running"));
-        assert!(delete_app(app.state(), imported.id.clone()).await.unwrap_err().contains("running"));
+        assert!(delete_app(app.clone(), imported.id.clone()).await.unwrap_err().contains("running"));
         key_event(app.state(), session, "OK".into(), true).await.unwrap();
         key_event(app.state(), session + 1, "OK".into(), false).await.unwrap();
         stop_game(app.state(), session + 1).await.unwrap();
@@ -608,12 +644,16 @@ pub(crate) mod tests {
         assert!(app.state::<AppState>().runtime.lock().unwrap().session.is_none());
         assert!(termination.try_recv().is_err());
 
-        let archive_path = root.path().join("library/apps").join(&imported.id).join("archive");
-        fs::write(&archive_path, b"corrupted archive").unwrap();
+        let library = Connection::open(root.path().join("library.sqlite")).unwrap();
+        library
+            .execute("UPDATE apps SET archive = ?1 WHERE id = ?2", params![b"corrupted archive", imported.id])
+            .unwrap();
         assert!(start_game(app.clone(), app.state(), imported.id.clone(), events.clone()).await.is_err());
         assert!(app.state::<AppState>().runtime.lock().unwrap().session.is_none());
         assert!(termination.try_recv().is_err());
-        fs::write(archive_path, bytes).unwrap();
+        library
+            .execute("UPDATE apps SET archive = ?1 WHERE id = ?2", params![bytes, imported.id])
+            .unwrap();
 
         let restarted = start_game(app.clone(), app.state(), imported.id, events).await.unwrap();
         assert!(restarted > session);

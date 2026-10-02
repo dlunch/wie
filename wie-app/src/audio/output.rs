@@ -64,7 +64,7 @@ impl Output {
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         let midi = {
             let _ = app;
-            Midi::new(midi_volume, warning)?
+            Midi::new(midi_volume, warning)
         };
         let device = DeviceSinkBuilder::open_default_sink()?;
         let pcm = Pcm {

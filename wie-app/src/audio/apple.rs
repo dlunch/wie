@@ -3,18 +3,19 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
+        mpsc,
     },
 };
 
 use anyhow::{Context, Result, anyhow};
 use block2::RcBlock;
 use objc2::{AllocAnyThread, rc::Retained};
-use objc2_audio_toolbox::{AudioComponentDescription, kAudioUnitManufacturer_Apple, kAudioUnitType_MusicDevice};
+use objc2_audio_toolbox::{AudioComponentDescription, AudioComponentInstantiationOptions, kAudioUnitManufacturer_Apple, kAudioUnitType_MusicDevice};
 use objc2_avf_audio::{
-    AVAudioEngine, AVAudioFormat, AVAudioMixerNode, AVAudioPCMBuffer, AVAudioPlayerNode, AVAudioPlayerNodeCompletionCallbackType,
+    AVAudioEngine, AVAudioFormat, AVAudioMixerNode, AVAudioPCMBuffer, AVAudioPlayerNode, AVAudioPlayerNodeCompletionCallbackType, AVAudioUnit,
     AVAudioUnitMIDIInstrument,
 };
-use objc2_foundation::NSData;
+use objc2_foundation::{NSData, NSError};
 use tauri::AppHandle;
 use wie_backend::{AudioEventData, AudioHandle, AudioSequence};
 
@@ -42,17 +43,12 @@ pub(super) struct Output {
     instruments: BTreeMap<AudioHandle, Retained<AVAudioUnitMIDIInstrument>>,
     waves: BTreeMap<AudioHandle, Vec<Wave>>,
     #[cfg(target_os = "ios")]
-    soundbank: Retained<NSURL>,
+    app: AppHandle,
 }
 
 impl Output {
     pub fn new(_app: &AppHandle, midi_volume: f32, pcm_volume: f32, _warning: &Warning) -> Result<Self> {
         unsafe {
-            #[cfg(target_os = "ios")]
-            let soundbank = {
-                let path = _app.path().resolve("audio/1mgm.sf2", BaseDirectory::Resource)?;
-                NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()))
-            };
             let engine = AVAudioEngine::new();
             let midi_mixer = AVAudioMixerNode::new();
             let pcm_mixer = AVAudioMixerNode::new();
@@ -70,7 +66,7 @@ impl Output {
                 instruments: BTreeMap::new(),
                 waves: BTreeMap::new(),
                 #[cfg(target_os = "ios")]
-                soundbank,
+                app: _app.clone(),
             };
             output.resume()?;
             Ok(output)
@@ -92,10 +88,35 @@ impl Output {
                 componentFlags: 0,
                 componentFlagsMask: 0,
             };
-            let instrument = AVAudioUnitMIDIInstrument::initWithAudioComponentDescription(AVAudioUnitMIDIInstrument::alloc(), description);
+            // Apple returns the new, unattached unit on an arbitrary queue. Transfer sole
+            // ownership to the audio worker before using it; do not share it across threads.
+            struct CreatedInstrument(Retained<AVAudioUnitMIDIInstrument>);
+            unsafe impl Send for CreatedInstrument {}
+
+            let (tx, rx) = mpsc::channel();
+            let callback = RcBlock::new(move |unit: *mut AVAudioUnit, error: *mut NSError| {
+                let result = if let Some(error) = error.as_ref() {
+                    Err(anyhow!("Could not create MIDI instrument: {error}"))
+                } else {
+                    Retained::retain(unit).context("System MIDI instrument is unavailable").and_then(|unit| {
+                        unit.downcast::<AVAudioUnitMIDIInstrument>()
+                            .map(CreatedInstrument)
+                            .map_err(|_| anyhow!("System audio unit is not a MIDI instrument"))
+                    })
+                };
+                let _ = tx.send(result);
+            });
+            AVAudioUnit::instantiateWithComponentDescription_options_completionHandler(
+                description,
+                AudioComponentInstantiationOptions::empty(),
+                &callback,
+            );
+            let CreatedInstrument(instrument) = rx.recv().context("MIDI instrument creation was interrupted")??;
             #[cfg(target_os = "ios")]
             {
-                let url = Retained::as_ptr(&self.soundbank);
+                let path = self.app.path().resolve("audio/1mgm.sf2", BaseDirectory::Resource)?;
+                let soundbank = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+                let url = Retained::as_ptr(&soundbank);
                 let status = AudioUnitSetProperty(
                     instrument.audioUnit(),
                     kMusicDeviceProperty_SoundBankURL,

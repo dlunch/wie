@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "gen/apple/Sources/PrivacyInfo.xcprivacy": "PrivacyInfo.xcprivacy"
+    }
+  }
+}

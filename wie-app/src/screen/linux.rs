@@ -121,7 +121,8 @@ mod tests {
         cairo::{Context, Format, ImageSurface},
         prelude::*,
     };
-    use tauri::Manager;
+    use tauri::{Manager, utils::config::AppDirectoriesOverride};
+    use tempfile::tempdir;
 
     use super::super::{Frame, NativeView, VIEW};
 
@@ -162,6 +163,9 @@ mod tests {
     #[ignore = "requires an unoccluded desktop display or Xvfb, WebKitGTK, and an audio output"]
     fn native_view_presents_latest_frame_and_clears_on_restart() {
         let (sender, receiver) = mpsc::sync_channel(1);
+        let root = tempdir().unwrap();
+        let mut context = tauri::generate_context!();
+        context.config_mut().app.app_directories_override = Some(AppDirectoriesOverride::Root(root.path().to_owned()));
         let app = tauri::Builder::default()
             .any_thread()
             .setup(move |app| {
@@ -221,7 +225,7 @@ mod tests {
                 sender.send(worker).unwrap();
                 Ok(())
             })
-            .build(tauri::generate_context!())
+            .build(context)
             .unwrap();
         assert_eq!(app.run_return(|_, _| {}), 0);
         if let Err(error) = receiver.recv().unwrap().join().unwrap() {

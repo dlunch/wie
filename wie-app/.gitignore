@@ -2,3 +2,11 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
+/gen/android/
+/gen/apple/*
+!/gen/apple/Sources/
+/gen/apple/Sources/*
+!/gen/apple/Sources/PrivacyInfo.xcprivacy
+/android/.tauri/
+/android/.gradle/
+/android/build/

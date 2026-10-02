@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Tauri app_data_dir() resolves to Context.dataDir, the root domain. -->
+    <exclude domain="root" path="library.sqlite" />
+    <exclude domain="root" path="library.sqlite-journal" />
+</full-backup-content>

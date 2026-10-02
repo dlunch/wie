@@ -27,12 +27,13 @@ wie-util = { workspace = true }
 
 serde_json = "1.0"
 log = "0.4"
+rusqlite = { version = "0.40", default-features = false, features = ["bundled", "blob", "fallible_uint"] }
 tauri = { version = "2.10.2", features = [] }
 tauri-plugin-log = "2.8.0"
-tempfile = "3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 alsa = "0.11"
+glib = { version = "0.18", features = ["v2_66"] }
 gtk = "0.18"
 
 [target.'cfg(not(target_vendor = "apple"))'.dependencies]
@@ -57,9 +58,10 @@ objc2-app-kit = "0.3"
 objc2-ui-kit = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Controls", "Win32_UI_Shell", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_Media_Audio"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Controls", "Win32_UI_Shell", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_Media_Audio"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
+wie-app-android = { path = "android" }
 jni = "0.21"
 ndk = "0.9"
 ndk-context = "0.1"
@@ -69,5 +71,6 @@ midly = { version = "0.5", default-features = false, features = ["std"] }
 tauri-plugin-haptics = "2"
 
 [dev-dependencies]
+tempfile = "3"
 midly = { version = "0.5", default-features = false, features = ["std"] }
 zip = { version = "^8.6", features = ["deflate"], default-features = false }
