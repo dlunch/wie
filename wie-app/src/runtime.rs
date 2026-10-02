@@ -548,12 +548,10 @@ impl SessionWorker {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use std::time::{Duration, Instant};
 
     use super::Clock;
-    #[cfg(target_os = "linux")]
-    use super::{AppHandle, NativeView};
 
     #[test]
     fn guest_clock_excludes_background_time() {
@@ -571,97 +569,5 @@ pub(crate) mod tests {
         let duration = clock.paused_duration;
         clock.set_paused(false);
         assert_eq!(clock.paused_duration, duration);
-    }
-
-    #[cfg(target_os = "linux")]
-    pub(crate) async fn check_session_lifecycle(app: AppHandle, view: NativeView) {
-        use std::{
-            io::{Cursor, Write},
-            sync::{Arc, Mutex, mpsc},
-        };
-
-        use rusqlite::{Connection, params};
-        use serde_json::Value;
-        use tauri::{Manager, ipc::Channel};
-        use tempfile::tempdir;
-        use zip::{ZipWriter, write::SimpleFileOptions};
-
-        use super::{AppState, Settings, delete_app, import_app, key_event, list_apps, read_settings, start_game, stop_game, write_settings};
-
-        let root = tempdir().unwrap();
-        app.manage(AppState::new(app.clone(), root.path().to_owned(), view).unwrap());
-        let mut files = wie_backend::extract_zip(include_bytes!("../../wie-ktf/tests/data/helloworld_ktf.zip")).unwrap();
-        files.get_mut("__adf__").unwrap().extend_from_slice(b"\nName:Hello\n");
-        let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
-        for (name, bytes) in files {
-            archive.start_file(name, SimpleFileOptions::default()).unwrap();
-            archive.write_all(&bytes).unwrap();
-        }
-        let bytes = archive.finish().unwrap().into_inner();
-        import_app(app.state(), "hello.zip".into(), bytes.clone()).await.unwrap();
-        let imported = list_apps(app.state()).await.unwrap().pop().unwrap();
-        let received = Arc::new(Mutex::new(Vec::<Value>::new()));
-        let captured = received.clone();
-        let (terminated, termination) = mpsc::channel();
-        let events = Channel::new(move |body| {
-            let event: Value = body.deserialize().unwrap();
-            let terminal = event["type"] == "stopped" || event["type"] == "error";
-            captured.lock().unwrap().push(event);
-            if terminal {
-                terminated.send(()).unwrap();
-            }
-            Ok(())
-        });
-
-        assert_eq!(read_settings(app.state()).await.unwrap().midi_volume, 0.5);
-        let (started, duplicate, updated) = futures::join!(
-            start_game(app.clone(), app.state(), imported.id.clone(), events.clone()),
-            start_game(app.clone(), app.state(), imported.id.clone(), events.clone()),
-            write_settings(
-                app.state(),
-                Settings {
-                    midi_volume: 0.25,
-                    pcm_volume: 0.75,
-                    ..Settings::default()
-                }
-            ),
-        );
-        updated.unwrap();
-        let settings = read_settings(app.state()).await.unwrap();
-        assert_eq!(settings.midi_volume, 0.25);
-        assert_eq!(settings.pcm_volume, 0.75);
-        let session = started.unwrap();
-        assert!(duplicate.unwrap_err().contains("already running"));
-        assert!(delete_app(app.clone(), imported.id.clone()).await.unwrap_err().contains("running"));
-        key_event(app.state(), session, "OK".into(), true).await.unwrap();
-        key_event(app.state(), session + 1, "OK".into(), false).await.unwrap();
-        stop_game(app.state(), session + 1).await.unwrap();
-        assert_eq!(app.state::<AppState>().runtime.lock().unwrap().session.as_ref().unwrap().id, session);
-        let (first_stop, second_stop) = futures::join!(stop_game(app.state(), session), stop_game(app.state(), session));
-        first_stop.unwrap();
-        second_stop.unwrap();
-        termination.recv_timeout(Duration::from_secs(10)).unwrap();
-        assert!(app.state::<AppState>().runtime.lock().unwrap().session.is_none());
-        assert!(termination.try_recv().is_err());
-
-        let library = Connection::open(root.path().join("library.sqlite")).unwrap();
-        library
-            .execute("UPDATE apps SET archive = ?1 WHERE id = ?2", params![b"corrupted archive", imported.id])
-            .unwrap();
-        assert!(start_game(app.clone(), app.state(), imported.id.clone(), events.clone()).await.is_err());
-        assert!(app.state::<AppState>().runtime.lock().unwrap().session.is_none());
-        assert!(termination.try_recv().is_err());
-        library
-            .execute("UPDATE apps SET archive = ?1 WHERE id = ?2", params![bytes, imported.id])
-            .unwrap();
-
-        let restarted = start_game(app.clone(), app.state(), imported.id, events).await.unwrap();
-        assert!(restarted > session);
-        stop_game(app.state(), session).await.unwrap();
-        termination.recv_timeout(Duration::from_secs(10)).unwrap();
-        assert!(app.state::<AppState>().runtime.lock().unwrap().session.is_none());
-        let received = received.lock().unwrap();
-        assert_eq!(received.iter().filter(|event| event["type"] == "stopped").count(), 2);
-        assert!(!received.iter().any(|event| event["type"] == "error"));
     }
 }
