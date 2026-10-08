@@ -1,4 +1,5 @@
-#![cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))]
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+compile_error!("wie-core-arm-native requires an x86-64 or AArch64 host");
 
 use std::{
     collections::BTreeMap,

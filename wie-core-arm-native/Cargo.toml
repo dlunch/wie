@@ -6,7 +6,7 @@ license.workspace = true
 description.workspace = true
 repository.workspace = true
 
-[target.'cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
+[dependencies]
 cranelift-codegen = "0.136.2"
 cranelift-frontend = "0.136.2"
 cranelift-jit = "0.136.2"
@@ -15,6 +15,6 @@ spin = { workspace = true }
 wie-arm-jit-types = { workspace = true }
 wie-util = { workspace = true }
 
-[target.'cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dev-dependencies]
+[dev-dependencies]
 cranelift-codegen = { version = "0.136.2", features = ["x86", "arm64"] }
 futures = { workspace = true, features = ["executor"] }

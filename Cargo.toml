@@ -138,6 +138,4 @@ midir = { version = "^0.11", optional = true }
 rodio = { version = "^0.22", features = ["playback"], optional = true }
 softbuffer = { version = "^0.4", optional = true }
 winit = { version = "^0.30", features = ["x11", "wayland"], optional = true }
-
-[target.'cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
 wie-core-arm-native = { workspace = true, optional = true }

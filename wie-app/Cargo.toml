@@ -36,7 +36,7 @@ alsa = "0.11"
 glib = { version = "0.18", features = ["v2_66"] }
 gtk = "0.18"
 
-[target.'cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
+[target.'cfg(not(target_os = "ios"))'.dependencies]
 wie-core-arm-native = { workspace = true }
 
 [target.'cfg(not(target_vendor = "apple"))'.dependencies]

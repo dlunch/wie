@@ -24,6 +24,6 @@ wie-jvm-support = { workspace = true }
 wie-util = { workspace = true }
 wie-wipi-c = { workspace = true }
 
-[target.'cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wie-arm-jit-types = { workspace = true }
 wie-core-arm-native = { workspace = true }
