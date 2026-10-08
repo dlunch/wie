@@ -16,6 +16,7 @@ use wie::load_emulator;
 use wie_backend::{
     AudioSink, DatabaseRepository as BackendDatabaseRepository, Event, Filesystem, Font, Instant as GuestInstant, KeyCode, Options, Platform, Screen,
 };
+use wie_core_arm_native::NativeExecutor;
 
 use crate::{
     audio::{Audio, AudioSink as NativeAudioSink},
@@ -225,7 +226,7 @@ impl NativeSessionWorker {
                 Box::new(platform),
                 Options {
                     enable_gdbserver: false,
-                    aot: None,
+                    aot: Some(Box::new(NativeExecutor::new())),
                     profile: None,
                 },
             )?;

@@ -20,6 +20,7 @@ use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie::load_emulator;
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
+use wie_core_arm_native::NativeExecutor;
 use wie_j2me::J2MEEmulator;
 
 use self::{
@@ -136,7 +137,7 @@ pub fn run() -> anyhow::Result<()> {
     let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
     let options = Options {
         enable_gdbserver: args.debug,
-        aot: None,
+        aot: Some(Box::new(NativeExecutor::new())),
         profile,
     };
     let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;

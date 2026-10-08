@@ -23,3 +23,7 @@ wie-backend = { workspace = true }
 wie-jvm-support = { workspace = true }
 wie-util = { workspace = true }
 wie-wipi-c = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wie-arm-jit-types = { workspace = true }
+wie-core-arm-native = { workspace = true }
