@@ -15,11 +15,11 @@ use tauri::webview::PlatformWebview;
 use objc2_app_kit::{NSAutoresizingMaskOptions, NSView as HostView};
 use raw_window_handle::AppKitWindowHandle;
 
-use super::{CONTROLS_HEIGHT, Frame, GAME_HEIGHT};
+use super::{APP_HEIGHT, CONTROLS_HEIGHT, Frame};
 
-struct GameView(Retained<HostView>);
+struct AppView(Retained<HostView>);
 
-impl HasWindowHandle for GameView {
+impl HasWindowHandle for AppView {
     fn window_handle(&self) -> std::result::Result<WindowHandle<'_>, HandleError> {
         let pointer = NonNull::from(&*self.0).cast();
         let raw = AppKitWindowHandle::new(pointer);
@@ -31,8 +31,8 @@ impl HasWindowHandle for GameView {
 pub(super) struct View {
     parent: Retained<HostView>,
     webview: Retained<HostView>,
-    game: Rc<GameView>,
-    surface: RefCell<Option<Surface<DisplayHandle<'static>, Rc<GameView>>>>,
+    app: Rc<AppView>,
+    surface: RefCell<Option<Surface<DisplayHandle<'static>, Rc<AppView>>>>,
     frame: RefCell<Option<Frame>>,
     playing: Cell<bool>,
 }
@@ -43,18 +43,18 @@ impl View {
         let webview = unsafe { Retained::<HostView>::retain(webview.inner().cast()) }.ok_or_else(|| anyhow!("WebView is unavailable"))?;
         let parent = unsafe { webview.superview() };
         let parent = parent.ok_or_else(|| anyhow!("WebView has no parent"))?;
-        let game = Rc::new(GameView(HostView::initWithFrame(
+        let app = Rc::new(AppView(HostView::initWithFrame(
             HostView::alloc(main),
             NSRect::new(NSPoint::ZERO, NSSize::ZERO),
         )));
-        game.0.setHidden(true);
+        app.0.setHidden(true);
 
         webview.setAutoresizingMask(NSAutoresizingMaskOptions::empty());
-        parent.addSubview(&game.0);
+        parent.addSubview(&app.0);
         Ok(Rc::new(Self {
             parent,
             webview,
-            game,
+            app,
             surface: RefCell::new(None),
             frame: RefCell::new(None),
             playing: Cell::new(false),
@@ -66,17 +66,17 @@ impl View {
         if playing && self.surface.borrow().is_none() {
             let display = DisplayHandle::appkit();
             let context = Context::new(display).map_err(|error| anyhow!(error.to_string()))?;
-            let surface = Surface::new(&context, self.game.clone()).map_err(|error| anyhow!(error.to_string()))?;
+            let surface = Surface::new(&context, self.app.clone()).map_err(|error| anyhow!(error.to_string()))?;
             self.surface.replace(Some(surface));
         } else if !playing {
             self.frame.take();
             self.surface.take();
             // Softbuffer removes its observers, but its sublayer remains attached.
-            if let Some(layer) = self.game.0.layer() {
+            if let Some(layer) = self.app.0.layer() {
                 unsafe { layer.setSublayers(None) };
             }
         }
-        self.game.0.setHidden(!playing);
+        self.app.0.setHidden(!playing);
         self.resize()
     }
 
@@ -87,20 +87,20 @@ impl View {
 
     pub(super) fn resize(&self) -> Result<()> {
         let size = self.parent.bounds().size;
-        let game_height = if self.playing.get() {
-            size.height * GAME_HEIGHT / (GAME_HEIGHT + CONTROLS_HEIGHT)
+        let app_height = if self.playing.get() {
+            size.height * APP_HEIGHT / (APP_HEIGHT + CONTROLS_HEIGHT)
         } else {
             0.0
         };
-        let controls_height = size.height - game_height;
-        let (game_y, controls_y) = if self.parent.isFlipped() {
-            (0.0, game_height)
+        let controls_height = size.height - app_height;
+        let (app_y, controls_y) = if self.parent.isFlipped() {
+            (0.0, app_height)
         } else {
             (controls_height, 0.0)
         };
-        self.game
+        self.app
             .0
-            .setFrame(NSRect::new(NSPoint::new(0.0, game_y), NSSize::new(size.width, game_height)));
+            .setFrame(NSRect::new(NSPoint::new(0.0, app_y), NSSize::new(size.width, app_height)));
         self.webview
             .setFrame(NSRect::new(NSPoint::new(0.0, controls_y), NSSize::new(size.width, controls_height)));
         self.draw()
@@ -109,8 +109,8 @@ impl View {
     fn draw(&self) -> Result<()> {
         let mut surface = self.surface.borrow_mut();
         let Some(surface) = surface.as_mut() else { return Ok(()) };
-        let size = self.game.0.bounds().size;
-        let scale = self.game.0.window().map_or(1.0, |window| window.backingScaleFactor());
+        let size = self.app.0.bounds().size;
+        let scale = self.app.0.window().map_or(1.0, |window| window.backingScaleFactor());
         let (Some(width), Some(height)) = (
             NonZeroU32::new((size.width * scale).round() as u32),
             NonZeroU32::new((size.height * scale).round() as u32),
@@ -130,6 +130,6 @@ impl View {
     pub(super) fn close(&self) {
         self.surface.take();
         self.frame.take();
-        self.game.0.removeFromSuperview();
+        self.app.0.removeFromSuperview();
     }
 }

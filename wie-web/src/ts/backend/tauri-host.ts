@@ -51,7 +51,7 @@ export class TauriHost implements EmulatorHost {
   }
 
   private send<T>(command: string, args: Record<string, unknown>): Promise<T> {
-    if (this.closing) return Promise.reject(new Error("Game session has stopped"));
+    if (this.closing) return Promise.reject(new Error("App session has stopped"));
     if (this.failure !== undefined) return Promise.reject(this.failure);
     const request = this.commands.then(() => invoke<T>(command, { sessionId: this.sessionId, ...args }));
     this.commands = request.then(() => {}, error => {
@@ -97,7 +97,7 @@ export class TauriHost implements EmulatorHost {
   stop(): Promise<void> {
     this.closing = true;
     this.stopping ??= this.commands.then(async () => {
-      await invoke("stop_game", { sessionId: this.sessionId });
+      await invoke("stop_app", { sessionId: this.sessionId });
       if (this.failure !== undefined) throw this.failure;
     });
     return this.stopping;

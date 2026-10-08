@@ -159,7 +159,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   );
 
   updateControls();
-  start = backend.startGame(app.id, event => {
+  start = backend.startApp(app.id, event => {
     if (ending) return;
     switch (event.type) {
       case "ready":

@@ -39,9 +39,9 @@ use wie_backend::{Screen, canvas::Image};
 use wie_util::{Result as WieResult, WieError};
 
 #[cfg(desktop)]
-const GAME_WIDTH: f64 = 360.0;
+const APP_WIDTH: f64 = 360.0;
 #[cfg(desktop)]
-const GAME_HEIGHT: f64 = 480.0;
+const APP_HEIGHT: f64 = 480.0;
 #[cfg(desktop)]
 const CONTROLS_HEIGHT: f64 = 260.0;
 
@@ -93,7 +93,7 @@ impl UiView {
                     self.window.unmaximize()?;
                 }
                 self.window.set_resizable(false)?;
-                self.window.set_size(LogicalSize::new(GAME_WIDTH, GAME_HEIGHT + CONTROLS_HEIGHT))?;
+                self.window.set_size(LogicalSize::new(APP_WIDTH, APP_HEIGHT + CONTROLS_HEIGHT))?;
             } else {
                 let library = self.library.take();
                 if let Some(library) = library {
@@ -122,7 +122,7 @@ pub struct NativeView {
 }
 
 impl NativeView {
-    /// Initialize from Tauri setup, before starting a game worker.
+    /// Initialize from Tauri setup, before starting an app worker.
     pub fn new(window: WebviewWindow) -> Result<Self> {
         let pending = Arc::new(Mutex::new(Pending::default()));
         let state = pending.clone();

@@ -1,10 +1,6 @@
 use std::{
     ptr::NonNull,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc::Receiver,
-    },
+    sync::{Arc, atomic::Ordering, mpsc::Receiver},
 };
 
 use anyhow::{Context, Error, Result, ensure};
@@ -20,14 +16,37 @@ use objc2_foundation::{NSNotification, NSNotificationCenter};
 use objc2_ui_kit::{UIApplication, UIApplicationDidBecomeActiveNotification, UIApplicationState, UIApplicationWillResignActiveNotification};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tauri::{AppHandle, Manager, Resource, State, ipc::Channel};
+use tauri::{AppHandle, Manager, Resource, State};
 use tauri_plugin_haptics::HapticsExt;
 
-use wie_backend::{AudioCommand, AudioEventData, AudioSequence, AudioSink, DatabaseRepository as _, Filesystem, TimedAudioEvent};
+use wie_backend::{AudioCommand, AudioEventData, AudioSequence, AudioSink, DatabaseRepository as _, Filesystem, StorageRequest, TimedAudioEvent};
 
-use crate::{audio::Audio, database::DatabaseRepository, filesystem::SqliteFilesystem, settings::Settings, store::Store};
+use crate::{audio::Audio, database::DatabaseRepository, filesystem::SqliteFilesystem, store::Store};
 
-use super::{AppState, Clock, Command, SessionEvent};
+use super::{AppState, Clock, Runtime, SessionEvent, SessionWorker};
+
+pub(super) type StartedApp = WebApp;
+
+pub(super) enum Command {
+    Volumes(f32, f32),
+    Suspend(bool),
+    Storage(StorageRequest, oneshot::Sender<Value>),
+    Audio(AudioCommand),
+    Vibrate(u64, u8),
+    Stop,
+}
+
+impl Runtime {
+    fn send(&self, session_id: u64, command: Command) -> Result<(), String> {
+        let sender = self
+            .session
+            .as_ref()
+            .filter(|session| session.id == session_id)
+            .and_then(|session| session.commands.as_ref())
+            .ok_or("App session has stopped")?;
+        sender.send(command).map_err(|_| "App worker has stopped".into())
+    }
+}
 
 struct Observers {
     center: Retained<NSNotificationCenter>,
@@ -74,129 +93,53 @@ pub(crate) fn register(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-#[derive(Deserialize)]
-#[serde(tag = "op", rename_all = "camelCase")]
-pub(crate) enum StorageRequest {
-    FileExists {
-        aid: String,
-        path: String,
-    },
-    FileSize {
-        aid: String,
-        path: String,
-    },
-    FileRead {
-        aid: String,
-        path: String,
-        offset: usize,
-        count: usize,
-    },
-    FileWrite {
-        aid: String,
-        path: String,
-        offset: usize,
-        data: Vec<u8>,
-    },
-    FileTruncate {
-        aid: String,
-        path: String,
-        length: usize,
-    },
-    DbOpen {
-        pid: String,
-        name: String,
-    },
-    DbExists {
-        pid: String,
-        name: String,
-    },
-    DbDelete {
-        pid: String,
-        name: String,
-    },
-    DbUsage {
-        pid: String,
-    },
-    RecordNextId {
-        pid: String,
-        name: String,
-    },
-    RecordIds {
-        pid: String,
-        name: String,
-    },
-    RecordGet {
-        pid: String,
-        name: String,
-        id: u32,
-    },
-    RecordDelete {
-        pid: String,
-        name: String,
-        id: u32,
-    },
-    RecordAdd {
-        pid: String,
-        name: String,
-        data: Vec<u8>,
-    },
-    RecordSet {
-        pid: String,
-        name: String,
-        id: u32,
-        data: Vec<u8>,
-    },
-}
-
-impl StorageRequest {
-    async fn dispatch(self, store: &Store) -> Value {
-        let filesystem = SqliteFilesystem { store: store.clone() };
-        let repository = DatabaseRepository { store: store.clone() };
-        match self {
-            Self::FileExists { aid, path } => json!(filesystem.exists(&aid, &path).await),
-            Self::FileSize { aid, path } => json!(filesystem.size(&aid, &path).await),
-            Self::FileRead { aid, path, offset, count } => {
-                let Some(length) = filesystem.size(&aid, &path).await else {
-                    return Value::Null;
-                };
-                // Bound allocation by stored bytes, not an untrusted IPC read count.
-                let count = count.min(length.saturating_sub(offset));
-                let mut bytes = vec![0; count];
-                match filesystem.read(&aid, &path, offset, count, &mut bytes).await {
-                    Some(read) => {
-                        bytes.truncate(read);
-                        json!(bytes)
-                    }
-                    None => Value::Null,
+async fn dispatch_storage(request: StorageRequest, store: &Store) -> Value {
+    let filesystem = SqliteFilesystem { store: store.clone() };
+    let repository = DatabaseRepository { store: store.clone() };
+    match request {
+        StorageRequest::FileExists { aid, path } => json!(filesystem.exists(&aid, &path).await),
+        StorageRequest::FileSize { aid, path } => json!(filesystem.size(&aid, &path).await),
+        StorageRequest::FileRead { aid, path, offset, count } => {
+            let Some(length) = filesystem.size(&aid, &path).await else {
+                return Value::Null;
+            };
+            // Bound allocation by stored bytes, not an untrusted IPC read count.
+            let count = count.min(length.saturating_sub(offset));
+            let mut bytes = vec![0; count];
+            match filesystem.read(&aid, &path, offset, count, &mut bytes).await {
+                Some(read) => {
+                    bytes.truncate(read);
+                    json!(bytes)
                 }
+                None => Value::Null,
             }
-            Self::FileWrite { aid, path, offset, data } => {
-                json!(filesystem.write(&aid, &path, offset, &data).await)
-            }
-            Self::FileTruncate { aid, path, length } => {
-                filesystem.truncate(&aid, &path, length).await;
-                Value::Null
-            }
-            Self::DbOpen { pid, name } => {
-                repository.open(&name, &pid).await;
-                Value::Null
-            }
-            Self::DbExists { pid, name } => json!(repository.exists(&name, &pid).await),
-            Self::DbDelete { pid, name } => json!(repository.delete(&name, &pid).await),
-            Self::DbUsage { pid } => json!(repository.usage(&pid).await),
-            Self::RecordNextId { pid, name } => json!(repository.database(&name, &pid).next_id().await),
-            Self::RecordIds { pid, name } => json!(repository.database(&name, &pid).get_record_ids().await),
-            Self::RecordGet { pid, name, id } => json!(repository.database(&name, &pid).get(id).await),
-            Self::RecordDelete { pid, name, id } => json!(repository.database(&name, &pid).delete(id).await),
-            Self::RecordAdd { pid, name, data } => json!(repository.database(&name, &pid).add(&data).await),
-            Self::RecordSet { pid, name, id, data } => json!(repository.database(&name, &pid).set(id, &data).await),
         }
+        StorageRequest::FileWrite { aid, path, offset, data } => {
+            json!(filesystem.write(&aid, &path, offset, &data).await)
+        }
+        StorageRequest::FileTruncate { aid, path, length } => {
+            filesystem.truncate(&aid, &path, length).await;
+            Value::Null
+        }
+        StorageRequest::DbOpen { pid, name } => {
+            repository.open(&name, &pid).await;
+            Value::Null
+        }
+        StorageRequest::DbExists { pid, name } => json!(repository.exists(&name, &pid).await),
+        StorageRequest::DbDelete { pid, name } => json!(repository.delete(&name, &pid).await),
+        StorageRequest::DbUsage { pid } => json!(repository.usage(&pid).await),
+        StorageRequest::RecordNextId { pid, name } => json!(repository.database(&name, &pid).next_id().await),
+        StorageRequest::RecordIds { pid, name } => json!(repository.database(&name, &pid).get_record_ids().await),
+        StorageRequest::RecordGet { pid, name, id } => json!(repository.database(&name, &pid).get(id).await),
+        StorageRequest::RecordDelete { pid, name, id } => json!(repository.database(&name, &pid).delete(id).await),
+        StorageRequest::RecordAdd { pid, name, data } => json!(repository.database(&name, &pid).add(&data).await),
+        StorageRequest::RecordSet { pid, name, id, data } => json!(repository.database(&name, &pid).set(id, &data).await),
     }
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct WebGame {
+pub(crate) struct WebApp {
     pub session_id: u64,
     pub filename: String,
     pub bytes: Vec<u8>,
@@ -206,7 +149,7 @@ pub(crate) struct WebGame {
 pub(crate) async fn guest_storage(state: State<'_, AppState>, session_id: u64, request: StorageRequest) -> Result<Value, String> {
     let (reply, result) = oneshot::channel();
     state.runtime.lock().unwrap().send(session_id, Command::Storage(request, reply))?;
-    result.await.map_err(|_| "Game worker stopped before completing storage".into())
+    result.await.map_err(|_| "App worker stopped before completing storage".into())
 }
 
 #[tauri::command]
@@ -220,17 +163,12 @@ pub(crate) async fn guest_vibrate(state: State<'_, AppState>, session_id: u64, d
     state.runtime.lock().unwrap().send(session_id, Command::Vibrate(duration_ms, intensity))
 }
 
-pub(super) struct SessionWorker {
-    pub app: AppHandle,
-    pub store: Store,
-    pub settings: Settings,
-    pub events: Channel<SessionEvent>,
-    pub initialized: Arc<AtomicBool>,
-    pub suspended: bool,
-}
-
 impl SessionWorker {
-    pub fn run(self, commands: Receiver<Command>, started: oneshot::Sender<()>) -> Result<()> {
+    pub(super) fn prepare(self, session_id: u64, filename: String, bytes: Vec<u8>) -> (StartedApp, Self) {
+        (WebApp { session_id, filename, bytes }, self)
+    }
+
+    pub(super) fn run(self, commands: Receiver<Command>, started: oneshot::Sender<()>) -> Result<()> {
         let warnings = self.events.clone();
         let mut audio = Audio::new(&self.app, self.settings.midi_volume, self.settings.pcm_volume, move |message| {
             let _ = warnings.send(SessionEvent::Warning { message });
@@ -249,7 +187,7 @@ impl SessionWorker {
         while let Ok(command) = commands.recv() {
             let result = match command {
                 Command::Storage(request, reply) => {
-                    let _ = reply.send(tauri::async_runtime::block_on(request.dispatch(&self.store)));
+                    let _ = reply.send(tauri::async_runtime::block_on(dispatch_storage(request, &self.store)));
                     Ok(())
                 }
                 Command::Audio(command) => {
@@ -280,7 +218,7 @@ impl SessionWorker {
             if let Err(error) = result {
                 failure.get_or_insert(error);
                 // Close admission, then drain already accepted storage before completion reports the error.
-                let _ = self.app.state::<AppState>().stop();
+                let _ = self.app.state::<AppState>().stop_app();
             }
         }
         audio.shutdown();
@@ -382,9 +320,9 @@ mod tests {
     use serde_json::{Value, json};
     use tempfile::tempdir;
 
-    use super::{AudioRequest, StorageRequest};
+    use super::{AudioRequest, dispatch_storage};
     use crate::store;
-    use wie_backend::{AudioCommand, AudioEventData};
+    use wie_backend::{AudioCommand, AudioEventData, StorageRequest};
 
     #[test]
     fn storage_dispatch_preserves_namespaces_empty_values_and_persistence() {
@@ -410,7 +348,7 @@ mod tests {
                 (json!({"op":"recordDelete","pid":"pid","name":"save","id":1}), json!(true)),
             ] {
                 let request: StorageRequest = serde_json::from_value(request).unwrap();
-                assert_eq!(request.dispatch(&store).await, expected);
+                assert_eq!(dispatch_storage(request, &store).await, expected);
             }
         });
         tauri::async_runtime::block_on(async {
@@ -423,7 +361,7 @@ mod tests {
                 (json!({"op":"dbExists","pid":"pid","name":"save"}), json!(false)),
             ] {
                 let request: StorageRequest = serde_json::from_value(request).unwrap();
-                assert_eq!(request.dispatch(&store).await, expected);
+                assert_eq!(dispatch_storage(request, &store).await, expected);
             }
         });
     }

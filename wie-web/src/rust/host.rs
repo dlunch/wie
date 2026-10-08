@@ -6,10 +6,10 @@ use alloc::{
 use core::future::Future;
 
 use js_sys::JSON;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use wasm_bindgen::prelude::*;
 
-use wie_backend::{Database, DatabaseRepository, Filesystem, RecordId};
+use wie_backend::{Database, DatabaseRepository, Filesystem, RecordId, StorageRequest as BackendStorageRequest};
 
 use crate::{audio_sink::AudioPlayer, util::run_js_future};
 
@@ -36,79 +36,7 @@ extern "C" {
 unsafe impl Send for WasmHost {}
 unsafe impl Sync for WasmHost {}
 
-#[derive(Serialize)]
-#[serde(tag = "op", rename_all = "camelCase")]
-enum StorageRequest<'a> {
-    FileExists {
-        aid: &'a str,
-        path: &'a str,
-    },
-    FileSize {
-        aid: &'a str,
-        path: &'a str,
-    },
-    FileRead {
-        aid: &'a str,
-        path: &'a str,
-        offset: usize,
-        count: usize,
-    },
-    FileWrite {
-        aid: &'a str,
-        path: &'a str,
-        offset: usize,
-        data: &'a [u8],
-    },
-    FileTruncate {
-        aid: &'a str,
-        path: &'a str,
-        length: usize,
-    },
-    DbOpen {
-        pid: &'a str,
-        name: &'a str,
-    },
-    DbExists {
-        pid: &'a str,
-        name: &'a str,
-    },
-    DbDelete {
-        pid: &'a str,
-        name: &'a str,
-    },
-    DbUsage {
-        pid: &'a str,
-    },
-    RecordNextId {
-        pid: &'a str,
-        name: &'a str,
-    },
-    RecordIds {
-        pid: &'a str,
-        name: &'a str,
-    },
-    RecordGet {
-        pid: &'a str,
-        name: &'a str,
-        id: RecordId,
-    },
-    RecordDelete {
-        pid: &'a str,
-        name: &'a str,
-        id: RecordId,
-    },
-    RecordAdd {
-        pid: &'a str,
-        name: &'a str,
-        data: &'a [u8],
-    },
-    RecordSet {
-        pid: &'a str,
-        name: &'a str,
-        id: RecordId,
-        data: &'a [u8],
-    },
-}
+type StorageRequest<'a> = BackendStorageRequest<&'a str, &'a [u8]>;
 
 impl WasmHost {
     fn request<T: DeserializeOwned + Default + 'static>(&self, request: StorageRequest<'_>) -> impl Future<Output = T> + Send + use<T> {
@@ -256,9 +184,9 @@ impl Filesystem for WasmHost {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::{json, to_value};
+    use serde_json::{from_value, json, to_value};
 
-    use super::StorageRequest;
+    use super::{BackendStorageRequest, StorageRequest};
 
     #[test]
     fn storage_requests_preserve_namespaces_offsets_and_empty_data() {
@@ -369,7 +297,8 @@ mod tests {
         ];
 
         for (request, expected) in requests {
-            assert_eq!(to_value(request).unwrap(), expected);
+            let owned: BackendStorageRequest = from_value(to_value(request).unwrap()).unwrap();
+            assert_eq!(to_value(owned).unwrap(), expected);
         }
     }
 }

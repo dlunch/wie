@@ -63,7 +63,7 @@ export const initializeWie = async (): Promise<Wie> => {
       setMasterVolume(settings.midiVolume);
       setPcmVolume(settings.pcmVolume);
     },
-    async startGame(id, onEvent) {
+    async startApp(id, onEvent) {
       const [app, archive, settings, fontResponse] = await Promise.all([
         store.getApp(id),
         store.getArchive(id),

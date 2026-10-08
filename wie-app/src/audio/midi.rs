@@ -33,7 +33,7 @@ impl Midi {
         let connection = match Connection::new() {
             Ok(connection) => Some(connection),
             Err(error) => {
-                warning(format!("MIDI is unavailable; game and PCM audio will continue: {error:#}"));
+                warning(format!("MIDI is unavailable; app and PCM audio will continue: {error:#}"));
                 None
             }
         };
@@ -449,6 +449,6 @@ mod tests {
         drop(midi);
         let messages = messages.lock().unwrap();
         assert_eq!(messages.len(), 1);
-        assert!(messages[0].contains("game and PCM audio will continue"));
+        assert!(messages[0].contains("app and PCM audio will continue"));
     }
 }
