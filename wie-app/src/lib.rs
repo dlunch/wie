@@ -35,7 +35,7 @@ pub fn run() {
                 view,
             )?);
             #[cfg(target_os = "ios")]
-            runtime::ios::register(app.handle())?;
+            runtime::platform::register(app.handle())?;
 
             Ok(())
         })
@@ -46,18 +46,18 @@ pub fn run() {
             runtime::delete_app,
             runtime::read_settings,
             runtime::write_settings,
-            runtime::start_game,
+            runtime::start_app,
             #[cfg(not(target_os = "ios"))]
-            runtime::key_event,
+            runtime::platform::key_event,
             #[cfg(not(target_os = "ios"))]
-            runtime::release_keys,
+            runtime::platform::release_keys,
             #[cfg(target_os = "ios")]
-            runtime::ios::guest_storage,
+            runtime::platform::guest_storage,
             #[cfg(target_os = "ios")]
-            runtime::ios::guest_audio,
+            runtime::platform::guest_audio,
             #[cfg(target_os = "ios")]
-            runtime::ios::guest_vibrate,
-            runtime::stop_game,
+            runtime::platform::guest_vibrate,
+            runtime::stop_app,
         ])
         .on_window_event(|window, event| {
             let Some(state) = window.try_state::<AppState>() else {
@@ -71,7 +71,7 @@ pub fn run() {
                 #[cfg(target_os = "android")]
                 WindowEvent::Resumed => state.suspend(false),
                 WindowEvent::CloseRequested { api, .. } => {
-                    if let Some(completion) = state.stop() {
+                    if let Some(completion) = state.stop_app() {
                         api.prevent_close();
                         let window = window.clone();
                         tauri::async_runtime::spawn(async move {
@@ -88,7 +88,7 @@ pub fn run() {
         .run(|app, event| {
             if let RunEvent::ExitRequested { api, code, .. } = event
                 && let Some(state) = app.try_state::<AppState>()
-                && let Some(completion) = state.stop()
+                && let Some(completion) = state.stop_app()
             {
                 api.prevent_exit();
                 let app = app.clone();

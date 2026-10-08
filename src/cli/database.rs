@@ -195,8 +195,8 @@ mod tests {
         let repo = DatabaseRepository {
             base_path: PathBuf::from("/tmp/wie_test"),
         };
-        let path = repo.get_path_for_database("records", "game123");
-        assert_eq!(path, PathBuf::from("/tmp/wie_test/game123/db/records"));
+        let path = repo.get_path_for_database("records", "app123");
+        assert_eq!(path, PathBuf::from("/tmp/wie_test/app123/db/records"));
     }
 
     #[test]

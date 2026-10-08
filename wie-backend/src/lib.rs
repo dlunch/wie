@@ -7,6 +7,7 @@ mod database;
 mod executor;
 mod platform;
 mod screen;
+mod storage_request;
 mod system;
 mod task;
 mod task_runner;
@@ -20,6 +21,7 @@ pub use self::{
     executor::{AsyncCallable, AsyncCallableResult},
     platform::{Filesystem, Platform},
     screen::Screen,
+    storage_request::StorageRequest,
     system::{Event, FilesystemOverlay, KeyCode, System},
     task::YieldFuture,
     task_runner::{DefaultTaskRunner, TaskRunner},

@@ -1,8 +1,3 @@
-#[cfg(not(target_os = "ios"))]
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    sync::mpsc::{Receiver, RecvTimeoutError},
-};
 use std::{
     path::PathBuf,
     sync::{
@@ -14,8 +9,6 @@ use std::{
 };
 
 use anyhow::Result;
-#[cfg(not(target_os = "ios"))]
-use anyhow::anyhow;
 use futures::{
     FutureExt,
     channel::oneshot,
@@ -23,17 +16,9 @@ use futures::{
     lock::Mutex as AsyncMutex,
 };
 use serde::Serialize;
-#[cfg(target_os = "ios")]
-use serde_json::Value;
 use tauri::{AppHandle, Manager, State, ipc::Channel};
 
-#[cfg(not(target_os = "ios"))]
-use wie::load_emulator;
-#[cfg(target_os = "ios")]
-use wie_backend::AudioCommand;
 use wie_backend::Instant as GuestInstant;
-#[cfg(not(target_os = "ios"))]
-use wie_backend::{AudioSink, DatabaseRepository as BackendDatabaseRepository, Event, Filesystem, Font, KeyCode, Options, Platform, Screen};
 
 use crate::{
     library::{Library, LibraryApp},
@@ -42,23 +27,13 @@ use crate::{
 };
 
 #[cfg(not(target_os = "ios"))]
-use crate::{
-    audio::{Audio, AudioSink as NativeAudioSink},
-    database::DatabaseRepository,
-    filesystem::SqliteFilesystem,
-    screen::{NativeScreen, NativeView},
-};
+use crate::screen::NativeView;
 
-#[cfg(target_os = "ios")]
-use ios::{SessionWorker, WebGame};
+use platform::{Command, StartedApp};
 
-#[cfg(not(target_os = "ios"))]
-type StartedGame = u64;
-#[cfg(target_os = "ios")]
-type StartedGame = WebGame;
-
-#[cfg(target_os = "ios")]
-pub(crate) mod ios;
+#[cfg_attr(target_os = "ios", path = "runtime/ios.rs")]
+#[cfg_attr(not(target_os = "ios"), path = "runtime/native.rs")]
+pub(crate) mod platform;
 
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -89,23 +64,6 @@ struct Session {
     completion: Completion,
 }
 
-enum Command {
-    #[cfg(not(target_os = "ios"))]
-    Key(KeyCode, bool),
-    #[cfg(not(target_os = "ios"))]
-    ReleaseKeys,
-    Volumes(f32, f32),
-    #[cfg(mobile)]
-    Suspend(bool),
-    #[cfg(target_os = "ios")]
-    Storage(ios::StorageRequest, oneshot::Sender<Value>),
-    #[cfg(target_os = "ios")]
-    Audio(AudioCommand),
-    #[cfg(target_os = "ios")]
-    Vibrate(u64, u8),
-    Stop,
-}
-
 impl Session {
     fn stop(&mut self) -> Completion {
         // Taking the sender closes admission before the ordered stop is enqueued.
@@ -121,19 +79,6 @@ struct Runtime {
     next_id: u64,
     #[cfg(mobile)]
     suspended: bool,
-}
-
-#[cfg(target_os = "ios")]
-impl Runtime {
-    fn send(&self, session_id: u64, command: Command) -> Result<(), String> {
-        let sender = self
-            .session
-            .as_ref()
-            .filter(|session| session.id == session_id)
-            .and_then(|session| session.commands.as_ref())
-            .ok_or("Game session has stopped")?;
-        sender.send(command).map_err(|_| "Game worker has stopped".into())
-    }
 }
 
 pub struct AppState {
@@ -163,17 +108,8 @@ impl AppState {
         })
     }
 
-    pub fn stop(&self) -> Option<Completion> {
+    pub fn stop_app(&self) -> Option<Completion> {
         self.runtime.lock().unwrap().session.as_mut().map(Session::stop)
-    }
-
-    #[cfg(not(target_os = "ios"))]
-    pub fn release_keys(&self) {
-        if let Some(session) = &self.runtime.lock().unwrap().session
-            && let Some(commands) = &session.commands
-        {
-            let _ = commands.send(Command::ReleaseKeys);
-        }
     }
 
     #[cfg(mobile)]
@@ -243,10 +179,9 @@ pub async fn write_settings(state: State<'_, AppState>, settings: Settings) -> R
     Ok(())
 }
 
-#[cfg_attr(target_os = "ios", tauri::command(rename = "start_web_game"))]
-#[cfg_attr(not(target_os = "ios"), tauri::command)]
-pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, events: Channel<SessionEvent>) -> Result<StartedGame, String> {
-    let (game, startup, completion) = {
+#[tauri::command]
+pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, events: Channel<SessionEvent>) -> Result<StartedApp, String> {
+    let (started_app, startup, completion) = {
         let settings_store = state.settings.lock().await;
         let settings = settings_store.read().await.map_err(|error| error.to_string())?;
         tauri::async_runtime::spawn_blocking(move || {
@@ -254,7 +189,7 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
             // Library operations serialize deletion with session registration without blocking input.
             let library = state.library.lock().unwrap();
             if state.runtime.lock().unwrap().session.is_some() {
-                return Err("A game is already running".to_owned());
+                return Err("An app is already running".to_owned());
             }
             let (metadata, bytes) = library.read_archive(&id).map_err(|error| error.to_string())?;
             let mut runtime = state.runtime.lock().unwrap();
@@ -263,48 +198,24 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
             let (sender, receiver) = mpsc::channel();
             let (started, startup) = oneshot::channel();
             let initialized = Arc::new(AtomicBool::new(false));
-            let ready = initialized.clone();
-            let store = state.store.clone();
-            #[cfg(not(target_os = "ios"))]
-            let view = state.view.clone();
-            let worker_app = app.clone();
-            let worker_events = events.clone();
-            #[cfg(mobile)]
-            let suspended = runtime.suspended;
-            #[cfg(not(target_os = "ios"))]
-            let game = session_id;
-            #[cfg(target_os = "ios")]
-            let game = WebGame {
-                session_id,
-                filename: metadata.filename,
-                bytes,
-            };
-            let worker = tauri::async_runtime::spawn_blocking(move || {
-                SessionWorker {
-                    app: worker_app,
-                    store,
-                    #[cfg(not(target_os = "ios"))]
-                    view,
-                    #[cfg(not(target_os = "ios"))]
-                    filename: metadata.filename,
-                    #[cfg(not(target_os = "ios"))]
-                    bytes,
-                    settings,
-                    events: worker_events,
-                    initialized: ready,
-                    #[cfg(mobile)]
-                    suspended,
-                }
-                .run(receiver, started)
-                .map_err(|error| format!("{error:#}"))
-            });
+            let (started_app, worker) = SessionWorker {
+                app: app.clone(),
+                store: state.store.clone(),
+                settings,
+                events: events.clone(),
+                initialized: initialized.clone(),
+                #[cfg(mobile)]
+                suspended: runtime.suspended,
+            }
+            .prepare(session_id, metadata.filename, bytes);
+            let worker = tauri::async_runtime::spawn_blocking(move || worker.run(receiver, started).map_err(|error| format!("{error:#}")));
             #[cfg(not(target_os = "ios"))]
             let view = state.view.clone();
             let app = app.clone();
             let completion = async move {
                 let result = match worker.await {
                     Ok(result) => result,
-                    Err(error) => Err(format!("Game worker failed: {error}")),
+                    Err(error) => Err(format!("App worker failed: {error}")),
                 };
                 #[cfg(not(target_os = "ios"))]
                 let result = result.and(view.set_playing(false).map_err(|error| error.to_string()));
@@ -327,7 +238,7 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
                 commands: Some(sender),
                 completion: completion.clone(),
             });
-            Ok((game, startup, completion))
+            Ok((started_app, startup, completion))
         })
         .await
         .map_err(|error| error.to_string())??
@@ -338,60 +249,13 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
     });
     if startup.await.is_err() {
         completion.await?;
-        return Err("Game stopped before initialization completed".into());
+        return Err("App stopped before initialization completed".into());
     }
-    Ok(game)
-}
-
-#[cfg(not(target_os = "ios"))]
-#[tauri::command]
-pub async fn key_event(state: State<'_, AppState>, session_id: u64, key: String, pressed: bool) -> Result<(), String> {
-    let key = match key.as_str() {
-        "UP" => KeyCode::UP,
-        "DOWN" => KeyCode::DOWN,
-        "LEFT" => KeyCode::LEFT,
-        "RIGHT" => KeyCode::RIGHT,
-        "OK" => KeyCode::OK,
-        "0" => KeyCode::NUM0,
-        "1" => KeyCode::NUM1,
-        "2" => KeyCode::NUM2,
-        "3" => KeyCode::NUM3,
-        "4" => KeyCode::NUM4,
-        "5" => KeyCode::NUM5,
-        "6" => KeyCode::NUM6,
-        "7" => KeyCode::NUM7,
-        "8" => KeyCode::NUM8,
-        "9" => KeyCode::NUM9,
-        "#" => KeyCode::HASH,
-        "*" => KeyCode::STAR,
-        "CLR" => KeyCode::CLEAR,
-        _ => return Err(format!("Unknown key: {key}")),
-    };
-    let runtime = state.runtime.lock().unwrap();
-    if let Some(session) = &runtime.session
-        && session.id == session_id
-        && let Some(commands) = &session.commands
-    {
-        let _ = commands.send(Command::Key(key, pressed));
-    }
-    Ok(())
-}
-
-#[cfg(not(target_os = "ios"))]
-#[tauri::command]
-pub async fn release_keys(state: State<'_, AppState>, session_id: u64) -> Result<(), String> {
-    let runtime = state.runtime.lock().unwrap();
-    if let Some(session) = &runtime.session
-        && session.id == session_id
-        && let Some(commands) = &session.commands
-    {
-        let _ = commands.send(Command::ReleaseKeys);
-    }
-    Ok(())
+    Ok(started_app)
 }
 
 #[tauri::command]
-pub async fn stop_game(state: State<'_, AppState>, session_id: u64) -> Result<(), String> {
+pub async fn stop_app(state: State<'_, AppState>, session_id: u64) -> Result<(), String> {
     let completion = {
         let mut runtime = state.runtime.lock().unwrap();
         runtime.session.as_mut().filter(|session| session.id == session_id).map(Session::stop)
@@ -434,212 +298,14 @@ impl Clock {
     }
 }
 
-#[cfg(not(target_os = "ios"))]
-struct NativePlatform {
-    app: AppHandle,
-    screen: NativeScreen,
-    audio: NativeAudioSink,
-    database: DatabaseRepository,
-    filesystem: SqliteFilesystem,
-    clock: Arc<Mutex<Clock>>,
-    exited: Arc<AtomicBool>,
-    font: Font,
-}
-
-#[cfg(not(target_os = "ios"))]
-impl Platform for NativePlatform {
-    fn font(&self) -> &Font {
-        &self.font
-    }
-
-    fn screen(&self) -> &dyn Screen {
-        &self.screen
-    }
-
-    fn now(&self) -> GuestInstant {
-        self.clock.lock().unwrap().now()
-    }
-
-    fn database_repository(&self) -> &dyn BackendDatabaseRepository {
-        &self.database
-    }
-
-    fn filesystem(&self) -> &dyn Filesystem {
-        &self.filesystem
-    }
-
-    fn audio_sink(&self) -> Box<dyn AudioSink> {
-        Box::new(self.audio.clone())
-    }
-
-    fn write_stdout(&self, bytes: &[u8]) {
-        log::info!("{}", String::from_utf8_lossy(bytes));
-    }
-
-    fn write_stderr(&self, bytes: &[u8]) {
-        log::warn!("{}", String::from_utf8_lossy(bytes));
-    }
-
-    fn exit(&self) {
-        self.exited.store(true, Ordering::Release);
-    }
-
-    fn vibrate(&self, duration_ms: u64, intensity: u8) {
-        #[cfg(mobile)]
-        {
-            use tauri_plugin_haptics::HapticsExt;
-            if duration_ms != 0
-                && intensity != 0
-                && let Err(error) = self.app.haptics().vibrate(duration_ms.min(u64::from(u32::MAX)) as u32)
-            {
-                log::warn!("Vibration failed: {error}");
-            }
-        }
-        #[cfg(desktop)]
-        let _ = (&self.app, duration_ms, intensity);
-    }
-}
-
-#[cfg(not(target_os = "ios"))]
 struct SessionWorker {
     app: AppHandle,
     store: Store,
-    view: NativeView,
-    filename: String,
-    bytes: Vec<u8>,
     settings: Settings,
     events: Channel<SessionEvent>,
     initialized: Arc<AtomicBool>,
     #[cfg(mobile)]
     suspended: bool,
-}
-
-#[cfg(not(target_os = "ios"))]
-impl SessionWorker {
-    fn run(self, commands: Receiver<Command>, started: oneshot::Sender<()>) -> Result<()> {
-        let Self {
-            app,
-            store,
-            view,
-            filename,
-            bytes,
-            settings,
-            events,
-            initialized,
-            #[cfg(mobile)]
-            suspended,
-        } = self;
-        let warnings = events.clone();
-        let mut audio = Audio::new(&app, settings.midi_volume, settings.pcm_volume, move |message| {
-            let _ = warnings.send(SessionEvent::Warning { message });
-        })?;
-        let clock = Arc::new(Mutex::new(Clock::new()?));
-        #[cfg(mobile)]
-        {
-            clock.lock().unwrap().set_paused(suspended);
-            audio.pause(suspended)?;
-        }
-        let redraw = Arc::new(AtomicBool::new(true));
-        let exited = Arc::new(AtomicBool::new(false));
-        let platform = NativePlatform {
-            app,
-            screen: NativeScreen::new(view.clone(), 240, 320, redraw.clone()),
-            audio: audio.sink(),
-            database: DatabaseRepository { store: store.clone() },
-            filesystem: SqliteFilesystem { store },
-            clock: clock.clone(),
-            exited: exited.clone(),
-            font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf"))?,
-        };
-        let result = (|| -> Result<()> {
-            view.set_playing(true)?;
-            let mut emulator = load_emulator(
-                &filename,
-                bytes,
-                Box::new(platform),
-                Options {
-                    enable_gdbserver: false,
-                    aot: None,
-                    profile: None,
-                },
-            )?;
-            initialized.store(true, Ordering::Release);
-            let _ = started.send(());
-            let mut keys = HashMap::new();
-            let mut ready = false;
-            #[cfg(mobile)]
-            let mut paused = suspended;
-            #[cfg(desktop)]
-            let paused = false;
-            loop {
-                let command = match commands.recv_timeout(Duration::from_millis(if paused { 100 } else { 1 })) {
-                    Ok(command) => Some(command),
-                    Err(RecvTimeoutError::Timeout) => None,
-                    Err(RecvTimeoutError::Disconnected) => break,
-                };
-                if let Some(command) = command {
-                    match command {
-                        Command::Key(key, pressed) if ready && !paused => {
-                            if pressed {
-                                if let Entry::Vacant(entry) = keys.entry(key) {
-                                    entry.insert(Instant::now());
-                                    emulator.handle_event(Event::Keydown(key));
-                                }
-                            } else if keys.remove(&key).is_some() {
-                                emulator.handle_event(Event::Keyup(key));
-                            }
-                        }
-                        Command::Key(..) => {}
-                        Command::ReleaseKeys => {
-                            for (key, _) in keys.drain() {
-                                emulator.handle_event(Event::Keyup(key));
-                            }
-                        }
-                        Command::Volumes(midi, pcm) => audio.set_volumes(midi, pcm)?,
-                        #[cfg(mobile)]
-                        Command::Suspend(suspended) => {
-                            for (key, _) in keys.drain() {
-                                emulator.handle_event(Event::Keyup(key));
-                            }
-                            clock.lock().unwrap().set_paused(suspended);
-                            audio.pause(suspended)?;
-                            paused = suspended;
-                        }
-                        Command::Stop => break,
-                    }
-                }
-                if exited.load(Ordering::Acquire) {
-                    break;
-                }
-                if let Some(error) = view.take_error() {
-                    return Err(anyhow!(error));
-                }
-                if paused {
-                    continue;
-                }
-                if redraw.swap(false, Ordering::AcqRel) {
-                    emulator.handle_event(Event::Redraw);
-                }
-                for (&key, last) in &mut keys {
-                    if last.elapsed() >= Duration::from_millis(100) {
-                        emulator.handle_event(Event::Keyrepeat(key));
-                        *last = Instant::now();
-                    }
-                }
-                emulator.tick()?;
-                if !ready && !emulator.is_preparing() {
-                    ready = true;
-                    events.send(SessionEvent::Ready)?;
-                }
-            }
-            for (key, _) in keys {
-                emulator.handle_event(Event::Keyup(key));
-            }
-            Ok(())
-        })();
-        audio.shutdown();
-        result
-    }
 }
 
 #[cfg(test)]

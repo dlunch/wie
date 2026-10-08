@@ -303,9 +303,9 @@ mod tests {
 
     #[test]
     fn parses_midi_device_with_filename() {
-        let args = Args::try_parse_from(["wie", "game.jar", "--midi-device", "1"]).unwrap();
+        let args = Args::try_parse_from(["wie", "app.jar", "--midi-device", "1"]).unwrap();
 
-        assert_eq!(args.filename.as_deref(), Some("game.jar"));
+        assert_eq!(args.filename.as_deref(), Some("app.jar"));
         assert_eq!(args.midi_device, Some(1));
     }
 }

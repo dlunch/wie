@@ -29,7 +29,7 @@ export const initializeWie = async (): Promise<Wie> => {
     writeSettings(settings) {
       return invoke("write_settings", { settings });
     },
-    async startGame(id, onEvent) {
+    async startApp(id, onEvent) {
       if (runtime === "wasm") {
         let host: TauriHost | undefined;
         let session: WasmSession | undefined;
@@ -52,12 +52,12 @@ export const initializeWie = async (): Promise<Wie> => {
           } else if (event.type === "warning") {
             report(event);
           } else {
-            startupError = event.type === "error" ? new Error(event.message) : new Error("Game stopped during initialization");
+            startupError = event.type === "error" ? new Error(event.message) : new Error("App stopped during initialization");
             receivedClock();
             if (session) report(event);
           }
         });
-        const started = await invoke<{ sessionId: number; filename: string; bytes: number[] }>("start_web_game", { id, events });
+        const started = await invoke<{ sessionId: number; filename: string; bytes: number[] }>("start_app", { id, events });
         host = new TauriHost(started.sessionId, error => {
           startupError ??= error;
           if (session) report({ type: "error", message: String(error) });
@@ -102,7 +102,7 @@ export const initializeWie = async (): Promise<Wie> => {
         if (event.type === "stopped" || event.type === "error") ended = true;
         onEvent(event);
       });
-      const sessionId = await invoke<number>("start_game", { id, events });
+      const sessionId = await invoke<number>("start_app", { id, events });
       let commands = Promise.resolve();
 
       const send = (command: string, args: Record<string, unknown> = {}) => {
@@ -124,7 +124,7 @@ export const initializeWie = async (): Promise<Wie> => {
           return send("release_keys");
         },
         stop() {
-          stopping ??= send("stop_game").then(() => { ended = true; });
+          stopping ??= send("stop_app").then(() => { ended = true; });
           return stopping;
         },
       };

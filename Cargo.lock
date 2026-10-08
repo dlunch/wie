@@ -7040,6 +7040,7 @@ dependencies = [
  "hashbrown 0.17.1",
  "image",
  "num-traits",
+ "serde",
  "smaf",
  "smaf-player",
  "spin",
