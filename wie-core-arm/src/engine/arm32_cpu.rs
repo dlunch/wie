@@ -14,6 +14,9 @@ use crate::{
     engine::{ArmEngine, ArmRegister, EngineRunResult, EngineStopReason, MemoryPermission},
 };
 
+#[cfg(all(test, not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))]
+mod native_tests;
+
 pub struct Arm32CpuEngine {
     cpu: Cpu,
     mem: EmulatedMemory,
@@ -129,6 +132,7 @@ impl ArmEngine for Arm32CpuEngine {
                         regs: core::array::from_fn(|index| self.cpu.reg_get(Mode::User, index as u8)),
                         cpsr,
                         end,
+                        budget: count - budget_consumed,
                         ..RunFrame::default()
                     };
                     let result = {

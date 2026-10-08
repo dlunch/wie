@@ -8,6 +8,7 @@ members = [
     "wie-core-arm",
     "wie-arm-jit-types",
     "wie-core-arm-wasm",
+    "wie-core-arm-native",
     "wie-jvm-support",
     "wie-wipi-java",
     "wie-wipi-c",
@@ -85,6 +86,7 @@ wie-util = { version = "0.1.7", path = "wie-util" }
 wie-core-arm = { version = "0.1.7", path = "wie-core-arm" }
 wie-arm-jit-types = { version = "0.1.7", path = "wie-arm-jit-types" }
 wie-core-arm-wasm = { version = "0.1.7", path = "wie-core-arm-wasm" }
+wie-core-arm-native = { version = "0.1.7", path = "wie-core-arm-native" }
 wie-jvm-support = { version = "0.1.7", path = "wie-jvm-support" }
 wie-skvm = { version = "0.1.7", path = "wie-skvm" }
 wie-wipi-c = { version = "0.1.7", path = "wie-wipi-c" }
@@ -111,7 +113,7 @@ required-features = ["cli"]
 
 [features]
 default = ["cli"]
-cli = ["dep:clap", "dep:directories", "dep:fast_image_resize", "dep:midir", "dep:rodio", "dep:sentry", "dep:softbuffer", "dep:tracing-subscriber", "dep:winit"]
+cli = ["dep:clap", "dep:directories", "dep:fast_image_resize", "dep:midir", "dep:rodio", "dep:sentry", "dep:softbuffer", "dep:tracing-subscriber", "dep:winit", "dep:wie-core-arm-native"]
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
@@ -136,3 +138,6 @@ midir = { version = "^0.11", optional = true }
 rodio = { version = "^0.22", features = ["playback"], optional = true }
 softbuffer = { version = "^0.4", optional = true }
 winit = { version = "^0.30", features = ["x11", "wayland"], optional = true }
+
+[target.'cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
+wie-core-arm-native = { workspace = true, optional = true }

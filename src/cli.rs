@@ -20,6 +20,8 @@ use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie::load_emulator;
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
+#[cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))]
+use wie_core_arm_native::NativeExecutor;
 use wie_j2me::J2MEEmulator;
 
 use self::{
@@ -136,6 +138,9 @@ pub fn run() -> anyhow::Result<()> {
     let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
     let options = Options {
         enable_gdbserver: args.debug,
+        #[cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))]
+        aot: Some(Box::new(NativeExecutor::new())),
+        #[cfg(not(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64"))))]
         aot: None,
         profile,
     };

@@ -23,6 +23,8 @@ use wie::load_emulator;
 use wie_backend::{
     AudioSink, DatabaseRepository as BackendDatabaseRepository, Event, Filesystem, Font, Instant as GuestInstant, KeyCode, Options, Platform, Screen,
 };
+#[cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))]
+use wie_core_arm_native::NativeExecutor;
 
 use crate::{
     audio::{Audio, AudioSink as NativeAudioSink},
@@ -464,6 +466,9 @@ impl SessionWorker {
                 Box::new(platform),
                 Options {
                     enable_gdbserver: false,
+                    #[cfg(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64")))]
+                    aot: Some(Box::new(NativeExecutor::new())),
+                    #[cfg(not(all(not(target_os = "ios"), any(target_arch = "x86_64", target_arch = "aarch64"))))]
                     aot: None,
                     profile: None,
                 },
