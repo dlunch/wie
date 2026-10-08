@@ -587,30 +587,6 @@ svg {
   height: 100%;
 }
 
-.native.canvas-runtime #player-view {
-  height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-}
-
-.native.canvas-runtime .player-main {
-  height: calc(100% - 44px);
-}
-
-.native.canvas-runtime .canvas-wrapper {
-  width: 100%;
-  min-height: 0;
-  flex: 1;
-  aspect-ratio: auto;
-}
-
-.native.canvas-runtime #canvas {
-  object-fit: contain;
-}
-
-.native.canvas-runtime .button-container {
-  flex: 0 0 clamp(140px, 28dvh, 212px);
-}
-
 .app-dialog {
   width: min(420px, calc(100% - 32px));
   padding: 0;

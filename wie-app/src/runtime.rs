@@ -50,7 +50,7 @@ use crate::{
 };
 
 #[cfg(target_os = "ios")]
-use host::{SessionWorker, WebGame};
+use ios::{SessionWorker, WebGame};
 
 #[cfg(not(target_os = "ios"))]
 type StartedGame = u64;
@@ -60,15 +60,12 @@ type StartedGame = WebGame;
 #[cfg(target_os = "ios")]
 pub(crate) mod ios;
 
-#[cfg(any(target_os = "ios", test))]
-pub(crate) mod host;
-
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum SessionEvent {
     #[cfg(not(target_os = "ios"))]
     Ready,
-    #[cfg(any(target_os = "ios", test))]
+    #[cfg(target_os = "ios")]
     Lifecycle {
         suspended: bool,
         #[serde(rename = "guestTimeMs")]
@@ -101,7 +98,7 @@ enum Command {
     #[cfg(mobile)]
     Suspend(bool),
     #[cfg(target_os = "ios")]
-    Storage(host::StorageRequest, oneshot::Sender<Value>),
+    Storage(ios::StorageRequest, oneshot::Sender<Value>),
     #[cfg(target_os = "ios")]
     Audio(AudioCommand),
     #[cfg(target_os = "ios")]
@@ -126,7 +123,7 @@ struct Runtime {
     suspended: bool,
 }
 
-#[cfg(any(target_os = "ios", test))]
+#[cfg(target_os = "ios")]
 impl Runtime {
     fn send(&self, session_id: u64, command: Command) -> Result<(), String> {
         let sender = self
@@ -647,27 +644,15 @@ impl SessionWorker {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
-    use futures::{FutureExt, channel::oneshot};
-    use serde_json::json;
-
-    use super::{Clock, Command, Runtime, Session, SessionEvent};
+    use super::Clock;
 
     #[test]
     fn guest_clock_excludes_background_time() {
         let mut clock = Clock::new().unwrap();
         clock.set_paused(true);
         let before = clock.now().raw();
-        assert_eq!(
-            serde_json::to_value(SessionEvent::Lifecycle {
-                suspended: true,
-                guest_time_ms: before
-            })
-            .unwrap(),
-            json!({"type":"lifecycle", "suspended":true, "guestTimeMs":before})
-        );
         clock.set_paused(true);
         assert_eq!(clock.now().raw(), before);
         let suspended = Duration::from_secs(20);
@@ -679,38 +664,5 @@ mod tests {
         let duration = clock.paused_duration;
         clock.set_paused(false);
         assert_eq!(clock.paused_duration, duration);
-    }
-
-    #[test]
-    fn stop_closes_admission_and_preserves_queued_commands() {
-        let (commands, queued) = mpsc::channel();
-        let (finished, completion) = oneshot::channel();
-        let mut runtime = Runtime {
-            session: Some(Session {
-                id: 1,
-                app_id: "app".into(),
-                commands: Some(commands),
-                completion: async move { completion.await.unwrap() }.boxed().shared(),
-            }),
-            next_id: 2,
-            #[cfg(mobile)]
-            suspended: false,
-        };
-        assert!(runtime.send(0, Command::Volumes(0.5, 0.5)).is_err());
-        runtime.send(1, Command::Volumes(0.25, 0.75)).unwrap();
-        let completion = runtime.session.as_mut().unwrap().stop();
-        let repeated = runtime.session.as_mut().unwrap().stop();
-        assert!(runtime.send(1, Command::Volumes(1.0, 1.0)).is_err());
-        assert!(completion.clone().now_or_never().is_none());
-        assert!(matches!(queued.recv().unwrap(), Command::Volumes(0.25, 0.75)));
-        assert!(matches!(queued.recv().unwrap(), Command::Stop));
-        assert!(matches!(queued.try_recv(), Err(mpsc::TryRecvError::Disconnected)));
-        finished.send(Ok(())).unwrap();
-        tauri::async_runtime::block_on(async {
-            completion.await.unwrap();
-            repeated.await.unwrap();
-        });
-        runtime.session = None;
-        assert!(runtime.send(1, Command::Volumes(1.0, 1.0)).is_err());
     }
 }

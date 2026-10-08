@@ -52,11 +52,11 @@ pub fn run() {
             #[cfg(not(target_os = "ios"))]
             runtime::release_keys,
             #[cfg(target_os = "ios")]
-            runtime::host::guest_storage,
+            runtime::ios::guest_storage,
             #[cfg(target_os = "ios")]
-            runtime::host::guest_audio,
+            runtime::ios::guest_audio,
             #[cfg(target_os = "ios")]
-            runtime::host::guest_vibrate,
+            runtime::ios::guest_vibrate,
             runtime::stop_game,
         ])
         .on_window_event(|window, event| {

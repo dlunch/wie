@@ -62,8 +62,6 @@ jobs:
       - name: Build
         run: npm run build:dev
 
-      - run: node wie-web/tests/tauri-host.test.mjs
-
       - name: Save cache cargo
         uses: actions/cache/save@v6
         if: github.ref == 'refs/heads/main'

@@ -14,8 +14,7 @@ console.error = (...args: unknown[]) => {
 const main = async () => {
   const native = isTauri();
   const backend = await initializeWie();
-  document.documentElement.classList.add(native ? "native" : "browser");
-  if (backend.rendering === "canvas") document.documentElement.classList.add("canvas-runtime");
+  document.documentElement.classList.add(backend.rendering === "native" ? "native" : "browser");
   const output = document.getElementById("player-output") as HTMLDivElement;
   const browserScripts = document.getElementById("browser-scripts") as HTMLTemplateElement;
   if (native) {

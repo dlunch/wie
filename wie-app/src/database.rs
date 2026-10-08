@@ -8,6 +8,17 @@ pub(crate) struct DatabaseRepository {
     pub(crate) store: Store,
 }
 
+impl DatabaseRepository {
+    // Access an existing store without recreating it during reads or deletes.
+    pub(crate) fn database(&self, name: &str, app_id: &str) -> Box<dyn Database> {
+        Box::new(SqliteDatabase {
+            store: self.store.clone(),
+            pid: app_id.to_owned(),
+            name: name.to_owned(),
+        })
+    }
+}
+
 #[async_trait::async_trait]
 impl BackendDatabaseRepository for DatabaseRepository {
     async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database> {
@@ -17,11 +28,7 @@ impl BackendDatabaseRepository for DatabaseRepository {
         ) {
             tracing::warn!(app_id, name, %error, "Failed to open database");
         }
-        Box::new(SqliteDatabase {
-            store: self.store.clone(),
-            pid: app_id.to_owned(),
-            name: name.to_owned(),
-        })
+        self.database(name, app_id)
     }
 
     async fn exists(&self, name: &str, app_id: &str) -> bool {
@@ -65,10 +72,10 @@ impl BackendDatabaseRepository for DatabaseRepository {
     }
 }
 
-pub(crate) struct SqliteDatabase {
-    pub(crate) store: Store,
-    pub(crate) pid: String,
-    pub(crate) name: String,
+struct SqliteDatabase {
+    store: Store,
+    pid: String,
+    name: String,
 }
 
 #[async_trait::async_trait]
