@@ -7256,6 +7256,8 @@ dependencies = [
  "futures",
  "hashbrown 0.17.1",
  "js-sys",
+ "serde",
+ "serde_json",
  "time",
  "tracing",
  "tracing-subscriber",

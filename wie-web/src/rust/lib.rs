@@ -5,6 +5,7 @@ mod aot;
 mod audio_sink;
 mod database;
 mod filesystem;
+mod host;
 mod indexed_db_store;
 mod util;
 mod window;
@@ -26,19 +27,22 @@ use tracing_web::MakeConsoleWriter;
 use wasm_bindgen::{JsError, prelude::*};
 use web_sys::HtmlCanvasElement;
 
-use wie_backend::{Emulator, Event, Font, Instant, KeyCode, Options, Platform, Screen};
+use wie_backend::{DatabaseRepository as BackendDatabaseRepository, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, Screen};
 
 use self::{
     audio_sink::{AudioPlayer, AudioSink},
     database::DatabaseRepository,
     filesystem::WebFilesystem,
+    host::WasmHost,
     window::WindowImpl,
 };
 
 struct WieWebPlatform {
     audio_player: AudioPlayer,
-    database_repository: DatabaseRepository,
-    filesystem: WebFilesystem,
+    database_repository: Box<dyn BackendDatabaseRepository>,
+    filesystem: Box<dyn Filesystem>,
+    host: Option<WasmHost>,
+    exited: Arc<AtomicBool>,
     font: Font,
     window: WindowImpl,
 }
@@ -48,11 +52,17 @@ unsafe impl Sync for WieWebPlatform {}
 unsafe impl Send for WieWebPlatform {}
 
 impl WieWebPlatform {
-    fn new(window: WindowImpl, font: Font, audio_player: AudioPlayer) -> Self {
+    fn new(window: WindowImpl, font: Font, audio_player: AudioPlayer, host: Option<WasmHost>, exited: Arc<AtomicBool>) -> Self {
+        let (database_repository, filesystem): (Box<dyn BackendDatabaseRepository>, Box<dyn Filesystem>) = match &host {
+            Some(host) => (Box::new(host.clone()), Box::new(host.clone())),
+            None => (Box::new(DatabaseRepository::new()), Box::new(WebFilesystem::new())),
+        };
         Self {
             audio_player,
-            database_repository: DatabaseRepository::new(),
-            filesystem: WebFilesystem::new(),
+            database_repository,
+            filesystem,
+            host,
+            exited,
             font,
             window,
         }
@@ -69,18 +79,17 @@ impl Platform for WieWebPlatform {
     }
 
     fn now(&self) -> Instant {
-        let date = js_sys::Date::new_0();
-        let millis = date.value_of();
+        let millis = self.host.as_ref().map_or_else(js_sys::Date::now, WasmHost::now);
 
         Instant::from_epoch_millis(millis as _)
     }
 
-    fn database_repository(&self) -> &dyn wie_backend::DatabaseRepository {
-        &self.database_repository
+    fn database_repository(&self) -> &dyn BackendDatabaseRepository {
+        self.database_repository.as_ref()
     }
 
-    fn filesystem(&self) -> &dyn wie_backend::Filesystem {
-        &self.filesystem
+    fn filesystem(&self) -> &dyn Filesystem {
+        self.filesystem.as_ref()
     }
 
     fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {
@@ -97,9 +106,16 @@ impl Platform for WieWebPlatform {
         tracing::info!("{}", string);
     }
 
-    fn exit(&self) {}
+    fn exit(&self) {
+        self.exited.store(true, Ordering::SeqCst);
+    }
 
     fn vibrate(&self, duration_ms: u64, intensity: u8) {
+        if let Some(host) = &self.host {
+            host.vibrate(duration_ms as f64, intensity);
+            return;
+        }
+
         if duration_ms == 0 || intensity == 0 {
             return;
         }
@@ -118,6 +134,8 @@ impl Platform for WieWebPlatform {
 pub struct WieWeb {
     emulator: Box<dyn Emulator>,
     audio_player: AudioPlayer,
+    host: Option<WasmHost>,
+    exited: Arc<AtomicBool>,
     should_redraw: Arc<AtomicBool>,
     key_events: HashMap<KeyCode, f64>,
 }
@@ -167,13 +185,24 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]
-    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>, enable_aot: bool) -> Result<WieWeb, JsError> {
-        let audio_player = AudioPlayer::new();
+    pub fn new(
+        filename: &str,
+        buf: &[u8],
+        canvas: HtmlCanvasElement,
+        font_data: Vec<u8>,
+        enable_aot: bool,
+        host: Option<WasmHost>,
+    ) -> Result<WieWeb, JsError> {
+        let audio_player = match &host {
+            Some(host) => host.audio(),
+            None => AudioPlayer::new(),
+        };
         let result = (|| {
             let should_redraw = Arc::new(AtomicBool::new(true));
+            let exited = Arc::new(AtomicBool::new(false));
             let window = WindowImpl::new(canvas, should_redraw.clone());
             let font = Font::try_from_vec(font_data)?;
-            let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone()));
+            let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone(), host.clone(), exited.clone()));
             let options = Options {
                 enable_gdbserver: false,
                 aot: enable_aot.then(|| Box::new(aot::WasmExecutor::default()) as Box<dyn wie_arm_jit_types::CompiledExecutor>),
@@ -185,6 +214,8 @@ impl WieWeb {
             anyhow::Ok(Self {
                 emulator,
                 audio_player: audio_player.clone(),
+                host,
+                exited,
                 should_redraw,
                 key_events: HashMap::new(),
             })
@@ -199,14 +230,17 @@ impl WieWeb {
         self.emulator.is_preparing()
     }
 
+    pub fn is_exited(&self) -> bool {
+        self.exited.load(Ordering::SeqCst)
+    }
+
     pub fn update(&mut self) -> Result<(), JsError> {
         if self.should_redraw.load(Ordering::SeqCst) {
             self.emulator.handle_event(Event::Redraw);
             self.should_redraw.store(false, Ordering::SeqCst)
         }
 
-        let date = js_sys::Date::new_0();
-        let millis = date.value_of();
+        let millis = self.host.as_ref().map_or_else(js_sys::Date::now, WasmHost::now);
 
         for (key, key_millis) in self.key_events.iter_mut() {
             if millis - *key_millis > 100.0 {
@@ -219,8 +253,7 @@ impl WieWeb {
     }
 
     pub fn key_down(&mut self, key: String) -> Result<(), JsError> {
-        let date = js_sys::Date::new_0();
-        let millis = date.value_of();
+        let millis = self.host.as_ref().map_or_else(js_sys::Date::now, WasmHost::now);
         let key = KeyCode::parse(&key);
 
         self.emulator.handle_event(Event::Keydown(key));

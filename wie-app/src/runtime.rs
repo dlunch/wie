@@ -1,15 +1,21 @@
+#[cfg(not(target_os = "ios"))]
 use std::{
     collections::{HashMap, hash_map::Entry},
+    sync::mpsc::{Receiver, RecvTimeoutError},
+};
+use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, RecvTimeoutError, Sender},
+        mpsc::{self, Sender},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+#[cfg(not(target_os = "ios"))]
+use anyhow::anyhow;
 use futures::{
     FutureExt,
     channel::oneshot,
@@ -17,33 +23,64 @@ use futures::{
     lock::Mutex as AsyncMutex,
 };
 use serde::Serialize;
+#[cfg(target_os = "ios")]
+use serde_json::Value;
 use tauri::{AppHandle, Manager, State, ipc::Channel};
 
+#[cfg(not(target_os = "ios"))]
 use wie::load_emulator;
-use wie_backend::{
-    AudioSink, DatabaseRepository as BackendDatabaseRepository, Event, Filesystem, Font, Instant as GuestInstant, KeyCode, Options, Platform, Screen,
-};
+#[cfg(target_os = "ios")]
+use wie_backend::AudioCommand;
+use wie_backend::Instant as GuestInstant;
+#[cfg(not(target_os = "ios"))]
+use wie_backend::{AudioSink, DatabaseRepository as BackendDatabaseRepository, Event, Filesystem, Font, KeyCode, Options, Platform, Screen};
 
 use crate::{
-    audio::{Audio, AudioSink as NativeAudioSink},
-    database::DatabaseRepository,
-    filesystem::SqliteFilesystem,
     library::{Library, LibraryApp},
-    screen::{NativeScreen, NativeView},
     settings::{Settings, SettingsStore},
     store::{self, Store},
 };
 
+#[cfg(not(target_os = "ios"))]
+use crate::{
+    audio::{Audio, AudioSink as NativeAudioSink},
+    database::DatabaseRepository,
+    filesystem::SqliteFilesystem,
+    screen::{NativeScreen, NativeView},
+};
+
+#[cfg(target_os = "ios")]
+use host::{SessionWorker, WebGame};
+
+#[cfg(not(target_os = "ios"))]
+type StartedGame = u64;
+#[cfg(target_os = "ios")]
+type StartedGame = WebGame;
+
 #[cfg(target_os = "ios")]
 pub(crate) mod ios;
+
+#[cfg(any(target_os = "ios", test))]
+pub(crate) mod host;
 
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum SessionEvent {
+    #[cfg(not(target_os = "ios"))]
     Ready,
-    Warning { message: String },
+    #[cfg(any(target_os = "ios", test))]
+    Lifecycle {
+        suspended: bool,
+        #[serde(rename = "guestTimeMs")]
+        guest_time_ms: u64,
+    },
+    Warning {
+        message: String,
+    },
     Stopped,
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }
 
 type Completion = Shared<BoxFuture<'static, Result<(), String>>>;
@@ -51,17 +88,35 @@ type Completion = Shared<BoxFuture<'static, Result<(), String>>>;
 struct Session {
     id: u64,
     app_id: String,
-    commands: Sender<Command>,
+    commands: Option<Sender<Command>>,
     completion: Completion,
 }
 
 enum Command {
+    #[cfg(not(target_os = "ios"))]
     Key(KeyCode, bool),
+    #[cfg(not(target_os = "ios"))]
     ReleaseKeys,
     Volumes(f32, f32),
     #[cfg(mobile)]
     Suspend(bool),
+    #[cfg(target_os = "ios")]
+    Storage(host::StorageRequest, oneshot::Sender<Value>),
+    #[cfg(target_os = "ios")]
+    Audio(AudioCommand),
+    #[cfg(target_os = "ios")]
+    Vibrate(u64, u8),
     Stop,
+}
+
+impl Session {
+    fn stop(&mut self) -> Completion {
+        // Taking the sender closes admission before the ordered stop is enqueued.
+        if let Some(commands) = self.commands.take() {
+            let _ = commands.send(Command::Stop);
+        }
+        self.completion.clone()
+    }
 }
 
 struct Runtime {
@@ -71,16 +126,30 @@ struct Runtime {
     suspended: bool,
 }
 
+#[cfg(any(target_os = "ios", test))]
+impl Runtime {
+    fn send(&self, session_id: u64, command: Command) -> Result<(), String> {
+        let sender = self
+            .session
+            .as_ref()
+            .filter(|session| session.id == session_id)
+            .and_then(|session| session.commands.as_ref())
+            .ok_or("Game session has stopped")?;
+        sender.send(command).map_err(|_| "Game worker has stopped".into())
+    }
+}
+
 pub struct AppState {
     store: Store,
     library: Arc<Mutex<Library>>,
     settings: AsyncMutex<SettingsStore>,
+    #[cfg(not(target_os = "ios"))]
     view: NativeView,
     runtime: Mutex<Runtime>,
 }
 
 impl AppState {
-    pub fn new(app: AppHandle, root: PathBuf, view: NativeView) -> Result<Self> {
+    pub fn new(app: AppHandle, root: PathBuf, #[cfg(not(target_os = "ios"))] view: NativeView) -> Result<Self> {
         let store = store::open(&root)?;
         Ok(Self {
             runtime: Mutex::new(Runtime {
@@ -92,20 +161,21 @@ impl AppState {
             library: Arc::new(Mutex::new(Library::new(root)?)),
             settings: AsyncMutex::new(SettingsStore::new(app)),
             store,
+            #[cfg(not(target_os = "ios"))]
             view,
         })
     }
 
     pub fn stop(&self) -> Option<Completion> {
-        let runtime = self.runtime.lock().unwrap();
-        let session = runtime.session.as_ref()?;
-        let _ = session.commands.send(Command::Stop);
-        Some(session.completion.clone())
+        self.runtime.lock().unwrap().session.as_mut().map(Session::stop)
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub fn release_keys(&self) {
-        if let Some(session) = &self.runtime.lock().unwrap().session {
-            let _ = session.commands.send(Command::ReleaseKeys);
+        if let Some(session) = &self.runtime.lock().unwrap().session
+            && let Some(commands) = &session.commands
+        {
+            let _ = commands.send(Command::ReleaseKeys);
         }
     }
 
@@ -113,10 +183,17 @@ impl AppState {
     pub fn suspend(&self, paused: bool) {
         let mut runtime = self.runtime.lock().unwrap();
         runtime.suspended = paused;
-        if let Some(session) = &runtime.session {
-            let _ = session.commands.send(Command::Suspend(paused));
+        if let Some(session) = &runtime.session
+            && let Some(commands) = &session.commands
+        {
+            let _ = commands.send(Command::Suspend(paused));
         }
     }
+}
+
+#[tauri::command]
+pub fn runtime_kind() -> &'static str {
+    if cfg!(target_os = "ios") { "wasm" } else { "native" }
 }
 
 #[tauri::command]
@@ -161,15 +238,18 @@ pub async fn write_settings(state: State<'_, AppState>, settings: Settings) -> R
     let store = state.settings.lock().await;
     let volumes = Command::Volumes(settings.midi_volume, settings.pcm_volume);
     store.write(settings).await.map_err(|error| error.to_string())?;
-    if let Some(session) = &state.runtime.lock().unwrap().session {
-        let _ = session.commands.send(volumes);
+    if let Some(session) = &state.runtime.lock().unwrap().session
+        && let Some(commands) = &session.commands
+    {
+        let _ = commands.send(volumes);
     }
     Ok(())
 }
 
-#[tauri::command]
-pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, events: Channel<SessionEvent>) -> Result<u64, String> {
-    let (session_id, startup, completion) = {
+#[cfg_attr(target_os = "ios", tauri::command(rename = "start_web_game"))]
+#[cfg_attr(not(target_os = "ios"), tauri::command)]
+pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, events: Channel<SessionEvent>) -> Result<StartedGame, String> {
+    let (game, startup, completion) = {
         let settings_store = state.settings.lock().await;
         let settings = settings_store.read().await.map_err(|error| error.to_string())?;
         tauri::async_runtime::spawn_blocking(move || {
@@ -188,17 +268,29 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
             let initialized = Arc::new(AtomicBool::new(false));
             let ready = initialized.clone();
             let store = state.store.clone();
+            #[cfg(not(target_os = "ios"))]
             let view = state.view.clone();
             let worker_app = app.clone();
             let worker_events = events.clone();
             #[cfg(mobile)]
             let suspended = runtime.suspended;
+            #[cfg(not(target_os = "ios"))]
+            let game = session_id;
+            #[cfg(target_os = "ios")]
+            let game = WebGame {
+                session_id,
+                filename: metadata.filename,
+                bytes,
+            };
             let worker = tauri::async_runtime::spawn_blocking(move || {
                 SessionWorker {
                     app: worker_app,
                     store,
+                    #[cfg(not(target_os = "ios"))]
                     view,
+                    #[cfg(not(target_os = "ios"))]
                     filename: metadata.filename,
+                    #[cfg(not(target_os = "ios"))]
                     bytes,
                     settings,
                     events: worker_events,
@@ -209,6 +301,7 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
                 .run(receiver, started)
                 .map_err(|error| format!("{error:#}"))
             });
+            #[cfg(not(target_os = "ios"))]
             let view = state.view.clone();
             let app = app.clone();
             let completion = async move {
@@ -216,8 +309,8 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
                     Ok(result) => result,
                     Err(error) => Err(format!("Game worker failed: {error}")),
                 };
-                let cleanup = view.set_playing(false).map_err(|error| error.to_string());
-                let result = result.and(cleanup);
+                #[cfg(not(target_os = "ios"))]
+                let result = result.and(view.set_playing(false).map_err(|error| error.to_string()));
                 let state = app.state::<AppState>();
                 state.runtime.lock().unwrap().session = None;
                 if initialized.load(Ordering::Acquire) {
@@ -234,10 +327,10 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
             runtime.session = Some(Session {
                 id: session_id,
                 app_id: id,
-                commands: sender,
+                commands: Some(sender),
                 completion: completion.clone(),
             });
-            Ok((session_id, startup, completion))
+            Ok((game, startup, completion))
         })
         .await
         .map_err(|error| error.to_string())??
@@ -250,9 +343,10 @@ pub async fn start_game(app: AppHandle, state: State<'_, AppState>, id: String, 
         completion.await?;
         return Err("Game stopped before initialization completed".into());
     }
-    Ok(session_id)
+    Ok(game)
 }
 
+#[cfg(not(target_os = "ios"))]
 #[tauri::command]
 pub async fn key_event(state: State<'_, AppState>, session_id: u64, key: String, pressed: bool) -> Result<(), String> {
     let key = match key.as_str() {
@@ -279,19 +373,22 @@ pub async fn key_event(state: State<'_, AppState>, session_id: u64, key: String,
     let runtime = state.runtime.lock().unwrap();
     if let Some(session) = &runtime.session
         && session.id == session_id
+        && let Some(commands) = &session.commands
     {
-        let _ = session.commands.send(Command::Key(key, pressed));
+        let _ = commands.send(Command::Key(key, pressed));
     }
     Ok(())
 }
 
+#[cfg(not(target_os = "ios"))]
 #[tauri::command]
 pub async fn release_keys(state: State<'_, AppState>, session_id: u64) -> Result<(), String> {
     let runtime = state.runtime.lock().unwrap();
     if let Some(session) = &runtime.session
         && session.id == session_id
+        && let Some(commands) = &session.commands
     {
-        let _ = session.commands.send(Command::ReleaseKeys);
+        let _ = commands.send(Command::ReleaseKeys);
     }
     Ok(())
 }
@@ -299,11 +396,8 @@ pub async fn release_keys(state: State<'_, AppState>, session_id: u64) -> Result
 #[tauri::command]
 pub async fn stop_game(state: State<'_, AppState>, session_id: u64) -> Result<(), String> {
     let completion = {
-        let runtime = state.runtime.lock().unwrap();
-        runtime.session.as_ref().filter(|session| session.id == session_id).map(|session| {
-            let _ = session.commands.send(Command::Stop);
-            session.completion.clone()
-        })
+        let mut runtime = state.runtime.lock().unwrap();
+        runtime.session.as_mut().filter(|session| session.id == session_id).map(Session::stop)
     };
     if let Some(completion) = completion {
         completion.await?;
@@ -343,6 +437,7 @@ impl Clock {
     }
 }
 
+#[cfg(not(target_os = "ios"))]
 struct NativePlatform {
     app: AppHandle,
     screen: NativeScreen,
@@ -354,6 +449,7 @@ struct NativePlatform {
     font: Font,
 }
 
+#[cfg(not(target_os = "ios"))]
 impl Platform for NativePlatform {
     fn font(&self) -> &Font {
         &self.font
@@ -407,6 +503,7 @@ impl Platform for NativePlatform {
     }
 }
 
+#[cfg(not(target_os = "ios"))]
 struct SessionWorker {
     app: AppHandle,
     store: Store,
@@ -420,6 +517,7 @@ struct SessionWorker {
     suspended: bool,
 }
 
+#[cfg(not(target_os = "ios"))]
 impl SessionWorker {
     fn run(self, commands: Receiver<Command>, started: oneshot::Sender<()>) -> Result<()> {
         let Self {
@@ -549,15 +647,27 @@ impl SessionWorker {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
-    use super::Clock;
+    use futures::{FutureExt, channel::oneshot};
+    use serde_json::json;
+
+    use super::{Clock, Command, Runtime, Session, SessionEvent};
 
     #[test]
     fn guest_clock_excludes_background_time() {
         let mut clock = Clock::new().unwrap();
         clock.set_paused(true);
         let before = clock.now().raw();
+        assert_eq!(
+            serde_json::to_value(SessionEvent::Lifecycle {
+                suspended: true,
+                guest_time_ms: before
+            })
+            .unwrap(),
+            json!({"type":"lifecycle", "suspended":true, "guestTimeMs":before})
+        );
         clock.set_paused(true);
         assert_eq!(clock.now().raw(), before);
         let suspended = Duration::from_secs(20);
@@ -569,5 +679,38 @@ mod tests {
         let duration = clock.paused_duration;
         clock.set_paused(false);
         assert_eq!(clock.paused_duration, duration);
+    }
+
+    #[test]
+    fn stop_closes_admission_and_preserves_queued_commands() {
+        let (commands, queued) = mpsc::channel();
+        let (finished, completion) = oneshot::channel();
+        let mut runtime = Runtime {
+            session: Some(Session {
+                id: 1,
+                app_id: "app".into(),
+                commands: Some(commands),
+                completion: async move { completion.await.unwrap() }.boxed().shared(),
+            }),
+            next_id: 2,
+            #[cfg(mobile)]
+            suspended: false,
+        };
+        assert!(runtime.send(0, Command::Volumes(0.5, 0.5)).is_err());
+        runtime.send(1, Command::Volumes(0.25, 0.75)).unwrap();
+        let completion = runtime.session.as_mut().unwrap().stop();
+        let repeated = runtime.session.as_mut().unwrap().stop();
+        assert!(runtime.send(1, Command::Volumes(1.0, 1.0)).is_err());
+        assert!(completion.clone().now_or_never().is_none());
+        assert!(matches!(queued.recv().unwrap(), Command::Volumes(0.25, 0.75)));
+        assert!(matches!(queued.recv().unwrap(), Command::Stop));
+        assert!(matches!(queued.try_recv(), Err(mpsc::TryRecvError::Disconnected)));
+        finished.send(Ok(())).unwrap();
+        tauri::async_runtime::block_on(async {
+            completion.await.unwrap();
+            repeated.await.unwrap();
+        });
+        runtime.session = None;
+        assert!(runtime.send(1, Command::Volumes(1.0, 1.0)).is_err());
     }
 }

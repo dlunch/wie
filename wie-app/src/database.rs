@@ -65,10 +65,10 @@ impl BackendDatabaseRepository for DatabaseRepository {
     }
 }
 
-struct SqliteDatabase {
-    store: Store,
-    pid: String,
-    name: String,
+pub(crate) struct SqliteDatabase {
+    pub(crate) store: Store,
+    pub(crate) pid: String,
+    pub(crate) name: String,
 }
 
 #[async_trait::async_trait]

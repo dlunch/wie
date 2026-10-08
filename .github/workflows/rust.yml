@@ -55,6 +55,12 @@ jobs:
       - run: cargo clippy --target wasm32-unknown-unknown --workspace --exclude wie-app -- -D warnings
       - run: cargo test --all
 
+      - name: Check iOS app
+        if: matrix.os == 'macos-latest' && matrix.rust == 'stable'
+        run: |
+          rustup target add aarch64-apple-ios
+          cargo check -p wie-app --target aarch64-apple-ios
+
       - name: Save cache cargo
         uses: actions/cache/save@v6
         if: github.ref == 'refs/heads/main'
