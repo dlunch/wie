@@ -18,6 +18,7 @@ export interface Settings {
 
 export type SessionEvent =
   | { type: "ready" }
+  | { type: "suspended"; suspended: boolean }
   | { type: "warning"; message: string }
   | { type: "stopped" }
   | { type: "error"; message: string };
@@ -29,6 +30,7 @@ export interface PlayerSession {
 }
 
 export interface Wie {
+  readonly rendering: "canvas" | "native";
   listApps(): Promise<LibraryApp[]>;
   importApp(file: File): Promise<void>;
   deleteApp(id: string): Promise<void>;

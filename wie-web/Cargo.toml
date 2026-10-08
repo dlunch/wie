@@ -21,6 +21,8 @@ path = "src/rust/lib.rs"
 async-trait = { workspace = true }
 anyhow = { workspace = true }
 futures = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
