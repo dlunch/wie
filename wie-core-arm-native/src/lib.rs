@@ -1,15 +1,8 @@
-#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-compile_error!("wie-core-arm-native requires an x86-64 or AArch64 host");
+#![no_std]
+extern crate alloc;
 
-use std::{
-    collections::BTreeMap,
-    future::poll_fn,
-    mem::transmute,
-    ops::Range,
-    sync::Arc,
-    task::Poll,
-    time::{Duration, Instant},
-};
+use alloc::{boxed::Box, collections::BTreeMap, format, sync::Arc, vec::Vec};
+use core::{future::poll_fn, mem::transmute, ops::Range, task::Poll};
 
 use cranelift_codegen::ir::{AbiParam, UserFuncName, types};
 use cranelift_jit::{JITBuilder, JITModule};
@@ -50,14 +43,12 @@ struct Modules {
 
 pub struct NativeExecutor {
     modules: Arc<Mutex<Modules>>,
-    origin: Instant,
 }
 
 impl NativeExecutor {
     pub fn new() -> Self {
         Self {
             modules: Arc::new(Mutex::new(Modules::default())),
-            origin: Instant::now(),
         }
     }
 }
@@ -69,13 +60,8 @@ impl Default for NativeExecutor {
 }
 
 impl CompiledExecutor for NativeExecutor {
-    fn now(&self) -> f64 {
-        self.origin.elapsed().as_secs_f64() * 1000.0
-    }
-
-    fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
+    fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
         let modules = Arc::downgrade(&self.modules);
-        let origin = self.origin;
         let mut regions = request.regions;
         Box::pin(async move {
             let mut compiled = Vec::new();
@@ -83,30 +69,13 @@ impl CompiledExecutor for NativeExecutor {
                 if modules.upgrade().is_none() {
                     return Poll::Ready(Err(WieError::FatalError("Native ARM AOT owner was dropped".into())));
                 }
-                let started = Instant::now();
-                loop {
-                    if origin.elapsed().as_secs_f64() * 1000.0 >= deadline_ms {
-                        return Poll::Ready(Err(WieError::FatalError("Native ARM AOT preparation timed out".into())));
-                    }
-                    let done = match regions.next() {
-                        Some(Some(region)) => {
-                            compiled.push(compile_region(region.ir)?);
-                            false
-                        }
-                        Some(None) => false,
-                        None => true,
-                    };
-                    if origin.elapsed().as_secs_f64() * 1000.0 >= deadline_ms {
-                        return Poll::Ready(Err(WieError::FatalError("Native ARM AOT preparation timed out".into())));
-                    }
-                    if done {
-                        return Poll::Ready(Ok(()));
-                    }
-                    if started.elapsed() >= Duration::from_millis(4) {
-                        context.waker().wake_by_ref();
-                        return Poll::Pending;
-                    }
+                match regions.next() {
+                    Some(Some(region)) => compiled.push(compile_region(region.ir)?),
+                    Some(None) => {}
+                    None => return Poll::Ready(Ok(())),
                 }
+                context.waker().wake_by_ref();
+                Poll::Pending
             })
             .await?;
             let modules = modules
@@ -202,14 +171,16 @@ fn compile_region(ir: RegionIr) -> Result<(NativeRegion, ManifestRegion)> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        io,
-        sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        },
+    extern crate std;
+
+    use alloc::{boxed::Box, sync::Arc, vec::Vec};
+    use core::{
+        iter,
+        mem::transmute,
+        sync::atomic::{AtomicUsize, Ordering},
         task::{Context, Poll, Waker},
     };
+    use std::io;
 
     use cranelift_codegen::ir::{AbiParam, InstBuilder, types};
     use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
@@ -278,16 +249,13 @@ mod tests {
     fn preparation_preserves_exact_coverage_and_region_lifetimes() {
         let mut executor = NativeExecutor::new();
         let artifact = block_on(
-            executor.prepare(
-                request(
-                    [
-                        Some(region(0x1004, &[&[(0x1004, 4)], &[(0x1000, 4)], &[(0x1010, 4)]])),
-                        Some(region(0x2000, &[&[(0x2000, 4)]])),
-                    ]
-                    .into_iter(),
-                ),
-                executor.now() + 10_000.0,
-            ),
+            executor.prepare(request(
+                [
+                    Some(region(0x1004, &[&[(0x1004, 4)], &[(0x1000, 4)], &[(0x1010, 4)]])),
+                    Some(region(0x2000, &[&[(0x2000, 4)]])),
+                ]
+                .into_iter(),
+            )),
         )
         .unwrap();
         assert_eq!(artifact.regions.len(), 2);
@@ -309,7 +277,6 @@ mod tests {
         let mut frame = RunFrame {
             cpsr: 0x1f,
             end: 0x1008,
-            budget: 2,
             ..RunFrame::default()
         };
         frame.regs[15] = 0x1000;
@@ -322,7 +289,6 @@ mod tests {
         assert_eq!(frame.regs[15], 0x1008);
         frame.regs[15] = 0x2000;
         frame.end = 0x2004;
-        frame.budget = 1;
         frame.executed = 0;
         assert!(executor.execute(second, &mut frame, &mut access).unwrap() == CompiledExit::End);
         assert_eq!(frame.executed, 1);
@@ -339,16 +305,16 @@ mod tests {
             let observed = steps.clone();
             let iterator_lifetime = Arc::new(());
             let iterator_owner = Arc::downgrade(&iterator_lifetime);
-            let regions = std::iter::once(Some(region(0x1000, &[&[(0x1000, 4)]])))
-                .chain(std::iter::repeat_with(|| None))
+            let regions = iter::once(Some(region(0x1000, &[&[(0x1000, 4)]])))
+                .chain(iter::repeat_with(|| None))
                 .inspect(move |_| {
                     let _ = &iterator_lifetime;
                     observed.fetch_add(1, Ordering::Relaxed);
                 });
-            let mut future = executor.prepare(request(regions), executor.now() + 10_000.0);
+            let mut future = executor.prepare(request(regions));
             let mut context = Context::from_waker(Waker::noop());
             assert!(future.as_mut().poll(&mut context).is_pending());
-            assert!(steps.load(Ordering::Relaxed) >= 1);
+            assert_eq!(steps.load(Ordering::Relaxed), 1);
             assert!(executor.modules.lock().regions.is_empty());
             if drop_owner {
                 drop(executor);
@@ -361,14 +327,6 @@ mod tests {
                 assert!(executor.modules.lock().regions.is_empty());
             }
         }
-    }
-
-    #[test]
-    fn expired_preparation_does_not_decode_or_publish() {
-        let mut executor = NativeExecutor::new();
-        let input = request(std::iter::from_fn(|| panic!("expired preparation must not decode")));
-        assert!(block_on(executor.prepare(input, 0.0)).is_err());
-        assert!(executor.modules.lock().regions.is_empty());
     }
 
     #[test]
@@ -406,7 +364,7 @@ mod tests {
             let mut invalid = region(0x2000, &[&[(0x2000, 4)]]);
             invalid.ir.blocks[0].instructions[0].operation = operation;
             let input = request([Some(region(0x1000, &[&[(0x1000, 4)]])), Some(invalid)].into_iter());
-            assert!(block_on(executor.prepare(input, executor.now() + 10_000.0)).is_err());
+            assert!(block_on(executor.prepare(input)).is_err());
             assert!(executor.modules.lock().regions.is_empty());
         }
     }
@@ -457,7 +415,7 @@ mod tests {
                 module.define_function(function, &mut context).unwrap();
                 if finalize {
                     module.finalize_definitions().unwrap();
-                    let run = unsafe { std::mem::transmute::<*const u8, unsafe extern "C" fn() -> u32>(module.get_finalized_function(function)) };
+                    let run = unsafe { transmute::<*const u8, unsafe extern "C" fn() -> u32>(module.get_finalized_function(function)) };
                     assert_eq!(unsafe { run() }, 7);
                 }
                 assert_eq!(frees.load(Ordering::Relaxed), 0);

@@ -24,18 +24,11 @@ export function executeRegion(region, frame, context, slot) {
 "#)]
 extern "C" {
     #[wasm_bindgen(catch, js_name = compileArm)]
-    fn compile_arm(
-        artifact: &Object,
-        key: &JsValue,
-        cached_digest: &JsValue,
-        imports: &Object,
-        frame: u32,
-        regions: u32,
-        deadline: f64,
-    ) -> Result<Promise, JsValue>;
+    fn compile_arm(artifact: &Object, key: &JsValue, cached_digest: &JsValue, imports: &Object, frame: u32, regions: u32)
+    -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(catch, js_name = loadArmCache)]
-    fn load_arm_cache(input: &Uint8Array, version: u32, deadline: f64) -> Result<Promise, JsValue>;
+    fn load_arm_cache(input: &Uint8Array, version: u32) -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(js_name = compilerTask)]
     fn compiler_task() -> Promise;
@@ -61,17 +54,13 @@ pub struct WasmExecutor {
 unsafe impl Send for WasmExecutor {}
 
 impl CompiledExecutor for WasmExecutor {
-    fn now(&self) -> f64 {
-        now()
-    }
-
-    fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
+    fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
         let weak = Rc::downgrade(&self.modules);
         let module = self.next_module;
         self.next_module += 1;
         let (sender, receiver) = oneshot::channel();
         spawn_local(async move {
-            let result = prepare_module(request, deadline_ms, module).await;
+            let result = prepare_module(request, module).await;
             let Some(state) = weak.upgrade() else { return };
             let mut state = state.borrow_mut();
             let result = match result {
@@ -131,20 +120,20 @@ impl CompiledExecutor for WasmExecutor {
     }
 }
 
-async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> Result<(CompiledArtifact, Function), JsValue> {
+async fn prepare_module(request: CompileRequest, module: u32) -> Result<(CompiledArtifact, Function), JsValue> {
     let mut group_started = now();
     // Persist only the initial image; runtime replacements belong to this execution.
     let lookup = if module == 0 {
         let mut input = Vec::new();
         input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
         for image in request.images.iter() {
-            preparation_checkpoint(&mut group_started, deadline).await?;
+            preparation_checkpoint(&mut group_started).await?;
             input.extend_from_slice(&image.address.to_le_bytes());
             input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
             input.extend_from_slice(&image.bytes);
         }
         let input_copy = Uint8Array::from(input.as_slice());
-        JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?
+        JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION)?).await?
     } else {
         Object::new().into()
     };
@@ -160,7 +149,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
             let mut owned = BTreeSet::new();
             let mut regions = Vec::new();
             while !manifest.is_empty() {
-                preparation_checkpoint(&mut group_started, deadline).await?;
+                preparation_checkpoint(&mut group_started).await?;
                 let region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
                 validate_manifest_region(&region, &request.images).map_err(|error| JsValue::from_str(&error))?;
                 for &pc in &region.instruction_pcs {
@@ -177,7 +166,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
                 });
             }
             let digest = Reflect::get(&artifact, &"digest".into())?;
-            let dispatcher = prepare_dispatcher(&artifact, &key, &digest, regions.len(), deadline).await?;
+            let dispatcher = prepare_dispatcher(&artifact, &key, &digest, regions.len()).await?;
             Ok::<_, JsValue>((CompiledArtifact { regions }, dispatcher))
         }
         .await;
@@ -191,7 +180,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
 
     let mut compiler = Compiler::new(request);
     loop {
-        preparation_checkpoint(&mut group_started, deadline).await?;
+        preparation_checkpoint(&mut group_started).await?;
         if compiler.step().map_err(|error| JsValue::from_str(&error))? {
             break;
         }
@@ -200,7 +189,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
     let mut serialized = Vec::new();
     let mut regions = Vec::with_capacity(manifest.len());
     for (slot, manifest) in manifest.into_iter().enumerate() {
-        preparation_checkpoint(&mut group_started, deadline).await?;
+        preparation_checkpoint(&mut group_started).await?;
         encode_manifest_region(&manifest, &mut serialized);
         regions.push(CompiledRegion {
             manifest,
@@ -213,28 +202,19 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
     Reflect::set(&artifact, &"bytes".into(), &bytes_copy)?;
     let manifest_copy = Uint8Array::from(serialized.as_slice());
     Reflect::set(&artifact, &"manifest".into(), &manifest_copy)?;
-    let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, regions.len(), deadline).await?;
+    let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, regions.len()).await?;
     Ok((CompiledArtifact { regions }, dispatcher))
 }
 
-async fn preparation_checkpoint(group_started: &mut f64, deadline: f64) -> Result<(), JsValue> {
+async fn preparation_checkpoint(group_started: &mut f64) -> Result<(), JsValue> {
     if now() - *group_started >= 4.0 {
         JsFuture::from(compiler_task()).await?;
         *group_started = now();
-        if *group_started >= deadline {
-            return Err(JsValue::from_str("ARM AOT preparation timed out"));
-        }
     }
     Ok(())
 }
 
-async fn prepare_dispatcher(
-    artifact: &Object,
-    key: &JsValue,
-    cached_digest: &JsValue,
-    region_count: usize,
-    deadline: f64,
-) -> Result<Function, JsValue> {
+async fn prepare_dispatcher(artifact: &Object, key: &JsValue, cached_digest: &JsValue, region_count: usize) -> Result<Function, JsValue> {
     let mut warmup = Box::new(RunFrame {
         cpsr: 0x1f,
         end: 0x1000,
@@ -249,11 +229,8 @@ async fn prepare_dispatcher(
         &imports,
         &mut *warmup as *mut RunFrame as u32,
         region_count as u32,
-        deadline,
     )?;
     let result = JsFuture::from(promise).await;
-    // TS checks job settlement before warmup and after each yield, so timed-out continuations cannot reuse this frame.
-    drop(warmup);
     result?.dyn_into::<Function>()
 }
 

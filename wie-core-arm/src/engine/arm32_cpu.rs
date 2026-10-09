@@ -129,7 +129,6 @@ impl ArmEngine for Arm32CpuEngine {
                         regs: core::array::from_fn(|index| self.cpu.reg_get(Mode::User, index as u8)),
                         cpsr,
                         end,
-                        budget: count - budget_consumed,
                         ..RunFrame::default()
                     };
                     let result = {
@@ -151,10 +150,6 @@ impl ArmEngine for Arm32CpuEngine {
                         self.cpu.reg_set(Mode::User, index as u8, value);
                     }
                     self.cpu.reg_set(Mode::User, reg::CPSR, frame.cpsr);
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        budget_consumed += frame.executed;
-                    }
                     if exit == CompiledExit::GuestFault {
                         return Err(WieError::InvalidMemoryAccess(frame.fault_address));
                     }
@@ -572,9 +567,8 @@ mod tests {
 
     #[derive(Default)]
     struct Responses {
-        requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
+        requests: Vec<Vec<wie_arm_jit_types::CompileRegion>>,
         ready: Option<futures::channel::oneshot::Sender<Result<CompiledArtifact>>>,
-        now: f64,
         released: Vec<CompiledHandle>,
         executed: Vec<u32>,
     }
@@ -582,14 +576,10 @@ mod tests {
     struct DeferredExecutor(Arc<Mutex<Responses>>);
 
     impl CompiledExecutor for DeferredExecutor {
-        fn now(&self) -> f64 {
-            self.0.lock().now
-        }
-
-        fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
+        fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
             let (sender, receiver) = futures::channel::oneshot::channel();
             let mut state = self.0.lock();
-            state.requests.push((request.regions.flatten().collect(), deadline_ms));
+            state.requests.push(request.regions.flatten().collect());
             state.ready = Some(sender);
             Box::pin(async move {
                 receiver
@@ -651,13 +641,11 @@ mod tests {
         aot.record_image(0x3ffe, 6);
         aot.record_image(0x4000, 2);
         memory.write_range(0x4000, &[7, 0x21]).unwrap();
-        responses.lock().now = 200.0;
         let _preparation = aot.begin(&memory).unwrap().unwrap();
 
         let state = responses.lock();
         assert_eq!(state.requests.len(), 1);
-        let (request, deadline) = &state.requests[0];
-        assert_eq!(*deadline, 10_200.0);
+        let request = &state.requests[0];
         let instructions: Vec<_> = request
             .iter()
             .filter(|region| region.ir.entry.thumb)
@@ -675,7 +663,6 @@ mod tests {
         }
         assert!(aot.state == PreparationState::Preparing);
         drop(state);
-        responses.lock().now = 300.0;
         assert!(aot.begin(&memory).unwrap().is_none());
         assert_eq!(responses.lock().requests.len(), 1);
         assert!(aot.state == PreparationState::Preparing);
@@ -691,7 +678,7 @@ mod tests {
             engine.record_image(pc, 4);
         }
         let preparation = engine.begin_preparation().unwrap().unwrap();
-        let compiled = artifact(&responses.lock().requests[0].0, 0);
+        let compiled = artifact(&responses.lock().requests[0], 0);
         assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
         engine.finish_preparation(futures::executor::block_on(preparation));
         let key = RegionKey {
@@ -732,7 +719,7 @@ mod tests {
         assert_eq!(engine.reg_read(ArmRegister::R0), 3);
         assert!(responses.lock().executed.is_empty());
         assert_eq!(responses.lock().requests.len(), 2);
-        assert!(responses.lock().requests[1].0.iter().all(|region| region.ir.entry.thumb));
+        assert!(responses.lock().requests[1].iter().all(|region| region.ir.entry.thumb));
         engine.reg_write(ArmRegister::PC, 0x1041);
         engine.run(0x2000, 10).unwrap();
         assert_eq!(responses.lock().executed.as_slice(), &[0, 0]);
@@ -740,7 +727,7 @@ mod tests {
         // A second explicit flush supersedes a pending snapshot; no page versions are needed.
         engine.mem.as_arm32cpu_memory().w16(0x1000, 0x3004);
         engine.aot.as_mut().unwrap().invalidate(0x1000..0x1020);
-        let stale = artifact(&responses.lock().requests[1].0, 1);
+        let stale = artifact(&responses.lock().requests[1], 1);
         assert!(responses.lock().ready.take().unwrap().send(Ok(stale)).is_ok());
         engine.reg_write(ArmRegister::PC, 0x1001);
         engine.reg_write(ArmRegister::R0, 0);
@@ -750,7 +737,7 @@ mod tests {
         assert!(!engine.aot.as_ref().unwrap().entries.contains_key(&key));
         assert_eq!(responses.lock().released.iter().map(|handle| handle.module).collect::<Vec<_>>(), [0, 1]);
 
-        let fresh = artifact(&responses.lock().requests[2].0, 2);
+        let fresh = artifact(&responses.lock().requests[2], 2);
         assert!(responses.lock().ready.take().unwrap().send(Ok(fresh)).is_ok());
         engine.reg_write(ArmRegister::PC, 0x1001);
         engine.run(0x2000, 10).unwrap();
@@ -795,7 +782,7 @@ mod tests {
         );
         assert!(!aot.finish(futures::executor::block_on(preparation)));
         assert!(aot.state == PreparationState::Ready);
-        let late = artifact(&responses.lock().requests[0].0, 0);
+        let late = artifact(&responses.lock().requests[0], 0);
         assert!(!aot.finish(Ok(late)));
         assert!(aot.entries.is_empty());
         assert_eq!(responses.lock().requests.len(), 1);
@@ -807,11 +794,7 @@ mod tests {
     }
 
     impl CompiledExecutor for TestExecutor {
-        fn now(&self) -> f64 {
-            0.0
-        }
-
-        fn prepare(&mut self, request: CompileRequest, _: f64) -> PreparationFuture {
+        fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
             let compiled = artifact(&request.regions.flatten().collect::<Vec<_>>(), 0);
             Box::pin(async move { Ok(compiled) })
         }
@@ -861,11 +844,8 @@ mod tests {
             let preparation = engine.begin_preparation().unwrap().unwrap();
             engine.finish_preparation(futures::executor::block_on(preparation));
             let result = engine.run(0x2000, budget).unwrap();
-            let yielded = budget == 2 && !cfg!(target_arch = "wasm32");
-            let executed = if yielded { 2 } else { 3 };
-            let compiled = if cfg!(target_arch = "wasm32") { completed.unwrap_or(0) } else { 0 };
-            assert_eq!(result.budget_consumed, executed - compiled);
-            assert_eq!(engine.reg_read(ArmRegister::Cpsr), if yielded { 0x3f } else { 0x1f });
+            assert_eq!(result.budget_consumed, 3 - completed.unwrap_or(0));
+            assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
             assert_eq!(engine.aot.is_some(), completed.is_none());
             assert_eq!(calls.lock().0, if completed.is_some() { 1 } else { 2 });
             assert_eq!(engine.reg_read(ArmRegister::R0), 43);
@@ -873,14 +853,7 @@ mod tests {
             engine.mem_read(0x20000, 4, &mut value).unwrap();
             assert_eq!(u32::from_le_bytes(value), 42);
             assert_eq!(calls.lock().1, completed.is_some());
-            if yielded {
-                assert!(matches!(result.stop_reason, EngineStopReason::Yield));
-                assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
-                assert_eq!(engine.run(0x2000, 10).unwrap().budget_consumed, 1);
-                assert_eq!(calls.lock().0, 1);
-            } else {
-                assert!(matches!(result.stop_reason, EngineStopReason::End));
-            }
+            assert!(matches!(result.stop_reason, EngineStopReason::End));
         }
     }
 
@@ -1017,7 +990,7 @@ mod tests {
             engine.mem_write(0x2001e, &[0, 0xf0, 0, 0xf8, 0x70, 0x47]).unwrap();
             engine.record_image(0x2001e, 6);
             let preparation = engine.begin_preparation().unwrap().unwrap();
-            let compiled = artifact(&responses.lock().requests[0].0, 0);
+            let compiled = artifact(&responses.lock().requests[0], 0);
             assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
             engine.finish_preparation(futures::executor::block_on(preparation));
             engine.reg_write(ArmRegister::Cpsr, cpsr);
@@ -1167,20 +1140,24 @@ mod tests {
             self.retired.store(0, Ordering::Relaxed);
         }
 
-        fn compare_run(&mut self, end: u32, budget: u32) {
+        fn compare_run(&mut self, end: u32) {
             let pc = self.native.reg_read(ArmRegister::PC);
-            let expected = self.interpreted.run(end, budget);
-            let actual = self.native.run(end, budget);
+            let retired = self.retired.load(Ordering::Relaxed);
+            let expected = self.interpreted.run(end, u32::MAX);
+            let actual = self.native.run(end, u32::MAX);
             for index in 0..=16 {
                 assert_eq!(
                     self.native.cpu.reg_get(arm32_cpu::Mode::User, index),
                     self.interpreted.cpu.reg_get(arm32_cpu::Mode::User, index),
-                    "register {index}, pc={pc:#x}, end={end:#x}, budget={budget}"
+                    "register {index}, pc={pc:#x}, end={end:#x}"
                 );
             }
             match (actual, expected) {
                 (Ok(actual), Ok(expected)) => {
-                    assert_eq!(actual.budget_consumed, expected.budget_consumed);
+                    assert_eq!(
+                        actual.budget_consumed + self.retired.load(Ordering::Relaxed) - retired,
+                        expected.budget_consumed
+                    );
                     match (&actual.stop_reason, expected.stop_reason) {
                         (EngineStopReason::End, EngineStopReason::End) | (EngineStopReason::Yield, EngineStopReason::Yield) => {}
                         (
@@ -1298,7 +1275,7 @@ mod tests {
                             (ArmRegister::R7, 0x23000),
                         ],
                     );
-                    engines.compare_run(pc + 8, 2);
+                    engines.compare_run(pc + 8);
                     engines.compare_memory();
                     assert!(engines.retired.load(Ordering::Relaxed) >= 1, "{opcode:08x}");
                     if matches!(address, 0x21000 | 0x21004) {
@@ -1341,14 +1318,14 @@ mod tests {
                 for engine in [&mut engines.interpreted, &mut engines.native] {
                     engine.mem_write(0x21000, &target.to_le_bytes().repeat(2)).unwrap();
                 }
-                engines.compare_run(0x8000, 1);
+                engines.compare_run(if index == 6 { pc + 4 } else { 0x8000 });
                 assert_eq!(engines.retired.load(Ordering::Relaxed), 1);
             }
         }
         // Thumb: str r0,[r1]; svc #4. The SVC remains interpreter-owned.
         let mut engines = Engines::new(&[0x08, 0x60, 0x04, 0xdf]);
         engines.reset(0x1001, 0x3f, &[(ArmRegister::R0, 42), (ArmRegister::R1, 0x21000)]);
-        engines.compare_run(0x8000, 2);
+        engines.compare_run(0x8000);
         engines.compare_memory();
         assert_eq!(engines.retired.load(Ordering::Relaxed), 1);
     }
@@ -1381,7 +1358,9 @@ mod tests {
             engines.native.run(0x8000, 2).unwrap();
             assert_eq!(engines.native.reg_read(ArmRegister::R0), 2);
             assert_eq!(engines.retired.load(Ordering::Relaxed), 0);
-            engines.native.aot.as_mut().unwrap().poll_recompilations();
+            while !engines.native.aot.as_ref().unwrap().entries.contains_key(&key) {
+                engines.native.aot.as_mut().unwrap().poll_recompilations();
+            }
             engines.reset(0x1001, 0x3f, &[]);
             engines.native.run(0x8000, 2).unwrap();
             assert_eq!(engines.native.reg_read(ArmRegister::R0), 2);
@@ -1392,7 +1371,9 @@ mod tests {
             engines.native.aot.as_mut().unwrap().invalidate(0x1000..0x1020);
             engines.reset(0x1001, 0x3f, &[]);
             engines.native.run(0x8000, 2).unwrap();
-            engines.native.aot.as_mut().unwrap().poll_recompilations();
+            while !engines.native.aot.as_ref().unwrap().entries.contains_key(&key) {
+                engines.native.aot.as_mut().unwrap().poll_recompilations();
+            }
         }
     }
 
@@ -1452,7 +1433,7 @@ mod tests {
                                     (ArmRegister::R4, 0xffff_ffff),
                                 ],
                             );
-                            engines.compare_run(pc + 4, 1);
+                            engines.compare_run(pc + 4);
                             assert_eq!(engines.retired.load(Ordering::Relaxed), 1, "{opcode:08x}");
                         }
                     }
@@ -1462,21 +1443,30 @@ mod tests {
     }
 
     #[test]
-    fn native_loops_interior_entries_and_budgets_match_interpreter() {
-        // subs r0,#1; bne 0x1000; bx lr; b 0x1006
-        let bytes: Vec<_> = [0x3801u16, 0xd1fd, 0x4770, 0xe7fe].into_iter().flat_map(u16::to_le_bytes).collect();
+    fn native_loops_and_interior_entries_run_without_interpreter_budget() {
+        // subs r0,#1; bne 0x1000; bx lr
+        let bytes: Vec<_> = [0x3801u16, 0xd1fd, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect();
         let mut engines = Engines::new(&bytes);
-        for pc in [0x1000, 0x1002, 0x1004, 0x1006] {
-            for end in [0x1000, 0x1002, 0x1004, 0x1006, 0x8000] {
-                engines.reset(pc | 1, 0x3f, &[(ArmRegister::R0, 3)]);
-                for budget in [0, 1, 2, 9] {
-                    engines.compare_run(end, budget);
-                }
-            }
+        for (pc, end) in [
+            (0x1000, 0x1000),
+            (0x1000, 0x1002),
+            (0x1000, 0x1004),
+            (0x1000, 0x8000),
+            (0x1002, 0x1004),
+            (0x1002, 0x8000),
+            (0x1004, 0x8000),
+        ] {
+            engines.reset(pc | 1, 0x3f, &[(ArmRegister::R0, 3)]);
+            engines.compare_run(end);
         }
-        engines.reset(0x1007, 0x3f, &[]);
-        engines.compare_run(0x8000, 100);
-        assert_eq!(engines.retired.load(Ordering::Relaxed), 100);
+        engines.reset(0x1001, 0x3f, &[(ArmRegister::R0, 3)]);
+        assert!(matches!(engines.native.run(0x8000, 0).unwrap().stop_reason, EngineStopReason::Yield));
+        assert_eq!(engines.retired.load(Ordering::Relaxed), 0);
+        let result = engines.native.run(0x8000, 1).unwrap();
+        assert!(matches!(result.stop_reason, EngineStopReason::End));
+        assert_eq!(result.budget_consumed, 0);
+        assert_eq!(engines.native.reg_read(ArmRegister::R0), 0);
+        assert_eq!(engines.retired.load(Ordering::Relaxed), 7);
 
         for suffix in [0xf802u16, 0xe802] {
             let bytes: Vec<_> = [0xf000, suffix, 0x3001, 0x4770, 0x3101, 0x4770]
@@ -1485,7 +1475,7 @@ mod tests {
                 .collect();
             let mut engines = Engines::new(&bytes);
             engines.reset(0x1001, 0x3f, &[]);
-            engines.compare_run(0x1008, 1);
+            engines.compare_run(0x1008);
         }
     }
 }

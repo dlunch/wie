@@ -1,7 +1,5 @@
-use std::{
-    collections::BTreeMap,
-    mem::{offset_of, size_of},
-};
+use alloc::{collections::BTreeMap, format};
+use core::mem::{offset_of, size_of, swap};
 
 use cranelift_codegen::{
     Context,
@@ -278,10 +276,6 @@ impl Emitter<'_> {
         let end = self.load_frame(offset_of!(RunFrame, end));
         let at_end = self.builder.ins().icmp(IntCC::Equal, pc, end);
         self.guard(at_end, CompiledExit::End);
-        let executed = self.load_frame(offset_of!(RunFrame, executed));
-        let budget = self.load_frame(offset_of!(RunFrame, budget));
-        let exhausted = self.builder.ins().icmp(IntCC::UnsignedGreaterThanOrEqual, executed, budget);
-        self.guard(exhausted, CompiledExit::Dispatch);
     }
 
     fn commit(&mut self, next: Value, fixed: Option<u32>) {
@@ -457,7 +451,7 @@ impl Emitter<'_> {
                 let result = match op {
                     AluOp::Add | AluOp::AddCarry | AluOp::Sub | AluOp::SubCarry | AluOp::ReverseSub | AluOp::ReverseSubCarry => {
                         if matches!(op, AluOp::ReverseSub | AluOp::ReverseSubCarry) {
-                            std::mem::swap(&mut left, &mut right);
+                            swap(&mut left, &mut right);
                         }
                         let subtract = !matches!(op, AluOp::Add | AluOp::AddCarry);
                         if subtract {
@@ -613,6 +607,8 @@ impl Emitter<'_> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::{vec, vec::Vec};
+
     use cranelift_codegen::{
         control::ControlPlane,
         ir::{AbiParam, InstructionData, Opcode, Signature},

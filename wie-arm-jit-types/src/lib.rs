@@ -79,8 +79,6 @@ pub struct RunFrame {
     pub executed: u32,
     pub fault_address: u32,
     pub scratch: u32,
-    /// Maximum instructions retired by a native execution call.
-    pub budget: u32,
 }
 
 /// The owning guest page directory entry. Generated code reads the nullable page pointer at offset zero.
@@ -109,9 +107,7 @@ pub trait ExecutionAccess {
 }
 
 pub trait CompiledExecutor: Send {
-    /// Monotonic milliseconds in the same clock domain used for preparation deadlines.
-    fn now(&self) -> f64;
-    fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture;
+    fn prepare(&mut self, request: CompileRequest) -> PreparationFuture;
     /// Releases a compiled region; a shared module remains alive until its last region is released.
     fn release(&mut self, handle: CompiledHandle);
     /// Both `Ok` and `Err` leave the completed instruction prefix in `frame`, including its next PC and counters.
@@ -128,7 +124,7 @@ mod tests {
 
     #[test]
     fn generated_code_frame_has_a_fixed_plain_data_layout() {
-        assert_eq!(size_of::<RunFrame>(), 88);
+        assert_eq!(size_of::<RunFrame>(), 84);
         assert_eq!(align_of::<RunFrame>(), 4);
         assert_eq!(offset_of!(RunFrame, regs), 0);
         assert_eq!(offset_of!(RunFrame, cpsr), 64);
@@ -136,6 +132,5 @@ mod tests {
         assert_eq!(offset_of!(RunFrame, executed), 72);
         assert_eq!(offset_of!(RunFrame, fault_address), 76);
         assert_eq!(offset_of!(RunFrame, scratch), 80);
-        assert_eq!(offset_of!(RunFrame, budget), 84);
     }
 }

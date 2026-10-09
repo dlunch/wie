@@ -20,7 +20,6 @@ use crate::engine::EmulatedMemory;
 // These are policy limits, not ISA limits; larger regions trade fewer dispatches for longer preparation steps.
 const MAX_REGION_INSTRUCTIONS: usize = 4096;
 const MAX_REGION_BLOCKS: usize = 512;
-const PREPARATION_TIMEOUT_MS: f64 = 10_000.0;
 
 struct Recompilation {
     manifest: ManifestRegion,
@@ -66,9 +65,8 @@ impl Aot {
             self.state = PreparationState::Ready;
             return Ok(None);
         }
-        let deadline_ms = self.executor.now() + PREPARATION_TIMEOUT_MS;
         self.state = PreparationState::Preparing;
-        Ok(Some(self.executor.prepare(request, deadline_ms)))
+        Ok(Some(self.executor.prepare(request)))
     }
 
     pub fn finish(&mut self, result: Result<CompiledArtifact>) -> bool {
@@ -136,10 +134,9 @@ impl Aot {
                 return;
             }
         };
-        let deadline_ms = self.executor.now() + PREPARATION_TIMEOUT_MS;
         self.recompilations.push(Recompilation {
             manifest,
-            future: self.executor.prepare(request, deadline_ms),
+            future: self.executor.prepare(request),
             invalidated: false,
         });
     }

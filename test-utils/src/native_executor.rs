@@ -26,12 +26,8 @@ impl TestNativeExecutor {
 }
 
 impl CompiledExecutor for TestNativeExecutor {
-    fn now(&self) -> f64 {
-        self.inner.now()
-    }
-
-    fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
-        let preparation = self.inner.prepare(request, deadline_ms);
+    fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
+        let preparation = self.inner.prepare(request);
         Box::pin(async move {
             let artifact = preparation.await.expect("native preparation must succeed");
             assert!(!artifact.regions.is_empty(), "native preparation must produce compiled regions");

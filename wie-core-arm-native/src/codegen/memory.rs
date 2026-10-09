@@ -1,4 +1,5 @@
-use std::mem::{offset_of, size_of};
+use alloc::vec::Vec;
+use core::mem::{offset_of, size_of};
 
 use cranelift_codegen::ir::{Endianness, InstBuilder, MemFlagsData, Value, condcodes::IntCC, types};
 
