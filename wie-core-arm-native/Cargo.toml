@@ -11,6 +11,8 @@ cranelift-codegen = "0.136.2"
 cranelift-frontend = "0.136.2"
 cranelift-jit = "0.136.2"
 cranelift-module = "0.136.2"
+futures = { workspace = true }
+rayon = "1.12"
 spin = { workspace = true }
 wie-arm-jit-types = { workspace = true }
 wie-util = { workspace = true }

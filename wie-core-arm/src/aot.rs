@@ -205,6 +205,7 @@ mod tests {
     use wie_core_arm_wasm::compile;
 
     use super::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, decoder::Decoder};
+    use crate::RUN_FUNCTION_LR;
 
     fn image(address: u32, bytes: Vec<u8>) -> CodeImage {
         CodeImage { address, bytes }
@@ -232,6 +233,7 @@ mod tests {
             // One region crosses a backing-memory page boundary.
             image(0xfffe, [0x3001_u16, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()),
             image(0x20000, [0xf000_u16, 0xf800, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()),
+            image(RUN_FUNCTION_LR - 4, [0xe1a00000_u32; 3].into_iter().flat_map(u32::to_le_bytes).collect()),
         ];
         let images: Arc<[_]> = images.into();
         let artifact = compile(CompileRequest {
@@ -254,6 +256,11 @@ mod tests {
         for (thumb, hole, root) in [(false, 0x1014, 0x1018), (true, 0x200a, 0x200c)] {
             assert!(!owned.contains(&(thumb, hole)));
             assert!(owned.contains(&(thumb, root)));
+        }
+        for thumb in [false, true] {
+            assert!(!owned.contains(&(thumb, RUN_FUNCTION_LR)));
+            assert!(owned.contains(&(thumb, RUN_FUNCTION_LR - 4)));
+            assert!(owned.contains(&(thumb, RUN_FUNCTION_LR + 4)));
         }
         assert!(!owned.contains(&(true, 0x200e)));
         assert_eq!(

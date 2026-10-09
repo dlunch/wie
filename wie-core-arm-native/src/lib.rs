@@ -1,12 +1,24 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, collections::BTreeMap, format, sync::Arc, vec::Vec};
-use core::{future::poll_fn, mem::transmute, ops::Range, task::Poll};
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, btree_map::Entry},
+    format,
+    sync::Arc,
+    vec::Vec,
+};
+use core::{mem::transmute, ops::Range};
 
-use cranelift_codegen::ir::{AbiParam, UserFuncName, types};
+use cranelift_codegen::{
+    Context,
+    ir::{AbiParam, UserFuncName, types},
+};
+use cranelift_frontend::FunctionBuilderContext;
 use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{Linkage, Module, default_libcall_names};
+use cranelift_module::{FuncId, Module, default_libcall_names};
+use futures::channel::oneshot;
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use spin::Mutex;
 
 use wie_arm_jit_types::{
@@ -30,15 +42,22 @@ impl Drop for ModuleOwner {
     }
 }
 
-struct NativeRegion {
+struct NativeModule {
     _module: ModuleOwner,
-    entry: RegionFn,
+    entries: BTreeMap<u32, RegionFn>,
+}
+
+struct Compiler {
+    module: ModuleOwner,
+    context: Context,
+    builder_context: FunctionBuilderContext,
+    regions: Vec<(usize, FuncId, ManifestRegion)>,
 }
 
 #[derive(Default)]
 struct Modules {
     next_id: u32,
-    regions: BTreeMap<u32, NativeRegion>,
+    compiled: BTreeMap<u32, NativeModule>,
 }
 
 pub struct NativeExecutor {
@@ -62,87 +81,142 @@ impl Default for NativeExecutor {
 impl CompiledExecutor for NativeExecutor {
     fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
         let modules = Arc::downgrade(&self.modules);
-        let mut regions = request.regions;
+        let (sender, receiver) = oneshot::channel();
+        rayon::spawn(move || {
+            let compiled = request
+                .coalesced_regions()
+                .flatten()
+                .enumerate()
+                .par_bridge()
+                .try_fold(
+                    || None,
+                    |compiler: Option<Compiler>, (index, region)| -> Result<_> {
+                        let mut compiler = match compiler {
+                            Some(compiler) => compiler,
+                            None => {
+                                let builder = JITBuilder::with_flags(&[("enable_verifier", "false")], default_libcall_names())
+                                    .map_err(|error| WieError::FatalError(format!("Creating native ARM AOT compiler: {error}")))?;
+                                let module = ModuleOwner(Some(JITModule::new(builder)));
+                                let context = module.0.as_ref().unwrap().make_context();
+                                Compiler {
+                                    module,
+                                    context,
+                                    builder_context: FunctionBuilderContext::new(),
+                                    regions: Vec::new(),
+                                }
+                            }
+                        };
+                        let (function, manifest) = compile_region(
+                            compiler.module.0.as_mut().unwrap(),
+                            &mut compiler.context,
+                            &mut compiler.builder_context,
+                            region.ir,
+                        )?;
+                        compiler.regions.push((index, function, manifest));
+                        Ok(Some(compiler))
+                    },
+                )
+                .filter_map(|compiler| compiler.transpose())
+                .map(|compiler| -> Result<_> {
+                    let mut compiler = compiler?;
+                    compiler
+                        .module
+                        .0
+                        .as_mut()
+                        .unwrap()
+                        .finalize_definitions()
+                        .map_err(|error| WieError::FatalError(format!("Finalizing native ARM AOT module: {error}")))?;
+                    Ok((compiler.module, compiler.regions))
+                })
+                .collect::<Result<Vec<_>>>();
+            let _ = sender.send(compiled);
+        });
         Box::pin(async move {
-            let mut compiled = Vec::new();
-            poll_fn(|context| {
-                if modules.upgrade().is_none() {
-                    return Poll::Ready(Err(WieError::FatalError("Native ARM AOT owner was dropped".into())));
-                }
-                match regions.next() {
-                    Some(Some(region)) => compiled.push(compile_region(region.ir)?),
-                    Some(None) => {}
-                    None => return Poll::Ready(Ok(())),
-                }
-                context.waker().wake_by_ref();
-                Poll::Pending
-            })
-            .await?;
+            let compiled = receiver
+                .await
+                .map_err(|error| WieError::FatalError(format!("Receiving native ARM AOT compilation: {error}")))??;
             let modules = modules
                 .upgrade()
                 .ok_or_else(|| WieError::FatalError("Native ARM AOT owner was dropped".into()))?;
-            let mut modules = modules.lock();
-            let mut artifact = CompiledArtifact {
-                regions: Vec::with_capacity(compiled.len()),
-            };
-            for (region, manifest) in compiled {
-                let module = modules.next_id;
-                modules.next_id += 1;
-                modules.regions.insert(module, region);
-                artifact.regions.push(CompiledRegion {
-                    manifest,
-                    handle: CompiledHandle { module, slot: 0 },
-                });
+            let mut regions = Vec::with_capacity(compiled.iter().map(|(_, regions)| regions.len()).sum());
+            {
+                let mut modules = modules.lock();
+                for (owner, compiled) in compiled {
+                    let module = owner.0.as_ref().unwrap();
+                    let id = modules.next_id;
+                    modules.next_id += 1;
+                    let mut entries = BTreeMap::new();
+                    for (slot, (index, function, manifest)) in compiled.into_iter().enumerate() {
+                        // Each entry has the host C RegionFn ABI and stays owned until the last region is released.
+                        let entry = unsafe { transmute::<*const u8, RegionFn>(module.get_finalized_function(function)) };
+                        entries.insert(slot as u32, entry);
+                        regions.push((
+                            index,
+                            CompiledRegion {
+                                manifest,
+                                handle: CompiledHandle {
+                                    module: id,
+                                    slot: slot as u32,
+                                },
+                            },
+                        ));
+                    }
+                    modules.compiled.insert(id, NativeModule { _module: owner, entries });
+                }
             }
-            Ok(artifact)
+            regions.sort_unstable_by_key(|(index, _)| *index);
+            Ok(CompiledArtifact {
+                regions: regions.into_iter().map(|(_, region)| region).collect(),
+            })
         })
     }
 
     fn release(&mut self, handle: CompiledHandle) {
-        self.modules.lock().regions.remove(&handle.module);
+        let mut modules = self.modules.lock();
+        if let Entry::Occupied(mut entry) = modules.compiled.entry(handle.module) {
+            entry.get_mut().entries.remove(&handle.slot);
+            if entry.get().entries.is_empty() {
+                entry.remove();
+            }
+        }
     }
 
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit> {
         let modules = self.modules.lock();
-        let region = modules
-            .regions
+        let entry = modules
+            .compiled
             .get(&handle.module)
+            .and_then(|module| module.entries.get(&handle.slot))
             .ok_or_else(|| WieError::FatalError("Native ARM AOT region is unavailable".into()))?;
         // Finalized code has this exact ABI; both borrows and the executable owner
-        // remain live throughout the synchronous call, without host callbacks.
-        let exit = unsafe { (region.entry)(frame, access.pages().as_mut_ptr()) };
+        // remain live throughout the synchronous call; flag helpers cannot reenter execution or remap pages.
+        let exit = unsafe { entry(frame, access.pages().as_mut_ptr()) };
         match exit {
             0 => Ok(CompiledExit::Dispatch),
-            3 => Ok(CompiledExit::End),
-            4 => Ok(CompiledExit::InterpretOne),
             6 => Ok(CompiledExit::GuestFault),
             _ => Err(WieError::FatalError(format!("Native ARM AOT returned invalid exit {exit}"))),
         }
     }
 }
 
-fn compile_region(ir: RegionIr) -> Result<(NativeRegion, ManifestRegion)> {
-    let builder =
-        JITBuilder::new(default_libcall_names()).map_err(|error| WieError::FatalError(format!("Creating native ARM AOT compiler: {error}")))?;
-    let mut owner = ModuleOwner(Some(JITModule::new(builder)));
-    let module = owner.0.as_mut().unwrap();
-    let mut context = module.make_context();
+fn compile_region(
+    module: &mut JITModule,
+    context: &mut Context,
+    builder_context: &mut FunctionBuilderContext,
+    ir: RegionIr,
+) -> Result<(FuncId, ManifestRegion)> {
+    module.clear_context(context);
     let pointer = module.isa().pointer_type();
     context.func.signature.params.extend([AbiParam::new(pointer), AbiParam::new(pointer)]);
     context.func.signature.returns.push(AbiParam::new(types::I32));
     let function = module
-        .declare_function("region", Linkage::Local, &context.func.signature)
+        .declare_anonymous_function(&context.func.signature)
         .map_err(|error| WieError::FatalError(format!("Declaring native ARM AOT region: {error}")))?;
     context.func.name = UserFuncName::user(0, function.as_u32());
-    codegen::emit_region(&ir, &mut context, module.isa())?;
+    codegen::emit_region(&ir, context, builder_context, module.isa())?;
     module
-        .define_function(function, &mut context)
+        .define_function(function, context)
         .map_err(|error| WieError::FatalError(format!("Compiling native ARM AOT region: {error}")))?;
-    module
-        .finalize_definitions()
-        .map_err(|error| WieError::FatalError(format!("Finalizing native ARM AOT region: {error}")))?;
-    // The module uses the host C calling convention and the RegionFn signature.
-    let entry = unsafe { transmute::<*const u8, RegionFn>(module.get_finalized_function(function)) };
 
     let mut instructions: Vec<_> = ir.blocks.iter().flat_map(|block| &block.instructions).collect();
     instructions.sort_unstable_by_key(|instruction| instruction.pc.get());
@@ -160,7 +234,7 @@ fn compile_region(ir: RegionIr) -> Result<(NativeRegion, ManifestRegion)> {
         }
     }
     Ok((
-        NativeRegion { _module: owner, entry },
+        function,
         ManifestRegion {
             entry: ir.entry,
             instruction_pcs,
@@ -173,20 +247,20 @@ fn compile_region(ir: RegionIr) -> Result<(NativeRegion, ManifestRegion)> {
 mod tests {
     extern crate std;
 
-    use alloc::{boxed::Box, sync::Arc, vec::Vec};
+    use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec::Vec};
     use core::{
-        iter,
         mem::transmute,
         sync::atomic::{AtomicUsize, Ordering},
-        task::{Context, Poll, Waker},
+        task::{Context, Waker},
     };
-    use std::io;
+    use std::{io, sync::mpsc, time::Duration};
 
     use cranelift_codegen::ir::{AbiParam, InstBuilder, types};
     use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
     use cranelift_jit::{BranchProtection, JITBuilder, JITMemoryKind, JITMemoryProvider, JITModule, SystemMemoryProvider};
     use cranelift_module::{Linkage, Module, ModuleResult, default_libcall_names};
     use futures::executor::block_on;
+    use rayon::ThreadPoolBuilder;
     use wie_arm_jit_types::{
         CompileRegion, CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, RegionKey, RunFrame,
         ir::{AluOp, BasicBlock, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value},
@@ -247,90 +321,164 @@ mod tests {
 
     #[test]
     fn preparation_preserves_exact_coverage_and_region_lifetimes() {
-        let mut executor = NativeExecutor::new();
-        let artifact = block_on(
-            executor.prepare(request(
+        for workers in [1, 2] {
+            let pool = ThreadPoolBuilder::new().num_threads(workers).build().unwrap();
+            let mut executor = NativeExecutor::new();
+            for input in [request([].into_iter()), request([None, None].into_iter())] {
+                let future = pool.install(|| executor.prepare(input));
+                assert!(block_on(future).unwrap().regions.is_empty());
+                assert!(executor.modules.lock().compiled.is_empty());
+            }
+            let mut mode_change = region(0x4000, &[&[(0x4000, 4), (0x4004, 4)]]);
+            mode_change.ir.blocks[0].instructions[0].operation = Operation::WriteCpsr {
+                value: Value::Register(Reg::new(0)),
+                mask: 0x0100_003f,
+            };
+            let input = request(
                 [
                     Some(region(0x1004, &[&[(0x1004, 4)], &[(0x1000, 4)], &[(0x1010, 4)]])),
-                    Some(region(0x2000, &[&[(0x2000, 4)]])),
+                    None,
+                    Some(region(0x1014, &[&[(0x1014, 4)]])),
+                    Some(mode_change),
                 ]
-                .into_iter(),
-            )),
-        )
-        .unwrap();
-        assert_eq!(artifact.regions.len(), 2);
-        assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x1000, 0x1004, 0x1010]);
-        assert_eq!(artifact.regions[0].manifest.code_ranges, [0x1000..0x1008, 0x1010..0x1014]);
-        assert_eq!(artifact.regions[0].manifest.entry.pc, 0x1004);
-        let first = artifact.regions[0].handle;
-        let second = artifact.regions[1].handle;
-        assert_ne!(first.module, second.module);
-        let mut access = Access(
-            (0..0x10000)
-                .map(|_| MemoryPage::default())
-                .collect::<Vec<_>>()
-                .into_boxed_slice()
-                .try_into()
-                .ok()
-                .unwrap(),
-        );
-        let mut frame = RunFrame {
-            cpsr: 0x1f,
-            end: 0x1008,
-            ..RunFrame::default()
-        };
-        frame.regs[15] = 0x1000;
-        assert!(executor.execute(first, &mut frame, &mut access).unwrap() == CompiledExit::End);
-        assert_eq!(frame.executed, 2);
-        assert_eq!(frame.regs[15], 0x1008);
-        executor.release(first);
-        assert!(executor.execute(first, &mut frame, &mut access).is_err());
-        assert_eq!(frame.executed, 2);
-        assert_eq!(frame.regs[15], 0x1008);
-        frame.regs[15] = 0x2000;
-        frame.end = 0x2004;
-        frame.executed = 0;
-        assert!(executor.execute(second, &mut frame, &mut access).unwrap() == CompiledExit::End);
-        assert_eq!(frame.executed, 1);
-        executor.release(second);
-        assert!(executor.modules.lock().regions.is_empty());
+                .into_iter()
+                .chain((2..8).map(|index| {
+                    let pc = index * 0x4000;
+                    Some(region(pc, &[&[(pc, 4)]]))
+                })),
+            );
+            let future = pool.install(|| executor.prepare(input));
+            let artifact = block_on(future).unwrap();
+            assert_eq!(artifact.regions.len(), 8);
+            assert_eq!(
+                artifact.regions.iter().map(|region| region.manifest.entry.pc).collect::<Vec<_>>(),
+                [0x1004, 0x4000, 0x8000, 0xc000, 0x10000, 0x14000, 0x18000, 0x1c000]
+            );
+            assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x1000, 0x1004, 0x1010, 0x1014]);
+            assert_eq!(artifact.regions[0].manifest.code_ranges, [0x1000..0x1008, 0x1010..0x1018]);
+            assert_eq!(artifact.regions[1].manifest.instruction_pcs, [0x4000, 0x4004]);
+            assert_eq!(artifact.regions[1].manifest.code_ranges, [0x4000..0x4008]);
+            assert_eq!(
+                artifact
+                    .regions
+                    .iter()
+                    .map(|region| (region.handle.module, region.handle.slot))
+                    .collect::<BTreeSet<_>>()
+                    .len(),
+                artifact.regions.len()
+            );
+            let first = artifact.regions[0].handle;
+            let second = artifact.regions[1].handle;
+            let mut access = Access(
+                (0..0x10000)
+                    .map(|_| MemoryPage::default())
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice()
+                    .try_into()
+                    .ok()
+                    .unwrap(),
+            );
+            let mut frame = RunFrame {
+                cpsr: 0x1f,
+                end: 0x1008,
+                ..RunFrame::default()
+            };
+            for pc in [0x1001, 0x1002, 0x1003] {
+                frame.regs[15] = pc;
+                assert!(executor.execute(first, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+                assert_eq!(frame.regs[15], pc);
+            }
+            frame.regs[15] = 0x1000;
+            assert!(executor.execute(first, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+            assert_eq!(frame.regs[15], 0x1008);
+            frame.regs[15] = 0x1014;
+            frame.end = 0x1018;
+            assert!(executor.execute(first, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+            assert_eq!(frame.regs[15], 0x1018);
+            executor.release(first);
+            assert!(executor.modules.lock().compiled[&second.module].entries.contains_key(&second.slot));
+            assert!(executor.execute(first, &mut frame, &mut access).is_err());
+            assert_eq!(frame.regs[15], 0x1018);
+            for cpsr in [0x13, 0x3f, 0x0100_001f] {
+                frame.cpsr = 0x1f;
+                frame.regs[0] = cpsr;
+                frame.regs[15] = 0x4000;
+                frame.end = 0x4008;
+                assert!(executor.execute(second, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+                assert_eq!(frame.cpsr, cpsr);
+                assert_eq!(frame.regs[15], 0x4004);
+            }
+            frame.cpsr = 0x1f;
+            assert!(executor.execute(second, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+            assert_eq!(frame.regs[15], 0x4008);
+            executor.release(second);
+            for region in &artifact.regions[2..] {
+                let pc = region.manifest.entry.pc;
+                assert_eq!(region.manifest.instruction_pcs, [pc]);
+                assert_eq!(region.manifest.code_ranges, [u64::from(pc)..u64::from(pc + 4)]);
+                frame.regs[15] = pc;
+                frame.end = pc + 4;
+                assert!(executor.execute(region.handle, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+                assert_eq!(frame.regs[15], pc + 4);
+                executor.release(region.handle);
+            }
+            assert!(executor.modules.lock().compiled.is_empty());
+        }
     }
 
     #[test]
-    fn unfinished_preparation_yields_and_cleans_up_on_cancellation_or_owner_loss() {
-        for drop_owner in [false, true] {
-            let mut executor = NativeExecutor::new();
-            let owner = Arc::downgrade(&executor.modules);
-            let steps = Arc::new(AtomicUsize::new(0));
-            let observed = steps.clone();
-            let iterator_lifetime = Arc::new(());
-            let iterator_owner = Arc::downgrade(&iterator_lifetime);
-            let regions = iter::once(Some(region(0x1000, &[&[(0x1000, 4)]])))
-                .chain(iter::repeat_with(|| None))
-                .inspect(move |_| {
-                    let _ = &iterator_lifetime;
-                    observed.fetch_add(1, Ordering::Relaxed);
-                });
-            let mut future = executor.prepare(request(regions));
-            let mut context = Context::from_waker(Waker::noop());
-            assert!(future.as_mut().poll(&mut context).is_pending());
-            assert_eq!(steps.load(Ordering::Relaxed), 1);
-            assert!(executor.modules.lock().regions.is_empty());
-            if drop_owner {
-                drop(executor);
-                assert!(owner.upgrade().is_none());
-                assert!(matches!(future.as_mut().poll(&mut context), Poll::Ready(Err(_))));
+    fn preparation_runs_on_rayon_and_waits_for_completion_before_publication() {
+        for workers in [1, 2] {
+            let pool = ThreadPoolBuilder::new().num_threads(workers).build().unwrap();
+            for drop_owner in [false, true] {
+                let mut executor = NativeExecutor::new();
+                let owner = Arc::downgrade(&executor.modules);
+                let steps = Arc::new(AtomicUsize::new(0));
+                let observed = steps.clone();
+                let iterator_lifetime = Arc::new(());
+                let iterator_owner = Arc::downgrade(&iterator_lifetime);
+                let (entered, entry) = mpsc::channel();
+                let (release, released) = mpsc::channel();
+                let regions = [Some(region(0x1000, &[&[(0x1000, 4)]])), Some(region(0x4000, &[&[(0x4000, 4)]]))]
+                    .into_iter()
+                    .inspect(move |_| {
+                        let _ = &iterator_lifetime;
+                        if observed.fetch_add(1, Ordering::Relaxed) == 0 {
+                            let _ = entered.send((rayon::current_thread_index(), rayon::current_num_threads()));
+                            let _ = released.recv_timeout(Duration::from_secs(10));
+                        }
+                    });
+                let mut future = pool.install(|| executor.prepare(request(regions)));
+                let (worker, pool_size) = entry.recv_timeout(Duration::from_secs(5)).expect("preparation must start before polling");
+                assert!(worker.is_some());
+                assert_eq!(pool_size, workers);
+                let mut context = Context::from_waker(Waker::noop());
+                assert!(future.as_mut().poll(&mut context).is_pending());
+                assert!(executor.modules.lock().compiled.is_empty());
+                if drop_owner {
+                    drop(executor);
+                    assert!(owner.upgrade().is_none());
+                    assert!(future.as_mut().poll(&mut context).is_pending());
+                    release.send(()).unwrap();
+                    assert!(block_on(future).is_err());
+                } else {
+                    release.send(()).unwrap();
+                    let artifact = block_on(future).unwrap();
+                    assert_eq!(artifact.regions.len(), 2);
+                    for region in artifact.regions {
+                        executor.release(region.handle);
+                    }
+                    assert!(executor.modules.lock().compiled.is_empty());
+                }
+                assert_eq!(steps.load(Ordering::Relaxed), 2);
                 assert!(iterator_owner.upgrade().is_none());
-            } else {
-                drop(future);
-                assert!(iterator_owner.upgrade().is_none());
-                assert!(executor.modules.lock().regions.is_empty());
             }
         }
     }
 
     #[test]
     fn malformed_register_fails_preparation_without_publishing_a_prefix() {
+        let pool = ThreadPoolBuilder::new().num_threads(2).build().unwrap();
         let mut executor = NativeExecutor::new();
         for operation in [
             Operation::ReadCpsr { destination: Reg::new(255) },
@@ -361,11 +509,18 @@ mod tests {
                 load: true,
             },
         ] {
-            let mut invalid = region(0x2000, &[&[(0x2000, 4)]]);
+            let mut invalid = region(0x4000, &[&[(0x4000, 4)]]);
             invalid.ir.blocks[0].instructions[0].operation = operation;
             let input = request([Some(region(0x1000, &[&[(0x1000, 4)]])), Some(invalid)].into_iter());
-            assert!(block_on(executor.prepare(input)).is_err());
-            assert!(executor.modules.lock().regions.is_empty());
+            let future = pool.install(|| executor.prepare(input));
+            assert!(block_on(future).is_err());
+            assert!(executor.modules.lock().compiled.is_empty());
+            let future = pool.install(|| executor.prepare(request([Some(region(0x1000, &[&[(0x1000, 4)]]))].into_iter())));
+            let artifact = block_on(future).unwrap();
+            assert_eq!(artifact.regions.len(), 1);
+            assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x1000]);
+            executor.release(artifact.regions[0].handle);
+            assert!(executor.modules.lock().compiled.is_empty());
         }
     }
 

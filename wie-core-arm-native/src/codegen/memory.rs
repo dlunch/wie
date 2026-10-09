@@ -1,10 +1,9 @@
-use alloc::vec::Vec;
 use core::mem::{offset_of, size_of};
 
 use cranelift_codegen::ir::{Endianness, InstBuilder, MemFlagsData, Value, condcodes::IntCC, types};
 
 use wie_arm_jit_types::{
-    CompiledExit, MemoryPage,
+    MemoryPage,
     ir::{self, Instruction, MemoryOperand, Operation, Reg, Width},
 };
 
@@ -20,8 +19,7 @@ impl Emitter<'_> {
                 signed,
             } => {
                 let (effective, writeback) = self.memory_address(address);
-                self.check_alignment(effective, width);
-                let pointer = self.guest_pointer(effective);
+                let pointer = self.guest_pointer(effective, width);
                 let value = self.load_memory(pointer, width, *signed);
                 let next = if *destination == Reg::PC {
                     Some(self.pc_write(value, true))
@@ -36,8 +34,7 @@ impl Emitter<'_> {
             }
             Operation::Store { value, address, width } => {
                 let (effective, writeback) = self.memory_address(address);
-                self.check_alignment(effective, width);
-                let pointer = self.guest_pointer(effective);
+                let pointer = self.guest_pointer(effective, width);
                 let value = if *value == ir::Value::Register(Reg::PC) {
                     self.builder
                         .ins()
@@ -59,8 +56,7 @@ impl Emitter<'_> {
             } => {
                 let address = self.register(address);
                 let source = self.register(value);
-                self.check_alignment(address, width);
-                let pointer = self.guest_pointer(address);
+                let pointer = self.guest_pointer(address, width);
                 let loaded = self.load_memory(pointer, width, false);
                 self.store_memory(pointer, width, source);
                 self.store_register(destination, loaded);
@@ -91,10 +87,6 @@ impl Emitter<'_> {
             }
             Operation::DoubleTransfer { register, address, load } => {
                 let (effective, writeback) = self.memory_address(address);
-                // Word-range admission checks bits 0..1; ARMv5 double transfers also require bit 2 clear.
-                let bit = self.builder.ins().band_imm_s(effective, 4);
-                let unaligned = self.builder.ins().icmp_imm_s(IntCC::NotEqual, bit, 0);
-                self.guard(unaligned, CompiledExit::InterpretOne);
                 let next = self.transfer_words(effective, 3 << register.index(), *load);
                 if let Some(register) = &address.write_back {
                     self.store_register(register, writeback);
@@ -113,7 +105,7 @@ impl Emitter<'_> {
 
     fn memory_address(&mut self, address: &MemoryOperand) -> (Value, Value) {
         let base = self.value(&address.base);
-        let (offset, _) = self.operand(&address.offset);
+        let (offset, _) = self.operand(&address.offset, false);
         let writeback = if address.subtract {
             self.builder.ins().isub(base, offset)
         } else {
@@ -122,18 +114,7 @@ impl Emitter<'_> {
         (if address.pre_index { writeback } else { base }, writeback)
     }
 
-    fn check_alignment(&mut self, address: Value, width: &Width) {
-        let mask = match width {
-            Width::Byte => return,
-            Width::Half => 1,
-            Width::Word => 3,
-        };
-        let low = self.builder.ins().band_imm_s(address, mask);
-        let unaligned = self.builder.ins().icmp_imm_s(IntCC::NotEqual, low, 0);
-        self.guard(unaligned, CompiledExit::InterpretOne);
-    }
-
-    fn guest_pointer(&mut self, address: Value) -> Value {
+    fn guest_pointer(&mut self, address: Value, width: &Width) -> Value {
         let page = self.builder.ins().ushr_imm_s(address, 16);
         let page = self.builder.ins().uextend(self.ptr_type, page);
         let offset = self.builder.ins().imul_imm_s(page, size_of::<MemoryPage>() as i64);
@@ -143,8 +124,17 @@ impl Emitter<'_> {
             .ins()
             .load(self.ptr_type, MemFlagsData::trusted(), entry, offset_of!(MemoryPage, bytes) as i32);
         let unmapped = self.builder.ins().icmp_imm_s(IntCC::Equal, pointer, 0);
-        self.guard(unmapped, CompiledExit::InterpretOne);
-        let offset = self.builder.ins().band_imm_s(address, 0xffff);
+        let next = self.builder.create_block();
+        let pc = self.builder.ins().iconst(types::I32, i64::from(self.pc));
+        self.builder.ins().brif(unmapped, self.fault, &[pc.into(), address.into()], next, &[]);
+        self.builder.switch_to_block(next);
+        // Guest accesses are naturally aligned; keep host accesses within the backing page.
+        let mask = match width {
+            Width::Byte => 0xffff,
+            Width::Half => 0xfffe,
+            Width::Word => 0xfffc,
+        };
+        let offset = self.builder.ins().band_imm_s(address, mask);
         let offset = self.builder.ins().uextend(self.ptr_type, offset);
         self.builder.ins().iadd(pointer, offset)
     }
@@ -176,18 +166,37 @@ impl Emitter<'_> {
     }
 
     fn transfer_words(&mut self, address: Value, registers: u16, load: bool) -> Option<Value> {
-        self.check_alignment(address, &Width::Word);
-        // Admit the entire range before data access, including a wrapped guest page.
-        let transfers: Vec<_> = (0..16)
-            .filter(|register| registers & (1 << register) != 0)
-            .enumerate()
-            .map(|(index, register)| {
-                let address = self.builder.ins().iadd_imm_s(address, index as i64 * 4);
-                (Reg::new(register), self.guest_pointer(address))
-            })
-            .collect();
+        let count = registers.count_ones();
+        if count == 0 {
+            return None;
+        }
+        // At most 16 aligned words span two pages; admit both before any guest access.
+        let first_pointer = self.guest_pointer(address, &Width::Word);
+        let last_offset = i64::from(count - 1) * 4;
+        let last_pointer = if count == 1 {
+            first_pointer
+        } else {
+            let last = self.builder.ins().iadd_imm_s(address, last_offset);
+            self.guest_pointer(last, &Width::Word)
+        };
+        let first_offset = self.builder.ins().band_imm_s(address, 0xfffc);
         let mut next = None;
-        for (register, pointer) in transfers {
+        for (index, register) in (0..16).filter(|register| registers & (1 << register) != 0).enumerate() {
+            let offset = index as i64 * 4;
+            let pointer = if index == 0 {
+                first_pointer
+            } else if offset == last_offset {
+                last_pointer
+            } else {
+                let first = self.builder.ins().iadd_imm_s(first_pointer, offset);
+                let last = self.builder.ins().iadd_imm_s(last_pointer, offset - last_offset);
+                let crossed = self
+                    .builder
+                    .ins()
+                    .icmp_imm_s(IntCC::UnsignedGreaterThanOrEqual, first_offset, 0x10000 - offset);
+                self.builder.ins().select(crossed, last, first)
+            };
+            let register = Reg::new(register);
             if load {
                 let value = self.load_memory(pointer, &Width::Word, false);
                 if register == Reg::PC {

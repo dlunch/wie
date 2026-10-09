@@ -1,7 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{collections::VecDeque, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::VecDeque, string::String, vec::Vec};
 
 use nom::{Parser, multi::length_count, number::complete::le_u32};
 
@@ -12,7 +12,7 @@ mod codegen;
 const COPY_SIZE: usize = 64 * 1024;
 
 /// Increment when analysis, generated code, execution ABI, or the cache format changes.
-pub const AOT_CACHE_VERSION: u32 = 1;
+pub const AOT_CACHE_VERSION: u32 = 2;
 
 pub fn encode_manifest_region(region: &ManifestRegion, output: &mut Vec<u8>) {
     // Little-endian header, instruction PCs, then address/length pairs for code coverage.
@@ -58,11 +58,8 @@ pub struct WasmArtifact {
 }
 
 pub struct Compiler {
-    request: CompileRequest,
+    regions: Box<dyn Iterator<Item = Option<CompileRegion>> + Send>,
     builder: Option<codegen::ModuleBuilder>,
-    pending: Option<CompileRegion>,
-    pending_instructions: usize,
-    pending_page: Option<u32>,
     chunks: VecDeque<Vec<u8>>,
     chunk_offset: usize,
     artifact: WasmArtifact,
@@ -72,11 +69,8 @@ pub struct Compiler {
 impl Compiler {
     pub fn new(request: CompileRequest) -> Self {
         Self {
-            request,
+            regions: Box::new(request.coalesced_regions()),
             builder: Some(codegen::ModuleBuilder::default()),
-            pending: None,
-            pending_instructions: 0,
-            pending_page: None,
             chunks: VecDeque::new(),
             chunk_offset: 0,
             artifact: WasmArtifact {
@@ -93,38 +87,9 @@ impl Compiler {
             return Ok(true);
         }
         if let Some(builder) = &mut self.builder {
-            let next = self.request.regions.next();
-            let finished = next.is_none();
-            let region = match next {
+            let region = match self.regions.next() {
                 Some(None) => return Ok(false),
-                Some(Some(mut region)) => {
-                    let (instructions, first, last) = region
-                        .ir
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.instructions)
-                        .fold((0, u32::MAX, 0), |(count, first, last), instruction| {
-                            (count + 1, first.min(instruction.pc.get()), last.max(instruction.pc.get()))
-                        });
-                    // Coalesce small fragments without expanding the selectors of larger regions.
-                    let page = (instructions <= 16 && first >> 14 == last >> 14).then_some(first >> 14);
-                    if let Some(pending) = &mut self.pending
-                        && page.is_some()
-                        && page == self.pending_page
-                        && pending.ir.entry.thumb == region.ir.entry.thumb
-                        && pending.ir.entry.cpu_mode == region.ir.entry.cpu_mode
-                        && self.pending_instructions + instructions <= self.request.max_region_instructions
-                        && pending.ir.blocks.len() + region.ir.blocks.len() <= self.request.max_region_blocks
-                    {
-                        self.pending_instructions += instructions;
-                        pending.ir.blocks.append(&mut region.ir.blocks);
-                        return Ok(false);
-                    }
-                    self.pending_instructions = instructions;
-                    self.pending_page = page;
-                    self.pending.replace(region)
-                }
-                None => self.pending.take(),
+                region => region.flatten(),
             };
             if let Some(region) = region {
                 builder.add_region(&region.ir);
@@ -149,8 +114,7 @@ impl Compiler {
                         })
                         .collect(),
                 });
-            }
-            if finished {
+            } else {
                 let builder = core::mem::take(builder);
                 self.builder = None;
                 self.chunks = builder.begin_assembly(&mut self.artifact.bytes)?;

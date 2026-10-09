@@ -17,7 +17,7 @@ pub enum EngineStopReason {
 
 pub struct EngineRunResult {
     pub stop_reason: EngineStopReason,
-    /// Interpreted instructions on Wasm; all retired instructions on native targets.
+    /// Interpreted instructions; compiled execution does not consume this budget.
     pub budget_consumed: u32,
 }
 

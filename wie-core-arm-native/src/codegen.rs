@@ -1,9 +1,9 @@
-use alloc::{collections::BTreeMap, format};
+use alloc::{collections::BTreeMap, format, vec, vec::Vec};
 use core::mem::{offset_of, size_of, swap};
 
 use cranelift_codegen::{
     Context,
-    ir::{Block, InstBuilder, MemFlagsData, Type, Value, condcodes::IntCC, types},
+    ir::{AbiParam, Block, InstBuilder, MemFlagsData, SigRef, Signature, Type, Value, condcodes::IntCC, types},
     isa::TargetIsa,
 };
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch};
@@ -16,7 +16,108 @@ use wie_util::{Result, WieError};
 
 mod memory;
 
-pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, isa: &dyn TargetIsa) -> Result<()> {
+fn live_flag_updates(instructions: &[Instruction]) -> Vec<bool> {
+    let mut updates = vec![true; instructions.len()];
+    let mut live = 0xf;
+    let mut next_pc = None;
+    for (instruction, update) in instructions.iter().zip(&mut updates).rev() {
+        if next_pc != Some(instruction.pc.get().wrapping_add(u32::from(instruction.size))) || instruction.operation.writes_pc() {
+            live = 0xf;
+        }
+        next_pc = Some(instruction.pc.get());
+        let (written, killed, read) = match &instruction.operation {
+            Operation::Alu { op, right, set_flags, .. } => {
+                let carry_input = matches!(op, AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry) || right.shift == Shift::Rrx;
+                let (written, killed) = if !set_flags {
+                    (0, 0)
+                } else if matches!(
+                    op,
+                    AluOp::Add | AluOp::Sub | AluOp::ReverseSub | AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry
+                ) {
+                    (0xf, 0xf)
+                } else if matches!(op, AluOp::Multiply | AluOp::CountLeadingZeros) {
+                    (0xc, 0xc)
+                } else if right.shift == Shift::Rrx {
+                    (0xe, 0xe)
+                } else {
+                    match right.amount {
+                        ShiftAmount::Immediate(0) => (0xc, 0xc),
+                        ShiftAmount::Immediate(_) => (0xe, 0xe),
+                        // A zero register shift preserves carry instead of overwriting it.
+                        ShiftAmount::Register(_) => (0xe, 0xc),
+                    }
+                };
+                (written, killed, if carry_input { 0x2 } else { 0 })
+            }
+            Operation::MultiplyAccumulate { set_flags, .. } | Operation::MultiplyLong { set_flags, .. } => {
+                let written = if *set_flags { 0xc } else { 0 };
+                (written, written, 0)
+            }
+            Operation::Load { address, .. } | Operation::Store { address, .. } | Operation::DoubleTransfer { address, .. } => {
+                (0, 0, if address.offset.shift == Shift::Rrx { 0x2 } else { 0 })
+            }
+            Operation::MultipleTransfer { .. } | Operation::Swap { .. } | Operation::Nop => (0, 0, 0),
+            // Normal exits and CPSR accesses observe flags; guest memory faults are terminal.
+            _ => {
+                live = 0xf;
+                (0, 0, 0)
+            }
+        };
+        *update = written & live != 0;
+        if instruction.condition == Condition::Always {
+            live &= !killed;
+        }
+        live |= read
+            | match instruction.condition {
+                Condition::Eq | Condition::Ne => 0x4,
+                Condition::Cs | Condition::Cc => 0x2,
+                Condition::Mi | Condition::Pl => 0x8,
+                Condition::Vs | Condition::Vc => 0x1,
+                Condition::Hi | Condition::Ls => 0x6,
+                Condition::Ge | Condition::Lt => 0x9,
+                Condition::Gt | Condition::Le => 0xd,
+                Condition::Always => 0,
+            };
+    }
+    updates
+}
+
+extern "C" fn arithmetic_flags<const SUBTRACT: bool>(frame: &mut RunFrame, left: u32, right: u32) -> u32 {
+    let (result, carry, overflow) = if SUBTRACT {
+        let (result, borrow) = left.overflowing_sub(right);
+        (result, !borrow, (left as i32).overflowing_sub(right as i32).1)
+    } else {
+        let (result, carry) = left.overflowing_add(right);
+        (result, carry, (left as i32).overflowing_add(right as i32).1)
+    };
+    frame.cpsr =
+        (frame.cpsr & 0x0fff_ffff) | (result & 0x8000_0000) | (u32::from(result == 0) << 30) | (u32::from(carry) << 29) | (u32::from(overflow) << 28);
+    result
+}
+
+extern "C" fn shift_flags<const KIND: u8>(frame: &mut RunFrame, value: u32, amount: u32) -> u32 {
+    let previous_carry = (frame.cpsr >> 29) & 1;
+    let (result, carry) = if KIND == 4 {
+        ((previous_carry << 31) | (value >> 1), value & 1)
+    } else if amount == 0 {
+        (value, previous_carry)
+    } else {
+        match KIND {
+            0 if amount <= 32 => (value.checked_shl(amount).unwrap_or(0), (value >> (32 - amount)) & 1),
+            1 if amount <= 32 => (value.checked_shr(amount).unwrap_or(0), (value >> (amount - 1)) & 1),
+            0 | 1 => (0, 0),
+            2 => (((value as i32) >> amount.min(31)) as u32, (value >> (amount - 1).min(31)) & 1),
+            _ => {
+                let result = value.rotate_right(amount);
+                (result, result >> 31)
+            }
+        }
+    };
+    frame.cpsr = (frame.cpsr & 0x1fff_ffff) | (result & 0x8000_0000) | (u32::from(result == 0) << 30) | (carry << 29);
+    result
+}
+
+pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context: &mut FunctionBuilderContext, isa: &dyn TargetIsa) -> Result<()> {
     // The IR is public input: reject out-of-frame registers before creating native accesses.
     let register = |register: &Reg| {
         if register.index() > 15 {
@@ -116,17 +217,22 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, isa: &dyn Target
             Operation::Nop => {}
         }
     }
-    let mut builder_context = FunctionBuilderContext::new();
-    let mut builder = FunctionBuilder::new(&mut context.func, &mut builder_context);
+    let mut builder = FunctionBuilder::new(&mut context.func, builder_context);
+    let mut signature = Signature::new(isa.default_call_conv());
+    signature
+        .params
+        .extend([AbiParam::new(isa.pointer_type()), AbiParam::new(types::I32), AbiParam::new(types::I32)]);
+    signature.returns.push(AbiParam::new(types::I32));
+    let alu_signature = builder.import_signature(signature);
     let entry = builder.create_block();
     builder.append_block_params_for_function_params(entry);
     builder.switch_to_block(entry);
     let frame = builder.block_params(entry)[0];
     let pages = builder.block_params(entry)[1];
     let dispatch = builder.create_block();
-    let end = builder.create_block();
-    let interpret = builder.create_block();
-    let leave = builder.create_block();
+    let fault = builder.create_block();
+    builder.append_block_param(fault, types::I32);
+    builder.append_block_param(fault, types::I32);
     let entries: BTreeMap<_, _> = ir
         .blocks
         .iter()
@@ -138,40 +244,53 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, isa: &dyn Target
         frame,
         pages,
         ptr_type: isa.pointer_type(),
+        alu_signature,
         thumb: ir.entry.thumb,
         pc: ir.entry.pc,
         mode: u32::from(ir.entry.cpu_mode) | if ir.entry.thumb { 0x20 } else { 0 },
         entries,
         dispatch,
-        end,
-        interpret,
-        leave,
+        fault,
     };
     let pc = emitter.load_frame(offset_of!(RunFrame, regs) + 15 * size_of::<u32>());
+    let shift = if ir.entry.thumb { 1 } else { 2 };
+    let index = emitter.builder.ins().ushr_imm_s(pc, shift);
     emitter.boundaries(pc);
+    let low = emitter.builder.ins().band_imm_s(pc, (1 << shift) - 1);
+    let unaligned = emitter.builder.ins().icmp_imm_s(IntCC::NotEqual, low, 0);
+    emitter.guard(unaligned);
+    // Instruction-sized keys let Cranelift use dense jump tables for sequential code.
     let mut switch = Switch::new();
     for (&pc, &block) in &emitter.entries {
-        switch.set_entry(u128::from(pc), block);
+        switch.set_entry(u128::from(pc >> shift), block);
     }
-    switch.emit(&mut emitter.builder, pc, dispatch);
-    for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
+    switch.emit(&mut emitter.builder, index, dispatch);
+    for (instruction, flags_live) in ir
+        .blocks
+        .iter()
+        .flat_map(|block| block.instructions.iter().zip(live_flag_updates(&block.instructions)))
+    {
         emitter.pc = instruction.pc.get();
         emitter.builder.switch_to_block(emitter.entries[&emitter.pc]);
-        let pc = emitter.builder.ins().iconst(types::I32, i64::from(emitter.pc));
-        emitter.boundaries(pc);
+        if emitter.pc < 0x1000 {
+            emitter.builder.ins().jump(dispatch, &[]);
+            continue;
+        }
         let fallthrough = emitter.pc.wrapping_add(u32::from(instruction.size));
-        if instruction.condition != Condition::Always {
+        let skipped = if instruction.condition != Condition::Always {
             let condition = emitter.condition(&instruction.condition);
             let execute = emitter.builder.create_block();
             let skip = emitter.builder.create_block();
             emitter.builder.ins().brif(condition, execute, &[], skip, &[]);
-            emitter.builder.switch_to_block(skip);
-            let next = emitter.builder.ins().iconst(types::I32, i64::from(fallthrough));
-            emitter.commit(next, Some(fallthrough));
             emitter.builder.switch_to_block(execute);
-        }
-        let next = emitter.operation(instruction);
+            Some(skip)
+        } else {
+            None
+        };
+        let next = emitter.operation(instruction, flags_live);
         let fixed = match &instruction.operation {
+            // Internal edges preserve the entry mode; control-field writes must recheck it.
+            Operation::WriteCpsr { mask, .. } if mask & 0x0100_003f != 0 => None,
             Operation::Branch {
                 target: BranchTarget::Address(address),
                 exchange,
@@ -180,20 +299,28 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, isa: &dyn Target
             _ if next.is_none() => Some(fallthrough),
             _ => None,
         };
-        let next = next.unwrap_or_else(|| emitter.builder.ins().iconst(types::I32, i64::from(fallthrough)));
-        emitter.commit(next, fixed);
+        if let Some(skip) = skipped {
+            if next.is_some() || fixed != Some(fallthrough) {
+                emitter.commit(next, fixed, fallthrough);
+            } else {
+                emitter.builder.ins().jump(skip, &[]);
+            }
+            emitter.builder.switch_to_block(skip);
+            emitter.commit(None, Some(fallthrough), fallthrough);
+        } else {
+            emitter.commit(next, fixed, fallthrough);
+        }
     }
-    emitter.builder.switch_to_block(leave);
-    let pc = emitter.load_frame(offset_of!(RunFrame, regs) + 15 * size_of::<u32>());
-    emitter.boundaries(pc);
-    emitter.builder.ins().jump(dispatch, &[]);
-    for (block, exit) in [
-        (dispatch, CompiledExit::Dispatch),
-        (end, CompiledExit::End),
-        (interpret, CompiledExit::InterpretOne),
-    ] {
+    for (block, exit) in [(dispatch, CompiledExit::Dispatch), (fault, CompiledExit::GuestFault)] {
         emitter.builder.switch_to_block(block);
-        emitter.exit(exit);
+        if exit == CompiledExit::GuestFault {
+            let pc = emitter.builder.block_params(fault)[0];
+            let address = emitter.builder.block_params(fault)[1];
+            emitter.store_register(&Reg::PC, pc);
+            emitter.store_frame(offset_of!(RunFrame, fault_address), address);
+        }
+        let value = emitter.builder.ins().iconst(types::I32, exit as i64);
+        emitter.builder.ins().return_(&[value]);
     }
     emitter.builder.seal_all_blocks();
     emitter.builder.finalize(isa.frontend_config());
@@ -205,14 +332,13 @@ struct Emitter<'a> {
     frame: Value,
     pages: Value,
     ptr_type: Type,
+    alu_signature: SigRef,
     thumb: bool,
     pc: u32,
     mode: u32,
     entries: BTreeMap<u32, Block>,
     dispatch: Block,
-    end: Block,
-    interpret: Block,
-    leave: Block,
+    fault: Block,
 }
 
 impl Emitter<'_> {
@@ -249,42 +375,35 @@ impl Emitter<'_> {
         self.load_frame(offset_of!(RunFrame, cpsr))
     }
 
-    fn guard(&mut self, condition: Value, exit: CompiledExit) {
-        let target = match exit {
-            CompiledExit::Dispatch => self.dispatch,
-            CompiledExit::End => self.end,
-            CompiledExit::InterpretOne => self.interpret,
-            CompiledExit::GuestFault => unreachable!(),
-        };
+    fn guard(&mut self, condition: Value) {
         let next = self.builder.create_block();
-        self.builder.ins().brif(condition, target, &[], next, &[]);
+        self.builder.ins().brif(condition, self.dispatch, &[], next, &[]);
         self.builder.switch_to_block(next);
-    }
-
-    fn exit(&mut self, exit: CompiledExit) {
-        let value = self.builder.ins().iconst(types::I32, exit as i64);
-        self.builder.ins().return_(&[value]);
     }
 
     fn boundaries(&mut self, pc: Value) {
         let low = self.builder.ins().icmp_imm_s(IntCC::UnsignedLessThan, pc, 0x1000);
-        self.guard(low, CompiledExit::Dispatch);
+        self.guard(low);
         let cpsr = self.cpsr();
         let mode = self.builder.ins().band_imm_s(cpsr, 0x0100_003f);
         let changed = self.builder.ins().icmp_imm_s(IntCC::NotEqual, mode, i64::from(self.mode));
-        self.guard(changed, CompiledExit::Dispatch);
-        let end = self.load_frame(offset_of!(RunFrame, end));
-        let at_end = self.builder.ins().icmp(IntCC::Equal, pc, end);
-        self.guard(at_end, CompiledExit::End);
+        self.guard(changed);
     }
 
-    fn commit(&mut self, next: Value, fixed: Option<u32>) {
-        self.store_register(&Reg::PC, next);
-        let executed = self.load_frame(offset_of!(RunFrame, executed));
-        let executed = self.builder.ins().iadd_imm_s(executed, 1);
-        self.store_frame(offset_of!(RunFrame, executed), executed);
-        let target = fixed.and_then(|pc| self.entries.get(&pc)).copied().unwrap_or(self.leave);
-        self.builder.ins().jump(target, &[]);
+    fn commit(&mut self, next: Option<Value>, fixed: Option<u32>, fallthrough: u32) {
+        // Internal edges need no published PC.
+        if let Some(pc) = fixed {
+            let target = self.entries.get(&pc).copied().filter(|_| pc >= 0x1000);
+            if target.is_none() {
+                let value = self.builder.ins().iconst(types::I32, i64::from(pc));
+                self.store_register(&Reg::PC, value);
+            }
+            self.builder.ins().jump(target.unwrap_or(self.dispatch), &[]);
+        } else {
+            let next = next.unwrap_or_else(|| self.builder.ins().iconst(types::I32, i64::from(fallthrough)));
+            self.store_register(&Reg::PC, next);
+            self.builder.ins().jump(self.dispatch, &[]);
+        }
     }
 
     fn pc_write(&mut self, value: Value, exchange: bool) -> Value {
@@ -304,30 +423,80 @@ impl Emitter<'_> {
         }
     }
 
-    fn operand(&mut self, operand: &Operand) -> (Value, Value) {
+    fn operand(&mut self, operand: &Operand, set_carry: bool) -> (Value, Option<Value>) {
+        if let Some((value, carry)) = operand.constant_value() {
+            let value = self.builder.ins().iconst(types::I32, i64::from(value));
+            let carry = carry
+                .filter(|_| set_carry)
+                .map(|carry| self.builder.ins().iconst(types::I32, i64::from(carry)));
+            return (value, carry);
+        }
         let value = self.value(&operand.value);
-        let cpsr = self.cpsr();
-        let carry = self.builder.ins().ushr_imm_s(cpsr, 29);
-        let carry = self.builder.ins().band_imm_s(carry, 1);
+        if operand.shift != Shift::Rrx && operand.amount == ShiftAmount::Immediate(0) {
+            return (value, None);
+        }
+        if let ShiftAmount::Immediate(amount) = operand.amount
+            && operand.shift != Shift::Rrx
+        {
+            let amount = i64::from(amount);
+            let (result, carry) = match operand.shift {
+                Shift::Lsl if amount <= 32 => {
+                    let result = if amount == 32 {
+                        self.builder.ins().iconst(types::I32, 0)
+                    } else {
+                        self.builder.ins().ishl_imm_s(value, amount)
+                    };
+                    let carry = set_carry.then(|| self.builder.ins().ushr_imm_s(value, 32 - amount));
+                    (result, carry)
+                }
+                Shift::Lsr if amount <= 32 => {
+                    let result = if amount == 32 {
+                        self.builder.ins().iconst(types::I32, 0)
+                    } else {
+                        self.builder.ins().ushr_imm_s(value, amount)
+                    };
+                    let carry = set_carry.then(|| self.builder.ins().ushr_imm_s(value, amount - 1));
+                    (result, carry)
+                }
+                Shift::Lsl | Shift::Lsr => {
+                    let zero = self.builder.ins().iconst(types::I32, 0);
+                    (zero, set_carry.then_some(zero))
+                }
+                Shift::Asr => (
+                    self.builder.ins().sshr_imm_s(value, amount.min(31)),
+                    set_carry.then(|| self.builder.ins().ushr_imm_s(value, (amount - 1).min(31))),
+                ),
+                Shift::Ror => {
+                    let result = self.builder.ins().rotr_imm_s(value, amount & 31);
+                    let carry = set_carry.then(|| self.builder.ins().ushr_imm_s(result, 31));
+                    (result, carry)
+                }
+                Shift::Rrx => unreachable!(),
+            };
+            let carry = carry.map(|carry| self.builder.ins().band_imm_s(carry, 1));
+            return (result, carry);
+        }
         if operand.shift == Shift::Rrx {
+            let cpsr = self.cpsr();
+            let carry = self.builder.ins().ushr_imm_s(cpsr, 29);
+            let carry = self.builder.ins().band_imm_s(carry, 1);
             let high = self.builder.ins().ishl_imm_s(carry, 31);
             let low = self.builder.ins().ushr_imm_s(value, 1);
             let result = self.builder.ins().bor(high, low);
-            let carry = self.builder.ins().band_imm_s(value, 1);
+            let carry = set_carry.then(|| self.builder.ins().band_imm_s(value, 1));
             return (result, carry);
         }
         let amount = match &operand.amount {
-            ShiftAmount::Immediate(0) => return (value, carry),
             ShiftAmount::Immediate(amount) => self.builder.ins().iconst(types::I32, i64::from(*amount)),
             ShiftAmount::Register(register) => {
                 let amount = self.register(register);
                 self.builder.ins().band_imm_s(amount, 255)
             }
         };
-        let zero = self.builder.ins().iconst(types::I32, 0);
         let (result, shifted_carry) = match operand.shift {
             Shift::Lsl | Shift::Lsr => {
                 // Host shifts mask their counts; ARM instead distinguishes 32 and larger counts.
+                let zero = self.builder.ins().iconst(types::I32, 0);
                 let within_word = self.builder.ins().icmp_imm_s(IntCC::UnsignedLessThan, amount, 32);
                 let shifted = if operand.shift == Shift::Lsl {
                     self.builder.ins().ishl(value, amount)
@@ -335,16 +504,18 @@ impl Emitter<'_> {
                     self.builder.ins().ushr(value, amount)
                 };
                 let result = self.builder.ins().select(within_word, shifted, zero);
-                let carry_amount = if operand.shift == Shift::Lsl {
-                    let bits = self.builder.ins().iconst(types::I32, 32);
-                    self.builder.ins().isub(bits, amount)
-                } else {
-                    self.builder.ins().iadd_imm_s(amount, -1)
-                };
-                let carry_bit = self.builder.ins().ushr(value, carry_amount);
-                let carry_bit = self.builder.ins().band_imm_s(carry_bit, 1);
-                let has_carry = self.builder.ins().icmp_imm_s(IntCC::UnsignedLessThanOrEqual, amount, 32);
-                let shifted_carry = self.builder.ins().select(has_carry, carry_bit, zero);
+                let shifted_carry = set_carry.then(|| {
+                    let carry_amount = if operand.shift == Shift::Lsl {
+                        let bits = self.builder.ins().iconst(types::I32, 32);
+                        self.builder.ins().isub(bits, amount)
+                    } else {
+                        self.builder.ins().iadd_imm_s(amount, -1)
+                    };
+                    let carry_bit = self.builder.ins().ushr(value, carry_amount);
+                    let carry_bit = self.builder.ins().band_imm_s(carry_bit, 1);
+                    let has_carry = self.builder.ins().icmp_imm_s(IntCC::UnsignedLessThanOrEqual, amount, 32);
+                    self.builder.ins().select(has_carry, carry_bit, zero)
+                });
                 (result, shifted_carry)
             }
             Shift::Asr => {
@@ -352,22 +523,28 @@ impl Emitter<'_> {
                 let large = self.builder.ins().icmp_imm_s(IntCC::UnsignedGreaterThan, amount, 31);
                 let result_amount = self.builder.ins().select(large, sign_bit, amount);
                 let result = self.builder.ins().sshr(value, result_amount);
-                let previous = self.builder.ins().iadd_imm_s(amount, -1);
-                let carry_amount = self.builder.ins().select(large, sign_bit, previous);
-                let shifted_carry = self.builder.ins().ushr(value, carry_amount);
-                let shifted_carry = self.builder.ins().band_imm_s(shifted_carry, 1);
+                let shifted_carry = set_carry.then(|| {
+                    let previous = self.builder.ins().iadd_imm_s(amount, -1);
+                    let carry_amount = self.builder.ins().select(large, sign_bit, previous);
+                    let shifted_carry = self.builder.ins().ushr(value, carry_amount);
+                    self.builder.ins().band_imm_s(shifted_carry, 1)
+                });
                 (result, shifted_carry)
             }
             Shift::Ror => {
                 let result = self.builder.ins().rotr(value, amount);
-                let shifted_carry = self.builder.ins().ushr_imm_s(result, 31);
+                let shifted_carry = set_carry.then(|| self.builder.ins().ushr_imm_s(result, 31));
                 (result, shifted_carry)
             }
             Shift::Rrx => unreachable!(),
         };
-        let unchanged = self.builder.ins().icmp_imm_s(IntCC::Equal, amount, 0);
-        let result = self.builder.ins().select(unchanged, value, result);
-        let carry = self.builder.ins().select(unchanged, carry, shifted_carry);
+        let carry = shifted_carry.map(|shifted_carry| {
+            let cpsr = self.cpsr();
+            let carry = self.builder.ins().ushr_imm_s(cpsr, 29);
+            let carry = self.builder.ins().band_imm_s(carry, 1);
+            let unchanged = self.builder.ins().icmp_imm_s(IntCC::Equal, amount, 0);
+            self.builder.ins().select(unchanged, carry, shifted_carry)
+        });
         (result, carry)
     }
 
@@ -435,7 +612,7 @@ impl Emitter<'_> {
         }
     }
 
-    fn operation(&mut self, instruction: &Instruction) -> Option<Value> {
+    fn operation(&mut self, instruction: &Instruction, flags_live: bool) -> Option<Value> {
         match &instruction.operation {
             Operation::Alu {
                 op,
@@ -444,46 +621,114 @@ impl Emitter<'_> {
                 right,
                 set_flags,
             } => {
+                let set_flags = *set_flags && flags_live;
+                if destination.is_none() && !set_flags {
+                    return None;
+                }
+                if matches!(op, AluOp::Move | AluOp::Not)
+                    && let Some((value, carry)) = right.constant_value()
+                {
+                    let value = if *op == AluOp::Not { !value } else { value };
+                    if set_flags {
+                        let flags = (value & 0x8000_0000) | (u32::from(value == 0) << 30) | (carry.unwrap_or(0) << 29);
+                        let cpsr = self.cpsr();
+                        let preserved = self
+                            .builder
+                            .ins()
+                            .band_imm_s(cpsr, if carry.is_some() { 0x1fff_ffff } else { 0x3fff_ffff });
+                        let cpsr = self.builder.ins().bor_imm_s(preserved, i64::from(flags));
+                        self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+                    }
+                    if let Some(destination) = destination {
+                        let value = self.builder.ins().iconst(types::I32, i64::from(value));
+                        if *destination == Reg::PC {
+                            return Some(self.pc_write(value, false));
+                        }
+                        self.store_register(destination, value);
+                    }
+                    return None;
+                }
+                if *op == AluOp::Move && set_flags {
+                    let helper = match right.shift {
+                        Shift::Lsl => shift_flags::<0> as *const (),
+                        Shift::Lsr => shift_flags::<1> as *const (),
+                        Shift::Asr => shift_flags::<2> as *const (),
+                        Shift::Ror => shift_flags::<3> as *const (),
+                        Shift::Rrx => shift_flags::<4> as *const (),
+                    };
+                    let value = self.value(&right.value);
+                    let amount = if right.shift == Shift::Rrx {
+                        self.builder.ins().iconst(types::I32, 0)
+                    } else {
+                        match &right.amount {
+                            ShiftAmount::Immediate(amount) => self.builder.ins().iconst(types::I32, i64::from(*amount)),
+                            ShiftAmount::Register(register) => {
+                                let amount = self.register(register);
+                                self.builder.ins().band_imm_s(amount, 255)
+                            }
+                        }
+                    };
+                    let helper = self.builder.ins().iconst(self.ptr_type, helper as usize as i64);
+                    let call = self.builder.ins().call_indirect(self.alu_signature, helper, &[self.frame, value, amount]);
+                    let result = self.builder.inst_results(call)[0];
+                    if let Some(destination) = destination {
+                        if *destination == Reg::PC {
+                            return Some(self.pc_write(result, false));
+                        }
+                        self.store_register(destination, result);
+                    }
+                    return None;
+                }
                 let mut left = self.value(left);
-                let (mut right, shifted_carry) = self.operand(right);
-                let mut carry = Some(shifted_carry);
+                let set_carry = set_flags && matches!(op, AluOp::And | AluOp::Xor | AluOp::Or | AluOp::Move | AluOp::BitClear | AluOp::Not);
+                let (mut right, shifted_carry) = self.operand(right, set_carry);
+                let mut carry = shifted_carry;
                 let mut overflow = None;
                 let result = match op {
-                    AluOp::Add | AluOp::AddCarry | AluOp::Sub | AluOp::SubCarry | AluOp::ReverseSub | AluOp::ReverseSubCarry => {
-                        if matches!(op, AluOp::ReverseSub | AluOp::ReverseSubCarry) {
+                    AluOp::Add | AluOp::Sub | AluOp::ReverseSub => {
+                        if *op == AluOp::ReverseSub {
                             swap(&mut left, &mut right);
                         }
-                        let subtract = !matches!(op, AluOp::Add | AluOp::AddCarry);
+                        let subtract = *op != AluOp::Add;
+                        if set_flags {
+                            let helper = if subtract {
+                                arithmetic_flags::<true> as *const ()
+                            } else {
+                                arithmetic_flags::<false> as *const ()
+                            };
+                            let helper = self.builder.ins().iconst(self.ptr_type, helper as usize as i64);
+                            let call = self.builder.ins().call_indirect(self.alu_signature, helper, &[self.frame, left, right]);
+                            self.builder.inst_results(call)[0]
+                        } else if subtract {
+                            self.builder.ins().isub(left, right)
+                        } else {
+                            self.builder.ins().iadd(left, right)
+                        }
+                    }
+                    AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry => {
+                        if *op == AluOp::ReverseSubCarry {
+                            swap(&mut left, &mut right);
+                        }
+                        let subtract = *op != AluOp::AddCarry;
                         if subtract {
                             right = self.builder.ins().bnot(right);
                         }
-                        let carry_in = if matches!(op, AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry) {
-                            let cpsr = self.cpsr();
-                            let carry = self.builder.ins().ushr_imm_s(cpsr, 29);
-                            self.builder.ins().band_imm_s(carry, 1)
-                        } else {
-                            self.builder.ins().iconst(types::I32, i64::from(subtract))
-                        };
-                        if *set_flags {
+                        let cpsr = self.cpsr();
+                        let carry_in = self.builder.ins().ushr_imm_s(cpsr, 29);
+                        let carry_in = self.builder.ins().band_imm_s(carry_in, 1);
+                        let (sum, first_carry) = self.builder.ins().uadd_overflow(left, right);
+                        let (result, last_carry) = self.builder.ins().uadd_overflow(sum, carry_in);
+                        if set_flags {
                             // Complementing the subtrahend gives ARM's no-borrow carry bit.
-                            let wide_left = self.builder.ins().uextend(types::I64, left);
-                            let wide_right = self.builder.ins().uextend(types::I64, right);
-                            let wide_carry = self.builder.ins().uextend(types::I64, carry_in);
-                            let wide = self.builder.ins().iadd(wide_left, wide_right);
-                            let wide = self.builder.ins().iadd(wide, wide_carry);
-                            let result = self.builder.ins().ireduce(types::I32, wide);
-                            let high = self.builder.ins().ushr_imm_s(wide, 32);
-                            carry = Some(self.builder.ins().ireduce(types::I32, high));
+                            let carry_out = self.builder.ins().bor(first_carry, last_carry);
+                            carry = Some(self.builder.ins().uextend(types::I32, carry_out));
                             let different_signs = self.builder.ins().bxor(left, right);
                             let same_signs = self.builder.ins().bnot(different_signs);
                             let changed_sign = self.builder.ins().bxor(left, result);
                             let overflow_bit = self.builder.ins().band(same_signs, changed_sign);
                             overflow = Some(self.builder.ins().ushr_imm_s(overflow_bit, 31));
-                            result
-                        } else {
-                            let sum = self.builder.ins().iadd(left, right);
-                            self.builder.ins().iadd(sum, carry_in)
                         }
+                        result
                     }
                     AluOp::And => self.builder.ins().band(left, right),
                     AluOp::Xor => self.builder.ins().bxor(left, right),
@@ -500,7 +745,7 @@ impl Emitter<'_> {
                     }
                     AluOp::CountLeadingZeros => self.builder.ins().clz(right),
                 };
-                if *set_flags {
+                if set_flags && !matches!(op, AluOp::Add | AluOp::Sub | AluOp::ReverseSub) {
                     self.set_flags(result, carry, overflow);
                 }
                 if let Some(destination) = destination {
@@ -523,7 +768,7 @@ impl Emitter<'_> {
                 let product = self.builder.ins().imul(left, right);
                 let result = self.builder.ins().iadd(product, accumulate);
                 self.store_register(destination, result);
-                if *set_flags {
+                if *set_flags && flags_live {
                     self.set_flags(result, None, None);
                 }
             }
@@ -564,7 +809,7 @@ impl Emitter<'_> {
                 let high_value = self.builder.ins().ireduce(types::I32, high_value);
                 self.store_register(low, low_value);
                 self.store_register(high, high_value);
-                if *set_flags {
+                if *set_flags && flags_live {
                     self.set_flags(result, None, None);
                 }
             }
@@ -581,11 +826,27 @@ impl Emitter<'_> {
                 self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
             }
             Operation::Branch { target, link, exchange } => {
-                let target = match target {
-                    BranchTarget::Address(address) => self.builder.ins().iconst(types::I32, i64::from(address.get())),
-                    BranchTarget::Register(register) => self.register(register),
+                let next = match target {
+                    BranchTarget::Address(address) => {
+                        let thumb = if *exchange { address.get() & 1 != 0 } else { self.thumb };
+                        if thumb != self.thumb {
+                            let cpsr = self.cpsr();
+                            let cpsr = if thumb {
+                                self.builder.ins().bor_imm_s(cpsr, 0x20)
+                            } else {
+                                self.builder.ins().band_imm_s(cpsr, !0x20)
+                            };
+                            self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+                        }
+                        self.builder
+                            .ins()
+                            .iconst(types::I32, i64::from(address.get() & if thumb { !1 } else { !3 }))
+                    }
+                    BranchTarget::Register(register) => {
+                        let target = self.register(register);
+                        self.pc_write(target, *exchange)
+                    }
                 };
-                let next = self.pc_write(target, *exchange);
                 if let Some(link) = link {
                     let link = self.builder.ins().iconst(types::I32, i64::from(link.get()));
                     self.store_register(&Reg::LR, link);
@@ -611,18 +872,18 @@ mod tests {
 
     use cranelift_codegen::{
         control::ControlPlane,
-        ir::{AbiParam, InstructionData, Opcode, Signature},
+        ir::{AbiParam, Opcode, Signature},
         isa, settings,
     };
     use wie_arm_jit_types::{
         RegionKey,
-        ir::{BasicBlock, MemoryAddress},
+        ir::{BasicBlock, MemoryAddress, Width},
     };
 
     use super::*;
 
     #[test]
-    fn fixed_backedge_is_native_and_compiles_for_both_host_isas() {
+    fn dead_flags_and_fixed_backedges_compile_for_both_host_isas() {
         let ir = RegionIr {
             entry: RegionKey {
                 pc: 0x1000,
@@ -644,11 +905,47 @@ mod tests {
                                 shift: Shift::Lsl,
                                 amount: ShiftAmount::Immediate(0),
                             },
-                            set_flags: false,
+                            set_flags: true,
                         },
                     },
                     Instruction {
                         pc: MemoryAddress::new(0x1004),
+                        size: 4,
+                        condition: Condition::Always,
+                        operation: Operation::Store {
+                            value: ir::Value::Register(Reg::new(0)),
+                            address: MemoryOperand {
+                                base: ir::Value::Register(Reg::new(2)),
+                                offset: Operand {
+                                    value: ir::Value::Immediate(0),
+                                    shift: Shift::Lsl,
+                                    amount: ShiftAmount::Immediate(0),
+                                },
+                                subtract: false,
+                                pre_index: true,
+                                write_back: None,
+                            },
+                            width: Width::Word,
+                        },
+                    },
+                    Instruction {
+                        pc: MemoryAddress::new(0x1008),
+                        size: 4,
+                        condition: Condition::Always,
+                        operation: Operation::Alu {
+                            op: AluOp::Add,
+                            destination: Some(Reg::new(1)),
+                            left: ir::Value::Register(Reg::new(1)),
+                            right: Operand {
+                                value: ir::Value::Immediate(1),
+                                shift: Shift::Lsl,
+                                amount: ShiftAmount::Immediate(0),
+                            },
+                            set_flags: true,
+                        },
+                    },
+                    Instruction {
+                        pc: MemoryAddress::new(0x100c),
                         size: 4,
                         condition: Condition::Always,
                         operation: Operation::Branch {
@@ -669,20 +966,22 @@ mod tests {
             context.func.signature = Signature::new(isa.default_call_conv());
             context.func.signature.params.extend([AbiParam::new(isa.pointer_type()); 2]);
             context.func.signature.returns.push(AbiParam::new(types::I32));
-            emit_region(&ir, &mut context, isa.as_ref()).unwrap();
+            emit_region(&ir, &mut context, &mut FunctionBuilderContext::new(), isa.as_ref()).unwrap();
             let blocks: Vec<_> = context.func.layout.blocks().collect();
             let mut backedge = false;
+            let mut calls = 0;
             for (index, &block) in blocks.iter().enumerate() {
                 for inst in context.func.layout.block_insts(block) {
                     let data = &context.func.dfg.insts[inst];
-                    assert!(!matches!(data.opcode(), Opcode::Call | Opcode::CallIndirect));
-                    if let InstructionData::Jump { destination, .. } = data {
+                    calls += usize::from(matches!(data.opcode(), Opcode::Call | Opcode::CallIndirect));
+                    for destination in data.branch_destination(&context.func.dfg.jump_tables, &context.func.dfg.exception_tables) {
                         let target = destination.block(&context.func.dfg.value_lists);
                         backedge |= blocks[..index].contains(&target);
                     }
                 }
             }
             assert!(backedge, "fixed guest backedge must stay in native CFG");
+            assert_eq!(calls, 1, "only the live arithmetic flags need a helper call");
             let compiled = context.compile(isa.as_ref(), &mut ControlPlane::default()).unwrap();
             assert!(!compiled.code_buffer().is_empty());
         }

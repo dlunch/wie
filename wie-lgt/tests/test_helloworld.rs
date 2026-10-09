@@ -14,7 +14,7 @@ use wie_util::Result;
 #[test]
 pub fn test_helloworld() -> Result<()> {
     let executor = TestNativeExecutor::new();
-    let retired = executor.retired.clone();
+    let executed = executor.executed.clone();
 
     for aot in [None, Some(Box::new(executor) as _)] {
         let stdout = Arc::new(Mutex::new(Vec::new()));
@@ -55,7 +55,7 @@ pub fn test_helloworld() -> Result<()> {
         assert_eq!(stdout_str, "Hello, world!");
     }
 
-    assert!(retired.load(Ordering::Relaxed) > 0, "hello-world must execute native instructions");
+    assert!(executed.load(Ordering::Relaxed), "hello-world must execute native instructions");
 
     Ok(())
 }

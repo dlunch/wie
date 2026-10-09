@@ -1,5 +1,5 @@
 use alloc::{boxed::Box, sync::Arc};
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use wie_arm_jit_types::{CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, PreparationFuture, RunFrame};
 use wie_core_arm_native::NativeExecutor;
@@ -7,7 +7,7 @@ use wie_util::Result;
 
 pub struct TestNativeExecutor {
     inner: NativeExecutor,
-    pub retired: Arc<AtomicU32>,
+    pub executed: Arc<AtomicBool>,
 }
 
 impl Default for TestNativeExecutor {
@@ -20,7 +20,7 @@ impl TestNativeExecutor {
     pub fn new() -> Self {
         Self {
             inner: NativeExecutor::new(),
-            retired: Arc::new(AtomicU32::new(0)),
+            executed: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -40,8 +40,11 @@ impl CompiledExecutor for TestNativeExecutor {
     }
 
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit> {
+        let pc = frame.regs[15];
         let result = self.inner.execute(handle, frame, access);
-        self.retired.fetch_add(frame.executed, Ordering::Relaxed);
+        if result.is_ok() && frame.regs[15] != pc {
+            self.executed.store(true, Ordering::Relaxed);
+        }
         result
     }
 }
