@@ -7,6 +7,7 @@ use core::{future::Future, ops::Range, pin::Pin};
 use wie_util::Result;
 
 pub mod ir;
+pub mod manifest;
 
 #[derive(Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RegionKey {

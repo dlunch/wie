@@ -3,7 +3,7 @@ use core::mem::{offset_of, size_of, swap};
 
 use cranelift_codegen::{
     Context,
-    ir::{AbiParam, Block, InstBuilder, MemFlagsData, SigRef, Signature, Type, Value, condcodes::IntCC, types},
+    ir::{Block, InstBuilder, MemFlagsData, Type, Value, condcodes::IntCC, types},
     isa::TargetIsa,
 };
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch};
@@ -80,41 +80,6 @@ fn live_flag_updates(instructions: &[Instruction]) -> Vec<bool> {
             };
     }
     updates
-}
-
-extern "C" fn arithmetic_flags<const SUBTRACT: bool>(frame: &mut RunFrame, left: u32, right: u32) -> u32 {
-    let (result, carry, overflow) = if SUBTRACT {
-        let (result, borrow) = left.overflowing_sub(right);
-        (result, !borrow, (left as i32).overflowing_sub(right as i32).1)
-    } else {
-        let (result, carry) = left.overflowing_add(right);
-        (result, carry, (left as i32).overflowing_add(right as i32).1)
-    };
-    frame.cpsr =
-        (frame.cpsr & 0x0fff_ffff) | (result & 0x8000_0000) | (u32::from(result == 0) << 30) | (u32::from(carry) << 29) | (u32::from(overflow) << 28);
-    result
-}
-
-extern "C" fn shift_flags<const KIND: u8>(frame: &mut RunFrame, value: u32, amount: u32) -> u32 {
-    let previous_carry = (frame.cpsr >> 29) & 1;
-    let (result, carry) = if KIND == 4 {
-        ((previous_carry << 31) | (value >> 1), value & 1)
-    } else if amount == 0 {
-        (value, previous_carry)
-    } else {
-        match KIND {
-            0 if amount <= 32 => (value.checked_shl(amount).unwrap_or(0), (value >> (32 - amount)) & 1),
-            1 if amount <= 32 => (value.checked_shr(amount).unwrap_or(0), (value >> (amount - 1)) & 1),
-            0 | 1 => (0, 0),
-            2 => (((value as i32) >> amount.min(31)) as u32, (value >> (amount - 1).min(31)) & 1),
-            _ => {
-                let result = value.rotate_right(amount);
-                (result, result >> 31)
-            }
-        }
-    };
-    frame.cpsr = (frame.cpsr & 0x1fff_ffff) | (result & 0x8000_0000) | (u32::from(result == 0) << 30) | (carry << 29);
-    result
 }
 
 pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context: &mut FunctionBuilderContext, isa: &dyn TargetIsa) -> Result<()> {
@@ -218,12 +183,6 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context:
         }
     }
     let mut builder = FunctionBuilder::new(&mut context.func, builder_context);
-    let mut signature = Signature::new(isa.default_call_conv());
-    signature
-        .params
-        .extend([AbiParam::new(isa.pointer_type()), AbiParam::new(types::I32), AbiParam::new(types::I32)]);
-    signature.returns.push(AbiParam::new(types::I32));
-    let alu_signature = builder.import_signature(signature);
     let entry = builder.create_block();
     builder.append_block_params_for_function_params(entry);
     builder.switch_to_block(entry);
@@ -244,7 +203,6 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context:
         frame,
         pages,
         ptr_type: isa.pointer_type(),
-        alu_signature,
         thumb: ir.entry.thumb,
         pc: ir.entry.pc,
         mode: u32::from(ir.entry.cpu_mode) | if ir.entry.thumb { 0x20 } else { 0 },
@@ -332,7 +290,6 @@ struct Emitter<'a> {
     frame: Value,
     pages: Value,
     ptr_type: Type,
-    alu_signature: SigRef,
     thumb: bool,
     pc: u32,
     mode: u32,
@@ -648,37 +605,6 @@ impl Emitter<'_> {
                     }
                     return None;
                 }
-                if *op == AluOp::Move && set_flags {
-                    let helper = match right.shift {
-                        Shift::Lsl => shift_flags::<0> as *const (),
-                        Shift::Lsr => shift_flags::<1> as *const (),
-                        Shift::Asr => shift_flags::<2> as *const (),
-                        Shift::Ror => shift_flags::<3> as *const (),
-                        Shift::Rrx => shift_flags::<4> as *const (),
-                    };
-                    let value = self.value(&right.value);
-                    let amount = if right.shift == Shift::Rrx {
-                        self.builder.ins().iconst(types::I32, 0)
-                    } else {
-                        match &right.amount {
-                            ShiftAmount::Immediate(amount) => self.builder.ins().iconst(types::I32, i64::from(*amount)),
-                            ShiftAmount::Register(register) => {
-                                let amount = self.register(register);
-                                self.builder.ins().band_imm_s(amount, 255)
-                            }
-                        }
-                    };
-                    let helper = self.builder.ins().iconst(self.ptr_type, helper as usize as i64);
-                    let call = self.builder.ins().call_indirect(self.alu_signature, helper, &[self.frame, value, amount]);
-                    let result = self.builder.inst_results(call)[0];
-                    if let Some(destination) = destination {
-                        if *destination == Reg::PC {
-                            return Some(self.pc_write(result, false));
-                        }
-                        self.store_register(destination, result);
-                    }
-                    return None;
-                }
                 let mut left = self.value(left);
                 let set_carry = set_flags && matches!(op, AluOp::And | AluOp::Xor | AluOp::Or | AluOp::Move | AluOp::BitClear | AluOp::Not);
                 let (mut right, shifted_carry) = self.operand(right, set_carry);
@@ -691,14 +617,19 @@ impl Emitter<'_> {
                         }
                         let subtract = *op != AluOp::Add;
                         if set_flags {
-                            let helper = if subtract {
-                                arithmetic_flags::<true> as *const ()
+                            let (result, overflow_bit) = if subtract {
+                                self.builder.ins().ssub_overflow(left, right)
                             } else {
-                                arithmetic_flags::<false> as *const ()
+                                self.builder.ins().sadd_overflow(left, right)
                             };
-                            let helper = self.builder.ins().iconst(self.ptr_type, helper as usize as i64);
-                            let call = self.builder.ins().call_indirect(self.alu_signature, helper, &[self.frame, left, right]);
-                            self.builder.inst_results(call)[0]
+                            let carry_bit = if subtract {
+                                self.builder.ins().icmp(IntCC::UnsignedGreaterThanOrEqual, left, right)
+                            } else {
+                                self.builder.ins().icmp(IntCC::UnsignedLessThan, result, left)
+                            };
+                            carry = Some(self.builder.ins().uextend(types::I32, carry_bit));
+                            overflow = Some(self.builder.ins().uextend(types::I32, overflow_bit));
+                            result
                         } else if subtract {
                             self.builder.ins().isub(left, right)
                         } else {
@@ -745,7 +676,7 @@ impl Emitter<'_> {
                     }
                     AluOp::CountLeadingZeros => self.builder.ins().clz(right),
                 };
-                if set_flags && !matches!(op, AluOp::Add | AluOp::Sub | AluOp::ReverseSub) {
+                if set_flags {
                     self.set_flags(result, carry, overflow);
                 }
                 if let Some(destination) = destination {
@@ -884,7 +815,7 @@ mod tests {
 
     #[test]
     fn dead_flags_and_fixed_backedges_compile_for_both_host_isas() {
-        let ir = RegionIr {
+        let mut ir = RegionIr {
             entry: RegionKey {
                 pc: 0x1000,
                 thumb: false,
@@ -957,6 +888,37 @@ mod tests {
                 ],
             }],
         };
+        ir.blocks.extend(
+            [
+                (AluOp::Add, Shift::Lsl),
+                (AluOp::Sub, Shift::Lsl),
+                (AluOp::Move, Shift::Lsl),
+                (AluOp::Move, Shift::Lsr),
+                (AluOp::Move, Shift::Asr),
+                (AluOp::Move, Shift::Ror),
+                (AluOp::Move, Shift::Rrx),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (op, shift))| BasicBlock {
+                instructions: vec![Instruction {
+                    pc: MemoryAddress::new(0x1100 + index as u32 * 8),
+                    size: 4,
+                    condition: Condition::Always,
+                    operation: Operation::Alu {
+                        op,
+                        destination: Some(Reg::new(0)),
+                        left: ir::Value::Register(Reg::new(0)),
+                        right: Operand {
+                            value: ir::Value::Register(Reg::new(1)),
+                            shift,
+                            amount: ShiftAmount::Register(Reg::new(2)),
+                        },
+                        set_flags: true,
+                    },
+                }],
+            }),
+        );
         for triple in ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"] {
             let isa = isa::lookup(triple.parse().unwrap())
                 .unwrap()
@@ -970,10 +932,12 @@ mod tests {
             let blocks: Vec<_> = context.func.layout.blocks().collect();
             let mut backedge = false;
             let mut calls = 0;
+            let mut arithmetic_flags = 0;
             for (index, &block) in blocks.iter().enumerate() {
                 for inst in context.func.layout.block_insts(block) {
                     let data = &context.func.dfg.insts[inst];
                     calls += usize::from(matches!(data.opcode(), Opcode::Call | Opcode::CallIndirect));
+                    arithmetic_flags += usize::from(matches!(data.opcode(), Opcode::SaddOverflow | Opcode::SsubOverflow));
                     for destination in data.branch_destination(&context.func.dfg.jump_tables, &context.func.dfg.exception_tables) {
                         let target = destination.block(&context.func.dfg.value_lists);
                         backedge |= blocks[..index].contains(&target);
@@ -981,9 +945,14 @@ mod tests {
                 }
             }
             assert!(backedge, "fixed guest backedge must stay in native CFG");
-            assert_eq!(calls, 1, "only the live arithmetic flags need a helper call");
+            assert_eq!(calls, 0, "persistent native code must not call process-specific flag helpers");
+            assert_eq!(arithmetic_flags, 3, "the overwritten add flags must not be emitted");
             let compiled = context.compile(isa.as_ref(), &mut ControlPlane::default()).unwrap();
             assert!(!compiled.code_buffer().is_empty());
+            assert!(
+                compiled.buffer.relocs().is_empty(),
+                "persistent functions must be independently relocatable"
+            );
         }
     }
 }

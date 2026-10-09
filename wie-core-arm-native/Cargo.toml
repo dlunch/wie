@@ -12,8 +12,11 @@ cranelift-frontend = "0.136.2"
 cranelift-jit = "0.136.2"
 cranelift-module = "0.136.2"
 futures = { workspace = true }
+nom = { version = "^8", default-features = false, features = ["alloc"] }
 rayon = "1.12"
+sha2 = { version = "0.10", default-features = false }
 spin = { workspace = true }
+tracing = { workspace = true }
 wie-arm-jit-types = { workspace = true }
 wie-util = { workspace = true }
 

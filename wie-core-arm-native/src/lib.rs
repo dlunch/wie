@@ -6,6 +6,7 @@ use alloc::{
     collections::{BTreeMap, btree_map::Entry},
     format,
     sync::Arc,
+    vec,
     vec::Vec,
 };
 use core::{mem::transmute, ops::Range};
@@ -22,12 +23,15 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use spin::Mutex;
 
 use wie_arm_jit_types::{
-    CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, ManifestRegion, MemoryPage,
-    PreparationFuture, RunFrame, ir::RegionIr,
+    CodeImage, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, ManifestRegion,
+    MemoryPage, PreparationFuture, RunFrame, ir::RegionIr,
 };
 use wie_util::{Result, WieError};
 
+mod cache;
 mod codegen;
+
+pub use cache::NativeCache;
 
 type RegionFn = unsafe extern "C" fn(*mut RunFrame, *mut MemoryPage) -> u32;
 
@@ -51,7 +55,14 @@ struct Compiler {
     module: ModuleOwner,
     context: Context,
     builder_context: FunctionBuilderContext,
-    regions: Vec<(usize, FuncId, ManifestRegion)>,
+    regions: Vec<PendingRegion>,
+}
+
+struct PendingRegion {
+    index: usize,
+    function: FuncId,
+    manifest: ManifestRegion,
+    code: Option<(u32, Vec<u8>)>,
 }
 
 #[derive(Default)]
@@ -62,77 +73,52 @@ struct Modules {
 
 pub struct NativeExecutor {
     modules: Arc<Mutex<Modules>>,
+    cache: Option<Box<dyn NativeCache>>,
 }
 
 impl NativeExecutor {
-    pub fn new() -> Self {
+    pub fn new(cache: Option<Box<dyn NativeCache>>) -> Self {
         Self {
             modules: Arc::new(Mutex::new(Modules::default())),
+            cache,
         }
-    }
-}
-
-impl Default for NativeExecutor {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
 impl CompiledExecutor for NativeExecutor {
     fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
         let modules = Arc::downgrade(&self.modules);
+        let cache = self.cache.take();
         let (sender, receiver) = oneshot::channel();
         rayon::spawn(move || {
-            let compiled = request
-                .coalesced_regions()
-                .flatten()
-                .enumerate()
-                .par_bridge()
-                .try_fold(
-                    || None,
-                    |compiler: Option<Compiler>, (index, region)| -> Result<_> {
-                        let mut compiler = match compiler {
-                            Some(compiler) => compiler,
-                            None => {
-                                let builder = JITBuilder::with_flags(&[("enable_verifier", "false")], default_libcall_names())
-                                    .map_err(|error| WieError::FatalError(format!("Creating native ARM AOT compiler: {error}")))?;
-                                let module = ModuleOwner(Some(JITModule::new(builder)));
-                                let context = module.0.as_ref().unwrap().make_context();
-                                Compiler {
-                                    module,
-                                    context,
-                                    builder_context: FunctionBuilderContext::new(),
-                                    regions: Vec::new(),
-                                }
+            let prepared = (|| -> Result<_> {
+                let cache = if let Some(mut cache) = cache {
+                    let module = create_module()?;
+                    let key = cache::key(module.0.as_ref().unwrap().isa(), &request);
+                    match cache.load(&key) {
+                        Ok(Some(bytes)) => match restore(module, &bytes, &key, &request.images) {
+                            Ok(compiled) => {
+                                tracing::info!(bytes = bytes.len(), "Native ARM AOT persistent cache hit");
+                                return Ok((compiled, None));
                             }
-                        };
-                        let (function, manifest) = compile_region(
-                            compiler.module.0.as_mut().unwrap(),
-                            &mut compiler.context,
-                            &mut compiler.builder_context,
-                            region.ir,
-                        )?;
-                        compiler.regions.push((index, function, manifest));
-                        Ok(Some(compiler))
-                    },
-                )
-                .filter_map(|compiler| compiler.transpose())
-                .map(|compiler| -> Result<_> {
-                    let mut compiler = compiler?;
-                    compiler
-                        .module
-                        .0
-                        .as_mut()
-                        .unwrap()
-                        .finalize_definitions()
-                        .map_err(|error| WieError::FatalError(format!("Finalizing native ARM AOT module: {error}")))?;
-                    Ok((compiler.module, compiler.regions))
-                })
-                .collect::<Result<Vec<_>>>();
-            let _ = sender.send(compiled);
+                            Err(error) => tracing::warn!("Rejecting native ARM AOT cache: {error}"),
+                        },
+                        Ok(None) => tracing::debug!("Native ARM AOT cache miss"),
+                        Err(error) => tracing::warn!("Reading native ARM AOT cache: {error}"),
+                    }
+                    Some((cache, key))
+                } else {
+                    None
+                };
+                let compiled = compile(request, cache.is_some())?;
+                let pending = cache
+                    .and_then(|(cache, key)| cache::encode(&key, compiled.iter().flat_map(|(_, regions)| regions)).map(|bytes| (cache, key, bytes)));
+                Ok((compiled, pending))
+            })();
+            let _ = sender.send(prepared);
         });
         Box::pin(async move {
-            let compiled = receiver
+            let (compiled, pending) = receiver
                 .await
                 .map_err(|error| WieError::FatalError(format!("Receiving native ARM AOT compilation: {error}")))??;
             let modules = modules
@@ -146,14 +132,14 @@ impl CompiledExecutor for NativeExecutor {
                     let id = modules.next_id;
                     modules.next_id += 1;
                     let mut entries = BTreeMap::new();
-                    for (slot, (index, function, manifest)) in compiled.into_iter().enumerate() {
+                    for (slot, region) in compiled.into_iter().enumerate() {
                         // Each entry has the host C RegionFn ABI and stays owned until the last region is released.
-                        let entry = unsafe { transmute::<*const u8, RegionFn>(module.get_finalized_function(function)) };
+                        let entry = unsafe { transmute::<*const u8, RegionFn>(module.get_finalized_function(region.function)) };
                         entries.insert(slot as u32, entry);
                         regions.push((
-                            index,
+                            region.index,
                             CompiledRegion {
-                                manifest,
+                                manifest: region.manifest,
                                 handle: CompiledHandle {
                                     module: id,
                                     slot: slot as u32,
@@ -165,6 +151,15 @@ impl CompiledExecutor for NativeExecutor {
                 }
             }
             regions.sort_unstable_by_key(|(index, _)| *index);
+            if let Some((mut cache, key, bytes)) = pending {
+                rayon::spawn(move || {
+                    // The complete record comes only from successfully finalized compiler output.
+                    match unsafe { cache.store(&key, &bytes) } {
+                        Ok(()) => tracing::info!(bytes = bytes.len(), "Stored native ARM AOT cache"),
+                        Err(error) => tracing::warn!("Writing native ARM AOT cache: {error}"),
+                    }
+                });
+            }
             Ok(CompiledArtifact {
                 regions: regions.into_iter().map(|(_, region)| region).collect(),
             })
@@ -189,7 +184,7 @@ impl CompiledExecutor for NativeExecutor {
             .and_then(|module| module.entries.get(&handle.slot))
             .ok_or_else(|| WieError::FatalError("Native ARM AOT region is unavailable".into()))?;
         // Finalized code has this exact ABI; both borrows and the executable owner
-        // remain live throughout the synchronous call; flag helpers cannot reenter execution or remap pages.
+        // remain live throughout the synchronous call; generated code cannot reenter execution or remap pages.
         let exit = unsafe { entry(frame, access.pages().as_mut_ptr()) };
         match exit {
             0 => Ok(CompiledExit::Dispatch),
@@ -197,6 +192,103 @@ impl CompiledExecutor for NativeExecutor {
             _ => Err(WieError::FatalError(format!("Native ARM AOT returned invalid exit {exit}"))),
         }
     }
+}
+
+fn create_module() -> Result<ModuleOwner> {
+    let builder = JITBuilder::with_flags(&[("enable_verifier", "false")], default_libcall_names())
+        .map_err(|error| WieError::FatalError(format!("Creating native ARM AOT compiler: {error}")))?;
+    Ok(ModuleOwner(Some(JITModule::new(builder))))
+}
+
+fn compile(request: CompileRequest, cache: bool) -> Result<Vec<(ModuleOwner, Vec<PendingRegion>)>> {
+    request
+        .coalesced_regions()
+        .flatten()
+        .enumerate()
+        .par_bridge()
+        .try_fold(
+            || None,
+            |compiler: Option<Compiler>, (index, region)| -> Result<_> {
+                let mut compiler = match compiler {
+                    Some(compiler) => compiler,
+                    None => {
+                        let module = create_module()?;
+                        let context = module.0.as_ref().unwrap().make_context();
+                        Compiler {
+                            module,
+                            context,
+                            builder_context: FunctionBuilderContext::new(),
+                            regions: Vec::new(),
+                        }
+                    }
+                };
+                let (function, manifest) = compile_region(
+                    compiler.module.0.as_mut().unwrap(),
+                    &mut compiler.context,
+                    &mut compiler.builder_context,
+                    region.ir,
+                )?;
+                let code = if cache {
+                    let code = compiler.context.compiled_code().unwrap();
+                    if !code.buffer.relocs().is_empty() {
+                        return Err(WieError::FatalError("Native ARM AOT cache requires relocation-free code".into()));
+                    }
+                    Some((code.buffer.alignment, code.code_buffer().to_vec()))
+                } else {
+                    None
+                };
+                compiler.regions.push(PendingRegion {
+                    index,
+                    function,
+                    manifest,
+                    code,
+                });
+                Ok(Some(compiler))
+            },
+        )
+        .filter_map(|compiler| compiler.transpose())
+        .map(|compiler| -> Result<_> {
+            let mut compiler = compiler?;
+            compiler
+                .module
+                .0
+                .as_mut()
+                .unwrap()
+                .finalize_definitions()
+                .map_err(|error| WieError::FatalError(format!("Finalizing native ARM AOT module: {error}")))?;
+            Ok((compiler.module, compiler.regions))
+        })
+        .collect()
+}
+
+fn restore(mut owner: ModuleOwner, bytes: &[u8], key: &[u8; 32], images: &[CodeImage]) -> Result<Vec<(ModuleOwner, Vec<PendingRegion>)>> {
+    let cached = cache::decode(bytes, key, images).ok_or_else(|| WieError::FatalError("Invalid native ARM AOT cache record".into()))?;
+    if cached.is_empty() {
+        return Ok(Vec::new());
+    }
+    let module = owner.0.as_mut().unwrap();
+    let mut signature = module.make_signature();
+    signature.params.extend([AbiParam::new(module.isa().pointer_type()); 2]);
+    signature.returns.push(AbiParam::new(types::I32));
+    let mut regions = Vec::with_capacity(cached.len());
+    for (index, region) in cached.into_iter().enumerate() {
+        let function = module
+            .declare_anonymous_function(&signature)
+            .map_err(|error| WieError::FatalError(format!("Declaring cached native ARM AOT region: {error}")))?;
+        module
+            .define_function_bytes(function, u64::from(region.alignment), region.code, &[])
+            .map_err(|error| WieError::FatalError(format!("Loading native ARM AOT region: {error}")))?;
+        regions.push(PendingRegion {
+            index,
+            function,
+            manifest: region.manifest,
+            code: None,
+        });
+    }
+    module
+        .finalize_definitions()
+        .map_err(|error| WieError::FatalError(format!("Finalizing cached native ARM AOT module: {error}")))?;
+    Ok(vec![(owner, regions)])
 }
 
 fn compile_region(
@@ -247,7 +339,7 @@ fn compile_region(
 mod tests {
     extern crate std;
 
-    use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec::Vec};
+    use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec, vec::Vec};
     use core::{
         mem::transmute,
         sync::atomic::{AtomicUsize, Ordering},
@@ -261,12 +353,14 @@ mod tests {
     use cranelift_module::{Linkage, Module, ModuleResult, default_libcall_names};
     use futures::executor::block_on;
     use rayon::ThreadPoolBuilder;
+    use spin::Mutex;
     use wie_arm_jit_types::{
-        CompileRegion, CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, RegionKey, RunFrame,
+        CodeImage, CompileRegion, CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, RegionKey, RunFrame,
         ir::{AluOp, BasicBlock, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value},
     };
+    use wie_util::{Result, WieError};
 
-    use super::{ModuleOwner, NativeExecutor};
+    use super::{ModuleOwner, NativeCache, NativeExecutor};
 
     fn region(entry: u32, blocks: &[&[(u32, u8)]]) -> CompileRegion {
         CompileRegion {
@@ -319,16 +413,167 @@ mod tests {
         }
     }
 
+    struct TestCache {
+        bytes: Arc<Mutex<Option<Vec<u8>>>>,
+        calls: Arc<[AtomicUsize; 2]>,
+        stored: mpsc::Sender<()>,
+        fail: bool,
+    }
+
+    // Only this test's compiler output is loaded; corruption cases fail validation before execution.
+    unsafe impl NativeCache for TestCache {
+        fn load(&mut self, _: &[u8; 32]) -> Result<Option<Vec<u8>>> {
+            assert!(rayon::current_thread_index().is_some());
+            self.calls[0].fetch_add(1, Ordering::Relaxed);
+            if self.fail {
+                return Err(WieError::FatalError("unavailable cache".into()));
+            }
+            Ok(self.bytes.lock().clone())
+        }
+
+        unsafe fn store(&mut self, _: &[u8; 32], bytes: &[u8]) -> Result<()> {
+            assert!(rayon::current_thread_index().is_some());
+            self.calls[1].fetch_add(1, Ordering::Relaxed);
+            if !self.fail {
+                *self.bytes.lock() = Some(bytes.to_vec());
+            }
+            self.stored.send(()).unwrap();
+            if self.fail {
+                return Err(WieError::FatalError("unavailable cache".into()));
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn persistent_preparation_restores_without_decoding_and_rebuilds_rejected_entries() {
+        let bytes: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        let calls = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
+        let images: Arc<[_]> = [CodeImage {
+            address: 0x1000,
+            bytes: vec![0; 12],
+        }]
+        .into();
+        for attempt in 0..5 {
+            let hit = attempt == 1;
+            if attempt == 2 {
+                bytes.lock().as_mut().unwrap()[0] ^= 1;
+            }
+            let (stored, completion) = mpsc::channel();
+            let cache = TestCache {
+                bytes: bytes.clone(),
+                calls: calls.clone(),
+                stored,
+                fail: attempt == 4,
+            };
+            let mut executor = NativeExecutor::new(Some(Box::new(cache)));
+            let mut instructions = region(0x1000, &[&[(0x1000, 4), (0x1004, 4), (0x1008, 4)]]);
+            for (instruction, operation) in instructions.ir.blocks[0].instructions.iter_mut().zip([
+                Operation::Alu {
+                    op: AluOp::Add,
+                    destination: Some(Reg::new(0)),
+                    left: Value::Register(Reg::new(0)),
+                    right: Operand {
+                        value: Value::Immediate(1),
+                        shift: Shift::Lsl,
+                        amount: ShiftAmount::Immediate(0),
+                    },
+                    set_flags: true,
+                },
+                Operation::Alu {
+                    op: AluOp::Move,
+                    destination: Some(Reg::new(1)),
+                    left: Value::Immediate(0),
+                    right: Operand {
+                        value: Value::Register(Reg::new(0)),
+                        shift: Shift::Rrx,
+                        amount: ShiftAmount::Immediate(0),
+                    },
+                    set_flags: true,
+                },
+                Operation::Alu {
+                    op: AluOp::Move,
+                    destination: Some(Reg::new(2)),
+                    left: Value::Immediate(0),
+                    right: Operand {
+                        value: Value::Register(Reg::new(1)),
+                        shift: Shift::Lsl,
+                        amount: ShiftAmount::Register(Reg::new(3)),
+                    },
+                    set_flags: true,
+                },
+            ]) {
+                instruction.operation = operation;
+            }
+            let mut input = request(
+                [Some(instructions)]
+                    .into_iter()
+                    .inspect(move |_| assert!(!hit, "persistent hit must not advance the decoder")),
+            );
+            input.images = images.clone();
+            if attempt == 3 {
+                input.max_region_blocks += 1;
+            }
+            let artifact = block_on(executor.prepare(input)).unwrap();
+            assert_eq!(artifact.regions.len(), 1);
+            assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x1000, 0x1004, 0x1008]);
+            assert_eq!(artifact.regions[0].manifest.code_ranges.len(), 1);
+            assert_eq!(artifact.regions[0].manifest.code_ranges[0], 0x1000..0x100c);
+            let mut access = Access(
+                (0..0x10000)
+                    .map(|_| MemoryPage::default())
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice()
+                    .try_into()
+                    .ok()
+                    .unwrap(),
+            );
+            let mut frame = RunFrame {
+                cpsr: 0x1f,
+                ..RunFrame::default()
+            };
+            frame.regs[15] = 0x1000;
+            frame.regs[0] = u32::MAX;
+            let handle = artifact.regions[0].handle;
+            assert!(executor.execute(handle, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+            assert_eq!(frame.regs[15], 0x100c);
+            assert_eq!(&frame.regs[..4], [0, 0x8000_0000, 0x8000_0000, 0]);
+            assert_eq!(frame.cpsr, 0x8000_001f);
+            executor.release(handle);
+            assert!(executor.modules.lock().compiled.is_empty());
+            if !hit {
+                completion.recv_timeout(Duration::from_secs(5)).unwrap();
+            }
+            let reads = calls[0].load(Ordering::Relaxed);
+            let writes = calls[1].load(Ordering::Relaxed);
+            block_on(executor.prepare(request([].into_iter()))).unwrap();
+            assert_eq!(calls[0].load(Ordering::Relaxed), reads);
+            assert_eq!(calls[1].load(Ordering::Relaxed), writes);
+        }
+        assert_eq!(calls[0].load(Ordering::Relaxed), 5);
+        assert_eq!(calls[1].load(Ordering::Relaxed), 4);
+    }
+
     #[test]
     fn preparation_preserves_exact_coverage_and_region_lifetimes() {
         for workers in [1, 2] {
             let pool = ThreadPoolBuilder::new().num_threads(workers).build().unwrap();
-            let mut executor = NativeExecutor::new();
+            let calls = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
+            let (stored, completion) = mpsc::channel();
+            let mut executor = NativeExecutor::new(Some(Box::new(TestCache {
+                bytes: Arc::new(Mutex::new(None)),
+                calls: calls.clone(),
+                stored,
+                fail: false,
+            })));
             for input in [request([].into_iter()), request([None, None].into_iter())] {
                 let future = pool.install(|| executor.prepare(input));
                 assert!(block_on(future).unwrap().regions.is_empty());
                 assert!(executor.modules.lock().compiled.is_empty());
             }
+            completion.recv_timeout(Duration::from_secs(5)).unwrap();
+            assert_eq!(calls[0].load(Ordering::Relaxed), 1);
+            assert_eq!(calls[1].load(Ordering::Relaxed), 1);
             let mut mode_change = region(0x4000, &[&[(0x4000, 4), (0x4004, 4)]]);
             mode_change.ir.blocks[0].instructions[0].operation = Operation::WriteCpsr {
                 value: Value::Register(Reg::new(0)),
@@ -357,7 +602,8 @@ mod tests {
             assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x1000, 0x1004, 0x1010, 0x1014]);
             assert_eq!(artifact.regions[0].manifest.code_ranges, [0x1000..0x1008, 0x1010..0x1018]);
             assert_eq!(artifact.regions[1].manifest.instruction_pcs, [0x4000, 0x4004]);
-            assert_eq!(artifact.regions[1].manifest.code_ranges, [0x4000..0x4008]);
+            assert_eq!(artifact.regions[1].manifest.code_ranges.len(), 1);
+            assert_eq!(artifact.regions[1].manifest.code_ranges[0], 0x4000..0x4008);
             assert_eq!(
                 artifact
                     .regions
@@ -415,7 +661,8 @@ mod tests {
             for region in &artifact.regions[2..] {
                 let pc = region.manifest.entry.pc;
                 assert_eq!(region.manifest.instruction_pcs, [pc]);
-                assert_eq!(region.manifest.code_ranges, [u64::from(pc)..u64::from(pc + 4)]);
+                assert_eq!(region.manifest.code_ranges.len(), 1);
+                assert_eq!(region.manifest.code_ranges[0], u64::from(pc)..u64::from(pc + 4));
                 frame.regs[15] = pc;
                 frame.end = pc + 4;
                 assert!(executor.execute(region.handle, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
@@ -423,6 +670,8 @@ mod tests {
                 executor.release(region.handle);
             }
             assert!(executor.modules.lock().compiled.is_empty());
+            assert_eq!(calls[0].load(Ordering::Relaxed), 1);
+            assert_eq!(calls[1].load(Ordering::Relaxed), 1);
         }
     }
 
@@ -431,7 +680,14 @@ mod tests {
         for workers in [1, 2] {
             let pool = ThreadPoolBuilder::new().num_threads(workers).build().unwrap();
             for drop_owner in [false, true] {
-                let mut executor = NativeExecutor::new();
+                let calls = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
+                let (stored, completion) = mpsc::channel();
+                let mut executor = NativeExecutor::new(Some(Box::new(TestCache {
+                    bytes: Arc::new(Mutex::new(None)),
+                    calls: calls.clone(),
+                    stored,
+                    fail: false,
+                })));
                 let owner = Arc::downgrade(&executor.modules);
                 let steps = Arc::new(AtomicUsize::new(0));
                 let observed = steps.clone();
@@ -461,6 +717,8 @@ mod tests {
                     assert!(future.as_mut().poll(&mut context).is_pending());
                     release.send(()).unwrap();
                     assert!(block_on(future).is_err());
+                    assert!(completion.recv_timeout(Duration::from_secs(5)).is_err());
+                    assert_eq!(calls[1].load(Ordering::Relaxed), 0);
                 } else {
                     release.send(()).unwrap();
                     let artifact = block_on(future).unwrap();
@@ -469,7 +727,10 @@ mod tests {
                         executor.release(region.handle);
                     }
                     assert!(executor.modules.lock().compiled.is_empty());
+                    completion.recv_timeout(Duration::from_secs(5)).unwrap();
+                    assert_eq!(calls[1].load(Ordering::Relaxed), 1);
                 }
+                assert_eq!(calls[0].load(Ordering::Relaxed), 1);
                 assert_eq!(steps.load(Ordering::Relaxed), 2);
                 assert!(iterator_owner.upgrade().is_none());
             }
@@ -479,7 +740,14 @@ mod tests {
     #[test]
     fn malformed_register_fails_preparation_without_publishing_a_prefix() {
         let pool = ThreadPoolBuilder::new().num_threads(2).build().unwrap();
-        let mut executor = NativeExecutor::new();
+        let calls = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
+        let (stored, completion) = mpsc::channel();
+        let mut executor = NativeExecutor::new(Some(Box::new(TestCache {
+            bytes: Arc::new(Mutex::new(None)),
+            calls: calls.clone(),
+            stored,
+            fail: false,
+        })));
         for operation in [
             Operation::ReadCpsr { destination: Reg::new(255) },
             Operation::Alu {
@@ -522,6 +790,9 @@ mod tests {
             executor.release(artifact.regions[0].handle);
             assert!(executor.modules.lock().compiled.is_empty());
         }
+        assert!(completion.recv_timeout(Duration::from_secs(5)).is_err());
+        assert_eq!(calls[0].load(Ordering::Relaxed), 1);
+        assert_eq!(calls[1].load(Ordering::Relaxed), 0);
     }
 
     #[test]

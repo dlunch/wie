@@ -7245,6 +7245,7 @@ dependencies = [
  "rodio",
  "sentry",
  "softbuffer",
+ "tempfile",
  "tracing",
  "tracing-subscriber",
  "wie-backend",
@@ -7315,6 +7316,7 @@ dependencies = [
 name = "wie-arm-jit-types"
 version = "0.1.7"
 dependencies = [
+ "nom 8.0.0",
  "wie-util",
 ]
 
@@ -7369,8 +7371,11 @@ dependencies = [
  "cranelift-jit",
  "cranelift-module",
  "futures",
+ "nom 8.0.0",
  "rayon",
+ "sha2",
  "spin",
+ "tracing",
  "wie-arm-jit-types",
  "wie-util",
 ]
@@ -7379,7 +7384,6 @@ dependencies = [
 name = "wie-core-arm-wasm"
 version = "0.1.7"
 dependencies = [
- "nom 8.0.0",
  "wasm-encoder",
  "wie-arm-jit-types",
 ]

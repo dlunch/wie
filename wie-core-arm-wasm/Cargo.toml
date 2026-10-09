@@ -7,6 +7,5 @@ description.workspace = true
 repository.workspace = true
 
 [dependencies]
-nom = { version = "^8", default-features = false, features = ["alloc"] }
 wasm-encoder = { version = "^0.259", default-features = false }
 wie-arm-jit-types = { workspace = true }

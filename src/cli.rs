@@ -1,3 +1,4 @@
+mod aot_cache;
 mod audio_sink;
 mod database;
 mod filesystem;
@@ -15,15 +16,17 @@ use std::{
 };
 
 use clap::Parser;
+use directories::ProjectDirs;
 use midir::MidiOutput;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie::load_emulator;
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
-use wie_core_arm_native::NativeExecutor;
+use wie_core_arm_native::{NativeCache, NativeExecutor};
 use wie_j2me::J2MEEmulator;
 
 use self::{
+    aot_cache::AotCache,
     audio_sink::AudioSink,
     database::DatabaseRepository,
     filesystem::CliFilesystem,
@@ -135,9 +138,14 @@ pub fn run() -> anyhow::Result<()> {
     }
 
     let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
+    let cache = ProjectDirs::from("net", "dlunch", "wie").map(|directories| {
+        Box::new(AotCache {
+            directory: directories.cache_dir().join("native-aot"),
+        }) as Box<dyn NativeCache>
+    });
     let options = Options {
         enable_gdbserver: args.debug,
-        aot: Some(Box::new(NativeExecutor::new())),
+        aot: Some(Box::new(NativeExecutor::new(cache))),
         profile,
     };
     let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;
@@ -171,6 +179,7 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow
     let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device));
 
     let buf = fs::read(filename)?;
+    eprintln!("Preparing emulator...");
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("jad") {
         let jar_filename = filename.replace(".jad", ".jar");
         let jar = fs::read(&jar_filename)?;
@@ -183,6 +192,7 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow
     };
 
     let mut key_events = HashMap::new();
+    let mut ready = false;
     window.run(move |event| {
         match event {
             WindowCallbackEvent::Update => {
@@ -198,11 +208,15 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow
                     }
                 }
 
-                emulator.tick()?
+                emulator.tick()?;
+                if !ready && !emulator.is_preparing() {
+                    ready = true;
+                    eprintln!("Emulator ready.");
+                }
             }
             WindowCallbackEvent::Redraw => emulator.handle_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
-                if let Some(keycode) = convert_key(x) {
+                if ready && let Some(keycode) = convert_key(x) {
                     let entry = key_events.entry(keycode);
                     if let Entry::Vacant(entry) = entry {
                         emulator.handle_event(Event::Keydown(keycode));

@@ -19,7 +19,7 @@ impl Default for TestNativeExecutor {
 impl TestNativeExecutor {
     pub fn new() -> Self {
         Self {
-            inner: NativeExecutor::new(),
+            inner: NativeExecutor::new(None),
             executed: Arc::new(AtomicBool::new(false)),
         }
     }

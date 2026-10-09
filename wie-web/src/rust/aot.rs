@@ -7,11 +7,11 @@ use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use wie_arm_jit_types::{
-    CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RegionKey,
-    RunFrame,
+    CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RunFrame,
+    manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
 };
 
-use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact, decode_manifest_region, encode_manifest_region, validate_manifest_region};
+use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact};
 use wie_util::{Result as WieResult, WieError};
 
 #[wasm_bindgen(inline_js = r#"
@@ -151,12 +151,7 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
             while !manifest.is_empty() {
                 preparation_checkpoint(&mut group_started).await?;
                 let region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
-                validate_manifest_region(&region, &request.images).map_err(|error| JsValue::from_str(&error))?;
-                for &pc in &region.instruction_pcs {
-                    if !owned.insert(RegionKey { pc, ..region.entry }) {
-                        return Err(JsValue::from_str("duplicate cached instruction ownership"));
-                    }
-                }
+                validate_manifest_region(&region, &request.images, &mut owned).map_err(|error| JsValue::from_str(&error))?;
                 regions.push(CompiledRegion {
                     handle: CompiledHandle {
                         module,
