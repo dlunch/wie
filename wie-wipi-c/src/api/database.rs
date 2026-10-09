@@ -334,7 +334,7 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     write_generic(context, db_id as _, handle)?;
 
     // Write-through to disk on every stream_write. Some titles tear down
-    // the game without making a final `close_database` call after their
+    // the app without making a final `close_database` call after their
     // save sequence — relying on close as the only flush point loses all
     // the writes that landed since the session opened. Flushing eagerly
     // costs an extra small file write per call but keeps the on-disk state
@@ -491,7 +491,7 @@ pub async fn select_record_ktf(context: &mut dyn WIPICContext, db_id: i32, rec_i
     };
 
     // KTF reuses slot 4 as a stream-control op `(handle, offset, mode)`. The
-    // shapes observed across games:
+    // shapes observed across apps:
     //
     //   - `(handle, slot_offset, 0)` — multi-slot save files store each
     //     slot at a known byte offset within record 1; this seeks both
@@ -542,7 +542,7 @@ pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWor
         return Ok(-22);
     }
 
-    // Pull record 1's size as the "valid save" indicator the game checks
+    // Pull record 1's size as the "valid save" indicator the app checks
     // against 0xC7 in v2[2].
     let db = system.platform().database_repository().open(&name, &pid).await;
     let record_size = db.get(1).await.map(|x| x.len() as u32).unwrap_or(0);

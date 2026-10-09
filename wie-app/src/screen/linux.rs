@@ -12,7 +12,7 @@ use gtk::{
 };
 use tauri::webview::PlatformWebview;
 
-use super::{CONTROLS_HEIGHT, Frame, GAME_HEIGHT, GAME_WIDTH, report_error};
+use super::{APP_HEIGHT, APP_WIDTH, CONTROLS_HEIGHT, Frame, report_error};
 
 pub(super) struct View {
     area: DrawingArea,
@@ -31,7 +31,7 @@ impl View {
             .and_downcast::<gtk::Window>()
             .ok_or_else(|| anyhow!("GTK window is unavailable"))?;
         let area = DrawingArea::new();
-        area.set_size_request(-1, GAME_HEIGHT as i32);
+        area.set_size_request(-1, APP_HEIGHT as i32);
         area.set_hexpand(true);
         area.set_no_show_all(true);
         container.pack_start(&area, false, false, 0);
@@ -80,7 +80,7 @@ impl View {
                 self.library_default_size.set(Some(self.window.default_size()));
             }
             // GTK uses the default size as the minimum while the window is non-resizable.
-            self.window.set_default_size(GAME_WIDTH as i32, (GAME_HEIGHT + CONTROLS_HEIGHT) as i32);
+            self.window.set_default_size(APP_WIDTH as i32, (APP_HEIGHT + CONTROLS_HEIGHT) as i32);
             self.area.show();
         } else {
             self.area.hide();

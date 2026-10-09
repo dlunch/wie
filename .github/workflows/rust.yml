@@ -55,6 +55,12 @@ jobs:
       - run: cargo clippy --target wasm32-unknown-unknown --workspace --exclude wie-app --exclude wie-core-arm-native -- -D warnings
       - run: cargo test --all
 
+      - name: Lint iOS app
+        if: matrix.os == 'macos-latest' && matrix.rust == 'stable'
+        run: |
+          rustup target add aarch64-apple-ios
+          cargo clippy -p wie-app --target aarch64-apple-ios -- -D warnings
+
       - name: Save cache cargo
         uses: actions/cache/save@v6
         if: github.ref == 'refs/heads/main'

@@ -18,6 +18,7 @@ export interface Settings {
 
 export type SessionEvent =
   | { type: "ready" }
+  | { type: "suspended"; suspended: boolean }
   | { type: "warning"; message: string }
   | { type: "stopped" }
   | { type: "error"; message: string };
@@ -29,12 +30,13 @@ export interface PlayerSession {
 }
 
 export interface Wie {
+  readonly rendering: "canvas" | "native";
   listApps(): Promise<LibraryApp[]>;
   importApp(file: File): Promise<void>;
   deleteApp(id: string): Promise<void>;
   readSettings(): Promise<Settings>;
   writeSettings(settings: Settings): Promise<void>;
-  startGame(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession>;
+  startApp(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession>;
 }
 
 export const initializeWie = async (): Promise<Wie> => {

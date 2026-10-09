@@ -42,7 +42,7 @@ wie-core-arm-native = { workspace = true }
 [target.'cfg(not(target_vendor = "apple"))'.dependencies]
 rodio = { version = "^0.22", features = ["playback"] }
 
-[target.'cfg(not(target_os = "linux"))'.dependencies]
+[target.'cfg(not(any(target_os = "linux", target_os = "ios")))'.dependencies]
 softbuffer = "0.4.8"
 raw-window-handle = "0.6"
 
@@ -50,12 +50,12 @@ raw-window-handle = "0.6"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-foundation = "0.3"
-objc2-quartz-core = "0.3"
 objc2-audio-toolbox = "0.3"
 objc2-avf-audio = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = "0.3"
+objc2-quartz-core = "0.3"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2-ui-kit = "0.3"
@@ -68,9 +68,9 @@ wie-app-android = { path = "android" }
 jni = "0.21"
 ndk = "0.9"
 ndk-context = "0.1"
-midly = { version = "0.5", default-features = false, features = ["std"] }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+midly = { version = "0.5", default-features = false, features = ["std"] }
 tauri-plugin-haptics = "2"
 
 [dev-dependencies]

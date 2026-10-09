@@ -3,6 +3,7 @@ mod database;
 mod filesystem;
 mod library;
 mod runtime;
+#[cfg(not(target_os = "ios"))]
 mod screen;
 mod settings;
 mod store;
@@ -25,37 +26,52 @@ pub fn run() {
 
             #[cfg(mobile)]
             app.handle().plugin(tauri_plugin_haptics::init())?;
-            let window = app.get_webview_window("main").ok_or("Main window is unavailable")?;
-            let view = screen::NativeView::new(window)?;
-            app.manage(AppState::new(app.handle().clone(), app.path().app_data_dir()?, view)?);
+            #[cfg(not(target_os = "ios"))]
+            let view = screen::NativeView::new(app.get_webview_window("main").ok_or("Main window is unavailable")?)?;
+            app.manage(AppState::new(
+                app.handle().clone(),
+                app.path().app_data_dir()?,
+                #[cfg(not(target_os = "ios"))]
+                view,
+            )?);
             #[cfg(target_os = "ios")]
-            runtime::ios::register(app.handle())?;
+            runtime::platform::register(app.handle())?;
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            runtime::runtime_kind,
             runtime::list_apps,
             runtime::import_app,
             runtime::delete_app,
             runtime::read_settings,
             runtime::write_settings,
-            runtime::start_game,
-            runtime::key_event,
-            runtime::release_keys,
-            runtime::stop_game,
+            runtime::start_app,
+            #[cfg(not(target_os = "ios"))]
+            runtime::platform::key_event,
+            #[cfg(not(target_os = "ios"))]
+            runtime::platform::release_keys,
+            #[cfg(target_os = "ios")]
+            runtime::platform::guest_storage,
+            #[cfg(target_os = "ios")]
+            runtime::platform::guest_audio,
+            #[cfg(target_os = "ios")]
+            runtime::platform::guest_vibrate,
+            runtime::stop_app,
         ])
         .on_window_event(|window, event| {
             let Some(state) = window.try_state::<AppState>() else {
                 return;
             };
             match event {
+                #[cfg(not(target_os = "ios"))]
                 WindowEvent::Focused(false) => state.release_keys(),
                 #[cfg(target_os = "android")]
                 WindowEvent::Suspended => state.suspend(true),
                 #[cfg(target_os = "android")]
                 WindowEvent::Resumed => state.suspend(false),
                 WindowEvent::CloseRequested { api, .. } => {
-                    if let Some(completion) = state.stop() {
+                    if let Some(completion) = state.stop_app() {
                         api.prevent_close();
                         let window = window.clone();
                         tauri::async_runtime::spawn(async move {
@@ -72,7 +88,7 @@ pub fn run() {
         .run(|app, event| {
             if let RunEvent::ExitRequested { api, code, .. } = event
                 && let Some(state) = app.try_state::<AppState>()
-                && let Some(completion) = state.stop()
+                && let Some(completion) = state.stop_app()
             {
                 api.prevent_exit();
                 let app = app.clone();

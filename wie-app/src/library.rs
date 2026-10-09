@@ -197,7 +197,7 @@ mod tests {
                 (&first.id, "00000000", b"record".as_slice()),
                 (&second.id, "00000001", b"other".as_slice()),
             ] {
-                assert_eq!(repository.open("save", id).await.get(1).await.as_deref(), Some(data));
+                assert_eq!(repository.database("save", id).get(1).await.as_deref(), Some(data));
                 assert_eq!(repository.usage(id).await, data.len() as u64);
                 assert_eq!(filesystem.size(aid, "save").await, Some(data.len() + 2));
                 let mut bytes = vec![0; data.len() + 2];
@@ -270,6 +270,7 @@ mod tests {
             assert_eq!(reopened.next_id().await, 0);
 
             assert!(repository.delete("save", &first.id).await);
+            assert_eq!(repository.database("save", &first.id).get(1).await, None);
             assert!(!repository.exists("save", &first.id).await);
             assert_eq!(repository.usage(&first.id).await, 0);
             let mut reset = repository.open("save", &first.id).await;
