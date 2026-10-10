@@ -8,7 +8,7 @@ use core::time::Duration;
 use crossbeam::channel;
 use spin::Mutex;
 
-use wie_arm_jit_types::{CompiledArtifact, PreparationFuture};
+use wie_arm_aot::{CompiledArtifact, PreparationFuture};
 use wie_util::{Result as WieResult, WieError};
 
 use crate::{ThreadId, context::ArmCoreContext};

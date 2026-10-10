@@ -6,16 +6,17 @@ use hashbrown::{HashMap, hash_map::Entry};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use wie_arm_jit_types::{
-    CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RegionKey,
-    RunFrame,
+use wie_arm_aot::{
+    CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RunFrame,
+    cache,
+    manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
 };
 
-use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact, decode_manifest_region, encode_manifest_region, validate_manifest_region};
+use wie_core_arm_wasm::{Compiler, WasmArtifact};
 use wie_util::{Result as WieResult, WieError};
 
 #[wasm_bindgen(inline_js = r#"
-export { compileArm, compilerTask, loadArmCache } from "@ts/arm-compiler.ts";
+export { compileArm, yieldToMainThread, loadArmCache } from "@ts/arm-compiler.ts";
 export function executeRegion(region, frame, context, slot) {
     const exit = region(frame, context, slot);
     // Reject non-numbers before the Wasm import can coerce them to valid exits.
@@ -25,20 +26,20 @@ export function executeRegion(region, frame, context, slot) {
 extern "C" {
     #[wasm_bindgen(catch, js_name = compileArm)]
     fn compile_arm(
-        artifact: &Object,
+        bytes: &Uint8Array,
+        record: &JsValue,
         key: &JsValue,
         cached_digest: &JsValue,
         imports: &Object,
         frame: u32,
         regions: u32,
-        deadline: f64,
     ) -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(catch, js_name = loadArmCache)]
-    fn load_arm_cache(input: &Uint8Array, version: u32, deadline: f64) -> Result<Promise, JsValue>;
+    fn load_arm_cache(input: &Uint8Array) -> Result<Promise, JsValue>;
 
-    #[wasm_bindgen(js_name = compilerTask)]
-    fn compiler_task() -> Promise;
+    #[wasm_bindgen(js_name = yieldToMainThread)]
+    fn yield_to_main_thread() -> Promise;
 
     #[wasm_bindgen(catch, js_name = executeRegion)]
     fn execute_region(region: &Function, frame: u32, context: u32, slot: u32) -> Result<f64, JsValue>;
@@ -61,17 +62,13 @@ pub struct WasmExecutor {
 unsafe impl Send for WasmExecutor {}
 
 impl CompiledExecutor for WasmExecutor {
-    fn now(&self) -> f64 {
-        now()
-    }
-
-    fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
+    fn prepare(&mut self, request: CompileRequest) -> PreparationFuture {
         let weak = Rc::downgrade(&self.modules);
         let module = self.next_module;
         self.next_module += 1;
         let (sender, receiver) = oneshot::channel();
         spawn_local(async move {
-            let result = prepare_module(request, deadline_ms, module).await;
+            let result = prepare_module(request, module).await;
             let Some(state) = weak.upgrade() else { return };
             let mut state = state.borrow_mut();
             let result = match result {
@@ -131,43 +128,34 @@ impl CompiledExecutor for WasmExecutor {
     }
 }
 
-async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> Result<(CompiledArtifact, Function), JsValue> {
+async fn prepare_module(request: CompileRequest, module: u32) -> Result<(CompiledArtifact, Function), JsValue> {
     let mut group_started = now();
     // Persist only the initial image; runtime replacements belong to this execution.
     let lookup = if module == 0 {
-        let mut input = Vec::new();
-        input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
-        for image in request.images.iter() {
-            preparation_checkpoint(&mut group_started, deadline).await?;
-            input.extend_from_slice(&image.address.to_le_bytes());
-            input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
-            input.extend_from_slice(&image.bytes);
-        }
-        let input_copy = Uint8Array::from(input.as_slice());
-        JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?
+        let input = Uint8Array::from(cache::key_input(&request).as_slice());
+        JsFuture::from(load_arm_cache(&input)?).await?
     } else {
         Object::new().into()
     };
     let key = Reflect::get(&lookup, &"key".into())?;
-    let candidate = match Reflect::get(&lookup, &"artifact".into())? {
-        candidate if candidate.is_undefined() => None,
-        candidate => Some(candidate.dyn_into::<Object>()?),
+    let cache_key: Option<[u8; 32]> = if key.is_undefined() {
+        None
+    } else {
+        Some(key.clone().dyn_into::<Uint8Array>()?.to_vec().try_into().unwrap())
     };
-    if let Some(artifact) = candidate {
+    let candidate = Reflect::get(&lookup, &"artifact".into())?;
+    if let Some(cache_key) = cache_key
+        && !candidate.is_undefined()
+    {
         let restored = async {
-            let bytes = Reflect::get(&artifact, &"manifest".into())?.dyn_into::<Uint8Array>()?.to_vec();
-            let mut manifest = bytes.as_slice();
+            let record = candidate.dyn_into::<Uint8Array>()?.to_vec();
+            let (code, mut manifest) = cache::decode(&record, &cache_key).ok_or_else(|| JsValue::from_str("invalid cached artifact"))?;
             let mut owned = BTreeSet::new();
             let mut regions = Vec::new();
             while !manifest.is_empty() {
-                preparation_checkpoint(&mut group_started, deadline).await?;
+                preparation_checkpoint(&mut group_started).await?;
                 let region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
-                validate_manifest_region(&region, &request.images).map_err(|error| JsValue::from_str(&error))?;
-                for &pc in &region.instruction_pcs {
-                    if !owned.insert(RegionKey { pc, ..region.entry }) {
-                        return Err(JsValue::from_str("duplicate cached instruction ownership"));
-                    }
-                }
+                validate_manifest_region(&region, &request.images, &mut owned).map_err(|error| JsValue::from_str(&error))?;
                 regions.push(CompiledRegion {
                     handle: CompiledHandle {
                         module,
@@ -176,8 +164,8 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
                     manifest: region,
                 });
             }
-            let digest = Reflect::get(&artifact, &"digest".into())?;
-            let dispatcher = prepare_dispatcher(&artifact, &key, &digest, regions.len(), deadline).await?;
+            let digest = Reflect::get(&lookup, &"digest".into())?;
+            let dispatcher = prepare_dispatcher(code, Some(&record), &key, &digest, regions.len()).await?;
             Ok::<_, JsValue>((CompiledArtifact { regions }, dispatcher))
         }
         .await;
@@ -191,7 +179,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
 
     let mut compiler = Compiler::new(request);
     loop {
-        preparation_checkpoint(&mut group_started, deadline).await?;
+        preparation_checkpoint(&mut group_started).await?;
         if compiler.step().map_err(|error| JsValue::from_str(&error))? {
             break;
         }
@@ -200,40 +188,32 @@ async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> 
     let mut serialized = Vec::new();
     let mut regions = Vec::with_capacity(manifest.len());
     for (slot, manifest) in manifest.into_iter().enumerate() {
-        preparation_checkpoint(&mut group_started, deadline).await?;
+        preparation_checkpoint(&mut group_started).await?;
         encode_manifest_region(&manifest, &mut serialized);
         regions.push(CompiledRegion {
             manifest,
             handle: CompiledHandle { module, slot: slot as u32 },
         });
     }
-    let artifact = Object::new();
-    // Both arrays own their bytes before Rust allocations are freed or an await can grow memory.
-    let bytes_copy = Uint8Array::from(bytes.as_slice());
-    Reflect::set(&artifact, &"bytes".into(), &bytes_copy)?;
-    let manifest_copy = Uint8Array::from(serialized.as_slice());
-    Reflect::set(&artifact, &"manifest".into(), &manifest_copy)?;
-    let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, regions.len(), deadline).await?;
+    let record = cache_key.and_then(|key| cache::encode(&key, &bytes, &serialized));
+    let dispatcher = prepare_dispatcher(&bytes, record.as_deref(), &key, &JsValue::UNDEFINED, regions.len()).await?;
     Ok((CompiledArtifact { regions }, dispatcher))
 }
 
-async fn preparation_checkpoint(group_started: &mut f64, deadline: f64) -> Result<(), JsValue> {
+async fn preparation_checkpoint(group_started: &mut f64) -> Result<(), JsValue> {
     if now() - *group_started >= 4.0 {
-        JsFuture::from(compiler_task()).await?;
+        JsFuture::from(yield_to_main_thread()).await?;
         *group_started = now();
-        if *group_started >= deadline {
-            return Err(JsValue::from_str("ARM AOT preparation timed out"));
-        }
     }
     Ok(())
 }
 
 async fn prepare_dispatcher(
-    artifact: &Object,
+    bytes: &[u8],
+    record: Option<&[u8]>,
     key: &JsValue,
     cached_digest: &JsValue,
     region_count: usize,
-    deadline: f64,
 ) -> Result<Function, JsValue> {
     let mut warmup = Box::new(RunFrame {
         cpsr: 0x1f,
@@ -242,18 +222,19 @@ async fn prepare_dispatcher(
     });
     warmup.regs[15] = 0x1000;
     let imports = execution_imports()?;
+    // JS owns these bytes before an await can grow Wasm memory.
+    let bytes = Uint8Array::from(bytes);
+    let record = record.map(|record| JsValue::from(Uint8Array::from(record))).unwrap_or(JsValue::UNDEFINED);
     let promise = compile_arm(
-        artifact,
+        &bytes,
+        &record,
         key,
         cached_digest,
         &imports,
         &mut *warmup as *mut RunFrame as u32,
         region_count as u32,
-        deadline,
     )?;
     let result = JsFuture::from(promise).await;
-    // TS checks job settlement before warmup and after each yield, so timed-out continuations cannot reuse this frame.
-    drop(warmup);
     result?.dyn_into::<Function>()
 }
 
@@ -289,8 +270,8 @@ unsafe extern "C" fn wie_aot_pages(access: u32) -> u32 {
 
 #[cfg(target_arch = "wasm32")]
 const _: () = {
-    assert!(core::mem::size_of::<wie_arm_jit_types::MemoryPage>() == 4);
-    assert!(core::mem::offset_of!(wie_arm_jit_types::MemoryPage, bytes) == 0);
+    assert!(core::mem::size_of::<wie_arm_aot::MemoryPage>() == 4);
+    assert!(core::mem::offset_of!(wie_arm_aot::MemoryPage, bytes) == 0);
 };
 
 #[unsafe(no_mangle)]

@@ -5,13 +5,14 @@ use alloc::{
 
 use hashbrown::HashMap;
 
-use wie_arm_jit_types::RegionKey;
-use wie_arm_jit_types::ir::{
+use wie_arm_aot::RegionKey;
+use wie_arm_aot::ir::{
     AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount,
     Value, Width,
 };
 
 use super::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS};
+use crate::RUN_FUNCTION_LR;
 
 pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64; 128]) -> Option<RegionIr> {
     let alignment = if entry.thumb { 2 } else { 4 };
@@ -24,7 +25,7 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64;
             instruction_limit_reached = true;
             break;
         }
-        if decoded.contains_key(&pc) || pc % alignment != 0 {
+        if pc == RUN_FUNCTION_LR || decoded.contains_key(&pc) || pc % alignment != 0 {
             continue;
         }
         let Some(offset) = pc.checked_sub(base).map(|offset| offset as usize) else {

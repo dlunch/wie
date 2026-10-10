@@ -1,53 +1,12 @@
-interface ArmArtifactBytes {
-    bytes: Uint8Array;
-    manifest: Uint8Array;
-}
-
-interface ArmCacheRecord extends ArmArtifactBytes {
-    digest: string;
-}
-
 interface ArmCacheLookup {
-    key?: string;
-    artifact?: ArmCacheRecord;
+    key?: Uint8Array;
+    artifact?: Uint8Array;
+    digest?: Uint8Array;
 }
 
-let latestModule: { key: string; digest: string; module: WebAssembly.Module } | undefined;
+let latestModule: { key: string; digest: Uint8Array; module: WebAssembly.Module } | undefined;
 
-async function duringPreparation<T>(
-    deadline: number, work: (check: () => void) => Promise<T>,
-): Promise<T> {
-    let settled = false;
-    const check = () => {
-        if (settled || performance.now() >= deadline) throw new Error("ARM AOT preparation timed out");
-    };
-    let interrupt!: (error: unknown) => void;
-    const interrupted = new Promise<never>((_, reject) => { interrupt = reject; });
-    const timeout = setTimeout(() => {
-        // Timer delay rounding can settle the race before the absolute deadline.
-        settled = true;
-        interrupt(new Error("ARM AOT preparation timed out"));
-    }, Math.max(0, deadline - performance.now()));
-    try {
-        return await Promise.race([interrupted, work(check)]);
-    } finally {
-        settled = true;
-        clearTimeout(timeout);
-    }
-}
-
-async function sha256(bytes: Uint8Array): Promise<string> {
-    const digest = await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>);
-    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function artifactDigest(artifact: ArmArtifactBytes, key: string): Promise<string> {
-    const bytes = await sha256(artifact.bytes);
-    const manifest = await sha256(artifact.manifest);
-    return sha256(new TextEncoder().encode(JSON.stringify([key, bytes, manifest])));
-}
-
-async function accessArmCache(key: string, record: ArmCacheRecord | undefined): Promise<unknown> {
+async function accessArmCache(key: string, record: Uint8Array | undefined): Promise<unknown> {
     let db: IDBDatabase | undefined;
     const opening = indexedDB.open("wie_arm_aot");
     try {
@@ -80,50 +39,44 @@ async function accessArmCache(key: string, record: ArmCacheRecord | undefined): 
     }
 }
 
-export async function loadArmCache(input: Uint8Array, version: number, deadline: number): Promise<ArmCacheLookup> {
+export async function loadArmCache(input: Uint8Array): Promise<ArmCacheLookup> {
     let outcome = "miss";
-    let key: string | undefined;
+    let key: Uint8Array | undefined;
     try {
-        return await duringPreparation(deadline, async () => {
-            try {
-                key = `${version}:${await sha256(input)}`;
-                const record = await accessArmCache(key, undefined);
-                if (record === undefined) return { key };
-                outcome = "corrupt";
-                if (typeof record !== "object" || record === null ||
-                    !("bytes" in record) || !(record.bytes instanceof Uint8Array) ||
-                    !("manifest" in record) || !(record.manifest instanceof Uint8Array) ||
-                    !("digest" in record) || typeof record.digest !== "string") return { key };
-                const artifact = { bytes: record.bytes, manifest: record.manifest, digest: record.digest };
-                const digest = await artifactDigest(artifact, key);
-                if (digest !== artifact.digest) return { key };
-                outcome = "persistent-hit";
-                return { key, artifact };
-            } catch {
-                outcome = "unavailable";
-                return { key };
-            }
-        });
-    } catch (error) {
-        outcome = String(error);
-        throw error;
+        key = new Uint8Array(await crypto.subtle.digest("SHA-256", input as Uint8Array<ArrayBuffer>));
+        const storageKey = Array.from(key, byte => byte.toString(16).padStart(2, "0")).join("");
+        const record = await accessArmCache(storageKey, undefined);
+        if (record === undefined) return { key };
+        outcome = "corrupt";
+        if (!(record instanceof Uint8Array) || record.length < 32) return { key };
+        const artifact = record.subarray(0, -32);
+        const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", artifact as Uint8Array<ArrayBuffer>));
+        if (!digest.every((byte, index) => byte === record[artifact.length + index])) return { key };
+        outcome = "persistent-hit";
+        return { key, artifact, digest };
+    } catch {
+        outcome = "unavailable";
+        return { key };
     } finally {
         console.info("ARM AOT cache lookup", outcome);
     }
 }
 
 // This detached task owns only cache data, never an instance, imports or a warmup frame.
-async function storeArmCache(record: ArmCacheRecord, key: string, deadline: number): Promise<void> {
+async function storeArmCache(record: Uint8Array, key: string, digest: Uint8Array): Promise<void> {
     let outcome = "stored";
     try {
-        await duringPreparation(deadline, () => accessArmCache(key, record));
+        const bytes = new Uint8Array(record.length + digest.length);
+        bytes.set(record);
+        bytes.set(digest, record.length);
+        await accessArmCache(key, bytes);
     } catch {
-        outcome = performance.now() >= deadline ? "skipped" : "failed";
+        outcome = "failed";
     }
     console.info("ARM AOT cache store", outcome);
 }
 
-export function compilerTask(): Promise<void> {
+export function yieldToMainThread(): Promise<void> {
     // Message tasks yield the main thread without the nested-timer clamp.
     return new Promise(resolve => {
         const { port1, port2 } = new MessageChannel();
@@ -137,51 +90,47 @@ export function compilerTask(): Promise<void> {
 }
 
 export async function compileArm(
-    artifact: ArmArtifactBytes, key: string | undefined, cachedDigest: string | undefined, imports: WebAssembly.Imports,
-    frame: number, regionCount: number, deadline: number,
+    bytes: Uint8Array, record: Uint8Array | undefined, keyBytes: Uint8Array | undefined, cachedDigest: Uint8Array | undefined, imports: WebAssembly.Imports,
+    frame: number, regionCount: number,
 ): Promise<Function> {
     let outcome = cachedDigest === undefined ? "miss" : "persistent-hit";
     try {
-        return await duringPreparation(deadline, async check => {
-            let digest = cachedDigest;
-            if (key !== undefined && digest === undefined) {
-                try {
-                    digest = await artifactDigest(artifact, key);
-                } catch {
-                    outcome = "unavailable";
-                }
-                check();
+        const key = keyBytes && Array.from(keyBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+        let digest = cachedDigest;
+        if (key !== undefined && record !== undefined && digest === undefined) {
+            try {
+                digest = new Uint8Array(await crypto.subtle.digest("SHA-256", record as Uint8Array<ArrayBuffer>));
+            } catch {
+                outcome = "unavailable";
             }
-            let module: WebAssembly.Module;
-            if (cachedDigest !== undefined && latestModule && latestModule.key === key && latestModule.digest === cachedDigest) {
-                module = latestModule.module;
-                outcome = "module-hit";
-            } else {
-                // Rust supplies JS-owned arrays before freeing its source buffers.
-                module = await WebAssembly.compile(artifact.bytes as Uint8Array<ArrayBuffer>);
+        }
+        let module: WebAssembly.Module;
+        const previous = latestModule;
+        if (cachedDigest !== undefined && previous && previous.key === key &&
+            cachedDigest.every((byte, index) => byte === previous.digest[index])) {
+            module = previous.module;
+            outcome = "module-hit";
+        } else {
+            // Rust supplies JS-owned arrays before freeing its source buffers.
+            module = await WebAssembly.compile(bytes as Uint8Array<ArrayBuffer>);
+        }
+        const instance = await WebAssembly.instantiate(module, imports);
+        let groupStarted = performance.now();
+        const dispatcher = instance.exports.dispatch;
+        if (typeof dispatcher !== "function") throw new Error("missing compiled dispatcher");
+        for (let slot = 0; slot < Math.max(regionCount, 1); slot++) {
+            // The boxed host frame has PC and return address 0x1000: no guest context is needed.
+            if (dispatcher(frame, 0, slot) !== 3) throw new Error(`compiled region ${slot} failed return-boundary warmup`);
+            if (slot + 1 < regionCount && performance.now() - groupStarted >= 4) {
+                await yieldToMainThread();
+                groupStarted = performance.now();
             }
-            check();
-            const instance = await WebAssembly.instantiate(module, imports);
-            // Promise.race does not cancel work: Rust may have freed the warmup frame after a timeout.
-            check();
-            let groupStarted = performance.now();
-            const dispatcher = instance.exports.dispatch;
-            if (typeof dispatcher !== "function") throw new Error("missing compiled dispatcher");
-            for (let slot = 0; slot < Math.max(regionCount, 1); slot++) {
-                // The boxed host frame has PC and return address 0x1000: no guest context is needed.
-                if (dispatcher(frame, 0, slot) !== 3) throw new Error(`compiled region ${slot} failed return-boundary warmup`);
-                if (slot + 1 < regionCount && performance.now() - groupStarted >= 4) {
-                    await compilerTask();
-                    check();
-                    groupStarted = performance.now();
-                }
-            }
-            if (key !== undefined && digest !== undefined) latestModule = { key, digest, module };
-            if (key !== undefined && digest !== undefined && cachedDigest === undefined) {
-                void storeArmCache({ bytes: artifact.bytes, manifest: artifact.manifest, digest }, key, deadline);
-            }
-            return dispatcher;
-        });
+        }
+        if (key !== undefined && digest !== undefined) latestModule = { key, digest, module };
+        if (key !== undefined && record !== undefined && digest !== undefined && cachedDigest === undefined) {
+            void storeArmCache(record, key, digest);
+        }
+        return dispatcher;
     } catch (error) {
         outcome = String(error);
         throw error;

@@ -4,8 +4,8 @@ use wasm_encoder::{
     BlockType, ConstExpr, ElementSection, Elements, Encode, EntityType, ExportKind, ExportSection, Function, ImportSection, InstructionSink, MemArg,
     MemoryType, Module, RefType, SectionId, TableSection, TableType, TypeSection, ValType,
 };
-use wie_arm_jit_types::CompiledExit;
-use wie_arm_jit_types::ir::{
+use wie_arm_aot::CompiledExit;
+use wie_arm_aot::ir::{
     AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value, Width,
 };
 
@@ -22,18 +22,16 @@ const WIDE: u32 = 11;
 const RANGE_FIRST: u32 = 12;
 const RANGE_SECOND: u32 = 13;
 const RANGE_LENGTH: u32 = 14;
-const EXECUTED: u32 = 15;
-const PAGE_TABLE: u32 = 16;
-const PAGE_POINTER: u32 = 17;
-const END: u32 = 18;
+const PAGE_TABLE: u32 = 15;
+const PAGE_POINTER: u32 = 16;
+const END: u32 = 17;
 
 // Function indices follow the import and helper section order.
 const PAGES: u32 = 0;
 const WORD_RANGE: u32 = 1;
 const RESOLVE: u32 = 2;
 const ENTRY: u32 = 3;
-const COMMIT: u32 = 4;
-const FIRST_REGION: u32 = 5;
+const FIRST_REGION: u32 = 4;
 
 pub(crate) struct ModuleBuilder {
     functions: Vec<u8>,
@@ -44,14 +42,14 @@ pub(crate) struct ModuleBuilder {
 impl Default for ModuleBuilder {
     fn default() -> Self {
         let mut builder = Self {
-            functions: vec![0, 3],
+            functions: vec![0],
             bodies: VecDeque::new(),
             code_size: 0,
         };
         let mut entry = Function::new([]);
         let mut s = entry.instructions();
         s.local_get(1).i32_const(0x1000).i32_lt_u().if_(BlockType::Empty);
-        s.local_get(0).local_get(1).i32_store(field(76));
+        s.local_get(0).local_get(1).i32_store(field(72));
         s.i32_const(CompiledExit::GuestFault as i32).return_().end();
         s.local_get(1).local_get(0).i32_load(field(68)).i32_eq().if_(BlockType::Empty);
         s.i32_const(CompiledExit::End as i32).return_().end();
@@ -71,16 +69,6 @@ impl Default for ModuleBuilder {
         s.if_(BlockType::Empty).i32_const(CompiledExit::Dispatch as i32).return_().end();
         s.i32_const(-1).end();
         builder.push_body(entry);
-        let mut commit = Function::new([]);
-        let mut s = commit.instructions();
-        s.local_get(0)
-            .local_get(0)
-            .i32_load(field(72))
-            .local_get(1)
-            .i32_add()
-            .i32_store(field(72))
-            .end();
-        builder.push_body(commit);
         builder
     }
 }
@@ -101,7 +89,7 @@ impl ModuleBuilder {
     }
 
     pub(crate) fn begin_assembly(mut self, output: &mut Vec<u8>) -> Result<VecDeque<Vec<u8>>, String> {
-        let regions = self.functions.len() as u32 - 2;
+        let regions = self.functions.len() as u32 - 1;
         0_u32.encode(&mut self.functions);
         let mut exports = ExportSection::new();
         exports.export("dispatch", ExportKind::Func, FIRST_REGION + regions);
@@ -112,7 +100,7 @@ impl ModuleBuilder {
         // Warmup has no access context and returns at the frame's current PC.
         s.local_get(1).i32_eqz().if_(BlockType::Empty);
         s.local_get(0).local_get(0).i32_load(field(60)).i32_const(0x1f).call(ENTRY).drop();
-        s.local_get(0).i32_const(0).call(COMMIT).end();
+        s.end();
         if regions == 0 {
             s.i32_const(CompiledExit::End as i32);
         } else {
@@ -137,7 +125,6 @@ impl ModuleBuilder {
         types.ty().function([ValType::I32; 3], [ValType::I32]);
         types.ty().function([ValType::I32; 2], [ValType::I32]);
         types.ty().function([ValType::I32; 3], [ValType::I64]);
-        types.ty().function([ValType::I32; 2], []);
         types.ty().function([ValType::I32], [ValType::I32]);
         module.section(&types);
         let mut imports = ImportSection::new();
@@ -152,7 +139,7 @@ impl ModuleBuilder {
                 page_size_log2: None,
             },
         );
-        imports.import("wie", "pages", EntityType::Function(4));
+        imports.import("wie", "pages", EntityType::Function(3));
         imports.import("wie", "word_range", EntityType::Function(2));
         imports.import("wie", "resolve", EntityType::Function(0));
         module.section(&imports);
@@ -232,8 +219,9 @@ fn compile_region(ir: &RegionIr) -> Function {
             targets[((instruction.pc.get() - first) >> shift) as usize] = index as u32;
         }
     }
-    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (7, ValType::I32)]);
+    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (6, ValType::I32)]);
     let mut s = function.instructions();
+    s.local_get(0).i32_load(field(60)).local_set(PC);
     s.local_get(0).i32_load(field(64)).local_set(CPSR);
     s.local_get(0).i32_load(field(68)).local_set(END);
     s.block(BlockType::Result(ValType::I32));
@@ -267,10 +255,7 @@ fn compile_region(ir: &RegionIr) -> Function {
             for instruction in &block.instructions {
                 emit_instruction(&mut s, ir, instruction, exit_depth, false);
             }
-            s.local_get(0)
-                .i32_load(field(60))
-                .i32_const(body.instructions[0].pc.get() as i32)
-                .i32_ne();
+            s.local_get(PC).i32_const(body.instructions[0].pc.get() as i32).i32_ne();
             s.br_if(count - index as u32 + 2);
             for instruction in &body.instructions {
                 emit_instruction(&mut s, ir, instruction, exit_depth, false);
@@ -300,8 +285,9 @@ fn compile_region(ir: &RegionIr) -> Function {
     }
     s.end().i32_const(CompiledExit::Dispatch as i32).br(1).end();
     s.unreachable().end();
-    // Every logical exit commits the completed prefix once; the exit reason stays on the stack.
-    s.local_get(0).local_get(EXECUTED).call(COMMIT);
+    // Publish guest state while the exit reason stays on the stack.
+    s.local_get(0).local_get(PC).i32_store(field(60));
+    s.local_get(0).local_get(CPSR).i32_store(field(64));
     s.end();
     function
 }
@@ -349,10 +335,10 @@ fn emit_instruction(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction: &In
     }
     let fallthrough = instruction.pc.get().wrapping_add(u32::from(instruction.size)) as i32;
     let writes_pc = instruction.operation.writes_pc();
-    if writes_pc {
+    let conditional = instruction.condition != Condition::Always;
+    if writes_pc && conditional {
         s.i32_const(fallthrough).local_set(NEXT_PC);
     }
-    let conditional = instruction.condition != Condition::Always;
     if conditional {
         condition(s, &instruction.condition);
         s.if_(BlockType::Empty);
@@ -361,14 +347,12 @@ fn emit_instruction(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction: &In
     if conditional {
         s.end();
     }
-    s.local_get(0);
     if writes_pc {
         s.local_get(NEXT_PC);
     } else {
         s.i32_const(fallthrough);
     }
-    s.i32_store(field(60));
-    s.local_get(EXECUTED).i32_const(1).i32_add().local_set(EXECUTED);
+    s.local_set(PC);
 }
 
 fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option<u32>, exit_depth: u32) {
@@ -376,7 +360,6 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
         s.i32_const(pc as i32).local_get(END).i32_eq().if_(BlockType::Empty);
         s.i32_const(CompiledExit::End as i32).br(exit_depth + 1).end();
     } else {
-        s.local_get(0).i32_load(field(60)).local_set(PC);
         s.local_get(0)
             .local_get(PC)
             .i32_const(i32::from(ir.entry.cpu_mode) | if ir.entry.thumb { 0x20 } else { 0 })
@@ -407,30 +390,8 @@ fn value(s: &mut InstructionSink<'_>, value: &Value, pc: u32, thumb: bool) {
     }
 }
 
-fn constant_operand(operand: &Operand) -> Option<(u32, Option<u32>)> {
-    let (Value::Immediate(value), ShiftAmount::Immediate(amount)) = (&operand.value, &operand.amount) else {
-        return None;
-    };
-    let value = *value;
-    let (result, carry) = match (&operand.shift, u32::from(*amount)) {
-        (Shift::Rrx, _) => return None,
-        (_, 0) => return Some((value, None)),
-        (Shift::Lsl, amount) => (value.checked_shl(amount).unwrap_or(0), value.checked_shl(amount - 1).unwrap_or(0) >> 31),
-        (Shift::Lsr, amount) => (value.checked_shr(amount).unwrap_or(0), value.checked_shr(amount - 1).unwrap_or(0) & 1),
-        (Shift::Asr, amount) => (
-            ((value as i32) >> amount.min(31)) as u32,
-            (((value as i32) >> (amount - 1).min(31)) as u32) & 1,
-        ),
-        (Shift::Ror, amount) => {
-            let result = value.rotate_right(amount);
-            (result, result >> 31)
-        }
-    };
-    Some((result, Some(carry)))
-}
-
 fn operand(s: &mut InstructionSink<'_>, operand: &Operand, pc: u32, thumb: bool, set_carry: bool) {
-    if let Some((result, carry)) = constant_operand(operand) {
+    if let Some((result, carry)) = operand.constant_value() {
         s.i32_const(result as i32).local_set(RIGHT);
         if set_carry {
             if let Some(carry) = carry {
@@ -646,7 +607,7 @@ fn commit_pc(s: &mut InstructionSink<'_>, thumb: bool, exchange: bool) {
 }
 
 fn multiply_flags(s: &mut InstructionSink<'_>, wide: bool) {
-    s.local_get(0).local_get(CPSR).i32_const(0x3fff_ffff).i32_and();
+    s.local_get(CPSR).i32_const(0x3fff_ffff).i32_and();
     if wide {
         s.local_get(WIDE).i64_const(32).i64_shr_u().i32_wrap_i64();
     } else {
@@ -658,7 +619,7 @@ fn multiply_flags(s: &mut InstructionSink<'_>, wide: bool) {
     } else {
         s.local_get(RESULT).i32_eqz();
     }
-    s.i32_const(30).i32_shl().i32_or().local_tee(CPSR).i32_store(field(64));
+    s.i32_const(30).i32_shl().i32_or().local_set(CPSR);
 }
 
 // Capture both the effective address and final writeback before any destination changes.
@@ -678,14 +639,9 @@ fn memory_address(s: &mut InstructionSink<'_>, address: &MemoryOperand, pc: u32,
     }
 }
 
-// Host calls can fail; publish the completed prefix before crossing that boundary.
-fn commit_prefix(s: &mut InstructionSink<'_>) {
-    s.local_get(0).local_get(EXECUTED).call(COMMIT);
-    s.i32_const(0).local_set(EXECUTED);
-}
-
 fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
-    commit_prefix(s);
+    s.local_get(0).local_get(PC).i32_store(field(60));
+    s.local_get(0).local_get(CPSR).i32_store(field(64));
     s.i32_const(0).local_set(PAGE_TABLE);
     s.local_get(1)
         .local_get(LEFT)
@@ -697,7 +653,7 @@ fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
     s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 1).end();
     s.local_get(WIDE).i32_wrap_i64().local_set(RANGE_FIRST);
     s.local_get(WIDE).i64_const(32).i64_shr_u().i32_wrap_i64().local_set(RANGE_SECOND);
-    s.local_get(0).i32_load(field(80)).local_set(RANGE_LENGTH);
+    s.local_get(0).i32_load(field(76)).local_set(RANGE_LENGTH);
 }
 
 fn scalar_address(s: &mut InstructionSink<'_>, width: &Width, exit_depth: u32) {
@@ -711,7 +667,8 @@ fn scalar_address(s: &mut InstructionSink<'_>, width: &Width, exit_depth: u32) {
         s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 1).end();
     }
     s.local_get(PAGE_TABLE).i32_eqz().if_(BlockType::Empty);
-    commit_prefix(s);
+    s.local_get(0).local_get(PC).i32_store(field(60));
+    s.local_get(0).local_get(CPSR).i32_store(field(64));
     s.local_get(1).call(PAGES).local_set(PAGE_TABLE).end();
     // Each directory entry is a four-byte nullable page pointer.
     s.local_get(PAGE_TABLE)
@@ -771,7 +728,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             set_flags,
         } => {
             if (!set_flags || matches!(op, AluOp::Move | AluOp::Not))
-                && let (Value::Immediate(left), Some((right, carry))) = (left, constant_operand(right))
+                && let (Value::Immediate(left), Some((right, carry))) = (left, right.constant_value())
             {
                 let result = match op {
                     AluOp::Add => Some(left.wrapping_add(right)),
@@ -800,11 +757,10 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     }
                     if set_flags {
                         let flags = (result & 0x8000_0000) | (u32::from(result == 0) << 30) | (carry.unwrap_or(0) << 29);
-                        s.local_get(0)
-                            .local_get(CPSR)
+                        s.local_get(CPSR)
                             .i32_const(if carry.is_some() { 0x1fff_ffff } else { 0x3fff_ffff })
                             .i32_and();
-                        s.i32_const(flags as i32).i32_or().local_tee(CPSR).i32_store(field(64));
+                        s.i32_const(flags as i32).i32_or().local_set(CPSR);
                     }
                     return;
                 }
@@ -817,7 +773,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 op,
                 AluOp::Add | AluOp::AddCarry | AluOp::Sub | AluOp::SubCarry | AluOp::ReverseSub | AluOp::ReverseSubCarry
             );
-            let zero_arithmetic = matches!(op, AluOp::Add | AluOp::Sub) && constant_operand(right).is_some_and(|(value, _)| value == 0);
+            let zero_arithmetic = matches!(op, AluOp::Add | AluOp::Sub) && right.constant_value().is_some_and(|(value, _)| value == 0);
             let preserves_carry = right.amount == ShiftAmount::Immediate(0) && right.shift != Shift::Rrx;
             if !zero_arithmetic {
                 operand(
@@ -912,8 +868,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 }
             }
             if set_flags {
-                s.local_get(0)
-                    .local_get(CPSR)
+                s.local_get(CPSR)
                     .i32_const(if arithmetic {
                         0x0fff_ffff
                     } else if *op == AluOp::Multiply || preserves_carry {
@@ -942,7 +897,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 } else if *op != AluOp::Multiply && !preserves_carry {
                     s.local_get(CARRY).i32_const(29).i32_shl().i32_or();
                 }
-                s.local_tee(CPSR).i32_store(field(64));
+                s.local_set(CPSR);
             }
         }
         Operation::Branch {
@@ -952,11 +907,24 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
         } => {
             match target {
                 BranchTarget::Address(address) => {
-                    s.i32_const(address.get() as i32);
+                    let target_thumb = if exchange { address.get() & 1 != 0 } else { thumb };
+                    if exchange {
+                        s.local_get(0).local_get(CPSR);
+                        if target_thumb {
+                            s.i32_const(0x20).i32_or();
+                        } else {
+                            s.i32_const(!0x20).i32_and();
+                        }
+                        s.local_tee(CPSR).i32_store(field(64));
+                    }
+                    s.i32_const((address.get() & if target_thumb { !1 } else { !3 }) as i32)
+                        .local_set(NEXT_PC);
                 }
-                BranchTarget::Register(register) => register_value(s, register, instruction.pc.get(), thumb),
+                BranchTarget::Register(register) => {
+                    register_value(s, register, instruction.pc.get(), thumb);
+                    commit_pc(s, thumb, exchange);
+                }
             }
-            commit_pc(s, thumb, exchange);
             if let Some(link) = link {
                 s.local_get(0)
                     .i32_const(link.get() as i32)
@@ -1141,9 +1109,9 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
-    use wie_arm_jit_types::ir::MemoryAddress;
+    use wie_arm_aot::ir::MemoryAddress;
 
-    use wie_arm_jit_types::{CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
+    use wie_arm_aot::{CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
 
     use crate::Compiler;
 
@@ -1567,6 +1535,72 @@ mod tests {
         }];
         assert!(small_loop_body(&low_body, &low_body.blocks[0]).is_none());
         builder.add_region(&low_body);
+        for operation in [
+            Operation::MultiplyAccumulate {
+                destination: Reg::new(2),
+                left: Reg::new(0),
+                right: Reg::new(0),
+                accumulate: Reg::new(2),
+                set_flags: true,
+            },
+            Operation::MultiplyLong {
+                low: Reg::new(2),
+                high: Reg::new(3),
+                left: Reg::new(0),
+                right: Reg::new(0),
+                signed: false,
+                accumulate: false,
+                set_flags: true,
+            },
+        ] {
+            builder.add_region(&RegionIr {
+                entry: RegionKey { ..low_body.entry },
+                blocks: vec![BasicBlock {
+                    instructions: vec![
+                        Instruction {
+                            pc: MemoryAddress::new(0x1000),
+                            size: 2,
+                            condition: Condition::Always,
+                            operation,
+                        },
+                        Instruction {
+                            pc: MemoryAddress::new(0x1002),
+                            size: 2,
+                            condition: Condition::Always,
+                            operation: Operation::MultipleTransfer {
+                                base: Reg::new(1),
+                                registers: 0x8001,
+                                increment: true,
+                                before: false,
+                                write_back: true,
+                                load: true,
+                            },
+                        },
+                    ],
+                }],
+            });
+        }
+        for thumb in [false, true] {
+            for exchange in [false, true] {
+                for target in 0x2000..=0x2003 {
+                    builder.add_region(&RegionIr {
+                        entry: RegionKey { thumb, ..low_body.entry },
+                        blocks: vec![BasicBlock {
+                            instructions: vec![Instruction {
+                                pc: MemoryAddress::new(0x1000),
+                                size: if thumb { 2 } else { 4 },
+                                condition: Condition::Ne,
+                                operation: Operation::Branch {
+                                    target: BranchTarget::Address(MemoryAddress::new(target)),
+                                    link: Some(MemoryAddress::new(if thumb { 0x1003 } else { 0x1004 })),
+                                    exchange,
+                                },
+                            }],
+                        }],
+                    });
+                }
+            }
+        }
         let mut bytes = Vec::new();
         for chunk in builder.begin_assembly(&mut bytes).unwrap() {
             bytes.extend_from_slice(&chunk);
@@ -1586,7 +1620,7 @@ function directory(memory, entries) {
 }
 {
     const memory = new WebAssembly.Memory({initial: 1});
-    const frame = new Uint32Array(memory.buffer, 0, 21);
+    const frame = new Uint32Array(memory.buffer, 0, 20);
     frame[15] = frame[17] = 0x1000; frame[16] = 0x1f;
     const before = Array.from(frame);
     const unexpected = () => { throw new Error('guest execution during warmup'); };
@@ -1599,7 +1633,7 @@ function directory(memory, entries) {
 {
     const memory = new WebAssembly.Memory({initial: 2});
     const table = directory(memory, [[0, 65536]]);
-    const frame = new Uint32Array(memory.buffer, 0, 21);
+    const frame = new Uint32Array(memory.buffer, 0, 20);
     const data = new Uint8Array(memory.buffer, 65536, 65536);
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory, pages() { return table; }, resolve() { return -1; },
@@ -1610,15 +1644,15 @@ function directory(memory, entries) {
     frame[17] = 0xffc;
     assert.equal(dispatch(0, 1, 19), 6);
     assert.equal(frame[15], 0xffc);
-    assert.equal(frame[19], 0xffc);
-    assert.equal(frame[18], 2);
+    assert.equal(frame[16], 0x2000003f);
+    assert.equal(frame[18], 0xffc);
     for (const start of pcs) for (const end of [...pcs, 0x1006, 0x2000])
     for (const pointer of [0x3000, 0xfffc]) {
         frame.fill(0); data.fill(0);
         frame[0] = 2; frame[1] = pointer; frame[7] = 0x3456;
         frame[15] = start; frame[16] = 0xf800003f; frame[17] = end;
         const expected = Array.from(frame), expectedData = new Uint8Array(65536);
-        let completed = 0, exit;
+        let exit;
         // Model the fixture instruction by instruction, including stops before faulting stores.
         while (true) {
             const pc = expected[15];
@@ -1641,20 +1675,18 @@ function directory(memory, entries) {
                 expected[1] = (expected[1] + 4) >>> 0;
             } else if (pc === 0x100e) next = 0x1000;
             expected[15] = next;
-            completed++;
         }
-        expected[18] = completed;
         const label = `loop start=${start}, end=${end}, pointer=${pointer}`;
         assert.equal(dispatch(0, 1, 18), exit, label);
         assert.deepEqual(Array.from(frame), expected, label);
         assert.deepEqual(data, expectedData, label);
     }
 }
-for (const failure of ['pages', 'resolve', 'page_switch', null]) {
+for (const failure of ['pages', 'resolve', 'page_switch', null]) for (const start of [0x1000, 0x1002]) {
     const memory = new WebAssembly.Memory({initial: 3});
     const table = directory(memory, [[0, 65536], [1, 131072]]);
-    const frame = new Uint32Array(memory.buffer, 0, 21);
-    frame[0] = 42; frame[1] = 0x3000; frame[15] = 0x1000;
+    const frame = new Uint32Array(memory.buffer, 0, 20);
+    frame[0] = 42; frame[1] = 0x3000; frame[15] = start;
     frame[2] = failure === 'page_switch' ? 0x13000 : 0x3000;
     frame[16] = 0xf000003f; frame[17] = 0x2000;
     let pages = 0;
@@ -1664,6 +1696,8 @@ for (const failure of ['pages', 'resolve', 'page_switch', null]) {
         word_range() { throw new Error('unexpected word range'); },
         pages() {
             pages++;
+            assert.equal(frame[15], start === 0x1000 ? 0x1000 : 0x1004);
+            assert.equal(frame[16], start === 0x1000 ? 0xf000003f : 0x3f);
             if (failure === 'pages') throw injected;
             return table;
         },
@@ -1674,19 +1708,74 @@ for (const failure of ['pages', 'resolve', 'page_switch', null]) {
     } else {
         assert.throws(() => dispatch(0, 1, 0), error => error === injected);
     }
-    const completed = failure === 'pages' ? 0 : 4;
+    const completed = failure === 'pages' ? (start === 0x1000 ? 0 : 1) : (start === 0x1000 ? 4 : 3);
     assert.equal(frame[0], completed === 0 ? 42 : 43);
-    assert.equal(frame[15], 0x1000 + completed * 2);
+    assert.equal(frame[15], start + completed * 2);
     assert.equal(frame[16], completed === 0 ? 0xf000003f : 0x3f);
-    assert.equal(frame[18], completed);
     assert.equal(pages, 1);
-    assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 0 ? 0 : failure === 'page_switch' ? 42 : 43);
+    assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), failure === 'pages' ? 0 : failure === 'page_switch' ? (start === 0x1000 ? 42 : 0) : 43);
     if (failure === 'page_switch') assert.equal(new DataView(memory.buffer).getUint32(0x23000, true), 43);
+}
+for (const slot of [20, 21]) for (const outcome of ['throw', 'decline', 0x2000, 0x2001]) {
+    const memory = new WebAssembly.Memory({initial: 2});
+    const frame = new Uint32Array(memory.buffer, 0, 20);
+    frame[0] = 42; frame[1] = 0x3000; frame[15] = 0x1000;
+    frame[16] = 0xf000003f; frame[17] = 0x2000;
+    new Uint32Array(memory.buffer, 65536, 2).set([43, typeof outcome === 'number' ? outcome : 0]);
+    const injected = new Error('injected word range failure');
+    const unexpected = () => { throw new Error('unexpected host call'); };
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory, pages: unexpected, resolve: unexpected,
+        word_range(access, address, words) {
+            assert.equal(access, 1); assert.equal(address, 0x3000); assert.equal(words, 2);
+            assert.equal(frame[15], 0x1002);
+            assert.equal(frame[16], 0x3000003f);
+            if (outcome === 'throw') throw injected;
+            if (outcome === 'decline') return 0n;
+            frame[19] = 8;
+            return 65536n;
+        },
+    }}).exports.dispatch;
+    if (outcome === 'throw') assert.throws(() => dispatch(0, 1, slot), error => error === injected);
+    else assert.equal(dispatch(0, 1, slot), outcome === 'decline' ? 4 : 3);
+    const completed = typeof outcome === 'number';
+    assert.equal(frame[0], completed ? 43 : 42);
+    assert.equal(frame[1], completed ? 0x3008 : 0x3000);
+    assert.equal(frame[2], 1764); assert.equal(frame[3], 0);
+    assert.equal(frame[15], completed ? 0x2000 : 0x1002);
+    assert.equal(frame[16], outcome === 0x2000 ? 0x3000001f : 0x3000003f);
+}
+{
+    const memory = new WebAssembly.Memory({initial: 1});
+    const frame = new Uint32Array(memory.buffer, 0, 20);
+    const unexpected = () => { throw new Error('unexpected host call'); };
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory, pages: unexpected, word_range: unexpected,
+        resolve(access, pc, cpsr) {
+            assert.equal(access, 1); assert.equal(pc >>> 0, frame[15]); assert.equal(cpsr >>> 0, frame[16]);
+            return -1;
+        },
+    }}).exports.dispatch;
+    let slot = 22;
+    for (const thumb of [false, true]) for (const exchange of [false, true]) for (let target = 0x2000; target <= 0x2003; target++, slot++)
+    for (const taken of [false, true]) for (const stopAtTarget of [false, true]) {
+        frame.fill(0);
+        const nextThumb = taken && exchange ? !!(target & 1) : thumb;
+        const next = taken ? target & (nextThumb ? ~1 : ~3) : thumb ? 0x1002 : 0x1004;
+        const flags = taken ? 0xa8000000 : 0xe8000000;
+        frame[14] = 0x9876; frame[15] = 0x1000;
+        frame[16] = (flags | (thumb ? 0x3f : 0x1f)) >>> 0;
+        frame[17] = stopAtTarget ? next : 0x4000;
+        assert.equal(dispatch(0, 1, slot), stopAtTarget ? 3 : 0);
+        assert.equal(frame[14], taken ? (thumb ? 0x1003 : 0x1004) : 0x9876);
+        assert.equal(frame[15], next);
+        assert.equal(frame[16], (flags | (nextThumb ? 0x3f : 0x1f)) >>> 0);
+    }
 }
 for (let end = 0; end <= 5; end++) {
     const memory = new WebAssembly.Memory({initial: 2});
     const table = directory(memory, [[0, 65536]]);
-    const frame = new Uint32Array(memory.buffer, 0, 21);
+    const frame = new Uint32Array(memory.buffer, 0, 20);
     frame[0] = 42; frame[1] = frame[2] = 0x3000;
     frame[15] = 0x1000; frame[16] = 0xf000003f;
     frame[17] = 0x1000 + end * 2;
@@ -1701,13 +1790,12 @@ for (let end = 0; end <= 5; end++) {
     assert.equal(dispatch(0, 1, 0), exit, `end=${end}`);
     assert.equal(frame[15], 0x1000 + completed * 2);
     assert.equal(frame[16], completed < 2 ? 0xf000003f : 0x3f);
-    assert.equal(frame[18], completed);
     assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 0 ? 0 : completed < 3 ? 42 : 43);
 }
 for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x3001, 0xfffc, 0xffff, 0xfffffffc, null]) {
     const memory = new WebAssembly.Memory({initial: 2});
     const table = directory(memory, address === null ? [] : [[address >>> 16, 65536]]);
-    const frame = new Uint32Array(memory.buffer, 0, 21);
+    const frame = new Uint32Array(memory.buffer, 0, 20);
     const data = new Uint8Array(memory.buffer, 65536, 65536).fill(0x55);
     frame[0] = address ?? 0x3000; frame[1] = 0x89abcdef;
     frame[15] = 0x1000; frame[16] = 0xf000003f; frame[17] = 0x1002;
@@ -1720,7 +1808,6 @@ for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x
     assert.equal(dispatch(0, 1, 16 + index), admitted ? 3 : 4);
     assert.equal(frame[2], admitted ? width === 1 ? 0x55 : 0x55555555 : 0);
     assert.equal(frame[16], 0xf000003f);
-    assert.equal(frame[18], admitted ? 1 : 0);
     if (admitted) {
         assert.deepEqual(Array.from(data.slice(address & 65535, (address & 65535) + width)), [0xef, 0xcd, 0xab, 0x89].slice(0, width));
     } else {
@@ -1730,7 +1817,7 @@ for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x
 for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
     const memory = new WebAssembly.Memory({initial: 2});
     const table = directory(memory, address === null ? [] : [[address >>> 16, 65536]]);
-    const frame = new Uint32Array(memory.buffer, 0, 21);
+    const frame = new Uint32Array(memory.buffer, 0, 20);
     frame[0] = 0x89abcdef; frame[1] = address ?? 0x3000;
     frame[15] = 0x1000; frame[16] = 0x3f; frame[17] = 0x1012;
     let pages = 0;
@@ -1747,13 +1834,12 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
     assert.equal(dispatch(0, 1, 1), completed === 9 ? 3 : 4);
     assert.equal(pages, 1);
     assert.equal(frame[15], 0x1000 + completed * 2);
-    assert.equal(frame[18], completed);
     const expected = [0xef, 0xffffffef, 0xcdef, 0xffffcdef, 0x89abcdef, 0x89abcdef];
     assert.deepEqual(Array.from(frame.slice(2, 2 + completed / 3 * 2)), expected.slice(0, completed / 3 * 2));
 }
 {
     const memory = new WebAssembly.Memory({initial: 1});
-    const frame = new Uint32Array(memory.buffer, 0, 21);
+    const frame = new Uint32Array(memory.buffer, 0, 20);
     const unexpected = () => { throw new Error('unexpected host call'); };
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory, pages: unexpected, word_range: unexpected,
@@ -1788,7 +1874,6 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
             | (signed < -0x80000000n || signed > 0x7fffffffn ? 0x10000000 : 0)) >>> 0;
         assert.equal(frame[2], result, `op=${op}, left=${left}, right=${right}, carry=${carry}`);
         assert.equal(frame[16], (flags | 0x0800003f) >>> 0);
-        assert.equal(frame[18], 1);
     }
 }
 "#,
@@ -1853,8 +1938,8 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
                 } else {
                     (0x3fff_ffff, 0x8000_0000)
                 };
-                s.local_get(0).local_get(CPSR).i32_const(mask).i32_and();
-                s.i32_const(flags as i32).i32_or().local_tee(CPSR).i32_store(field(64));
+                s.local_get(CPSR).i32_const(mask).i32_and();
+                s.i32_const(flags as i32).i32_or().local_set(CPSR);
             }
             assert_eq!(
                 actual.into_raw_body(),

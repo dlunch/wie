@@ -1,0 +1,25 @@
+[package]
+name = "wie-core-arm-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+
+[dependencies]
+cranelift-codegen = "0.136.2"
+cranelift-frontend = "0.136.2"
+cranelift-jit = "0.136.2"
+cranelift-module = "0.136.2"
+futures = { workspace = true }
+nom = { version = "^8", default-features = false, features = ["alloc"] }
+rayon = "1.12"
+sha2 = { version = "0.10", default-features = false }
+spin = { workspace = true }
+tracing = { workspace = true }
+wie-arm-aot = { workspace = true }
+wie-util = { workspace = true }
+
+[dev-dependencies]
+cranelift-codegen = { version = "0.136.2", features = ["x86", "arm64"] }
+futures = { workspace = true, features = ["executor"] }

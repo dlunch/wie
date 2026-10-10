@@ -8,7 +8,7 @@ use core::{
 };
 
 use hashbrown::HashMap;
-use wie_arm_jit_types::{
+use wie_arm_aot::{
     CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion, PreparationFuture, PreparationState,
     RegionKey,
 };
@@ -20,7 +20,6 @@ use crate::engine::EmulatedMemory;
 // These are policy limits, not ISA limits; larger regions trade fewer dispatches for longer preparation steps.
 const MAX_REGION_INSTRUCTIONS: usize = 4096;
 const MAX_REGION_BLOCKS: usize = 512;
-const PREPARATION_TIMEOUT_MS: f64 = 10_000.0;
 
 struct Recompilation {
     manifest: ManifestRegion,
@@ -66,9 +65,8 @@ impl Aot {
             self.state = PreparationState::Ready;
             return Ok(None);
         }
-        let deadline_ms = self.executor.now() + PREPARATION_TIMEOUT_MS;
         self.state = PreparationState::Preparing;
-        Ok(Some(self.executor.prepare(request, deadline_ms)))
+        Ok(Some(self.executor.prepare(request)))
     }
 
     pub fn finish(&mut self, result: Result<CompiledArtifact>) -> bool {
@@ -136,10 +134,9 @@ impl Aot {
                 return;
             }
         };
-        let deadline_ms = self.executor.now() + PREPARATION_TIMEOUT_MS;
         self.recompilations.push(Recompilation {
             manifest,
-            future: self.executor.prepare(request, deadline_ms),
+            future: self.executor.prepare(request),
             invalidated: false,
         });
     }
@@ -204,10 +201,11 @@ fn compile_request(memory: &EmulatedMemory, mut ranges: Vec<Range<u64>>, mode: O
 mod tests {
     use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec, vec::Vec};
 
-    use wie_arm_jit_types::{CodeImage, CompileRequest};
+    use wie_arm_aot::{CodeImage, CompileRequest};
     use wie_core_arm_wasm::compile;
 
     use super::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, decoder::Decoder};
+    use crate::RUN_FUNCTION_LR;
 
     fn image(address: u32, bytes: Vec<u8>) -> CodeImage {
         CodeImage { address, bytes }
@@ -235,6 +233,7 @@ mod tests {
             // One region crosses a backing-memory page boundary.
             image(0xfffe, [0x3001_u16, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()),
             image(0x20000, [0xf000_u16, 0xf800, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()),
+            image(RUN_FUNCTION_LR - 4, [0xe1a00000_u32; 3].into_iter().flat_map(u32::to_le_bytes).collect()),
         ];
         let images: Arc<[_]> = images.into();
         let artifact = compile(CompileRequest {
@@ -257,6 +256,11 @@ mod tests {
         for (thumb, hole, root) in [(false, 0x1014, 0x1018), (true, 0x200a, 0x200c)] {
             assert!(!owned.contains(&(thumb, hole)));
             assert!(owned.contains(&(thumb, root)));
+        }
+        for thumb in [false, true] {
+            assert!(!owned.contains(&(thumb, RUN_FUNCTION_LR)));
+            assert!(owned.contains(&(thumb, RUN_FUNCTION_LR - 4)));
+            assert!(owned.contains(&(thumb, RUN_FUNCTION_LR + 4)));
         }
         assert!(!owned.contains(&(true, 0x200e)));
         assert_eq!(

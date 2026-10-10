@@ -1,7 +1,7 @@
 mod arm32_cpu;
 mod debugged_arm32_cpu;
 
-use wie_arm_jit_types::{CompiledArtifact, PreparationFuture};
+use wie_arm_aot::{CompiledArtifact, PreparationFuture};
 use wie_util::{AsAny, Result};
 
 pub use arm32_cpu::Arm32CpuEngine;
@@ -17,7 +17,7 @@ pub enum EngineStopReason {
 
 pub struct EngineRunResult {
     pub stop_reason: EngineStopReason,
-    /// Interpreted instructions on Wasm; all retired instructions on native targets.
+    /// Interpreted instructions; compiled execution does not consume this budget.
     pub budget_consumed: u32,
 }
 

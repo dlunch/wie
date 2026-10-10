@@ -99,6 +99,31 @@ pub struct Operand {
     pub amount: ShiftAmount,
 }
 
+impl Operand {
+    /// Evaluates an immediate operand; absent carry means the current carry is preserved.
+    pub fn constant_value(&self) -> Option<(u32, Option<u32>)> {
+        let (Value::Immediate(value), ShiftAmount::Immediate(amount)) = (&self.value, &self.amount) else {
+            return None;
+        };
+        let value = *value;
+        let (result, carry) = match (&self.shift, u32::from(*amount)) {
+            (Shift::Rrx, _) => return None,
+            (_, 0) => return Some((value, None)),
+            (Shift::Lsl, amount) => (value.checked_shl(amount).unwrap_or(0), value.checked_shl(amount - 1).unwrap_or(0) >> 31),
+            (Shift::Lsr, amount) => (value.checked_shr(amount).unwrap_or(0), value.checked_shr(amount - 1).unwrap_or(0) & 1),
+            (Shift::Asr, amount) => (
+                ((value as i32) >> amount.min(31)) as u32,
+                (((value as i32) >> (amount - 1).min(31)) as u32) & 1,
+            ),
+            (Shift::Ror, amount) => {
+                let result = value.rotate_right(amount);
+                (result, result >> 31)
+            }
+        };
+        Some((result, Some(carry)))
+    }
+}
+
 #[derive(PartialEq)]
 pub enum AluOp {
     And,

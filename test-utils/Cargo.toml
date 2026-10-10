@@ -19,7 +19,9 @@ jvm-bytecode = { workspace = true }
 jvm-class-proto = { workspace = true }
 rustjava-runtime = { workspace = true }
 
+wie-arm-aot = { workspace = true }
 wie-backend = { workspace = true }
+wie-core-arm-native = { workspace = true }
 wie-jvm-support = { workspace = true }
 wie-util = { workspace = true }
 wie-wipi-c = { workspace = true }
