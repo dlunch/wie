@@ -22,7 +22,7 @@ use futures::channel::oneshot;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use spin::Mutex;
 
-use wie_arm_jit_types::{
+use wie_arm_aot::{
     CodeImage, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, ManifestRegion,
     MemoryPage, PreparationFuture, RunFrame, ir::RegionIr,
 };
@@ -152,12 +152,9 @@ impl CompiledExecutor for NativeExecutor {
             }
             regions.sort_unstable_by_key(|(index, _)| *index);
             if let Some((mut cache, key, bytes)) = pending {
-                rayon::spawn(move || {
-                    // The complete record comes only from successfully finalized compiler output.
-                    match unsafe { cache.store(&key, &bytes) } {
-                        Ok(()) => tracing::info!(bytes = bytes.len(), "Stored native ARM AOT cache"),
-                        Err(error) => tracing::warn!("Writing native ARM AOT cache: {error}"),
-                    }
+                rayon::spawn(move || match cache.store(&key, &bytes) {
+                    Ok(()) => tracing::info!(bytes = bytes.len(), "Stored native ARM AOT cache"),
+                    Err(error) => tracing::warn!("Writing native ARM AOT cache: {error}"),
                 });
             }
             Ok(CompiledArtifact {
@@ -354,7 +351,7 @@ mod tests {
     use futures::executor::block_on;
     use rayon::ThreadPoolBuilder;
     use spin::Mutex;
-    use wie_arm_jit_types::{
+    use wie_arm_aot::{
         CodeImage, CompileRegion, CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, RegionKey, RunFrame,
         ir::{AluOp, BasicBlock, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value},
     };
@@ -420,8 +417,7 @@ mod tests {
         fail: bool,
     }
 
-    // Only this test's compiler output is loaded; corruption cases fail validation before execution.
-    unsafe impl NativeCache for TestCache {
+    impl NativeCache for TestCache {
         fn load(&mut self, _: &[u8; 32]) -> Result<Option<Vec<u8>>> {
             assert!(rayon::current_thread_index().is_some());
             self.calls[0].fetch_add(1, Ordering::Relaxed);
@@ -431,7 +427,7 @@ mod tests {
             Ok(self.bytes.lock().clone())
         }
 
-        unsafe fn store(&mut self, _: &[u8; 32], bytes: &[u8]) -> Result<()> {
+        fn store(&mut self, _: &[u8; 32], bytes: &[u8]) -> Result<()> {
             assert!(rayon::current_thread_index().is_some());
             self.calls[1].fetch_add(1, Ordering::Relaxed);
             if !self.fail {

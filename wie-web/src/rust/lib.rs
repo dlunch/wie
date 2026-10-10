@@ -176,7 +176,7 @@ impl WieWeb {
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone()));
             let options = Options {
                 enable_gdbserver: false,
-                aot: enable_aot.then(|| Box::new(aot::WasmExecutor::default()) as Box<dyn wie_arm_jit_types::CompiledExecutor>),
+                aot: enable_aot.then(|| Box::new(aot::WasmExecutor::default()) as Box<dyn wie_arm_aot::CompiledExecutor>),
                 profile: None,
             };
 

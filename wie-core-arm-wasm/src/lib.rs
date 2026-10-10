@@ -3,14 +3,11 @@ extern crate alloc;
 
 use alloc::{boxed::Box, collections::VecDeque, string::String, vec::Vec};
 
-use wie_arm_jit_types::{CompileRegion, CompileRequest, ManifestRegion};
+use wie_arm_aot::{CompileRegion, CompileRequest, ManifestRegion};
 
 mod codegen;
 
 const COPY_SIZE: usize = 64 * 1024;
-
-/// Increment when analysis, generated code, execution ABI, or the cache format changes.
-pub const AOT_CACHE_VERSION: u32 = 2;
 
 pub struct WasmArtifact {
     pub bytes: Vec<u8>,
@@ -119,7 +116,7 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    use wie_arm_jit_types::{
+    use wie_arm_aot::{
         RegionKey,
         ir::{BasicBlock, Condition, Instruction, MemoryAddress, Operation, RegionIr},
     };

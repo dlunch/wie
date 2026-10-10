@@ -3,7 +3,7 @@ use alloc::{boxed::Box, format, vec::Vec};
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 use hashbrown::HashMap;
 
-use wie_arm_jit_types::{
+use wie_arm_aot::{
     CodeImage, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, PreparationFuture, PreparationState,
     RegionKey, RunFrame,
 };
@@ -552,7 +552,7 @@ mod tests {
     use arm32_cpu::Memory;
     use spin::Mutex;
     use test_utils::TestNativeExecutor;
-    use wie_arm_jit_types::{CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion};
+    use wie_arm_aot::{CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion};
 
     use crate::engine::{ArmEngine, ArmRegister, EngineStopReason, MemoryPermission};
 
@@ -573,7 +573,7 @@ mod tests {
 
     #[derive(Default)]
     struct Responses {
-        requests: Vec<Vec<wie_arm_jit_types::CompileRegion>>,
+        requests: Vec<Vec<wie_arm_aot::CompileRegion>>,
         ready: Option<futures::channel::oneshot::Sender<Result<CompiledArtifact>>>,
         released: Vec<CompiledHandle>,
         executed: Vec<u32>,
@@ -604,7 +604,7 @@ mod tests {
         }
     }
 
-    fn artifact(request: &[wie_arm_jit_types::CompileRegion], module: u32) -> CompiledArtifact {
+    fn artifact(request: &[wie_arm_aot::CompileRegion], module: u32) -> CompiledArtifact {
         CompiledArtifact {
             regions: request
                 .iter()
@@ -664,7 +664,7 @@ mod tests {
         );
         for (instruction, immediate) in instructions.iter().zip([1, 7]) {
             assert!(
-                matches!(instruction.operation, wie_arm_jit_types::ir::Operation::Alu { right: wie_arm_jit_types::ir::Operand { value: wie_arm_jit_types::ir::Value::Immediate(value), .. }, .. } if value == immediate)
+                matches!(instruction.operation, wie_arm_aot::ir::Operation::Alu { right: wie_arm_aot::ir::Operand { value: wie_arm_aot::ir::Value::Immediate(value), .. }, .. } if value == immediate)
             );
         }
         assert!(aot.state == PreparationState::Preparing);

@@ -17,7 +17,7 @@ rayon = "1.12"
 sha2 = { version = "0.10", default-features = false }
 spin = { workspace = true }
 tracing = { workspace = true }
-wie-arm-jit-types = { workspace = true }
+wie-arm-aot = { workspace = true }
 wie-util = { workspace = true }
 
 [dev-dependencies]

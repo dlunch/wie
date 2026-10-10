@@ -34,7 +34,7 @@ use alloc::{
     vec::Vec,
 };
 
-use wie_arm_jit_types::CompiledExecutor;
+use wie_arm_aot::CompiledExecutor;
 use wie_util::{Result, WieError};
 
 pub trait Emulator {

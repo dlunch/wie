@@ -8,7 +8,7 @@ use cranelift_codegen::{
 };
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch};
 
-use wie_arm_jit_types::{
+use wie_arm_aot::{
     CompiledExit, RunFrame,
     ir::{self, AluOp, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount},
 };
@@ -806,7 +806,7 @@ mod tests {
         ir::{AbiParam, Opcode, Signature},
         isa, settings,
     };
-    use wie_arm_jit_types::{
+    use wie_arm_aot::{
         RegionKey,
         ir::{BasicBlock, MemoryAddress, Width},
     };

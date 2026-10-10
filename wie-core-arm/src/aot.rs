@@ -8,7 +8,7 @@ use core::{
 };
 
 use hashbrown::HashMap;
-use wie_arm_jit_types::{
+use wie_arm_aot::{
     CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion, PreparationFuture, PreparationState,
     RegionKey,
 };
@@ -201,7 +201,7 @@ fn compile_request(memory: &EmulatedMemory, mut ranges: Vec<Range<u64>>, mode: O
 mod tests {
     use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec, vec::Vec};
 
-    use wie_arm_jit_types::{CodeImage, CompileRequest};
+    use wie_arm_aot::{CodeImage, CompileRequest};
     use wie_core_arm_wasm::compile;
 
     use super::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, decoder::Decoder};

@@ -1,15 +1,7 @@
 extern crate alloc;
 
-cfg_if::cfg_if! {
-    if #[cfg(not(target_arch = "wasm32"))] {
-        mod cli;
+mod cli;
 
-        fn main() -> anyhow::Result<()> {
-            cli::run()
-        }
-    } else {
-        fn main() -> anyhow::Result<()> {
-            Ok(())
-        }
-    }
+fn main() -> anyhow::Result<()> {
+    cli::run()
 }

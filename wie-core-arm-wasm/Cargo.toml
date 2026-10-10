@@ -8,4 +8,4 @@ repository.workspace = true
 
 [dependencies]
 wasm-encoder = { version = "^0.259", default-features = false }
-wie-arm-jit-types = { workspace = true }
+wie-arm-aot = { workspace = true }

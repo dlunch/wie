@@ -19,7 +19,7 @@ gdbstub_arch = { version = "^0.3" }
 hashbrown = { version = "^0.17" }
 
 wie-backend = { workspace = true }
-wie-arm-jit-types = { workspace = true }
+wie-arm-aot = { workspace = true }
 wie-util = { workspace = true }
 
 [dev-dependencies]

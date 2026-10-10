@@ -6,7 +6,7 @@ members = [
     "wie-backend",
     "wie-util",
     "wie-core-arm",
-    "wie-arm-jit-types",
+    "wie-arm-aot",
     "wie-core-arm-wasm",
     "wie-core-arm-native",
     "wie-jvm-support",
@@ -84,7 +84,7 @@ wie-midp = { version = "0.1.7", path = "wie-midp" }
 wie-skt = { version = "0.1.7", path = "wie-skt" }
 wie-util = { version = "0.1.7", path = "wie-util" }
 wie-core-arm = { version = "0.1.7", path = "wie-core-arm" }
-wie-arm-jit-types = { version = "0.1.7", path = "wie-arm-jit-types" }
+wie-arm-aot = { version = "0.1.7", path = "wie-arm-aot" }
 wie-core-arm-wasm = { version = "0.1.7", path = "wie-core-arm-wasm" }
 wie-core-arm-native = { version = "0.1.7", path = "wie-core-arm-native" }
 wie-jvm-support = { version = "0.1.7", path = "wie-jvm-support" }
@@ -117,7 +117,6 @@ cli = ["dep:clap", "dep:directories", "dep:fast_image_resize", "dep:midir", "dep
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
-cfg-if = "1"
 wie-backend = { workspace = true }
 wie-j2me = { workspace = true }
 wie-ktf = { workspace = true }
@@ -125,7 +124,6 @@ wie-lgt = { workspace = true }
 wie-skt = { workspace = true }
 wie-util = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-trait = { workspace = true }
 clap = { workspace = true, optional = true }
 sentry = { workspace = true, optional = true }

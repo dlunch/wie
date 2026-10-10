@@ -179,7 +179,7 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow
     let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device));
 
     let buf = fs::read(filename)?;
-    eprintln!("Preparing emulator...");
+    tracing::info!("Preparing emulator...");
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("jad") {
         let jar_filename = filename.replace(".jad", ".jar");
         let jar = fs::read(&jar_filename)?;
@@ -211,7 +211,7 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow
                 emulator.tick()?;
                 if !ready && !emulator.is_preparing() {
                     ready = true;
-                    eprintln!("Emulator ready.");
+                    tracing::info!("Emulator ready.");
                 }
             }
             WindowCallbackEvent::Redraw => emulator.handle_event(Event::Redraw),

@@ -5,8 +5,8 @@ use alloc::{
 
 use hashbrown::HashMap;
 
-use wie_arm_jit_types::RegionKey;
-use wie_arm_jit_types::ir::{
+use wie_arm_aot::RegionKey;
+use wie_arm_aot::ir::{
     AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount,
     Value, Width,
 };

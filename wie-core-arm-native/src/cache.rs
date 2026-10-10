@@ -5,53 +5,32 @@ use cranelift_codegen::isa::TargetIsa;
 use nom::{Parser, bytes::complete::take, number::complete::le_u32};
 use sha2::{Digest, Sha256};
 
-use wie_arm_jit_types::{
-    CodeImage, CompileRequest, ManifestRegion, MemoryPage, RunFrame,
+use wie_arm_aot::{
+    CodeImage, CompileRequest, ManifestRegion, MemoryPage, RunFrame, cache as artifact,
     manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
 };
 use wie_util::Result;
 
 use crate::PendingRegion;
 
-const MAGIC: &[u8; 8] = b"WIEAOT\0\0";
-/// Increment when decoding, coalescing, generated code, its ABI, or this format changes.
-const VERSION: u32 = 1;
-const DIGEST_OFFSET: usize = 8 + 4 + 32;
-
 /// Host storage for this application's private native executable cache.
-///
-/// # Safety
-/// Loaded records must originate from this compiler/cache pipeline. Storage must
-/// remain outside guest, import, download, and other untrusted write paths.
-/// Checksums detect corruption; they do not authenticate executable code.
-pub unsafe trait NativeCache: Send {
+pub trait NativeCache: Send {
     fn load(&mut self, key: &[u8; 32]) -> Result<Option<Vec<u8>>>;
-
-    /// # Safety
-    /// `artifact` must be the complete output of this compiler/cache pipeline for `key`.
-    unsafe fn store(&mut self, key: &[u8; 32], artifact: &[u8]) -> Result<()>;
+    fn store(&mut self, key: &[u8; 32], artifact: &[u8]) -> Result<()>;
 }
 
 pub(crate) fn key(isa: &dyn TargetIsa, request: &CompileRequest) -> [u8; 32] {
     let mut hash = Sha256::new();
-    hash.update(MAGIC);
-    hash.update(VERSION.to_le_bytes());
-    for field in [
-        cranelift_codegen::VERSION.as_bytes(),
-        cranelift_module::VERSION.as_bytes(),
-        cranelift_jit::VERSION.as_bytes(),
-        format!(
-            "{}:{}:{:?}:{}",
-            isa.triple(),
-            isa.default_call_conv(),
-            isa.endianness(),
-            isa.pointer_bits()
-        )
-        .as_bytes(),
-    ] {
-        hash.update((field.len() as u64).to_le_bytes());
-        hash.update(field);
-    }
+    hash.update(artifact::key_input(request));
+    let target = format!(
+        "{}:{}:{:?}:{}",
+        isa.triple(),
+        isa.default_call_conv(),
+        isa.endianness(),
+        isa.pointer_bits()
+    );
+    hash.update((target.len() as u64).to_le_bytes());
+    hash.update(target.as_bytes());
     for mut flags in [isa.flags().iter().collect::<Vec<_>>(), isa.isa_flags()] {
         flags.sort_unstable_by_key(|flag| flag.name);
         hash.update((flags.len() as u64).to_le_bytes());
@@ -70,16 +49,8 @@ pub(crate) fn key(isa: &dyn TargetIsa, request: &CompileRequest) -> [u8; 32] {
         size_of::<MemoryPage>(),
         align_of::<MemoryPage>(),
         offset_of!(MemoryPage, bytes),
-        request.max_region_instructions,
-        request.max_region_blocks,
-        request.images.len(),
     ] {
         hash.update((field as u64).to_le_bytes());
-    }
-    for image in &*request.images {
-        hash.update(image.address.to_le_bytes());
-        hash.update((image.bytes.len() as u64).to_le_bytes());
-        hash.update(&image.bytes);
     }
     hash.finalize().into()
 }
@@ -87,27 +58,18 @@ pub(crate) fn key(isa: &dyn TargetIsa, request: &CompileRequest) -> [u8; 32] {
 pub(crate) fn encode<'a>(key: &[u8; 32], regions: impl Iterator<Item = &'a PendingRegion>) -> Option<Vec<u8>> {
     let mut regions: Vec<_> = regions.collect();
     regions.sort_unstable_by_key(|region| region.index);
-    let count = u32::try_from(regions.len()).ok()?;
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(MAGIC);
-    bytes.extend_from_slice(&VERSION.to_le_bytes());
-    bytes.extend_from_slice(key);
-    bytes.extend_from_slice(&[0; 32]);
-    bytes.extend_from_slice(&count.to_le_bytes());
+    let mut code = Vec::new();
+    let mut manifest = Vec::new();
     for region in regions {
-        let (alignment, code) = region.code.as_ref()?;
-        let mut manifest = Vec::new();
+        let (alignment, bytes) = region.code.as_ref()?;
+        code.extend_from_slice(&alignment.to_le_bytes());
+        code.extend_from_slice(&u32::try_from(bytes.len()).ok()?.to_le_bytes());
+        code.extend_from_slice(bytes);
         encode_manifest_region(&region.manifest, &mut manifest);
-        bytes.extend_from_slice(&alignment.to_le_bytes());
-        bytes.extend_from_slice(&u32::try_from(code.len()).ok()?.to_le_bytes());
-        bytes.extend_from_slice(&u32::try_from(manifest.len()).ok()?.to_le_bytes());
-        bytes.extend_from_slice(code);
-        bytes.extend_from_slice(&manifest);
     }
-    let mut hash = Sha256::new();
-    hash.update(&bytes[..DIGEST_OFFSET]);
-    hash.update(&bytes[DIGEST_OFFSET + 32..]);
-    bytes[DIGEST_OFFSET..DIGEST_OFFSET + 32].copy_from_slice(&hash.finalize());
+    let mut bytes = artifact::encode(key, &code, &manifest)?;
+    let digest = Sha256::digest(&bytes);
+    bytes.extend_from_slice(&digest);
     Some(bytes)
 }
 
@@ -118,28 +80,22 @@ pub(crate) struct CachedRegion<'a> {
 }
 
 pub(crate) fn decode<'a>(bytes: &'a [u8], key: &[u8; 32], images: &[CodeImage]) -> Option<Vec<CachedRegion<'a>>> {
-    let header: nom::IResult<_, _> = (take(8usize), le_u32, take(32usize), take(32usize), le_u32).parse(bytes);
-    let (mut input, (magic, version, stored_key, digest, count)) = header.ok()?;
-    let mut hash = Sha256::new();
-    hash.update(&bytes[..DIGEST_OFFSET]);
-    hash.update(&bytes[DIGEST_OFFSET + 32..]);
-    if magic != MAGIC || version != VERSION || stored_key != key || digest != &hash.finalize()[..] {
+    let (payload, digest) = bytes.split_at_checked(bytes.len().checked_sub(32)?)?;
+    if digest != &Sha256::digest(payload)[..] {
         return None;
     }
+    let (mut input, mut manifest) = artifact::decode(payload, key)?;
     let mut regions = Vec::new();
     let mut owned = BTreeSet::new();
-    for _ in 0..count {
-        let lengths: nom::IResult<_, _> = (le_u32, le_u32, le_u32).parse(input);
-        let (remaining, (alignment, code_length, manifest_length)) = lengths.ok()?;
+    while !manifest.is_empty() {
+        let lengths: nom::IResult<_, _> = (le_u32, le_u32).parse(input);
+        let (remaining, (alignment, code_length)) = lengths.ok()?;
         if !alignment.is_power_of_two() || code_length == 0 {
             return None;
         }
-        let record: nom::IResult<_, _> = (take(code_length as usize), take(manifest_length as usize)).parse(remaining);
-        let (remaining, (code, mut manifest)) = record.ok()?;
+        let record: nom::IResult<_, _> = take(code_length as usize).parse(remaining);
+        let (remaining, code) = record.ok()?;
         let region = decode_manifest_region(&mut manifest)?;
-        if !manifest.is_empty() {
-            return None;
-        }
         validate_manifest_region(&region, images, &mut owned).ok()?;
         regions.push(CachedRegion {
             alignment,
@@ -157,7 +113,7 @@ mod tests {
 
     use cranelift_codegen::{isa, settings, settings::Configurable};
     use cranelift_module::{FuncId, Module};
-    use wie_arm_jit_types::RegionKey;
+    use wie_arm_aot::RegionKey;
 
     use super::*;
 
@@ -207,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn artifact_rejects_corruption_and_invalid_records_before_loading_code() {
+    fn artifact_rejects_invalid_native_code_and_manifests_before_loading() {
         let key = [7; 32];
         let images = [CodeImage {
             address: 0x1000,
@@ -233,36 +189,33 @@ mod tests {
         assert_eq!(decoded.len(), 1);
         assert_eq!(decoded[0].code, [1]);
         assert_eq!(decoded[0].manifest.instruction_pcs, [0x1000]);
-        for length in 0..encoded.len() {
-            assert!(decode(&encoded[..length], &key, &images).is_none(), "truncated at {length}");
-        }
-        for offset in [0, 8, 12, DIGEST_OFFSET, DIGEST_OFFSET + 32, 92] {
+        for offset in 0..encoded.len() {
             let mut corrupt = encoded.clone();
             corrupt[offset] ^= 1;
-            assert!(decode(&corrupt, &key, &images).is_none(), "corruption at {offset}");
+            assert!(decode(&corrupt, &key, &images).is_none());
         }
-        assert!(decode(&encoded, &[8; 32], &images).is_none());
-
-        let record = DIGEST_OFFSET + 32 + 4;
-        let manifest = record + 12 + 1;
-        for (offset, value) in [
-            (8, VERSION + 1),
-            (record - 4, 0),
-            (record - 4, u32::MAX),
-            (record, 3),
-            (record + 4, 0),
-            (record + 4, u32::MAX),
-            (record + 8, u32::MAX),
-            (manifest + 4, 0x10 << 1),
-            (manifest + 12, 0x2000),
-        ] {
-            let mut corrupt = encoded.clone();
-            corrupt[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
-            let mut hash = Sha256::new();
-            hash.update(&corrupt[..DIGEST_OFFSET]);
-            hash.update(&corrupt[DIGEST_OFFSET + 32..]);
-            corrupt[DIGEST_OFFSET..DIGEST_OFFSET + 32].copy_from_slice(&hash.finalize());
-            assert!(decode(&corrupt, &key, &images).is_none(), "invalid metadata at {offset}: {value}");
+        let (code, manifest) = artifact::decode(&encoded[..encoded.len() - 32], &key).unwrap();
+        for (offset, value) in [(0, 3u32), (4, 0), (4, u32::MAX)] {
+            let mut code = code.to_vec();
+            code[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+            let mut corrupt = artifact::encode(&key, &code, manifest).unwrap();
+            let digest = Sha256::digest(&corrupt);
+            corrupt.extend_from_slice(&digest);
+            assert!(decode(&corrupt, &key, &images).is_none());
+        }
+        for (offset, value) in [(4, 0x10u32 << 1), (12, 0x2000)] {
+            let mut manifest = manifest.to_vec();
+            manifest[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+            let mut corrupt = artifact::encode(&key, code, &manifest).unwrap();
+            let digest = Sha256::digest(&corrupt);
+            corrupt.extend_from_slice(&digest);
+            assert!(decode(&corrupt, &key, &images).is_none());
+        }
+        for (code, manifest) in [(&[][..], manifest), (code, &[][..])] {
+            let mut corrupt = artifact::encode(&key, code, manifest).unwrap();
+            let digest = Sha256::digest(&corrupt);
+            corrupt.extend_from_slice(&digest);
+            assert!(decode(&corrupt, &key, &images).is_none());
         }
         let duplicate = encode(&key, [&region(), &region()].into_iter()).unwrap();
         assert!(decode(&duplicate, &key, &images).is_none());

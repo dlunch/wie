@@ -15,8 +15,7 @@ pub(super) struct AotCache {
     pub(super) directory: PathBuf,
 }
 
-// SAFETY: Only compiler-produced artifacts are written here, in the host's private cache, outside guest storage.
-unsafe impl NativeCache for AotCache {
+impl NativeCache for AotCache {
     fn load(&mut self, key: &[u8; 32]) -> Result<Option<Vec<u8>>> {
         let filename: String = key.iter().map(|byte| format!("{byte:02x}")).collect();
         match fs::read(self.directory.join(filename)) {
@@ -26,9 +25,7 @@ unsafe impl NativeCache for AotCache {
         }
     }
 
-    /// # Safety
-    /// `artifact` must be produced by the native compiler/cache pipeline for `key`.
-    unsafe fn store(&mut self, key: &[u8; 32], artifact: &[u8]) -> Result<()> {
+    fn store(&mut self, key: &[u8; 32], artifact: &[u8]) -> Result<()> {
         let mut directory = DirBuilder::new();
         directory.recursive(true);
         #[cfg(unix)]
@@ -57,7 +54,7 @@ mod tests {
     use super::AotCache;
 
     #[test]
-    fn missing_cache_is_lazy_and_storage_errors_are_reported() {
+    fn cache_roundtrip_replaces_records_and_reports_storage_errors() {
         let root = tempdir().unwrap();
         let mut cache = AotCache {
             directory: root.path().join("native-aot"),
@@ -65,7 +62,11 @@ mod tests {
         assert!(cache.load(&[0; 32]).unwrap().is_none());
         assert!(!cache.directory.exists());
 
-        fs::create_dir_all(cache.directory.join("00".repeat(32))).unwrap();
-        assert!(matches!(cache.load(&[0; 32]), Err(WieError::FatalError(_))));
+        for bytes in [b"first".as_slice(), b"replacement".as_slice()] {
+            cache.store(&[0; 32], bytes).unwrap();
+            assert_eq!(cache.load(&[0; 32]).unwrap().unwrap(), bytes);
+        }
+        fs::create_dir(cache.directory.join("01".repeat(32))).unwrap();
+        assert!(matches!(cache.load(&[1; 32]), Err(WieError::FatalError(_))));
     }
 }

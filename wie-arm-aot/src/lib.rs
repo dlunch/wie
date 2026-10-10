@@ -6,6 +6,7 @@ use core::{future::Future, ops::Range, pin::Pin};
 
 use wie_util::Result;
 
+pub mod cache;
 pub mod ir;
 pub mod manifest;
 

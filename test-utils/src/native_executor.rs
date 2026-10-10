@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, sync::Arc};
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use wie_arm_jit_types::{CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, PreparationFuture, RunFrame};
+use wie_arm_aot::{CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, PreparationFuture, RunFrame};
 use wie_core_arm_native::NativeExecutor;
 use wie_util::Result;
 

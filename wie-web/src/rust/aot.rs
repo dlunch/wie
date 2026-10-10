@@ -6,16 +6,17 @@ use hashbrown::{HashMap, hash_map::Entry};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use wie_arm_jit_types::{
+use wie_arm_aot::{
     CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RunFrame,
+    cache,
     manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
 };
 
-use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact};
+use wie_core_arm_wasm::{Compiler, WasmArtifact};
 use wie_util::{Result as WieResult, WieError};
 
 #[wasm_bindgen(inline_js = r#"
-export { compileArm, compilerTask, loadArmCache } from "@ts/arm-compiler.ts";
+export { compileArm, yieldToMainThread, loadArmCache } from "@ts/arm-compiler.ts";
 export function executeRegion(region, frame, context, slot) {
     const exit = region(frame, context, slot);
     // Reject non-numbers before the Wasm import can coerce them to valid exits.
@@ -24,14 +25,21 @@ export function executeRegion(region, frame, context, slot) {
 "#)]
 extern "C" {
     #[wasm_bindgen(catch, js_name = compileArm)]
-    fn compile_arm(artifact: &Object, key: &JsValue, cached_digest: &JsValue, imports: &Object, frame: u32, regions: u32)
-    -> Result<Promise, JsValue>;
+    fn compile_arm(
+        bytes: &Uint8Array,
+        record: &JsValue,
+        key: &JsValue,
+        cached_digest: &JsValue,
+        imports: &Object,
+        frame: u32,
+        regions: u32,
+    ) -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(catch, js_name = loadArmCache)]
-    fn load_arm_cache(input: &Uint8Array, version: u32) -> Result<Promise, JsValue>;
+    fn load_arm_cache(input: &Uint8Array) -> Result<Promise, JsValue>;
 
-    #[wasm_bindgen(js_name = compilerTask)]
-    fn compiler_task() -> Promise;
+    #[wasm_bindgen(js_name = yieldToMainThread)]
+    fn yield_to_main_thread() -> Promise;
 
     #[wasm_bindgen(catch, js_name = executeRegion)]
     fn execute_region(region: &Function, frame: u32, context: u32, slot: u32) -> Result<f64, JsValue>;
@@ -124,28 +132,24 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
     let mut group_started = now();
     // Persist only the initial image; runtime replacements belong to this execution.
     let lookup = if module == 0 {
-        let mut input = Vec::new();
-        input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
-        for image in request.images.iter() {
-            preparation_checkpoint(&mut group_started).await?;
-            input.extend_from_slice(&image.address.to_le_bytes());
-            input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
-            input.extend_from_slice(&image.bytes);
-        }
-        let input_copy = Uint8Array::from(input.as_slice());
-        JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION)?).await?
+        let input = Uint8Array::from(cache::key_input(&request).as_slice());
+        JsFuture::from(load_arm_cache(&input)?).await?
     } else {
         Object::new().into()
     };
     let key = Reflect::get(&lookup, &"key".into())?;
-    let candidate = match Reflect::get(&lookup, &"artifact".into())? {
-        candidate if candidate.is_undefined() => None,
-        candidate => Some(candidate.dyn_into::<Object>()?),
+    let cache_key: Option<[u8; 32]> = if key.is_undefined() {
+        None
+    } else {
+        Some(key.clone().dyn_into::<Uint8Array>()?.to_vec().try_into().unwrap())
     };
-    if let Some(artifact) = candidate {
+    let candidate = Reflect::get(&lookup, &"artifact".into())?;
+    if let Some(cache_key) = cache_key
+        && !candidate.is_undefined()
+    {
         let restored = async {
-            let bytes = Reflect::get(&artifact, &"manifest".into())?.dyn_into::<Uint8Array>()?.to_vec();
-            let mut manifest = bytes.as_slice();
+            let record = candidate.dyn_into::<Uint8Array>()?.to_vec();
+            let (code, mut manifest) = cache::decode(&record, &cache_key).ok_or_else(|| JsValue::from_str("invalid cached artifact"))?;
             let mut owned = BTreeSet::new();
             let mut regions = Vec::new();
             while !manifest.is_empty() {
@@ -160,8 +164,8 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
                     manifest: region,
                 });
             }
-            let digest = Reflect::get(&artifact, &"digest".into())?;
-            let dispatcher = prepare_dispatcher(&artifact, &key, &digest, regions.len()).await?;
+            let digest = Reflect::get(&lookup, &"digest".into())?;
+            let dispatcher = prepare_dispatcher(code, Some(&record), &key, &digest, regions.len()).await?;
             Ok::<_, JsValue>((CompiledArtifact { regions }, dispatcher))
         }
         .await;
@@ -191,25 +195,26 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
             handle: CompiledHandle { module, slot: slot as u32 },
         });
     }
-    let artifact = Object::new();
-    // Both arrays own their bytes before Rust allocations are freed or an await can grow memory.
-    let bytes_copy = Uint8Array::from(bytes.as_slice());
-    Reflect::set(&artifact, &"bytes".into(), &bytes_copy)?;
-    let manifest_copy = Uint8Array::from(serialized.as_slice());
-    Reflect::set(&artifact, &"manifest".into(), &manifest_copy)?;
-    let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, regions.len()).await?;
+    let record = cache_key.and_then(|key| cache::encode(&key, &bytes, &serialized));
+    let dispatcher = prepare_dispatcher(&bytes, record.as_deref(), &key, &JsValue::UNDEFINED, regions.len()).await?;
     Ok((CompiledArtifact { regions }, dispatcher))
 }
 
 async fn preparation_checkpoint(group_started: &mut f64) -> Result<(), JsValue> {
     if now() - *group_started >= 4.0 {
-        JsFuture::from(compiler_task()).await?;
+        JsFuture::from(yield_to_main_thread()).await?;
         *group_started = now();
     }
     Ok(())
 }
 
-async fn prepare_dispatcher(artifact: &Object, key: &JsValue, cached_digest: &JsValue, region_count: usize) -> Result<Function, JsValue> {
+async fn prepare_dispatcher(
+    bytes: &[u8],
+    record: Option<&[u8]>,
+    key: &JsValue,
+    cached_digest: &JsValue,
+    region_count: usize,
+) -> Result<Function, JsValue> {
     let mut warmup = Box::new(RunFrame {
         cpsr: 0x1f,
         end: 0x1000,
@@ -217,8 +222,12 @@ async fn prepare_dispatcher(artifact: &Object, key: &JsValue, cached_digest: &Js
     });
     warmup.regs[15] = 0x1000;
     let imports = execution_imports()?;
+    // JS owns these bytes before an await can grow Wasm memory.
+    let bytes = Uint8Array::from(bytes);
+    let record = record.map(|record| JsValue::from(Uint8Array::from(record))).unwrap_or(JsValue::UNDEFINED);
     let promise = compile_arm(
-        artifact,
+        &bytes,
+        &record,
         key,
         cached_digest,
         &imports,
@@ -261,8 +270,8 @@ unsafe extern "C" fn wie_aot_pages(access: u32) -> u32 {
 
 #[cfg(target_arch = "wasm32")]
 const _: () = {
-    assert!(core::mem::size_of::<wie_arm_jit_types::MemoryPage>() == 4);
-    assert!(core::mem::offset_of!(wie_arm_jit_types::MemoryPage, bytes) == 0);
+    assert!(core::mem::size_of::<wie_arm_aot::MemoryPage>() == 4);
+    assert!(core::mem::offset_of!(wie_arm_aot::MemoryPage, bytes) == 0);
 };
 
 #[unsafe(no_mangle)]
