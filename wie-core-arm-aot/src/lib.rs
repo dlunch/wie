@@ -6,7 +6,9 @@ use core::{future::Future, ops::Range, pin::Pin};
 
 use wie_util::Result;
 
+pub mod cache;
 pub mod ir;
+pub mod manifest;
 
 #[derive(Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RegionKey {
@@ -37,6 +39,47 @@ pub struct CompileRequest {
     /// Each step emits one region or makes bounded decoder progress without retaining IR.
     pub regions: Box<dyn Iterator<Item = Option<CompileRegion>> + Send>,
 }
+
+impl CompileRequest {
+    pub fn coalesced_regions(self) -> impl Iterator<Item = Option<CompileRegion>> + Send {
+        let mut regions = self.regions.fuse();
+        let mut pending: Option<CompileRegion> = None;
+        let mut pending_instructions = 0;
+        let mut pending_page = None;
+        core::iter::from_fn(move || match regions.next() {
+            Some(Some(mut region)) => {
+                let (instructions, first, last) = region
+                    .ir
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .fold((0, u32::MAX, 0), |(count, first, last), instruction| {
+                        (count + 1, first.min(instruction.pc.get()), last.max(instruction.pc.get()))
+                    });
+                // Coalesce small fragments without expanding the selectors of larger regions.
+                let page = (instructions <= 16 && first >> 14 == last >> 14).then_some(first >> 14);
+                if let Some(pending) = &mut pending
+                    && page.is_some()
+                    && page == pending_page
+                    && pending.ir.entry.thumb == region.ir.entry.thumb
+                    && pending.ir.entry.cpu_mode == region.ir.entry.cpu_mode
+                    && pending_instructions + instructions <= self.max_region_instructions
+                    && pending.ir.blocks.len() + region.ir.blocks.len() <= self.max_region_blocks
+                {
+                    pending_instructions += instructions;
+                    pending.ir.blocks.append(&mut region.ir.blocks);
+                    return Some(None);
+                }
+                pending_instructions = instructions;
+                pending_page = page;
+                Some(pending.replace(region))
+            }
+            Some(None) => Some(None),
+            None => pending.take().map(Some),
+        })
+    }
+}
+
 pub type PreparationFuture = Pin<Box<dyn Future<Output = Result<CompiledArtifact>> + Send>>;
 
 pub struct ManifestRegion {
@@ -75,13 +118,13 @@ pub enum CompiledExit {
 pub struct RunFrame {
     pub regs: [u32; 16],
     pub cpsr: u32,
+    /// Dispatcher return address, outside compiled instruction coverage.
     pub end: u32,
-    pub executed: u32,
     pub fault_address: u32,
     pub scratch: u32,
 }
 
-/// The owning guest page directory entry. Wasm reads the nullable page pointer at offset zero.
+/// The owning guest page directory entry. Generated code reads the nullable page pointer at offset zero.
 /// `Option<Box<T>>` for sized T has the pointer layout, with zero representing None.
 #[derive(Default)]
 #[repr(C)]
@@ -107,12 +150,11 @@ pub trait ExecutionAccess {
 }
 
 pub trait CompiledExecutor: Send {
-    /// Monotonic milliseconds in the same clock domain used for preparation deadlines.
-    fn now(&self) -> f64;
-    fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture;
+    fn prepare(&mut self, request: CompileRequest) -> PreparationFuture;
     /// Releases a compiled region; a shared module remains alive until its last region is released.
     fn release(&mut self, handle: CompiledHandle);
-    /// Both `Ok` and `Err` leave the completed instruction prefix in `frame`, including its next PC and counters.
+    /// Resumable exits and `Err` publish guest state and the next PC in `frame`.
+    /// `GuestFault` is terminal: report its PC and address without reconstructing flags or partial-instruction effects.
     /// On `Err`, discard this executor and resume in the interpreter without replaying completed writes.
     /// Fallible host calls must fail before guest side effects; arbitrary code or memory corruption is not resumable.
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit>;
@@ -126,13 +168,12 @@ mod tests {
 
     #[test]
     fn generated_code_frame_has_a_fixed_plain_data_layout() {
-        assert_eq!(size_of::<RunFrame>(), 84);
+        assert_eq!(size_of::<RunFrame>(), 80);
         assert_eq!(align_of::<RunFrame>(), 4);
         assert_eq!(offset_of!(RunFrame, regs), 0);
         assert_eq!(offset_of!(RunFrame, cpsr), 64);
         assert_eq!(offset_of!(RunFrame, end), 68);
-        assert_eq!(offset_of!(RunFrame, executed), 72);
-        assert_eq!(offset_of!(RunFrame, fault_address), 76);
-        assert_eq!(offset_of!(RunFrame, scratch), 80);
+        assert_eq!(offset_of!(RunFrame, fault_address), 72);
+        assert_eq!(offset_of!(RunFrame, scratch), 76);
     }
 }

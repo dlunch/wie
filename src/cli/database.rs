@@ -1,6 +1,7 @@
-use std::{fs, path::PathBuf};
-
-use directories::ProjectDirs;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use wie_backend::RecordId;
 
@@ -9,12 +10,10 @@ pub struct DatabaseRepository {
 }
 
 impl DatabaseRepository {
-    pub fn new() -> Self {
-        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
-
-        let base_path = base_dir.data_dir().to_owned();
-
-        Self { base_path }
+    pub fn new(data_dir: &Path) -> Self {
+        Self {
+            base_path: data_dir.to_owned(),
+        }
     }
 
     fn get_path_for_database(&self, name: &str, app_id: &str) -> PathBuf {
@@ -45,7 +44,7 @@ impl DatabaseRepository {
         self.get_path_for_database("_", app_id).parent().unwrap().to_owned()
     }
 
-    fn directory_usage(path: &std::path::Path) -> u64 {
+    fn directory_usage(path: &Path) -> u64 {
         let Ok(entries) = fs::read_dir(path) else {
             return 0;
         };
@@ -186,33 +185,27 @@ impl wie_backend::Database for Database {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use super::DatabaseRepository;
 
     #[test]
     fn database_path_includes_db_segment() {
-        let repo = DatabaseRepository {
-            base_path: PathBuf::from("/tmp/wie_test"),
-        };
+        let repo = DatabaseRepository::new(Path::new("/tmp/wie_test"));
         let path = repo.get_path_for_database("records", "game123");
         assert_eq!(path, PathBuf::from("/tmp/wie_test/game123/db/records"));
     }
 
     #[test]
     fn database_path_strips_guest_leading_slash() {
-        let repo = DatabaseRepository {
-            base_path: PathBuf::from("/tmp/wie_test"),
-        };
+        let repo = DatabaseRepository::new(Path::new("/tmp/wie_test"));
         let path = repo.get_path_for_database("/save0.dat", "PD140106");
         assert_eq!(path, PathBuf::from("/tmp/wie_test/PD140106/db/save0.dat"));
     }
 
     #[test]
     fn database_path_does_not_escape_app_scope() {
-        let repo = DatabaseRepository {
-            base_path: PathBuf::from("/tmp/wie_test"),
-        };
+        let repo = DatabaseRepository::new(Path::new("/tmp/wie_test"));
         let path = repo.get_path_for_database("/../save0.dat", "PD140106");
         assert!(path.starts_with(PathBuf::from("/tmp/wie_test/PD140106/db")));
     }

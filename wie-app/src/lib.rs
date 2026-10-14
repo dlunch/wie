@@ -1,3 +1,5 @@
+#[cfg(not(target_os = "ios"))]
+mod aot_cache;
 mod audio;
 mod database;
 mod filesystem;

@@ -484,10 +484,9 @@ svg {
 }
 
 .native-preparation .player-status {
-  position: static;
-  gap: 6px;
-  padding: 8px 16px;
-  font-size: 0.875rem;
+  position: fixed;
+  inset: 44px 0 0;
+  z-index: 1;
 }
 
 .player-warning {

@@ -23,6 +23,7 @@ spin = { workspace = true }
 tracing = { workspace = true }
 wie = { workspace = true }
 wie-backend = { workspace = true }
+wie-core-arm-native = { workspace = true }
 wie-util = { workspace = true }
 
 serde_json = "1.0"

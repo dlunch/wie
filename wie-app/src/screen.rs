@@ -193,7 +193,9 @@ impl NativeView {
         {
             let mut pending = self.pending.lock();
             pending.playing = false;
-            pending.frame = None;
+            if !playing {
+                pending.frame = None;
+            }
         }
         let (sender, receiver) = mpsc::sync_channel(1);
         let pending = self.pending.clone();
@@ -210,17 +212,15 @@ impl NativeView {
             }
             let _ = sender.send(result);
         })?;
-        receiver.recv()?
+        receiver.recv()??;
+        if playing {
+            self.schedule()?;
+        }
+        Ok(())
     }
 
     pub fn present(&self, frame: Frame) -> Result<()> {
-        {
-            let mut pending = self.pending.lock();
-            if !pending.playing {
-                return Ok(());
-            }
-            pending.frame = Some(frame);
-        }
+        self.pending.lock().frame = Some(frame);
         self.schedule()
     }
 
@@ -232,7 +232,7 @@ impl NativeView {
     fn schedule(&self) -> Result<()> {
         {
             let mut pending = self.pending.lock();
-            if pending.scheduled {
+            if !pending.playing || pending.scheduled {
                 return Ok(());
             }
             pending.scheduled = true;
@@ -242,6 +242,9 @@ impl NativeView {
             let frame = {
                 let mut pending = pending.lock();
                 pending.scheduled = false;
+                if !pending.playing {
+                    return;
+                }
                 pending.frame.take()
             };
             let view = VIEW.with_borrow(Clone::clone);

@@ -23,7 +23,11 @@ use wie::load_emulator;
 use wie_backend::{
     AudioSink, DatabaseRepository as BackendDatabaseRepository, Event, Filesystem, Font, Instant as GuestInstant, KeyCode, Options, Platform, Screen,
 };
+#[cfg(not(target_os = "ios"))]
+use wie_core_arm_native::{NativeCache, NativeExecutor};
 
+#[cfg(not(target_os = "ios"))]
+use crate::aot_cache::AotCache;
 use crate::{
     audio::{Audio, AudioSink as NativeAudioSink},
     database::DatabaseRepository,
@@ -446,6 +450,14 @@ impl SessionWorker {
         }
         let redraw = Arc::new(AtomicBool::new(true));
         let exited = Arc::new(AtomicBool::new(false));
+        #[cfg(not(target_os = "ios"))]
+        let cache = match app.path().app_cache_dir() {
+            Ok(directory) => Some(Box::new(AotCache { directory }) as Box<dyn NativeCache>),
+            Err(error) => {
+                log::warn!("Native AOT cache directory unavailable: {error}");
+                None
+            }
+        };
         let platform = NativePlatform {
             app,
             screen: NativeScreen::new(view.clone(), 240, 320, redraw.clone()),
@@ -457,13 +469,15 @@ impl SessionWorker {
             font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf"))?,
         };
         let result = (|| -> Result<()> {
-            view.set_playing(true)?;
             let mut emulator = load_emulator(
                 &filename,
                 bytes,
                 Box::new(platform),
                 Options {
                     enable_gdbserver: false,
+                    #[cfg(not(target_os = "ios"))]
+                    aot: Some(Box::new(NativeExecutor::new(cache))),
+                    #[cfg(target_os = "ios")]
                     aot: None,
                     profile: None,
                 },
@@ -533,6 +547,7 @@ impl SessionWorker {
                 }
                 emulator.tick()?;
                 if !ready && !emulator.is_preparing() {
+                    view.set_playing(true)?;
                     ready = true;
                     events.send(SessionEvent::Ready)?;
                 }
