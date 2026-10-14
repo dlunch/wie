@@ -6,7 +6,7 @@ use hashbrown::{HashMap, hash_map::Entry};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use wie_arm_aot::{
+use wie_core_arm_aot::{
     CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RunFrame,
     cache,
     manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
@@ -270,8 +270,8 @@ unsafe extern "C" fn wie_aot_pages(access: u32) -> u32 {
 
 #[cfg(target_arch = "wasm32")]
 const _: () = {
-    assert!(core::mem::size_of::<wie_arm_aot::MemoryPage>() == 4);
-    assert!(core::mem::offset_of!(wie_arm_aot::MemoryPage, bytes) == 0);
+    assert!(core::mem::size_of::<wie_core_arm_aot::MemoryPage>() == 4);
+    assert!(core::mem::offset_of!(wie_core_arm_aot::MemoryPage, bytes) == 0);
 };
 
 #[unsafe(no_mangle)]

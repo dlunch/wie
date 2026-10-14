@@ -2,7 +2,7 @@ use core::mem::{offset_of, size_of};
 
 use cranelift_codegen::ir::{Endianness, InstBuilder, MemFlagsData, Value, condcodes::IntCC, types};
 
-use wie_arm_aot::{
+use wie_core_arm_aot::{
     MemoryPage,
     ir::{self, Instruction, MemoryOperand, Operation, Reg, Width},
 };

@@ -4,8 +4,8 @@ use wasm_encoder::{
     BlockType, ConstExpr, ElementSection, Elements, Encode, EntityType, ExportKind, ExportSection, Function, ImportSection, InstructionSink, MemArg,
     MemoryType, Module, RefType, SectionId, TableSection, TableType, TypeSection, ValType,
 };
-use wie_arm_aot::CompiledExit;
-use wie_arm_aot::ir::{
+use wie_core_arm_aot::CompiledExit;
+use wie_core_arm_aot::ir::{
     AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value, Width,
 };
 
@@ -1109,9 +1109,9 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
-    use wie_arm_aot::ir::MemoryAddress;
+    use wie_core_arm_aot::ir::MemoryAddress;
 
-    use wie_arm_aot::{CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
+    use wie_core_arm_aot::{CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
 
     use crate::Compiler;
 

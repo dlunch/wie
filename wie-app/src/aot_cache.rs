@@ -1,6 +1,4 @@
-#[cfg(unix)]
-use std::os::unix::fs::DirBuilderExt;
-use std::{fs::DirBuilder, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
@@ -26,13 +24,7 @@ impl NativeCache for AotCache {
     }
 
     fn store(&mut self, key: &[u8; 32], artifact: &[u8]) -> Result<()> {
-        let mut directory = DirBuilder::new();
-        directory.recursive(true);
-        #[cfg(unix)]
-        directory.mode(0o700);
-        directory
-            .create(&self.directory)
-            .map_err(|error| WieError::FatalError(error.to_string()))?;
+        fs::create_dir_all(&self.directory).map_err(|error| WieError::FatalError(error.to_string()))?;
 
         let connection = Connection::open(self.directory.join("native-aot.sqlite")).map_err(|error| WieError::FatalError(error.to_string()))?;
         connection

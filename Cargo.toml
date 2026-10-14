@@ -6,7 +6,7 @@ members = [
     "wie-backend",
     "wie-util",
     "wie-core-arm",
-    "wie-arm-aot",
+    "wie-core-arm-aot",
     "wie-core-arm-wasm",
     "wie-core-arm-native",
     "wie-jvm-support",
@@ -84,7 +84,7 @@ wie-midp = { version = "0.1.7", path = "wie-midp" }
 wie-skt = { version = "0.1.7", path = "wie-skt" }
 wie-util = { version = "0.1.7", path = "wie-util" }
 wie-core-arm = { version = "0.1.7", path = "wie-core-arm" }
-wie-arm-aot = { version = "0.1.7", path = "wie-arm-aot" }
+wie-core-arm-aot = { version = "0.1.7", path = "wie-core-arm-aot" }
 wie-core-arm-wasm = { version = "0.1.7", path = "wie-core-arm-wasm" }
 wie-core-arm-native = { version = "0.1.7", path = "wie-core-arm-native" }
 wie-jvm-support = { version = "0.1.7", path = "wie-jvm-support" }

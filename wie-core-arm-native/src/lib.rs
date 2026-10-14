@@ -22,7 +22,7 @@ use futures::channel::oneshot;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use spin::Mutex;
 
-use wie_arm_aot::{
+use wie_core_arm_aot::{
     CodeImage, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, ManifestRegion,
     MemoryPage, PreparationFuture, RunFrame, ir::RegionIr,
 };
@@ -351,7 +351,7 @@ mod tests {
     use futures::executor::block_on;
     use rayon::ThreadPoolBuilder;
     use spin::Mutex;
-    use wie_arm_aot::{
+    use wie_core_arm_aot::{
         CodeImage, CompileRegion, CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, RegionKey, RunFrame,
         ir::{AluOp, BasicBlock, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value},
     };

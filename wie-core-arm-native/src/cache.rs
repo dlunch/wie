@@ -5,7 +5,7 @@ use cranelift_codegen::isa::TargetIsa;
 use nom::{Parser, bytes::complete::take, number::complete::le_u32};
 use sha2::{Digest, Sha256};
 
-use wie_arm_aot::{
+use wie_core_arm_aot::{
     CodeImage, CompileRequest, ManifestRegion, MemoryPage, RunFrame, cache as artifact,
     manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
 };
@@ -113,7 +113,7 @@ mod tests {
 
     use cranelift_codegen::{isa, settings, settings::Configurable};
     use cranelift_module::{FuncId, Module};
-    use wie_arm_aot::RegionKey;
+    use wie_core_arm_aot::RegionKey;
 
     use super::*;
 

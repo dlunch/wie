@@ -4,8 +4,6 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use directories::ProjectDirs;
-
 use wie_backend::Filesystem;
 
 /// Persistent filesystem backed by `std::fs` under `<base>/<aid>/fs/<path>`.
@@ -15,10 +13,9 @@ pub struct CliFilesystem {
 }
 
 impl CliFilesystem {
-    pub fn new() -> Self {
-        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
+    pub fn new(data_dir: &Path) -> Self {
         Self {
-            base_path: base_dir.data_dir().to_owned(),
+            base_path: data_dir.to_owned(),
         }
     }
 
@@ -47,12 +44,6 @@ impl CliFilesystem {
         }
 
         Some(self.base_path.join(&sanitized_aid).join("fs").join(normalized))
-    }
-}
-
-impl Default for CliFilesystem {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

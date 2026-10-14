@@ -3,7 +3,7 @@ extern crate alloc;
 
 use alloc::{boxed::Box, collections::VecDeque, string::String, vec::Vec};
 
-use wie_arm_aot::{CompileRegion, CompileRequest, ManifestRegion};
+use wie_core_arm_aot::{CompileRegion, CompileRequest, ManifestRegion};
 
 mod codegen;
 
@@ -116,7 +116,7 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    use wie_arm_aot::{
+    use wie_core_arm_aot::{
         RegionKey,
         ir::{BasicBlock, Condition, Instruction, MemoryAddress, Operation, RegionIr},
     };

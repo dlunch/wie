@@ -1,7 +1,5 @@
-#[cfg(unix)]
-use std::os::unix::fs::DirBuilderExt;
 use std::{
-    fs::{self, DirBuilder},
+    fs,
     io::{ErrorKind, Write},
     path::PathBuf,
 };
@@ -26,13 +24,7 @@ impl NativeCache for AotCache {
     }
 
     fn store(&mut self, key: &[u8; 32], artifact: &[u8]) -> Result<()> {
-        let mut directory = DirBuilder::new();
-        directory.recursive(true);
-        #[cfg(unix)]
-        directory.mode(0o700);
-        directory
-            .create(&self.directory)
-            .map_err(|error| WieError::FatalError(error.to_string()))?;
+        fs::create_dir_all(&self.directory).map_err(|error| WieError::FatalError(error.to_string()))?;
 
         let filename: String = key.iter().map(|byte| format!("{byte:02x}")).collect();
         let mut file = NamedTempFile::new_in(&self.directory).map_err(|error| WieError::FatalError(error.to_string()))?;

@@ -9,7 +9,7 @@ use std::{
     collections::{HashMap, hash_map::Entry},
     fs::{self, File},
     io::{LineWriter, Write, stderr},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Mutex, mpsc::Sender, mpsc::channel},
     thread,
     time::{SystemTime, UNIX_EPOCH},
@@ -22,7 +22,7 @@ use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie::load_emulator;
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
-use wie_core_arm_native::{NativeCache, NativeExecutor};
+use wie_core_arm_native::NativeExecutor;
 use wie_j2me::J2MEEmulator;
 
 use self::{
@@ -42,14 +42,14 @@ struct WieCliPlatform {
 }
 
 impl WieCliPlatform {
-    fn new(window: WindowHandle, font: Font, midi_device: Option<usize>) -> Self {
+    fn new(window: WindowHandle, font: Font, midi_device: Option<usize>, data_dir: &Path) -> Self {
         let (tx, rx) = channel();
         thread::spawn(move || audio_sink::run(rx, midi_device));
 
         Self {
             audio_tx: tx,
-            database_repository: DatabaseRepository::new(),
-            filesystem: CliFilesystem::new(),
+            database_repository: DatabaseRepository::new(data_dir),
+            filesystem: CliFilesystem::new(data_dir),
             font,
             window,
         }
@@ -138,19 +138,18 @@ pub fn run() -> anyhow::Result<()> {
     }
 
     let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
-    let cache = ProjectDirs::from("net", "dlunch", "wie").map(|directories| {
-        Box::new(AotCache {
-            directory: directories.cache_dir().join("native-aot"),
-        }) as Box<dyn NativeCache>
+    let directories = ProjectDirs::from("net", "dlunch", "wie").ok_or_else(|| anyhow::anyhow!("Unable to determine application directories"))?;
+    let cache = Box::new(AotCache {
+        directory: directories.cache_dir().join("native-aot"),
     });
     let options = Options {
         enable_gdbserver: args.debug,
-        aot: Some(Box::new(NativeExecutor::new(cache))),
+        aot: Some(Box::new(NativeExecutor::new(Some(cache)))),
         profile,
     };
     let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;
 
-    start(filename, options, args.midi_device)
+    start(filename, options, args.midi_device, directories.data_dir())
 }
 
 fn list_midi_devices() -> anyhow::Result<()> {
@@ -173,10 +172,10 @@ fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallba
     }))
 }
 
-fn start(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow::Result<()> {
+fn start(filename: &str, options: Options, midi_device: Option<usize>, data_dir: &Path) -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320)?;
     let font = Font::try_from_static(include_bytes!("../assets/neodgm.ttf"))?;
-    let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device));
+    let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device, data_dir));
 
     let buf = fs::read(filename)?;
     tracing::info!("Preparing emulator...");

@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 
-use wie_arm_aot::{CodeImage, CompileRegion, RegionKey};
+use wie_core_arm_aot::{CodeImage, CompileRegion, RegionKey};
 
 use super::analysis;
 
