@@ -60,7 +60,7 @@ impl Midi {
         let helper = match helper {
             Ok(helper) => Some(helper),
             Err(error) => {
-                warning(format!("MIDI is unavailable; game and PCM audio will continue: {error:#}"));
+                warning(format!("MIDI is unavailable; app and PCM audio will continue: {error:#}"));
                 None
             }
         };

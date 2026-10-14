@@ -1,11 +1,15 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { LibraryApp, SessionEvent, Wie } from "../backend";
+import { TauriHost, type HostEvent, type HostLifecycle } from "./tauri-host";
+import type { WasmSession } from "./wasm";
 
 type NativeApp = Omit<LibraryApp, "icon"> & { icon: number[] | null };
 
 export const initializeWie = async (): Promise<Wie> => {
+  const runtime = await invoke<"wasm" | "native">("runtime_kind");
   return {
+    rendering: runtime === "wasm" ? "canvas" : "native",
     async listApps() {
       return (await invoke<NativeApp[]>("list_apps")).map(app => ({
         ...app,
@@ -25,7 +29,72 @@ export const initializeWie = async (): Promise<Wie> => {
     writeSettings(settings) {
       return invoke("write_settings", { settings });
     },
-    async startGame(id, onEvent) {
+    async startApp(id, onEvent) {
+      if (runtime === "wasm") {
+        let host: TauriHost | undefined;
+        let session: WasmSession | undefined;
+        let lifecycle: HostLifecycle | undefined;
+        let startupError: unknown;
+        let ended = false;
+        let receivedClock!: () => void;
+        const clockReady = new Promise<void>(resolve => { receivedClock = resolve; });
+        const report = (event: SessionEvent) => {
+          if (ended) return;
+          if (event.type === "error" || event.type === "stopped") ended = true;
+          onEvent(event);
+        };
+        const events = new Channel<HostEvent>(event => {
+          if (event.type === "lifecycle") {
+            lifecycle = event;
+            host?.lifecycle(event);
+            session?.suspend(event.suspended);
+            receivedClock();
+          } else if (event.type === "warning") {
+            report(event);
+          } else {
+            startupError = event.type === "error" ? new Error(event.message) : new Error("App stopped during initialization");
+            receivedClock();
+            if (session) report(event);
+          }
+        });
+        const started = await invoke<{ sessionId: number; filename: string; bytes: number[] }>("start_app", { id, events });
+        host = new TauriHost(started.sessionId, error => {
+          startupError ??= error;
+          if (session) report({ type: "error", message: String(error) });
+        });
+        try {
+          await clockReady;
+          if (startupError !== undefined) throw startupError;
+          host.lifecycle(lifecycle!);
+          const [{ startWasmSession }, fontResponse] = await Promise.all([
+            import("./wasm"),
+            fetch(new URL("../../../../assets/neodgm.ttf", import.meta.url)),
+          ]);
+          if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
+          const font = new Uint8Array(await fontResponse.arrayBuffer());
+          if (startupError !== undefined) throw startupError;
+          const startedSession = startWasmSession(started.filename, new Uint8Array(started.bytes), font, true, report, host, lifecycle!.suspended);
+          session = startedSession;
+          let stopping: Promise<void> | undefined;
+          return {
+            key: startedSession.key,
+            releaseKeys: startedSession.releaseKeys,
+            stop() {
+              stopping ??= (async () => {
+                try {
+                  await startedSession.stop();
+                } finally {
+                  await host.stop();
+                }
+              })();
+              return stopping;
+            },
+          };
+        } catch (error) {
+          await host.stop().catch(() => {});
+          throw error;
+        }
+      }
       let ended = false;
       let stopping: Promise<void> | undefined;
       const events = new Channel<SessionEvent>(event => {
@@ -33,7 +102,7 @@ export const initializeWie = async (): Promise<Wie> => {
         if (event.type === "stopped" || event.type === "error") ended = true;
         onEvent(event);
       });
-      const sessionId = await invoke<number>("start_game", { id, events });
+      const sessionId = await invoke<number>("start_app", { id, events });
       let commands = Promise.resolve();
 
       const send = (command: string, args: Record<string, unknown> = {}) => {
@@ -55,7 +124,7 @@ export const initializeWie = async (): Promise<Wie> => {
           return send("release_keys");
         },
         stop() {
-          stopping ??= send("stop_game").then(() => { ended = true; });
+          stopping ??= send("stop_app").then(() => { ended = true; });
           return stopping;
         },
       };

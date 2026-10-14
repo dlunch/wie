@@ -46,6 +46,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   const inputs = new Map<string, string>();
   let session: PlayerSession | undefined;
   let preparing = true;
+  let suspended = false;
   let ending = false;
   let start: Promise<PlayerSession>;
 
@@ -54,7 +55,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   createIcons({ icons, root: playerView });
 
   const updateControls = () => {
-    const busy = preparing || !session || ending;
+    const busy = preparing || suspended || !session || ending;
     playerStatus.hidden = !preparing || ending;
     playerView.setAttribute("aria-busy", String(busy));
     for (const button of buttons) button.disabled = busy;
@@ -79,7 +80,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   };
 
   const setKey = (source: string, key?: string) => {
-    if (!session || preparing || ending) return;
+    if (!session || preparing || suspended || ending) return;
     const previous = inputs.get(source);
     if (previous === key) return;
     if (previous) {
@@ -158,11 +159,16 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   );
 
   updateControls();
-  start = backend.startGame(app.id, event => {
+  start = backend.startApp(app.id, event => {
     if (ending) return;
     switch (event.type) {
       case "ready":
         preparing = false;
+        updateControls();
+        break;
+      case "suspended":
+        suspended = event.suspended;
+        inputs.clear();
         updateControls();
         break;
       case "warning":

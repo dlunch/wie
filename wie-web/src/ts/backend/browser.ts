@@ -1,10 +1,11 @@
-import { extractAppMetadata, WieWeb } from "@pkg";
+import { extractAppMetadata } from "@pkg";
 import * as Sentry from "@sentry/browser";
 
 import { AppLibraryStore } from "../app_library_store";
-import type { LibraryApp, PlayerSession, Wie } from "../backend";
+import type { LibraryApp, Wie } from "../backend";
 import { configStore } from "../config_store";
 import { setMasterVolume, setPcmVolume } from "../midi";
+import { startWasmSession } from "./wasm";
 
 export const initializeWie = async (): Promise<Wie> => {
   Sentry.init({
@@ -13,6 +14,7 @@ export const initializeWie = async (): Promise<Wie> => {
   const store = await AppLibraryStore.open();
 
   const backend: Wie = {
+    rendering: "canvas",
     listApps() {
       return store.list();
     },
@@ -61,7 +63,7 @@ export const initializeWie = async (): Promise<Wie> => {
       setMasterVolume(settings.midiVolume);
       setPcmVolume(settings.pcmVolume);
     },
-    async startGame(id, onEvent) {
+    async startApp(id, onEvent) {
       const [app, archive, settings, fontResponse] = await Promise.all([
         store.getApp(id),
         store.getArchive(id),
@@ -71,58 +73,9 @@ export const initializeWie = async (): Promise<Wie> => {
       if (!app || !archive) throw new Error("저장된 앱 파일을 찾을 수 없습니다.");
       if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
       const fontData = new Uint8Array(await fontResponse.arrayBuffer());
-      const canvas = document.getElementById("canvas") as HTMLCanvasElement;
-      canvas.width = 240;
-      canvas.height = 320;
       setMasterVolume(settings.midiVolume);
       setPcmVolume(settings.pcmVolume);
-      const emulator = new WieWeb(app.filename, archive, canvas, fontData, settings.enableWasmAot ?? false);
-      const keys = new Set<string>();
-      let running = true;
-      let preparing = true;
-      let frame: number;
-
-      const session: PlayerSession = {
-        async key(key, pressed) {
-          if (!running || preparing) return;
-          if (pressed && !keys.has(key)) {
-            emulator.key_down(key);
-            keys.add(key);
-          } else if (!pressed && keys.delete(key)) {
-            emulator.key_up(key);
-          }
-        },
-        async releaseKeys() {
-          if (!running) return;
-          for (const key of keys) emulator.key_up(key);
-          keys.clear();
-        },
-        async stop() {
-          if (!running) return;
-          running = false;
-          cancelAnimationFrame(frame);
-          emulator.free();
-          onEvent({ type: "stopped" });
-        },
-      };
-
-      const update = () => {
-        if (!running) return;
-        try {
-          emulator.update();
-          if (preparing && !emulator.is_preparing()) {
-            preparing = false;
-            onEvent({ type: "ready" });
-          }
-          frame = requestAnimationFrame(update);
-        } catch (error) {
-          running = false;
-          emulator.free();
-          onEvent({ type: "error", message: String(error) });
-        }
-      };
-      frame = requestAnimationFrame(() => { frame = requestAnimationFrame(update); });
-      return session;
+      return startWasmSession(app.filename, archive, fontData, settings.enableWasmAot ?? false, onEvent);
     },
   };
   return backend;

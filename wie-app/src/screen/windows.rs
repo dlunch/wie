@@ -23,11 +23,11 @@ use windows::{
     core::w,
 };
 
-use super::{CONTROLS_HEIGHT, Frame, GAME_HEIGHT, report_error};
+use super::{APP_HEIGHT, CONTROLS_HEIGHT, Frame, report_error};
 
-struct GameWindow(Cell<Option<HWND>>);
+struct AppWindow(Cell<Option<HWND>>);
 
-impl HasWindowHandle for GameWindow {
+impl HasWindowHandle for AppWindow {
     fn window_handle(&self) -> std::result::Result<WindowHandle<'_>, HandleError> {
         let hwnd = self.0.get().ok_or(HandleError::Unavailable)?;
         let raw = Win32WindowHandle::new(NonZeroIsize::new(hwnd.0 as isize).ok_or(HandleError::Unavailable)?);
@@ -39,8 +39,8 @@ impl HasWindowHandle for GameWindow {
 pub(super) struct View {
     webview: PlatformWebview,
     parent: HWND,
-    game: Rc<GameWindow>,
-    surface: RefCell<Option<Surface<DisplayHandle<'static>, Rc<GameWindow>>>>,
+    app: Rc<AppWindow>,
+    surface: RefCell<Option<Surface<DisplayHandle<'static>, Rc<AppWindow>>>>,
     frame: RefCell<Option<Frame>>,
     playing: Cell<bool>,
     closed: Cell<bool>,
@@ -67,11 +67,11 @@ impl View {
                 None,
             )?
         };
-        let game = Rc::new(GameWindow(Cell::new(Some(hwnd))));
+        let app = Rc::new(AppWindow(Cell::new(Some(hwnd))));
         let view = Rc::new(Self {
             webview,
             parent,
-            game,
+            app,
             surface: RefCell::new(None),
             frame: RefCell::new(None),
             playing: Cell::new(false),
@@ -79,7 +79,7 @@ impl View {
         });
         let pointer = Rc::as_ptr(&view) as usize;
         unsafe {
-            SetWindowSubclass(hwnd, Some(game_proc), pointer, pointer).ok()?;
+            SetWindowSubclass(hwnd, Some(app_proc), pointer, pointer).ok()?;
             SetWindowSubclass(parent, Some(parent_proc), pointer, pointer).ok()?;
         }
         Ok(view)
@@ -89,14 +89,14 @@ impl View {
         self.playing.set(playing);
         if playing && self.surface.borrow().is_none() {
             let context = Context::new(DisplayHandle::windows()).map_err(|error| anyhow!(error.to_string()))?;
-            let surface = Surface::new(&context, self.game.clone()).map_err(|error| anyhow!(error.to_string()))?;
+            let surface = Surface::new(&context, self.app.clone()).map_err(|error| anyhow!(error.to_string()))?;
             self.surface.replace(Some(surface));
         } else if !playing {
             self.frame.take();
             self.surface.take();
         }
         self.resize()?;
-        if let Some(hwnd) = self.game.0.get() {
+        if let Some(hwnd) = self.app.0.get() {
             unsafe {
                 let _ = ShowWindow(hwnd, if playing { SW_SHOW } else { SW_HIDE });
             }
@@ -106,7 +106,7 @@ impl View {
 
     pub(super) fn present(&self, frame: Frame) -> Result<()> {
         self.frame.replace(Some(frame));
-        if let Some(hwnd) = self.game.0.get() {
+        if let Some(hwnd) = self.app.0.get() {
             unsafe { InvalidateRect(Some(hwnd), None, false).ok()? };
         }
         Ok(())
@@ -120,33 +120,25 @@ impl View {
         unsafe { GetClientRect(self.parent, &mut rect)? };
         let width = rect.right;
         let height = rect.bottom;
-        let game_height = if self.playing.get() {
-            (f64::from(height) * GAME_HEIGHT / (GAME_HEIGHT + CONTROLS_HEIGHT)).round() as i32
+        let app_height = if self.playing.get() {
+            (f64::from(height) * APP_HEIGHT / (APP_HEIGHT + CONTROLS_HEIGHT)).round() as i32
         } else {
             0
         };
         let controller = self.webview.controller();
         let mut container = HWND::default();
         unsafe {
-            if let Some(hwnd) = self.game.0.get() {
-                SetWindowPos(hwnd, None, 0, 0, width, game_height, SWP_NOACTIVATE | SWP_NOZORDER)?;
+            if let Some(hwnd) = self.app.0.get() {
+                SetWindowPos(hwnd, None, 0, 0, width, app_height, SWP_NOACTIVATE | SWP_NOZORDER)?;
                 InvalidateRect(Some(hwnd), None, false).ok()?;
             }
             controller.ParentWindow(&mut container)?;
-            SetWindowPos(
-                container,
-                None,
-                0,
-                game_height,
-                width,
-                height - game_height,
-                SWP_NOACTIVATE | SWP_NOZORDER,
-            )?;
+            SetWindowPos(container, None, 0, app_height, width, height - app_height, SWP_NOACTIVATE | SWP_NOZORDER)?;
             controller.SetBounds(RECT {
                 left: 0,
                 top: 0,
                 right: width,
-                bottom: height - game_height,
+                bottom: height - app_height,
             })?;
             controller.NotifyParentWindowPositionChanged()?;
         }
@@ -154,7 +146,7 @@ impl View {
     }
 
     fn draw(&self) -> Result<()> {
-        let Some(hwnd) = self.game.0.get() else { return Ok(()) };
+        let Some(hwnd) = self.app.0.get() else { return Ok(()) };
         let mut rect = RECT::default();
         unsafe { GetClientRect(hwnd, &mut rect)? };
         let (Some(width), Some(height)) = (NonZeroU32::new(rect.right as u32), NonZeroU32::new(rect.bottom as u32)) else {
@@ -180,8 +172,8 @@ impl View {
         let pointer = self as *const Self as usize;
         unsafe {
             let _ = RemoveWindowSubclass(self.parent, Some(parent_proc), pointer);
-            if let Some(hwnd) = self.game.0.take() {
-                let _ = RemoveWindowSubclass(hwnd, Some(game_proc), pointer);
+            if let Some(hwnd) = self.app.0.take() {
+                let _ = RemoveWindowSubclass(hwnd, Some(app_proc), pointer);
                 let _ = DestroyWindow(hwnd);
             }
         }
@@ -212,7 +204,7 @@ unsafe extern "system" fn parent_proc(hwnd: HWND, message: u32, wparam: WPARAM, 
     result
 }
 
-unsafe extern "system" fn game_proc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM, _: usize, data: usize) -> LRESULT {
+unsafe extern "system" fn app_proc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM, _: usize, data: usize) -> LRESULT {
     let view = unsafe {
         Rc::increment_strong_count(data as *const View);
         Rc::from_raw(data as *const View)
@@ -235,7 +227,7 @@ unsafe extern "system" fn game_proc(hwnd: HWND, message: u32, wparam: WPARAM, lp
         WM_ERASEBKGND => LRESULT(1),
         WM_NCDESTROY => {
             view.surface.take();
-            view.game.0.set(None);
+            view.app.0.set(None);
             unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
         }
         _ => unsafe { DefSubclassProc(hwnd, message, wparam, lparam) },

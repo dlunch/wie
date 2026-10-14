@@ -17,30 +17,30 @@ class NativeScreenView(activity: Activity, private val webview: WebView) : Surfa
     private val position = parent.indexOfChild(webview)
     private val originalLayout = webview.layoutParams
     private val layout = LinearLayout(activity)
-    private val game = SurfaceView(activity)
+    private val app = SurfaceView(activity)
 
     init {
         layout.orientation = LinearLayout.VERTICAL
         layout.fitsSystemWindows = true
         layout.setBackgroundColor(Color.BLACK)
-        game.visibility = View.GONE
-        game.holder.addCallback(this)
+        app.visibility = View.GONE
+        app.holder.addCallback(this)
         parent.removeView(webview)
-        layout.addView(game, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 480f))
+        layout.addView(app, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 480f))
         layout.addView(webview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 260f))
         parent.addView(layout, position, originalLayout)
     }
 
     fun setPlaying(playing: Boolean) {
-        game.visibility = if (playing) View.VISIBLE else View.GONE
-        if (playing && game.holder.surface.isValid) {
-            nativeSurfaceChanged(game.holder.surface, game.width, game.height)
+        app.visibility = if (playing) View.VISIBLE else View.GONE
+        if (playing && app.holder.surface.isValid) {
+            nativeSurfaceChanged(app.holder.surface, app.width, app.height)
         }
     }
 
     fun close() {
         nativeSurfaceDestroyed()
-        game.holder.removeCallback(this)
+        app.holder.removeCallback(this)
         layout.removeView(webview)
         parent.removeView(layout)
         parent.addView(webview, position, originalLayout)
