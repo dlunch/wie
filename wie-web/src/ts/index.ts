@@ -19,7 +19,6 @@ const main = async () => {
   const browserScripts = document.getElementById("browser-scripts") as HTMLTemplateElement;
   if (native) {
     document.querySelector(".library-ad")!.remove();
-    document.getElementById("enable-wasm-aot")!.closest("label")!.remove();
   }
   if (backend.rendering === "canvas") {
     output.className = "canvas-wrapper";

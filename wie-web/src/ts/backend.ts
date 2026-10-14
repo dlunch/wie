@@ -13,7 +13,6 @@ export interface Settings {
   pcmVolume: number;
   helpDismissed: boolean;
   welcomeSeen: boolean;
-  enableWasmAot?: boolean;
 }
 
 export type SessionEvent =

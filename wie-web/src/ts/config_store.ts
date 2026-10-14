@@ -1,7 +1,6 @@
 const defaults = {
   midiVolume: 0.5,
   pcmVolume: 0.5,
-  enableWasmAot: false,
   helpDismissed: false,
   welcomeSeen: false,
 };

@@ -185,14 +185,7 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        filename: &str,
-        buf: &[u8],
-        canvas: HtmlCanvasElement,
-        font_data: Vec<u8>,
-        enable_aot: bool,
-        host: Option<WasmHost>,
-    ) -> Result<WieWeb, JsError> {
+    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>, host: Option<WasmHost>) -> Result<WieWeb, JsError> {
         let audio_player = match &host {
             Some(host) => host.audio(),
             None => AudioPlayer::new(),
@@ -205,7 +198,7 @@ impl WieWeb {
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone(), host.clone(), exited.clone()));
             let options = Options {
                 enable_gdbserver: false,
-                aot: enable_aot.then(|| Box::new(aot::WasmExecutor::default()) as Box<dyn wie_core_arm_aot::CompiledExecutor>),
+                aot: Some(Box::new(aot::WasmExecutor::default())),
                 profile: None,
             };
 

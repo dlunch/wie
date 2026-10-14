@@ -49,7 +49,6 @@ export const initializeWie = async (): Promise<Wie> => {
       return {
         midiVolume: configStore.get("midiVolume"),
         pcmVolume: configStore.get("pcmVolume"),
-        enableWasmAot: configStore.get("enableWasmAot"),
         helpDismissed: configStore.get("helpDismissed"),
         welcomeSeen: configStore.get("welcomeSeen"),
       };
@@ -57,7 +56,6 @@ export const initializeWie = async (): Promise<Wie> => {
     async writeSettings(settings) {
       configStore.set("midiVolume", settings.midiVolume);
       configStore.set("pcmVolume", settings.pcmVolume);
-      configStore.set("enableWasmAot", settings.enableWasmAot ?? false);
       configStore.set("helpDismissed", settings.helpDismissed);
       configStore.set("welcomeSeen", settings.welcomeSeen);
       setMasterVolume(settings.midiVolume);
@@ -75,7 +73,7 @@ export const initializeWie = async (): Promise<Wie> => {
       const fontData = new Uint8Array(await fontResponse.arrayBuffer());
       setMasterVolume(settings.midiVolume);
       setPcmVolume(settings.pcmVolume);
-      return startWasmSession(app.filename, archive, fontData, settings.enableWasmAot ?? false, onEvent);
+      return startWasmSession(app.filename, archive, fontData, onEvent);
     },
   };
   return backend;

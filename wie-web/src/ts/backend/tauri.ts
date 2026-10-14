@@ -73,7 +73,7 @@ export const initializeWie = async (): Promise<Wie> => {
           if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
           const font = new Uint8Array(await fontResponse.arrayBuffer());
           if (startupError !== undefined) throw startupError;
-          const startedSession = startWasmSession(started.filename, new Uint8Array(started.bytes), font, true, report, host, lifecycle!.suspended);
+          const startedSession = startWasmSession(started.filename, new Uint8Array(started.bytes), font, report, host, lifecycle!.suspended);
           session = startedSession;
           let stopping: Promise<void> | undefined;
           return {

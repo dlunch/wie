@@ -11,7 +11,6 @@ export const startWasmSession = (
   filename: string,
   archive: Uint8Array,
   font: Uint8Array,
-  enableAot: boolean,
   onEvent: (event: SessionEvent) => void,
   host?: EmulatorHost,
   suspended = false,
@@ -19,7 +18,7 @@ export const startWasmSession = (
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
   canvas.width = 240;
   canvas.height = 320;
-  const emulator = new WieWeb(filename, archive, canvas, font, enableAot, host);
+  const emulator = new WieWeb(filename, archive, canvas, font, host);
   const keys = new Set<string>();
   let running = true;
   let preparing = true;

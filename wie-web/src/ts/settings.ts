@@ -1,4 +1,4 @@
-import { Cpu, Music2, Volume2, X, createIcons } from "lucide";
+import { Music2, Volume2, X, createIcons } from "lucide";
 
 import type { Settings, Wie } from "./backend";
 
@@ -12,7 +12,6 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
   const dialog = document.getElementById("settings-dialog") as HTMLDialogElement;
   const midiSlider = document.getElementById("volume-midi") as HTMLInputElement;
   const pcmSlider = document.getElementById("volume-pcm") as HTMLInputElement;
-  const aotCheckbox = document.getElementById("enable-wasm-aot") as HTMLInputElement | null;
   let values = await backend.readSettings();
   let pending = Promise.resolve();
 
@@ -44,16 +43,7 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
       });
     });
   }
-  if (aotCheckbox) {
-    aotCheckbox.checked = values.enableWasmAot ?? false;
-    aotCheckbox.addEventListener("change", () => {
-      void settings.set("enableWasmAot", aotCheckbox.checked).catch(error => {
-        aotCheckbox.checked = values.enableWasmAot ?? false;
-        window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
-      });
-    });
-  }
-  createIcons({ icons: { Cpu, Music2, Volume2, X }, root: dialog });
+  createIcons({ icons: { Music2, Volume2, X }, root: dialog });
 
   return settings;
 };
