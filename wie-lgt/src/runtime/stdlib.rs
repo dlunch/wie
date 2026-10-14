@@ -14,9 +14,11 @@ use wie_wipi_c::api::kernel;
 
 use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
 
+// GLOBAL_DATA_BASE + 0x101c, immediately after the LGT display properties.
+const STRTOK_STATE: u32 = 0x7fff101c;
+
 pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Result<()> {
-    async fn handle_stdlib_svc(core: &mut ArmCore, context: &mut (System, u32), id: SvcId) -> Result<()> {
-        let (system, ptr_strtok_state) = context;
+    async fn handle_stdlib_svc(core: &mut ArmCore, system: &mut System, id: SvcId) -> Result<()> {
         let (_, lr) = core.read_pc_lr()?;
 
         match id.0 {
@@ -24,6 +26,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
             x if x == StdlibSvcId::Sprintf as u32 => EmulatedFunction::call(&sprintf, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Vsprintf as u32 => EmulatedFunction::call(&vsprintf, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Atoi as u32 => EmulatedFunction::call(&atoi, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strtol as u32 => EmulatedFunction::call(&strtol, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Rand as u32 => EmulatedFunction::call(&rand, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Srand as u32 => EmulatedFunction::call(&srand, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Strcpy as u32 => EmulatedFunction::call(&strcpy, core, &mut ()).await?.write(core, lr),
@@ -35,7 +38,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
             x if x == StdlibSvcId::Strchr as u32 => EmulatedFunction::call(&strchr, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strstr as u32 => EmulatedFunction::call(&strstr, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&strlen, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Strtok as u32 => EmulatedFunction::call(&strtok, core, ptr_strtok_state).await?.write(core, lr),
+            x if x == StdlibSvcId::Strtok as u32 => EmulatedFunction::call(&strtok, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&memcpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memmove as u32 => EmulatedFunction::call(&memmove, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memcmp as u32 => EmulatedFunction::call(&memcmp, core, &mut ()).await?.write(core, lr),
@@ -47,9 +50,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
         }
     }
 
-    let ptr_strtok_state = Allocator::alloc(core, 4)?;
-    write_generic(core, ptr_strtok_state, 0u32)?;
-    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, &(system.clone(), ptr_strtok_state))
+    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, system)
 }
 
 async fn srand(_core: &mut ArmCore, system: &mut System, seed: u32) -> Result<()> {
@@ -257,8 +258,8 @@ async fn strchr(core: &mut ArmCore, _: &mut (), mut ptr_str: u32, character: u32
     }
 }
 
-async fn strtok(core: &mut ArmCore, ptr_state: &mut u32, ptr_str: u32, ptr_delimiters: u32) -> Result<u32> {
-    let mut cursor = if ptr_str == 0 { read_generic(core, *ptr_state)? } else { ptr_str };
+async fn strtok(core: &mut ArmCore, _: &mut (), ptr_str: u32, ptr_delimiters: u32) -> Result<u32> {
+    let mut cursor = if ptr_str == 0 { read_generic(core, STRTOK_STATE)? } else { ptr_str };
     let delimiters = read_null_terminated_string_bytes(core, ptr_delimiters)?;
     let mut token = 0;
     while cursor != 0 {
@@ -278,7 +279,7 @@ async fn strtok(core: &mut ArmCore, ptr_state: &mut u32, ptr_str: u32, ptr_delim
         }
         cursor = cursor.wrapping_add(1);
     }
-    write_generic(core, *ptr_state, cursor)?;
+    write_generic(core, STRTOK_STATE, cursor)?;
     Ok(token)
 }
 
@@ -289,6 +290,52 @@ async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     let string = String::from_utf8(string).unwrap();
 
     Ok(string.parse().unwrap_or(0))
+}
+
+async fn strtol(core: &mut ArmCore, _: &mut (), ptr_str: u32, ptr_end: u32, mut base: u32) -> Result<u32> {
+    tracing::debug!("strtol({ptr_str:#x}, {ptr_end:#x}, {base})");
+
+    if ptr_end != 0 {
+        write_generic(core, ptr_end, ptr_str)?;
+    }
+    // shortcut: errno has no identified guest ABI; report EINVAL/ERANGE once that ABI is known.
+    if base != 0 && !(2..=36).contains(&base) {
+        return Ok(0);
+    }
+    let bytes = read_null_terminated_string_bytes(core, ptr_str)?;
+    let mut offset = 0;
+    while matches!(bytes.get(offset), Some(b' ' | b'\t'..=b'\r')) {
+        offset += 1;
+    }
+    let negative = bytes.get(offset) == Some(&b'-');
+    if matches!(bytes.get(offset), Some(b'+' | b'-')) {
+        offset += 1;
+    }
+    if (base == 0 || base == 16)
+        && bytes.get(offset) == Some(&b'0')
+        && matches!(bytes.get(offset + 1), Some(b'x' | b'X'))
+        && bytes.get(offset + 2).is_some_and(u8::is_ascii_hexdigit)
+    {
+        base = 16;
+        offset += 2;
+    } else if base == 0 {
+        base = if bytes.get(offset) == Some(&b'0') { 8 } else { 10 };
+    }
+
+    let start = offset;
+    let limit = if negative { 0x8000_0000 } else { 0x7fff_ffff };
+    let mut value = 0u32;
+    while let Some(&byte) = bytes.get(offset) {
+        let Some(digit) = char::from(byte).to_digit(base) else {
+            break;
+        };
+        value = value.saturating_mul(base).saturating_add(digit).min(limit);
+        offset += 1;
+    }
+    if ptr_end != 0 && offset != start {
+        write_generic(core, ptr_end, ptr_str.wrapping_add(offset as u32))?;
+    }
+    Ok(if negative { value.wrapping_neg() } else { value })
 }
 
 async fn time(core: &mut ArmCore, system: &mut System, ptr_time: u32) -> Result<u32> {
@@ -369,9 +416,9 @@ mod tests {
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{ByteRead, ByteWrite, Result, WieError, read_null_terminated_string_bytes, write_generic};
+    use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
-    use super::{memcpy, memset, rand, register_stdlib_svc_handler, srand, strcpy, strlen};
+    use super::{STRTOK_STATE, memcpy, memset, rand, register_stdlib_svc_handler, srand, strcpy, strlen};
     use crate::runtime::SVC_CATEGORY_STDLIB;
 
     fn stdlib_core() -> Result<ArmCore> {
@@ -388,6 +435,46 @@ mod tests {
         let system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         register_stdlib_svc_handler(&mut core, &system)?;
         Ok(core)
+    }
+
+    #[test]
+    fn strtol_import_parses_guest_numbers_and_reports_the_end_pointer() -> Result<()> {
+        let mut core = stdlib_core()?;
+        let parse = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x3ffu32)?;
+        for (input, base, expected, end) in [
+            (b"ff80ab|".as_slice(), 16, 0xff80ab, 6),
+            (b" \t\n\x0b\x0c\r-42tail", 10, -42, 9),
+            (b"+0X2a!", 0, 42, 5),
+            (b"0779", 0, 63, 3),
+            (b"42", 0, 42, 2),
+            (b"1012", 2, 5, 3),
+            (b"zZ!", 36, 1295, 2),
+            (b"0x", 16, 0, 1),
+            (b"0xg", 0, 0, 1),
+            (b"", 10, 0, 0),
+            (b" -x", 10, 0, 0),
+            (b"12\x80", 10, 12, 2),
+            (b"2147483647", 10, i32::MAX, 10),
+            (b"-2147483648", 10, i32::MIN, 11),
+            (b"2147483648!", 10, i32::MAX, 10),
+            (b"-99999999999999999999!", 10, i32::MIN, 21),
+            (b"1", 1, 0, 0),
+            (b"1", 37, 0, 0),
+        ] {
+            let ptr = 0x1ffff - input.len() as u32;
+            core.write_bytes(ptr, input)?;
+            write_generic(&mut core, 0x1ffff, 0u8)?;
+            write_generic(&mut core, 0x11000, 0u32)?;
+            assert_eq!(
+                core.run_function::<u32>(parse, &[ptr, 0x11000, base]).now_or_never().unwrap()? as i32,
+                expected,
+                "{input:?}, base {base}"
+            );
+            assert_eq!(read_generic::<u32, _>(&core, 0x11000)?, ptr + end);
+        }
+        core.write_bytes(0x10000, b"-0x80\0")?;
+        assert_eq!(core.run_function::<u32>(parse, &[0x10000, 0, 16]).now_or_never().unwrap()? as i32, -128);
+        Ok(())
     }
 
     #[test]
@@ -443,6 +530,7 @@ mod tests {
         core.write_bytes(0x11000, b",;\0;:\0,\0\0")?;
         assert_eq!(core.run_function::<u32>(tokenize, &[0x10000, 0x11000]).now_or_never().unwrap()?, 0x10001);
         assert_eq!(read_null_terminated_string_bytes(&core, 0x10001)?, b"one");
+        assert_eq!(read_generic::<u32, _>(&core, STRTOK_STATE)?, 0x10005);
 
         let mut resumed = core.clone();
         assert_eq!(resumed.run_function::<u32>(tokenize, &[0, 0x11003]).now_or_never().unwrap()?, 0x10006);

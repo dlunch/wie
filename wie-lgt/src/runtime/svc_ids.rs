@@ -355,6 +355,7 @@ pub enum StdlibSvcId {
     Sprintf = 0x3f7,
     Vsprintf = 0x3f9,
     Atoi = 0x3fb,
+    Strtol = 0x3ff,
     Rand = 0x403,
     Srand = 0x404,
     Strcpy = 0x405,
