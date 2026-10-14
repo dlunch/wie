@@ -365,6 +365,84 @@ where
 mod tests {
     use super::*;
 
+    #[test]
+    fn lbmp_images_preserve_grayscale_and_transparency_when_drawn() -> wie_util::Result<()> {
+        test_utils::run_jvm_test(Box::new([crate::get_protos().into()]), |jvm| async move {
+            for kind in [8u32, 16, 2] {
+                for masked in [0u32, 1] {
+                    let pixels = match kind {
+                        8 => vec![0xe0; 18],
+                        16 => [0x00, 0xf8].repeat(18),
+                        // Vertical bitplanes: first plane carries the high bit.
+                        _ => vec![0xcc, 0xcc, 0, 1, 0xaa, 0xaa, 0, 1],
+                    };
+                    let size = if kind == 2 { pixels.len() / 2 } else { pixels.len() };
+                    let mut data = vec![0];
+                    data.extend_from_slice(b"LBMP");
+                    for value in [kind, 2, 9, size as u32, masked] {
+                        data.extend_from_slice(&value.to_le_bytes());
+                    }
+                    data.extend_from_slice(&pixels);
+                    if masked != 0 {
+                        data.extend_from_slice(&[1, 0, 0, 1]);
+                    }
+                    let mut array = jvm.instantiate_array("B", data.len()).await?;
+                    jvm.array_raw_buffer_mut(&mut array).await?.write(0, &data)?;
+                    let image: ClassInstanceRef<Image> = jvm
+                        .invoke_static(
+                            "javax/microedition/lcdui/Image",
+                            "createImage",
+                            "([BII)Ljavax/microedition/lcdui/Image;",
+                            (array, 1, (data.len() - 1) as i32),
+                        )
+                        .await?;
+                    let background = [0xff0000ffu32; 18];
+                    let target = Image::create_image_instance(&jvm, 2, 9, bytemuck::cast_slice(&background), 4).await?;
+                    let graphics = jvm
+                        .new_class(
+                            "javax/microedition/lcdui/Graphics",
+                            "(Ljavax/microedition/lcdui/Image;)V",
+                            (target.clone(),),
+                        )
+                        .await?;
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &graphics,
+                            "javax/microedition/lcdui/Graphics",
+                            "drawImage",
+                            "(Ljavax/microedition/lcdui/Image;III)V",
+                            (image, 0, 0, 0),
+                        )
+                        .await?;
+                    let rendered = Image::image(&jvm, &target).await?;
+                    for y in 0..9 {
+                        for x in 0..2 {
+                            let expected = if masked != 0 && ((x, y) == (0, 0) || (x, y) == (1, 8)) {
+                                (255, 0, 0, 255)
+                            } else if kind == 2 {
+                                let gray = if y == 8 {
+                                    if x == 0 { 255 } else { 0 }
+                                } else {
+                                    255 - (y % 4) as u8 * 85
+                                };
+                                (255, gray, gray, gray)
+                            } else {
+                                (255, if kind == 8 { 252 } else { 255 }, 0, 0)
+                            };
+                            let actual = rendered.get_pixel(x, y);
+                            assert_eq!(
+                                (actual.a, actual.r, actual.g, actual.b),
+                                expected,
+                                "type {kind}, mask {masked}, ({x}, {y})"
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(())
+        })
+    }
+
     async fn check_pixel_buffer<T: PixelType>(jvm: &Jvm, pixels: [T::DataType; 2]) -> JvmResult<()> {
         let size = size_of::<T::DataType>();
         let image = Image::create_image_instance(jvm, 2, 1, bytemuck::cast_slice(&pixels), size as u32).await?;
