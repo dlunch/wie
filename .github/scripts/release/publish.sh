@@ -36,11 +36,6 @@ if [[ "$CHANNEL" == stable ]]; then
 $notes"
   gh api --method PATCH "$repo/releases/$release_id" -f name="$tag" -f body="$body" -F draft=false -F prerelease=false >/dev/null
 else
-  if [[ $(gh api "$repo/git/ref/heads/main" --jq '.object.sha') != "$TARGET_SHA" ]]; then
-    echo "Skipping stale nightly before any release mutation"
-    exit 0
-  fi
-
   if ! release_id=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json databaseId --jq '.databaseId' 2>/dev/null); then
     initial_body=$(artifact_notes)
     release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name=nightly -f body="$initial_body" -F draft=true -F prerelease=true)
