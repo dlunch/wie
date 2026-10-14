@@ -11,7 +11,7 @@
   "author": "",
   "dependencies": {
     "@sentry/browser": "^11.6.0",
-    "@tauri-apps/api": "^2.12.2",
+    "@tauri-apps/api": "^2.12.3",
     "css-loader": "^7.1.5",
     "html-bundler-webpack-plugin": "^4.23.2",
     "lucide": "^1.54.0",
