@@ -387,6 +387,7 @@ jobs:
       - name: Build unsigned iOS archive
         uses: tauri-apps/tauri-action@v1
         with:
+          retryAttempts: 2
           tauriScript: cargo tauri
           projectPath: wie-app
           mobile: ios
