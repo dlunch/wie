@@ -9,7 +9,7 @@ import { startWasmSession } from "./wasm";
 
 export const initializeWie = async (): Promise<Wie> => {
   Sentry.init({
-    dsn: "https://fa9187d6bd7dd43ae621f26d33641f81@o106536.ingest.us.sentry.io/4512048969678848",
+    dsn: "https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928",
   });
   const store = await AppLibraryStore.open();
 
