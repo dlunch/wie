@@ -26,3 +26,4 @@ wie-util = { workspace = true }
 
 [dev-dependencies]
 futures-test = { workspace = true }
+test-utils = { workspace = true }

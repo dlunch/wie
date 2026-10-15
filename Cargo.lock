@@ -7326,6 +7326,7 @@ dependencies = [
  "smaf",
  "smaf-player",
  "spin",
+ "test-utils",
  "tracing",
  "wie-core-arm-aot",
  "wie-util",

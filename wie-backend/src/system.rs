@@ -71,7 +71,7 @@ impl System {
     }
 
     pub fn sleep(&self, timeout: u64) -> SleepFuture {
-        SleepFuture::new(timeout, &self.executor)
+        SleepFuture::new(self.platform.now() + timeout, &self.executor)
     }
 
     pub fn current_task_id(&self) -> u64 {
