@@ -32,7 +32,6 @@ pub struct ExecutorInner {
     tasks: HashMap<usize, Task>,
     sleeping_tasks: HashMap<usize, Instant>,
     last_task_id: usize,
-    last_now: Instant,
 }
 
 pub trait AsyncCallable<R>: Send
@@ -86,7 +85,6 @@ impl Executor {
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
             last_task_id: 0,
-            last_now: Instant::from_epoch_millis(0),
         }));
 
         Self {
@@ -160,8 +158,6 @@ impl Executor {
     }
 
     fn step(&mut self, now: Instant) -> Result<()> {
-        self.inner.lock().last_now = now;
-
         let mut next_tasks = HashMap::new();
         let tasks = self.inner.lock().tasks.drain().collect::<HashMap<_, _>>();
         let mut sleeping_tasks = self.inner.lock().sleeping_tasks.drain().collect::<HashMap<_, _>>();
@@ -204,10 +200,9 @@ impl Executor {
         if let Some(err) = first_error { Err(err) } else { Ok(()) }
     }
 
-    pub(crate) fn sleep(&self, timeout: u64) {
+    pub fn sleep(&self, until: Instant) {
         let task_id = self.inner.lock().current_task_id.unwrap();
 
-        let until = self.inner.lock().last_now + timeout;
         self.inner.lock().sleeping_tasks.insert(task_id, until);
         self.wake.wake_by_ref();
     }
@@ -227,7 +222,7 @@ mod tests {
     use wie_util::WieError;
 
     use super::Executor;
-    use crate::time::Instant;
+    use crate::{task::SleepFuture, time::Instant};
 
     struct YieldOnce(bool);
 
@@ -283,7 +278,7 @@ mod tests {
         let observed = completed.clone();
         let task_executor = executor.clone();
         executor.spawn(move || async move {
-            crate::task::SleepFuture::new(0, &task_executor).await;
+            SleepFuture::new(Instant::from_epoch_millis(0), &task_executor).await;
             task_executor.spawn(move || async move {
                 observed.store(true, Ordering::Relaxed);
             });
@@ -320,7 +315,7 @@ mod tests {
         let completed_clone = completed.clone();
         let executor_clone = executor.clone();
         executor.spawn(move || async move {
-            executor_clone.sleep(100);
+            executor_clone.sleep(Instant::from_epoch_millis(100));
             YieldOnce(false).await;
             completed_clone.store(true, Ordering::Relaxed);
         });
