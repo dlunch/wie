@@ -49,6 +49,12 @@ impl Clip {
                 JavaMethodProto::new("setStopTime", "(I)Z", Self::set_stop_time, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getStopTime", "()I", Self::get_stop_time, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getVolume", "()I", Self::get_volume, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "getOrCreatePlayer",
+                    "()Ljavax/microedition/media/Player;",
+                    Self::get_or_create_player,
+                    MethodAccessFlags::empty(),
+                ),
             ],
             fields: vec![
                 JavaFieldProto::new("position", "I", FieldAccessFlags::PRIVATE),
@@ -233,16 +239,16 @@ impl Clip {
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "volume", "I").await
     }
 
-    pub async fn get_or_create_player(jvm: &Jvm, this: &mut ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
+    async fn get_or_create_player(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
         let player: ClassInstanceRef<Player> = jvm
-            .get_field(this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
+            .get_field(&this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
             .await?;
         if !player.is_null() {
             return Ok(player);
         }
 
         let stream: ClassInstanceRef<InputStream> = jvm
-            .get_field(this, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;")
+            .get_field(&this, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;")
             .await?;
         if stream.is_null() {
             return Ok(None.into());
@@ -258,7 +264,7 @@ impl Clip {
             )
             .await?;
         jvm.put_field(
-            this,
+            &mut this,
             "org/kwis/msp/media/BaseClip",
             "player",
             "Ljavax/microedition/media/Player;",

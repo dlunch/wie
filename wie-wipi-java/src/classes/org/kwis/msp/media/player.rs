@@ -97,10 +97,18 @@ impl Player {
         Ok(false)
     }
 
-    async fn play_clip(jvm: &Jvm, _context: &mut WieJvmContext, mut clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
+    async fn play_clip(jvm: &Jvm, _context: &mut WieJvmContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::play({clip:?}, {repeat})");
 
-        let player = Clip::get_or_create_player(jvm, &mut clip).await?;
+        let player: ClassInstanceRef<MidpPlayer> = jvm
+            .invoke_virtual(
+                &clip,
+                "org/kwis/msp/media/Clip",
+                "getOrCreatePlayer",
+                "()Ljavax/microedition/media/Player;",
+                (),
+            )
+            .await?;
         if player.is_null() {
             return Ok(false);
         }
