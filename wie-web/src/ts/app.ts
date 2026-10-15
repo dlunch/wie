@@ -179,7 +179,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
         void finish();
         break;
       case "error":
-        void finish(new Error(event.message));
+        void finish(event.cause ?? new Error(event.message));
         break;
     }
   });

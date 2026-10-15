@@ -20,7 +20,7 @@ export type SessionEvent =
   | { type: "suspended"; suspended: boolean }
   | { type: "warning"; message: string }
   | { type: "stopped" }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; cause?: unknown };
 
 export interface PlayerSession {
   key(key: string, pressed: boolean): Promise<void>;

@@ -15,6 +15,7 @@ use futures::{
     future::{BoxFuture, Shared},
     lock::Mutex as AsyncMutex,
 };
+use sentry::protocol::Context;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, ipc::Channel};
 
@@ -192,6 +193,15 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
                 return Err("An app is already running".to_owned());
             }
             let (metadata, bytes) = library.read_archive(&id).map_err(|error| error.to_string())?;
+            let app_context = Context::Other(
+                [
+                    ("id".into(), metadata.id.into()),
+                    ("title".into(), metadata.title.into()),
+                    ("filename".into(), metadata.filename.clone().into()),
+                ]
+                .into_iter()
+                .collect(),
+            );
             let mut runtime = state.runtime.lock().unwrap();
             let session_id = runtime.next_id;
             runtime.next_id += 1;
@@ -208,7 +218,12 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
                 suspended: runtime.suspended,
             }
             .prepare(session_id, metadata.filename, bytes);
-            let worker = tauri::async_runtime::spawn_blocking(move || worker.run(receiver, started).map_err(|error| format!("{error:#}")));
+            let worker = tauri::async_runtime::spawn_blocking(move || {
+                sentry::with_scope(
+                    |scope| scope.set_context("emulated_app", app_context),
+                    || worker.run(receiver, started).map_err(|error| format!("{error:#}")),
+                )
+            });
             #[cfg(not(target_os = "ios"))]
             let view = state.view.clone();
             let app = app.clone();

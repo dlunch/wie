@@ -1,5 +1,6 @@
 #![no_std]
 extern crate alloc;
+extern crate std;
 
 mod aot;
 mod audio_sink;
@@ -20,6 +21,7 @@ use core::{
     str,
     sync::atomic::{AtomicBool, Ordering},
 };
+use std::panic;
 
 use hashbrown::HashMap;
 use tracing_subscriber::{Layer, filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt};
@@ -36,6 +38,12 @@ use self::{
     host::WasmHost,
     window::WindowImpl,
 };
+
+#[wasm_bindgen(module = "panic.ts")]
+extern "C" {
+    #[wasm_bindgen(js_name = recordPanic)]
+    fn record_panic(message: &str);
+}
 
 struct WieWebPlatform {
     audio_player: AudioPlayer,
@@ -185,12 +193,15 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]
-    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>, host: Option<WasmHost>) -> Result<WieWeb, JsError> {
-        let audio_player = match &host {
-            Some(host) => host.audio(),
-            None => AudioPlayer::new(),
-        };
-        let result = (|| {
+    pub fn new(
+        filename: &str,
+        buf: &[u8],
+        canvas: HtmlCanvasElement,
+        font_data: Vec<u8>,
+        audio_player: AudioPlayer,
+        host: Option<WasmHost>,
+    ) -> Result<WieWeb, JsError> {
+        (|| {
             let should_redraw = Arc::new(AtomicBool::new(true));
             let exited = Arc::new(AtomicBool::new(false));
             let window = WindowImpl::new(canvas, should_redraw.clone());
@@ -206,17 +217,14 @@ impl WieWeb {
 
             anyhow::Ok(Self {
                 emulator,
-                audio_player: audio_player.clone(),
+                audio_player,
                 host,
                 exited,
                 should_redraw,
                 key_events: HashMap::new(),
             })
-        })();
-        if result.is_err() {
-            audio_player.dispose();
-        }
-        result.map_err(|e| JsError::new(&e.to_string()))
+        })()
+        .map_err(|e| JsError::new(&e.to_string()))
     }
 
     pub fn is_preparing(&self) -> bool {
@@ -267,7 +275,7 @@ impl WieWeb {
 
 #[wasm_bindgen(start)]
 pub fn start() {
-    console_error_panic_hook::set_once();
+    panic::set_hook(Box::new(|info| record_panic(&info.to_string())));
 
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false)

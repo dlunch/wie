@@ -8,9 +8,6 @@ extern "C" {
     #[derive(Clone)]
     pub type AudioPlayer;
 
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> AudioPlayer;
-
     #[wasm_bindgen(method, structural)]
     pub fn dispose(this: &AudioPlayer);
 
