@@ -100,7 +100,7 @@ impl Player {
     async fn play_clip(jvm: &Jvm, _context: &mut WieJvmContext, mut clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::play({clip:?}, {repeat})");
 
-        let player = Clip::player(jvm, &mut clip).await?;
+        let player = Clip::get_or_create_player(jvm, &mut clip).await?;
         if player.is_null() {
             return Ok(false);
         }

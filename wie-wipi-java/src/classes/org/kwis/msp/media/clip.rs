@@ -233,7 +233,7 @@ impl Clip {
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "volume", "I").await
     }
 
-    pub async fn player(jvm: &Jvm, this: &mut ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
+    pub async fn get_or_create_player(jvm: &Jvm, this: &mut ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
         let player: ClassInstanceRef<Player> = jvm
             .get_field(this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
             .await?;
