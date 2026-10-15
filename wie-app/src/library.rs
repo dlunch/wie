@@ -136,6 +136,25 @@ mod tests {
     }
 
     #[test]
+    fn library_import_uses_midlet_display_name() {
+        let root = tempdir().unwrap();
+        let mut library = Library::new(root.path().to_owned()).unwrap();
+        for (filename, midlet_name, expected) in [("named.jar", " App title ", "App title"), ("unnamed.jar", " ", "Suite title")] {
+            let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+            writer.start_file("META-INF/MANIFEST.MF", SimpleFileOptions::default()).unwrap();
+            write!(writer, "MIDlet-Name: Suite title\nMIDlet-1: {midlet_name}, /icon.png, example.Main\n").unwrap();
+            writer.start_file("icon.png", SimpleFileOptions::default()).unwrap();
+            writer.write_all(b"icon").unwrap();
+            let jar = writer.finish().unwrap().into_inner();
+            library.import(filename, &jar).unwrap();
+            let (metadata, _) = library.read_archive(filename).unwrap();
+            assert_eq!(metadata.title, expected);
+            assert_eq!(metadata.id, filename);
+            assert_eq!(metadata.icon.as_deref(), Some(b"icon".as_slice()));
+        }
+    }
+
+    #[test]
     fn library_reopens_archives_and_preserves_guest_saves_on_delete() {
         let root = tempdir().unwrap();
         let ktf = archive(include_bytes!("../../wie-ktf/tests/data/helloworld_ktf.zip"), "__adf__", "00000000");
