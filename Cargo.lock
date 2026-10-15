@@ -5462,9 +5462,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "smaf"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e5d7afe0fc44f5eda077e8419fb8856401ebdfb8e908991bff57cfc6a654a1"
+checksum = "0740db00319ca4bc27c8a235f6d19627d2d13d78365f1b76785f32055b607b7b"
 dependencies = [
  "anyhow",
  "nom 7.1.3",
@@ -5473,9 +5473,9 @@ dependencies = [
 
 [[package]]
 name = "smaf-player"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "161bce0729a06bc68e2a3fa342811590f4bfd5875bcd00662013b592f97e6246"
+checksum = "d188dd2dd79c5ed96d0ef1b66b92a4b2f6eb7d68b9adc24c4e127ebd6aaec219"
 dependencies = [
  "smaf",
 ]

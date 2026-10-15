@@ -2,10 +2,13 @@ use alloc::vec;
 
 use bytemuck::cast_vec;
 
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaIoInputStream};
+use jvm::{
+    Array, ClassInstanceRef, Jvm, Result as JvmResult,
+    runtime::{JavaIoInputStream, JavaLangString},
+};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::lang::String;
+use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::media::Player;
@@ -46,6 +49,12 @@ impl Clip {
                 JavaMethodProto::new("setStopTime", "(I)Z", Self::set_stop_time, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getStopTime", "()I", Self::get_stop_time, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getVolume", "()I", Self::get_volume, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "getOrCreatePlayer",
+                    "()Ljavax/microedition/media/Player;",
+                    Self::get_or_create_player,
+                    MethodAccessFlags::empty(),
+                ),
             ],
             fields: vec![
                 JavaFieldProto::new("position", "I", FieldAccessFlags::PRIVATE),
@@ -183,8 +192,8 @@ impl Clip {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::setBuffer({this:?}, {buffer:?}, {size})");
 
-        let _: i32 = jvm
-            .invoke_virtual(&this, "org/kwis/msp/media/Clip", "putData", "([BII)I", (buffer, 0, size))
+        let _: bool = jvm
+            .invoke_virtual(&this, "org/kwis/msp/media/BaseClip", "setBuffer", "([BI)Z", (buffer, size))
             .await?;
 
         Ok(())
@@ -230,9 +239,40 @@ impl Clip {
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "volume", "I").await
     }
 
-    pub async fn player(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
-        jvm.get_field(this, "org/kwis/msp/media/Clip", "player", "Ljavax/microedition/media/Player;")
-            .await
+    async fn get_or_create_player(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
+        let player: ClassInstanceRef<Player> = jvm
+            .get_field(&this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
+            .await?;
+        if !player.is_null() {
+            return Ok(player);
+        }
+
+        let stream: ClassInstanceRef<InputStream> = jvm
+            .get_field(&this, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;")
+            .await?;
+        if stream.is_null() {
+            return Ok(None.into());
+        }
+
+        let r#type = JavaLangString::from_rust_string(jvm, "application/vnd.smaf").await?;
+        let player: ClassInstanceRef<Player> = jvm
+            .invoke_static(
+                "javax/microedition/media/Manager",
+                "createPlayer",
+                "(Ljava/io/InputStream;Ljava/lang/String;)Ljavax/microedition/media/Player;",
+                (stream, r#type),
+            )
+            .await?;
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/media/BaseClip",
+            "player",
+            "Ljavax/microedition/media/Player;",
+            player.clone(),
+        )
+        .await?;
+
+        Ok(player)
     }
 }
 
