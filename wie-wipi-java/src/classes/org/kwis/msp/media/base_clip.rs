@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
@@ -24,11 +24,10 @@ impl BaseClip {
                 JavaMethodProto::new("clearData", "()V", Self::clear_data, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("availableDataSize", "()I", Self::available_data_size, MethodAccessFlags::PUBLIC),
             ],
-            fields: vec![JavaFieldProto::new(
-                "player",
-                "Ljavax/microedition/media/Player;",
-                FieldAccessFlags::PRIVATE,
-            )],
+            fields: vec![
+                JavaFieldProto::new("stream", "Ljava/io/InputStream;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("player", "Ljavax/microedition/media/Player;", FieldAccessFlags::PRIVATE),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }
@@ -49,40 +48,27 @@ impl BaseClip {
 
     async fn put_data(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
+        context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
         buffer: ClassInstanceRef<Array<i8>>,
         offset: i32,
         length: i32,
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.media.Clip::putData({this:?}, {buffer:?}, {offset}, {length})");
 
-        let input_stream = jvm.new_class("java/io/ByteArrayInputStream", "([BII)V", (buffer, offset, length)).await?;
-        let r#type = JavaLangString::from_rust_string(jvm, "application/vnd.smaf").await?;
-
-        let player: ClassInstanceRef<Player> = jvm
-            .invoke_static(
-                "javax/microedition/media/Manager",
-                "createPlayer",
-                "(Ljava/io/InputStream;Ljava/lang/String;)Ljavax/microedition/media/Player;",
-                (input_stream, r#type),
-            )
-            .await?;
-
-        jvm.put_field(
-            &mut this,
-            "org/kwis/msp/media/BaseClip",
-            "player",
-            "Ljavax/microedition/media/Player;",
-            player,
-        )
-        .await?;
+        let data = jvm.load_array::<i8>(&buffer, offset as usize, length as usize).await?;
+        let mut copied = jvm.instantiate_array("B", data.len()).await?;
+        jvm.store_array(&mut copied, 0, data).await?;
+        Self::set_buffer(jvm, context, this, copied.into(), length).await?;
 
         Ok(length)
     }
 
     async fn clear_data(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.BaseClip::clearData({this:?})");
+
+        jvm.put_field(&mut this, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;", None)
+            .await?;
 
         let player: ClassInstanceRef<Player> = jvm
             .get_field(&this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
@@ -107,17 +93,18 @@ impl BaseClip {
 
     async fn set_buffer(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
-        this: ClassInstanceRef<Self>,
+        context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
         buffer: ClassInstanceRef<Array<i8>>,
         size: i32,
     ) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.BaseClip::setBuffer({this:?}, {buffer:?}, {size})");
 
-        let written: i32 = jvm
-            .invoke_virtual(&this, "org/kwis/msp/media/BaseClip", "putData", "([BII)I", (buffer, 0, size))
+        let stream = jvm.new_class("java/io/ByteArrayInputStream", "([BII)V", (buffer, 0, size)).await?;
+        Self::clear_data(jvm, context, this.clone()).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;", stream)
             .await?;
 
-        Ok(written == size)
+        Ok(true)
     }
 }

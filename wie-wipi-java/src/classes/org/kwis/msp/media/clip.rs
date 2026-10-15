@@ -183,8 +183,8 @@ impl Clip {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::setBuffer({this:?}, {buffer:?}, {size})");
 
-        let _: i32 = jvm
-            .invoke_virtual(&this, "org/kwis/msp/media/Clip", "putData", "([BII)I", (buffer, 0, size))
+        let _: bool = jvm
+            .invoke_virtual(&this, "org/kwis/msp/media/BaseClip", "setBuffer", "([BI)Z", (buffer, size))
             .await?;
 
         Ok(())
