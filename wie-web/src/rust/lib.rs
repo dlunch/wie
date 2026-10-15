@@ -1,6 +1,5 @@
 #![no_std]
 extern crate alloc;
-extern crate std;
 
 mod aot;
 mod audio_sink;
@@ -21,7 +20,6 @@ use core::{
     str,
     sync::atomic::{AtomicBool, Ordering},
 };
-use std::panic;
 
 use hashbrown::HashMap;
 use tracing_subscriber::{Layer, filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt};
@@ -275,6 +273,9 @@ impl WieWeb {
 
 #[wasm_bindgen(start)]
 pub fn start() {
+    extern crate std;
+    use std::panic;
+
     panic::set_hook(Box::new(|info| record_panic(&info.to_string())));
 
     let fmt_layer = tracing_subscriber::fmt::layer()
