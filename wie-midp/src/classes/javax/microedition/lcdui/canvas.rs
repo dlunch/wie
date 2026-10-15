@@ -128,7 +128,7 @@ impl Canvas {
             .await?;
         if !display.is_null() {
             let _: () = jvm
-                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
+                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
                 .await?;
         }
 

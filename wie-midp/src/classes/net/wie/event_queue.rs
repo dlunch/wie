@@ -315,7 +315,7 @@ impl EventQueue {
         match event_kind {
             EventQueueEvent::RepaintEvent => {
                 let _: () = jvm
-                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
+                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
                     .await?;
                 Self::dispatch_callbacks(jvm, context, this).await?;
             }
@@ -730,8 +730,8 @@ mod test {
                 jvm.put_field(&mut callback, "net/wie/RecurringCallback", "repaintOnPaint", "Z", false)
                     .await?;
                 jvm.put_field(&mut callback, "net/wie/RecurringCallback", "repeat", "Z", false).await?;
-                for paint_count in 3..=4 {
-                    // First finish the callbacks, then repaint with no pending request or callback.
+                for _ in 0..2 {
+                    // Finish the callbacks; subsequent host redraws must not paint without a request.
                     system.event_queue().push(Event::Redraw);
                     let _: () = jvm
                         .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
@@ -740,15 +740,41 @@ mod test {
                         .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
                         .await?;
                     assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 6);
-                    assert_eq!(
-                        jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "paintCount", "I").await?,
-                        paint_count
-                    );
+                    assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "paintCount", "I").await?, 3);
                     assert!(
                         !jvm.get_field::<bool>(&display, "javax/microedition/lcdui/Display", "repaintPending", "Z")
                             .await?
                     );
                 }
+                let _: () = jvm
+                    .invoke_virtual(&callback, "javax/microedition/lcdui/Canvas", "repaint", "()V", ())
+                    .await?;
+                jvm.put_field(&mut callback, "net/wie/RecurringCallback", "repaintOnPaint", "Z", true)
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&callback, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                    .await?;
+                assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "paintCount", "I").await?, 4);
+                assert!(
+                    jvm.get_field::<bool>(&display, "javax/microedition/lcdui/Display", "repaintPending", "Z")
+                        .await?
+                );
+                jvm.put_field(&mut callback, "net/wie/RecurringCallback", "repaintOnPaint", "Z", false)
+                    .await?;
+                for _ in 0..2 {
+                    let _: () = jvm
+                        .invoke_virtual(&callback, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                        .await?;
+                    assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "paintCount", "I").await?, 5);
+                }
+                system.event_queue().push(Event::Redraw);
+                let _: () = jvm
+                    .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event,))
+                    .await?;
+                assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "paintCount", "I").await?, 5);
                 Ok(())
             },
         )
