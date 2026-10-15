@@ -5,6 +5,7 @@ use jvm_class_proto::JavaMethodProto;
 use jvm_types::{ClassAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::javax::microedition::media::Player as MidpPlayer;
 
 use crate::classes::org::kwis::msp::media::{BaseClip, Clip};
 
@@ -108,10 +109,12 @@ impl Player {
         Ok(true)
     }
 
-    async fn stop_clip(jvm: &Jvm, _: &mut WieJvmContext, mut clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
+    async fn stop_clip(jvm: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::stop({clip:?})");
 
-        let player = Clip::player(jvm, &mut clip).await?;
+        let player: ClassInstanceRef<MidpPlayer> = jvm
+            .get_field(&clip, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
+            .await?;
 
         if !player.is_null() {
             let _: () = jvm.invoke_virtual(&player, "javax/microedition/media/Player", "stop", "()V", ()).await?;
@@ -195,6 +198,11 @@ mod test {
                     .new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;[B)V", (r#type, data.clone()))
                     .await?
                     .into();
+
+                let stopped_before_play: bool = jvm
+                    .invoke_static("org/kwis/msp/media/Player", "stop", "(Lorg/kwis/msp/media/Clip;)Z", (clip.clone(),))
+                    .await?;
+                assert!(!stopped_before_play);
 
                 jvm.store_array(&mut data, 0, cast_slice::<u8, i8>(&smaf).iter().copied()).await?;
                 let played: bool = jvm
