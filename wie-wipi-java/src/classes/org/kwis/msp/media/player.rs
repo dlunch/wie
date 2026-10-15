@@ -1,12 +1,10 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use jvm_class_proto::JavaMethodProto;
 use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::io::InputStream;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::media::Player as MidpPlayer;
 
 use crate::classes::org::kwis::msp::media::{BaseClip, Clip};
 
@@ -101,45 +99,10 @@ impl Player {
     async fn play_clip(jvm: &Jvm, _context: &mut WieJvmContext, mut clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::play({clip:?}, {repeat})");
 
-        let stream: ClassInstanceRef<InputStream> = jvm
-            .get_field(&clip, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;")
-            .await?;
-        if stream.is_null() {
+        let player = Clip::prepare_player(jvm, &mut clip).await?;
+        if player.is_null() {
             return Ok(false);
         }
-
-        let player = Clip::player(jvm, &clip).await?;
-        if !player.is_null() {
-            let _: () = jvm.invoke_virtual(&player, "javax/microedition/media/Player", "close", "()V", ()).await?;
-            jvm.put_field(
-                &mut clip,
-                "org/kwis/msp/media/BaseClip",
-                "player",
-                "Ljavax/microedition/media/Player;",
-                None,
-            )
-            .await?;
-        }
-
-        // The application can refill the shared buffer between playbacks.
-        let _: () = jvm.invoke_virtual(&stream, "java/io/InputStream", "reset", "()V", ()).await?;
-        let r#type = JavaLangString::from_rust_string(jvm, "application/vnd.smaf").await?;
-        let player: ClassInstanceRef<MidpPlayer> = jvm
-            .invoke_static(
-                "javax/microedition/media/Manager",
-                "createPlayer",
-                "(Ljava/io/InputStream;Ljava/lang/String;)Ljavax/microedition/media/Player;",
-                (stream, r#type),
-            )
-            .await?;
-        jvm.put_field(
-            &mut clip,
-            "org/kwis/msp/media/BaseClip",
-            "player",
-            "Ljavax/microedition/media/Player;",
-            player.clone(),
-        )
-        .await?;
         let _: () = jvm.invoke_virtual(&player, "net/wie/SmafPlayer", "start", "(Z)V", (repeat,)).await?;
 
         Ok(true)

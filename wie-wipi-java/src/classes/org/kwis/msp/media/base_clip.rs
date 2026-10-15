@@ -48,7 +48,7 @@ impl BaseClip {
 
     async fn put_data(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         buffer: ClassInstanceRef<Array<i8>>,
         offset: i32,
@@ -59,7 +59,9 @@ impl BaseClip {
         let data = jvm.load_array::<i8>(&buffer, offset as usize, length as usize).await?;
         let mut copied = jvm.instantiate_array("B", data.len()).await?;
         jvm.store_array(&mut copied, 0, data).await?;
-        Self::set_buffer(jvm, context, this, copied.into(), length).await?;
+        let _: bool = jvm
+            .invoke_virtual(&this, "org/kwis/msp/media/BaseClip", "setBuffer", "([BI)Z", (copied, length))
+            .await?;
 
         Ok(length)
     }
@@ -93,7 +95,7 @@ impl BaseClip {
 
     async fn set_buffer(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         buffer: ClassInstanceRef<Array<i8>>,
         size: i32,
@@ -101,7 +103,7 @@ impl BaseClip {
         tracing::debug!("org.kwis.msp.media.BaseClip::setBuffer({this:?}, {buffer:?}, {size})");
 
         let stream = jvm.new_class("java/io/ByteArrayInputStream", "([BII)V", (buffer, 0, size)).await?;
-        Self::clear_data(jvm, context, this.clone()).await?;
+        let _: () = jvm.invoke_virtual(&this, "org/kwis/msp/media/BaseClip", "clearData", "()V", ()).await?;
         jvm.put_field(&mut this, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;", stream)
             .await?;
 

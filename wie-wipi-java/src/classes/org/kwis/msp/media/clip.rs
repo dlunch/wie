@@ -2,10 +2,13 @@ use alloc::vec;
 
 use bytemuck::cast_vec;
 
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaIoInputStream};
+use jvm::{
+    Array, ClassInstanceRef, Jvm, Result as JvmResult,
+    runtime::{JavaIoInputStream, JavaLangString},
+};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::lang::String;
+use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::media::Player;
@@ -230,7 +233,45 @@ impl Clip {
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "volume", "I").await
     }
 
-    pub async fn player(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
+    pub(super) async fn prepare_player(jvm: &Jvm, this: &mut ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
+        let stream: ClassInstanceRef<InputStream> = jvm
+            .get_field(this, "org/kwis/msp/media/BaseClip", "stream", "Ljava/io/InputStream;")
+            .await?;
+        if stream.is_null() {
+            return Ok(None.into());
+        }
+
+        let player = Self::player(jvm, this).await?;
+        if !player.is_null() {
+            let _: () = jvm.invoke_virtual(&player, "javax/microedition/media/Player", "close", "()V", ()).await?;
+            jvm.put_field(this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;", None)
+                .await?;
+        }
+
+        // The application can refill the shared buffer between playbacks.
+        let _: () = jvm.invoke_virtual(&stream, "java/io/InputStream", "reset", "()V", ()).await?;
+        let r#type = JavaLangString::from_rust_string(jvm, "application/vnd.smaf").await?;
+        let player: ClassInstanceRef<Player> = jvm
+            .invoke_static(
+                "javax/microedition/media/Manager",
+                "createPlayer",
+                "(Ljava/io/InputStream;Ljava/lang/String;)Ljavax/microedition/media/Player;",
+                (stream, r#type),
+            )
+            .await?;
+        jvm.put_field(
+            this,
+            "org/kwis/msp/media/BaseClip",
+            "player",
+            "Ljavax/microedition/media/Player;",
+            player.clone(),
+        )
+        .await?;
+
+        Ok(player)
+    }
+
+    pub(super) async fn player(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
         jvm.get_field(this, "org/kwis/msp/media/Clip", "player", "Ljavax/microedition/media/Player;")
             .await
     }

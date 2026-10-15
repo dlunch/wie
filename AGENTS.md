@@ -28,6 +28,7 @@
 - **Async**: Use `async-trait` for async trait methods
 
 ## Engineering Principles
+- Invoke Java methods through the appropriate `Jvm::invoke_*` API, including calls within the same class; do not call their Rust implementations directly.
 - Prefer integration tests for observable behavior. Add unit tests only when integration testing is impractical or complex logic needs focused coverage.
 - Reuse or extend existing tests; avoid duplicating behavior already covered by another test, including integration tests, and remove redundant tests when reviewing coverage.
 - Let Rust's scope-based destruction manage lifetimes. Use explicit `drop` only when release timing is required for correct behavior.
