@@ -7,10 +7,7 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::{
-    ClassInstance, Result as JvmResult,
-    runtime::{JavaIoInputStream, JavaLangString},
-};
+use jvm::{ClassInstance, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System, extract_zip};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
@@ -102,26 +99,11 @@ impl J2MEEmulator {
         let main_class_name = if let Some(x) = main_class_name {
             x.replace('.', "/")
         } else {
-            let class_loader = jvm
-                .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
-                .await
-                .unwrap();
-
-            // TODO Use JarFile::getManifest
-            let resource_name = JavaLangString::from_rust_string(&jvm, "META-INF/MANIFEST.MF").await.unwrap();
-            let resource_stream = jvm
-                .invoke_virtual(
-                    &class_loader,
-                    "java/lang/ClassLoader",
-                    "getResourceAsStream",
-                    "(Ljava/lang/String;)Ljava/io/InputStream;",
-                    (resource_name.clone(),),
-                )
-                .await
-                .unwrap();
-            let data = JavaIoInputStream::read_until_end(&jvm, &resource_stream).await.unwrap();
-
-            let descriptor = J2MEDescriptor::parse(&data);
+            let descriptor = match J2MEDescriptor::from_jar(&jvm, &jar_filename).await {
+                Ok(Some(descriptor)) => descriptor,
+                Ok(None) => return Err(WieError::FatalError("JAR manifest not found".into())),
+                Err(error) => return Err(JvmSupport::to_wie_err(&jvm, error).await),
+            };
 
             for (k, v) in descriptor.properties {
                 let property_key = format!("wie.appProperty.{k}");
@@ -185,13 +167,55 @@ struct J2MEDescriptor {
 }
 
 impl J2MEDescriptor {
+    async fn from_jar(jvm: &Jvm, jar_filename: &str) -> JvmResult<Option<Self>> {
+        let filename = JavaLangString::from_rust_string(jvm, jar_filename).await?;
+        let jar = jvm.new_class("java/util/jar/JarFile", "(Ljava/lang/String;)V", (filename,)).await?;
+        let manifest: Option<Box<dyn ClassInstance>> = jvm
+            .invoke_virtual(&jar, "java/util/jar/JarFile", "getManifest", "()Ljava/util/jar/Manifest;", ())
+            .await?;
+        let Some(manifest) = manifest else {
+            return Ok(None);
+        };
+        let attributes = jvm
+            .invoke_virtual(
+                &manifest,
+                "java/util/jar/Manifest",
+                "getMainAttributes",
+                "()Ljava/util/jar/Attributes;",
+                (),
+            )
+            .await?;
+        let entries = jvm
+            .invoke_virtual(&attributes, "java/util/jar/Attributes", "entrySet", "()Ljava/util/Set;", ())
+            .await?;
+        let iterator = jvm
+            .invoke_virtual(&entries, "java/util/Set", "iterator", "()Ljava/util/Iterator;", ())
+            .await?;
+        let mut properties = BTreeMap::new();
+        while jvm.invoke_virtual(&iterator, "java/util/Iterator", "hasNext", "()Z", ()).await? {
+            let entry = jvm
+                .invoke_virtual(&iterator, "java/util/Iterator", "next", "()Ljava/lang/Object;", ())
+                .await?;
+            let key = jvm
+                .invoke_virtual(&entry, "java/util/Map$Entry", "getKey", "()Ljava/lang/Object;", ())
+                .await?;
+            let key = jvm
+                .invoke_virtual(&key, "java/lang/Object", "toString", "()Ljava/lang/String;", ())
+                .await?;
+            let value = jvm
+                .invoke_virtual(&entry, "java/util/Map$Entry", "getValue", "()Ljava/lang/Object;", ())
+                .await?;
+            properties.insert(
+                JavaLangString::to_rust_string(jvm, &key).await?,
+                JavaLangString::to_rust_string(jvm, &value).await?,
+            );
+        }
+        Ok(Some(Self::from_properties(properties)))
+    }
+
     pub fn parse(data: &[u8]) -> Self {
         let lines = data.split(|x| *x == b'\n');
 
-        let mut name = String::new();
-        let mut main_class_name = String::new();
-        let mut icon = String::new();
-        let mut midlet_icon = String::new();
         let mut properties = BTreeMap::new();
         let mut logical_lines: Vec<String> = Vec::new();
 
@@ -223,8 +247,19 @@ impl J2MEDescriptor {
             let key = key.trim();
             let value = value.trim();
             properties.insert(key.to_string(), value.to_string());
+        }
 
-            match key {
+        Self::from_properties(properties)
+    }
+
+    fn from_properties(properties: BTreeMap<String, String>) -> Self {
+        let mut name = String::new();
+        let mut main_class_name = String::new();
+        let mut icon = String::new();
+        let mut midlet_icon = String::new();
+
+        for (key, value) in &properties {
+            match key.as_str() {
                 "MIDlet-Name" => name = value.to_string(),
                 "MIDlet-Icon" => icon = value.to_string(),
                 "MIDlet-1" => {
