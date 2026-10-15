@@ -416,7 +416,7 @@ where
                 self.resize_content(width, height);
             }
             WindowInternalEvent::RequestRedraw => {
-                self.window.as_ref().unwrap().request_redraw();
+                self.callback(WindowCallbackEvent::Redraw, event_loop);
             }
             WindowInternalEvent::Paint(data) => {
                 let expected_len = self.content_size.width as usize * self.content_size.height as usize;
@@ -459,7 +459,7 @@ where
                 }
             },
             WindowEvent::RedrawRequested => {
-                self.callback(WindowCallbackEvent::Redraw, event_loop);
+                self.paint_last_frame();
             }
             WindowEvent::Resized(new_size) => {
                 tracing::debug!("WindowResized {new_size:?}");
