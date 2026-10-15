@@ -109,9 +109,10 @@ impl SktEmulator {
     ) -> Result<()> {
         let system_properties = [
             ("MIN", "01000000000"),
-            ("m.MIN", "01000000000"),
+            ("m.MIN", "00000000"),
             ("m.COLOR", "7"),
             ("m.VENDER", "vender"),
+            ("m.MODEL", ""),
             ("m.CARRIER", "SKT"),
             ("m.SK_VM", "10"),
             ("com.xce.wipi.version", ""),
