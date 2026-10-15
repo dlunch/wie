@@ -104,6 +104,19 @@ impl TestPlatform {
             ..Self::new()
         }
     }
+
+    pub fn with_paint_handler<T>(paint_handler: T) -> Self
+    where
+        T: Fn(&dyn Image) + Sync + Send + 'static,
+    {
+        Self {
+            screen: TestScreen {
+                paint_handler: Some(Box::new(paint_handler)),
+                ..TestScreen::default()
+            },
+            ..Self::new()
+        }
+    }
 }
 
 impl Platform for TestPlatform {
@@ -247,9 +260,12 @@ impl AudioSink for TestAudioSink {
     }
 }
 
+type PaintHandler = dyn Fn(&dyn Image) + Sync + Send;
+
 pub struct TestScreen {
     width: AtomicU32,
     height: AtomicU32,
+    paint_handler: Option<Box<PaintHandler>>,
 }
 
 impl Default for TestScreen {
@@ -257,6 +273,7 @@ impl Default for TestScreen {
         Self {
             width: AtomicU32::new(320),
             height: AtomicU32::new(240),
+            paint_handler: None,
         }
     }
 }
@@ -273,7 +290,11 @@ impl Screen for TestScreen {
         Ok(())
     }
 
-    fn paint(&self, _image: &dyn Image) {}
+    fn paint(&self, image: &dyn Image) {
+        if let Some(handler) = &self.paint_handler {
+            handler(image);
+        }
+    }
 
     fn width(&self) -> u32 {
         self.width.load(Ordering::SeqCst)
