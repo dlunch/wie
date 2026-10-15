@@ -26,6 +26,7 @@
 - **Modules**: Use `name.rs` with a `name/` directory for submodules; do not use `mod.rs` files.
 - **Types**: Explicit types preferred. Never use `as any` equivalents or suppress errors
 - **Async**: Use `async-trait` for async trait methods
+- **Visibility**: Use `pub` or default private visibility; do not use restricted visibility such as `pub(super)` or `pub(crate)`.
 
 ## Engineering Principles
 - Invoke Java methods through the appropriate `Jvm::invoke_*` API, including calls within the same class; do not call their Rust implementations directly.

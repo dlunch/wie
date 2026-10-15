@@ -99,7 +99,7 @@ impl Player {
     async fn play_clip(jvm: &Jvm, _context: &mut WieJvmContext, mut clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::play({clip:?}, {repeat})");
 
-        let player = Clip::prepare_player(jvm, &mut clip).await?;
+        let player = Clip::player(jvm, &mut clip).await?;
         if player.is_null() {
             return Ok(false);
         }
@@ -108,10 +108,10 @@ impl Player {
         Ok(true)
     }
 
-    async fn stop_clip(jvm: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
+    async fn stop_clip(jvm: &Jvm, _: &mut WieJvmContext, mut clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::stop({clip:?})");
 
-        let player = Clip::player(jvm, &clip).await?;
+        let player = Clip::player(jvm, &mut clip).await?;
 
         if !player.is_null() {
             let _: () = jvm.invoke_virtual(&player, "javax/microedition/media/Player", "stop", "()V", ()).await?;
@@ -179,7 +179,7 @@ mod test {
     }
 
     #[test]
-    fn test_clip_playback_reads_current_buffer() -> Result<()> {
+    fn test_clip_playback_reuses_player_until_buffer_replacement() -> Result<()> {
         let commands = Arc::new(Mutex::new(Vec::new()));
         let recorded = commands.clone();
         let platform = TestPlatform::with_audio_handler(move |command| recorded.lock().unwrap().push(command));
@@ -207,8 +207,6 @@ mod test {
                 assert!(played);
                 assert!(stopped);
 
-                smaf[17] = 0x22;
-                jvm.store_array(&mut data, 0, cast_slice::<u8, i8>(&smaf).iter().copied()).await?;
                 let replayed: bool = jvm
                     .invoke_static(
                         "org/kwis/msp/media/Player",
@@ -218,6 +216,21 @@ mod test {
                     )
                     .await?;
                 assert!(replayed);
+
+                smaf[17] = 0x22;
+                jvm.store_array(&mut data, 0, cast_slice::<u8, i8>(&smaf).iter().copied()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setBuffer", "([BI)V", (data, smaf.len() as i32))
+                    .await?;
+                let played_replacement: bool = jvm
+                    .invoke_static(
+                        "org/kwis/msp/media/Player",
+                        "play",
+                        "(Lorg/kwis/msp/media/Clip;Z)Z",
+                        (clip.clone(), false),
+                    )
+                    .await?;
+                assert!(played_replacement);
 
                 smaf[17] = 0x23;
                 let mut source = jvm.instantiate_array("B", smaf.len() + 2).await?;
@@ -254,8 +267,13 @@ mod test {
         )?;
 
         let commands = commands.lock().unwrap();
-        assert_eq!(commands.len(), 6);
-        for (index, note, repeated) in [(0, 61, true), (2, 62, false), (4, 63, false)] {
+        assert_eq!(commands.len(), 8);
+        let AudioCommand::Play { handle: first_handle, .. } = &commands[0] else {
+            panic!("expected playback");
+        };
+        assert!(matches!(&commands[2], AudioCommand::Play { handle, .. } if handle == first_handle));
+        assert!(matches!(&commands[4], AudioCommand::Play { handle, .. } if handle != first_handle));
+        for (index, note, repeated) in [(0, 61, true), (2, 61, false), (4, 62, false), (6, 63, false)] {
             let AudioCommand::Play { handle, sequence, repeat } = &commands[index] else {
                 panic!("expected playback");
             };
