@@ -12,7 +12,7 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, write_generic};
 
 use crate::{
-    adf::{KtfAdf, find_client_bin},
+    adf::{KtfAdf, find_client_bin, validate_client_bin},
     runtime::{KtfJvmSupport, KtfJvmThreadContext},
 };
 
@@ -128,6 +128,10 @@ impl KtfEmulator {
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
+            if path == jar_filename {
+                let (_, client_bin) = find_client_bin(data)?;
+                validate_client_bin(&client_bin)?;
+            }
             system.filesystem().add_virtual(path, data.clone());
         }
 

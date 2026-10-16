@@ -32,3 +32,4 @@ wie-wipi-java = { workspace = true }
 
 [dev-dependencies]
 test-utils = { workspace = true }
+zip = { version = "^8.6", features = ["deflate"], default-features = false }

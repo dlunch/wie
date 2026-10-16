@@ -78,6 +78,14 @@ pub fn parse_bss_size(filename: &str) -> Result<u32> {
         .map_err(|e| WieError::FatalError(format!("Invalid bss_size in filename {filename}: {e}")))
 }
 
+pub fn validate_client_bin(data: &[u8]) -> Result<()> {
+    // The supported image starts with a Thumb branch followed by the KTF format header.
+    if !data.starts_with(&[0x04, 0xe0, 0xc0, 0x46, 0x24, 0x02, 0x04, 0x20, 0x01, 0x00, 0x02, 0x00]) {
+        return Err(WieError::FatalError("Unsupported KTF client.bin format".into()));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{KtfAdf, parse_bss_size};

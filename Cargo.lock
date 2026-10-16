@@ -7435,6 +7435,7 @@ dependencies = [
  "wie-wipi-c",
  "wie-wipi-java",
  "wipi-types",
+ "zip",
 ]
 
 [[package]]
