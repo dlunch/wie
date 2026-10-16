@@ -14,7 +14,7 @@ test("release artifacts retain debug IDs without distributing debug files", asyn
   const wasmFiles = files.filter(file => file.endsWith(".wasm"));
   assert.equal(wasmFiles.length, 1);
   const deployed = await readFile(path.join(dist, wasmFiles[0]));
-  assert.deepEqual(deployed, await readFile(path.join(webDir, "pkg/wie_web_bg.wasm")));
+  assert.ok(deployed.equals(await readFile(path.join(webDir, "pkg/wie_web_bg.wasm"))), "deployed WASM matches the stripped build");
   const stripped = await WebAssembly.compile(deployed);
   const debug = await WebAssembly.compile(await readFile(path.join(webDir, "../target/sentry/wie_web.debug.wasm")));
   const buildIds = WebAssembly.Module.customSections(stripped, "build_id");
