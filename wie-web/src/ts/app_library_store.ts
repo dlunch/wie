@@ -55,7 +55,6 @@ export class AppLibraryStore {
       transaction.objectStore("archives").add(archive, metadata.id);
 
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
   }
@@ -67,7 +66,6 @@ export class AppLibraryStore {
       transaction.objectStore("archives").delete(id);
 
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
   }
