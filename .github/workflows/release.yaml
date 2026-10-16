@@ -43,7 +43,7 @@ jobs:
     name: Build web frontend
     needs: context
     env:
-      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
+      SENTRY_RELEASE: ${{ needs.context.outputs.channel == 'validation' && needs.context.outputs.asset_identity || needs.context.outputs.app_version }}
     if: needs.context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -89,9 +89,21 @@ jobs:
           tool: wasm-pack
 
       - name: Build production frontend
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
           npm ci
           npm run build:prod
+          node --test wie-web/tests/debug-symbols.test.mjs
+
+      - name: Upload WASM debug information
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: npx sentry debug-files upload --include-sources --wait target/sentry/wie_web.debug.wasm
 
       - name: Save Cargo cache
         if: github.ref == 'refs/heads/main'

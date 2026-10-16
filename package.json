@@ -11,6 +11,7 @@
   "author": "",
   "dependencies": {
     "@sentry/browser": "^11.6.0",
+    "@sentry/wasm": "^11.6.0",
     "@tauri-apps/api": "^2.12.3",
     "css-loader": "^7.1.5",
     "html-bundler-webpack-plugin": "^4.23.2",
@@ -26,8 +27,10 @@
     "webpack-dev-server": "^6.0.0"
   },
   "devDependencies": {
+    "@sentry/webpack-plugin": "^11.8.0",
     "@types/node": "^26.6.5",
     "@types/webpack": "^5.28.5",
-    "copy-webpack-plugin": "^14.0.0"
+    "copy-webpack-plugin": "^14.0.0",
+    "sentry": "^0.47.0"
   }
 }

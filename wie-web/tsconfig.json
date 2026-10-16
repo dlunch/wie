@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "module": "ESNext",
     "target": "ESNext",
+    "sourceMap": true,
     "paths": {
       "@pkg": ["./pkg"],
       "*": ["./src/ts/*"]
