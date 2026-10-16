@@ -5,7 +5,6 @@ pub(super) mod graphics;
 
 use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
 use wipi_types::lgt::CletFunctions;
-use wipi_types::wipic::WIPICIndirectPtr;
 
 use wie_backend::System;
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcId};
@@ -13,14 +12,12 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{database, graphics as shared_graphics, im, kernel, media, misc, net, serial, util},
+    api::{database, graphics as shared_graphics, im, kernel, media, misc, net, serial, uic, util},
 };
 
 use context::LgtWIPICContext;
 
 use crate::runtime::{SVC_CATEGORY_WIPIC, svc_ids::WIPICSvcId};
-
-const TIME_VALUE_PTR: u32 = 0x7fff1004;
 
 struct WIPICMethodResult {
     result: WIPICResult,
@@ -108,16 +105,21 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::DestroyImage => graphics::destroy_image.into_body(),
         WIPICSvcId::EncodeImage => shared_graphics::encode_image.into_body(),
         WIPICSvcId::PostEvent => shared_graphics::post_event.into_body(),
+        WIPICSvcId::FillPolygon => shared_graphics::fill_polygon.into_body(),
         WIPICSvcId::GetSupportModeCount => im::get_support_mode_count.into_body(),
         WIPICSvcId::GetSupportedModes => im::get_supported_modes.into_body(),
         WIPICSvcId::SetCurrentMode => im::set_current_mode.into_body(),
         WIPICSvcId::GetCurrentMode => im::get_current_mode.into_body(),
         WIPICSvcId::HandleInput => im::handle_input.into_body(),
-        WIPICSvcId::TimeNow => time_now.into_body(),
-        WIPICSvcId::TimeComponent => time_component.into_body(),
-        WIPICSvcId::TimeConvert => time_convert.into_body(),
-        WIPICSvcId::TimeToTm => time_to_tm.into_body(),
-        WIPICSvcId::DateTimeToTm => time_to_tm.into_body(),
+        WIPICSvcId::UicCreateApplicationContext => uic::create_application_context.into_body(),
+        WIPICSvcId::UicGetClass => uic::get_class.into_body(),
+        WIPICSvcId::UicCreate => uic::create.into_body(),
+        WIPICSvcId::UicDestroy => uic::destroy.into_body(),
+        WIPICSvcId::UicConfigure => uic::configure.into_body(),
+        WIPICSvcId::UicSetEnable => uic::set_enable.into_body(),
+        WIPICSvcId::UicGetTime => uic_get_time.into_body(),
+        WIPICSvcId::UicInsertText => uic::insert_text.into_body(),
+        WIPICSvcId::UicSetMaxTextSize => uic::set_max_text_size.into_body(),
         WIPICSvcId::OpenDatabase => database::open_database.into_body(),
         WIPICSvcId::ReadRecordSingle => database::stream_read.into_body(),
         WIPICSvcId::WriteRecordSingle => database::stream_write.into_body(),
@@ -138,10 +140,12 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::SocketWrite => net::socket_write.into_body(),
         WIPICSvcId::SocketRead => net::socket_read.into_body(),
         WIPICSvcId::SetReadCallback => net::set_read_callback.into_body(),
+        WIPICSvcId::SetWriteCallback => net::set_write_callback.into_body(),
         WIPICSvcId::SerialOpen => serial::open.into_body(),
         WIPICSvcId::SerialWrite => serial::write.into_body(),
         WIPICSvcId::SerialSetWriteCallback => serial::set_write_callback.into_body(),
         WIPICSvcId::SerialClose => serial::close.into_body(),
+        WIPICSvcId::Htonl => util::htonl.into_body(),
         WIPICSvcId::Htons => util::htons.into_body(),
         WIPICSvcId::InetAddr => util::inet_addr.into_body(),
         WIPICSvcId::ClipCreate => media::clip_create.into_body(),
@@ -260,30 +264,14 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     Ok(result)
 }
 
-async fn time_now(context: &mut dyn WIPICContext, component_class: u32) -> Result<u32> {
-    let epoch_seconds = context.system().platform().now().raw() / 1000;
-    tracing::debug!("LGT_timeNow({component_class:#x}) -> {epoch_seconds}");
+async fn uic_get_time(context: &mut dyn WIPICContext, component: u32, out_ptr: u32) -> Result<()> {
+    tracing::warn!("stub MC_uicGetTime({component:#x}, {out_ptr:#x})");
 
-    write_time_value(context, epoch_seconds as u32)
-}
-
-async fn time_component(_context: &mut dyn WIPICContext, name: u32) -> Result<u32> {
-    tracing::debug!("LGT_timeComponent({name:#x})");
-
-    Ok(name)
-}
-
-async fn time_convert(context: &mut dyn WIPICContext, date_time: u32, component: u32) -> Result<u32> {
-    tracing::debug!("LGT_timeConvert({date_time:#x}, {component:#x})");
-
-    let timestamp = read_time_value(context, date_time)?;
-    write_time_value(context, timestamp)
-}
-
-async fn time_to_tm(context: &mut dyn WIPICContext, time_value: u32, out_ptr: u32) -> Result<i32> {
-    tracing::debug!("LGT_timeToTm({time_value:#x}, {out_ptr:#x})");
-
-    let timestamp = read_time_value(context, time_value)?;
+    if out_ptr == 0 {
+        return Ok(());
+    }
+    // shortcut: return current UTC time until UI components retain their own date/time state.
+    let timestamp = context.system().platform().now().raw() / 1000;
     let (year, month, day, hour, minute, second) = unix_seconds_to_utc(timestamp as i64);
     write_generic(context, out_ptr, second)?;
     write_generic(context, out_ptr + 4, minute)?;
@@ -292,24 +280,7 @@ async fn time_to_tm(context: &mut dyn WIPICContext, time_value: u32, out_ptr: u3
     write_generic(context, out_ptr + 16, month - 1)?;
     write_generic(context, out_ptr + 20, year - 1900)?;
 
-    Ok(0)
-}
-
-fn write_time_value(context: &mut dyn WIPICContext, timestamp: u32) -> Result<u32> {
-    let time_value_ptr: u32 = read_generic(context, TIME_VALUE_PTR)?;
-    let memory = if time_value_ptr != 0 {
-        WIPICIndirectPtr(time_value_ptr)
-    } else {
-        let memory = context.alloc(4)?;
-        write_generic(context, TIME_VALUE_PTR, memory.0)?;
-        memory
-    };
-    write_generic(context, context.data_ptr(memory)?, timestamp)?;
-    Ok(memory.0)
-}
-
-fn read_time_value(context: &mut dyn WIPICContext, handle: u32) -> Result<u32> {
-    read_generic(context, context.data_ptr(WIPICIndirectPtr(handle))?)
+    Ok(())
 }
 
 fn unix_seconds_to_utc(timestamp: i64) -> (i32, i32, i32, i32, i32, i32) {
@@ -360,4 +331,60 @@ async fn unk16(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
     // misc
 
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+
+    use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
+    use wie_backend::Options;
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{ByteWrite, Result, read_generic, write_null_terminated_string_bytes};
+
+    use super::register_wipic_svc_handler;
+    use crate::runtime::SVC_CATEGORY_WIPIC;
+
+    #[test]
+    fn utility_and_ui_imports_dispatch_with_their_declared_signatures() -> Result<()> {
+        run_jvm_test_with_system(
+            Box::new([]),
+            Box::new(TestPlatform::with_clock(TestClock::new())),
+            |jvm, system| async move {
+                let mut core = ArmCore::new(Options {
+                    enable_gdbserver: false,
+                    aot: None,
+                    profile: None,
+                })
+                .unwrap();
+                Allocator::init(&mut core).unwrap();
+                core.map(0x10000, 0x10000).unwrap();
+                let mut registers = core.save_context();
+                registers.sp = 0x18000;
+                core.restore_context(&registers);
+                register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
+                write_null_terminated_string_bytes(&mut core, 0x10000, b"TextComponent").unwrap();
+                core.write_bytes(0x10100, &[0xaa; 24]).unwrap();
+
+                for id in [240u32, 614, 800, 801, 802, 803, 809, 811, 830, 833] {
+                    let function = core.make_svc_stub(SVC_CATEGORY_WIPIC, id).unwrap();
+                    let _: u32 = core.run_function(function, &[0x10000, 0x10100, 0, 0, 0, 0]).await.unwrap();
+                }
+                // Destroy must not treat its unused second argument as a date output pointer.
+                assert_eq!(read_generic::<u32, _>(&core, 0x10100).unwrap(), 0xaaaaaaaa);
+
+                let htonl = core.make_svc_stub(SVC_CATEGORY_WIPIC, 900u32).unwrap();
+                let swapped: u32 = core.run_function(htonl, &[0x12345678]).await.unwrap();
+                assert_eq!(swapped, 0x78563412);
+
+                let get_time = core.make_svc_stub(SVC_CATEGORY_WIPIC, 824u32).unwrap();
+                let _: u32 = core.run_function(get_time, &[0, 0]).await.unwrap();
+                let _: u32 = core.run_function(get_time, &[0, 0x10100]).await.unwrap();
+                for (index, expected) in [0i32, 0, 0, 1, 0, 70].into_iter().enumerate() {
+                    assert_eq!(read_generic::<i32, _>(&core, 0x10100 + index as u32 * 4).unwrap(), expected);
+                }
+                Ok(())
+            },
+        )
+    }
 }

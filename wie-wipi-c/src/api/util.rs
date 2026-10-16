@@ -6,6 +6,12 @@ use wipi_types::wipic::WIPICWord;
 
 use crate::context::WIPICContext;
 
+pub async fn htonl(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
+    tracing::debug!("MC_utilHtonl({val:#x})");
+
+    Ok(val.swap_bytes())
+}
+
 pub async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_utilHtons({val})");
 

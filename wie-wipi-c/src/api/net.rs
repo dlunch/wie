@@ -74,3 +74,9 @@ pub async fn set_read_callback(_context: &mut dyn WIPICContext, fd: i32, cb: WIP
     tracing::warn!("stub MC_netSetReadCB({fd}, {cb:#x}, {param:#x})");
     Ok(-1)
 }
+
+pub async fn set_write_callback(_context: &mut dyn WIPICContext, fd: i32, cb: WIPICWord, param: WIPICWord) -> Result<i32> {
+    tracing::warn!("stub MC_netSetWriteCB({fd}, {cb:#x}, {param:#x})");
+
+    Ok(-1)
+}
