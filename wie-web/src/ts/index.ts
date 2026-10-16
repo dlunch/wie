@@ -12,6 +12,8 @@ const RESTART_MESSAGE = "오류로 실행이 중단되었습니다. wie 앱을 �
 const main = async () => {
   Sentry.init({
     dsn: "https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928",
+    environment: process.env.ENVIRONMENT,
+    release: process.env.SENTRY_RELEASE,
   });
   const native = isTauri();
   const backend = await initializeWie();
