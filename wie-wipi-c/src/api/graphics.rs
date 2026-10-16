@@ -673,11 +673,62 @@ pub async fn get_framebuffer_bpp(context: &mut dyn WIPICContext, framebuffer: WI
 
 #[cfg(test)]
 mod tests {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, vec};
+    use wie_util::ByteWrite;
 
     use crate::{MethodImpl, context::test::TestContext};
 
     use super::*;
+
+    #[futures_test::test]
+    async fn indexed_bmp_transparency_is_preserved_when_drawn() -> Result<()> {
+        for (reserved, important, transparent) in [(1u16, 0x101u32, Some(1)), (1, 0x100, Some(0)), (0, 0x101, None), (1, 3, None)] {
+            let mut bmp = vec![0u8; 70];
+            bmp[..2].copy_from_slice(b"BM");
+            bmp[2..6].copy_from_slice(&70u32.to_le_bytes());
+            bmp[6..8].copy_from_slice(&reserved.to_le_bytes());
+            bmp[10..14].copy_from_slice(&66u32.to_le_bytes());
+            bmp[14..18].copy_from_slice(&40u32.to_le_bytes());
+            bmp[18..22].copy_from_slice(&3u32.to_le_bytes());
+            bmp[22..26].copy_from_slice(&1u32.to_le_bytes());
+            bmp[26..28].copy_from_slice(&1u16.to_le_bytes());
+            bmp[28..30].copy_from_slice(&8u16.to_le_bytes());
+            bmp[34..38].copy_from_slice(&4u32.to_le_bytes());
+            bmp[46..50].copy_from_slice(&3u32.to_le_bytes());
+            bmp[50..54].copy_from_slice(&important.to_le_bytes());
+            // Equal RGB values at distinct indices must retain independent transparency.
+            bmp[54..66].copy_from_slice(&[255, 0, 255, 0, 255, 0, 255, 0, 0, 0, 0, 0]);
+            bmp[66..70].copy_from_slice(&[0, 1, 2, 0]);
+
+            let mut context = TestContext::new();
+            let buffer = context.alloc(bmp.len() as u32)?;
+            context.write_bytes(context.data_ptr(buffer)?, &bmp)?;
+            let output = context.alloc_raw(4)?;
+            create_image(&mut context, output, buffer, 0, bmp.len() as u32).await?;
+            let image: WIPICIndirectPtr = read_generic(&context, output)?;
+            let destination = create_offscreen_framebuffer(&mut context, 4, 1).await?;
+            let framebuffer = FrameBuffer(read_generic(&context, context.data_ptr(destination)?)?);
+            framebuffer.write(&mut context, &[0xe0, 0x07, 0xe0, 0x07, 0xe0, 0x07, 0xe0, 0x07])?;
+            let graphics_context = context.alloc_raw(size_of::<WIPICGraphicsContext>() as u32)?;
+            init_context(&mut context, graphics_context).await?;
+            draw_image(&mut context, destination, 1, 0, 3, 1, image, 0, 0, graphics_context).await?;
+
+            let drawn = framebuffer.image(&mut context)?;
+            assert_eq!(drawn.get_pixel(0, 0).g, 255);
+            for index in 0..3 {
+                let color = drawn.get_pixel(index + 1, 0);
+                let expected = if transparent == Some(index) {
+                    [0, 255, 0]
+                } else if index == 2 {
+                    [0, 0, 0]
+                } else {
+                    [255, 0, 255]
+                };
+                assert_eq!([color.r, color.g, color.b], expected);
+            }
+        }
+        Ok(())
+    }
 
     #[futures_test::test]
     async fn context_values_are_written_to_the_output_pointer() -> Result<()> {
