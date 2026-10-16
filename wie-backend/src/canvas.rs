@@ -8,7 +8,10 @@ use ab_glyph::{Font as GlyphFont, FontArc, ScaleFont};
 use bytemuck::{Pod, cast_slice, pod_collect_to_vec};
 use image::{
     DynamicImage, ExtendedColorType, ImageEncoder, ImageReader,
-    codecs::{bmp::BmpDecoder, png::PngEncoder},
+    codecs::{
+        bmp::{BmpDecoder, BmpEncoder},
+        png::PngEncoder,
+    },
 };
 use num_traits::{Num, Zero};
 
@@ -953,6 +956,20 @@ pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
         rgba.height(),
         pod_collect_to_vec(&data),
     )) as Box<_>)
+}
+
+pub fn encode_bmp(image: &dyn Image) -> Result<Vec<u8>> {
+    let rgb = image
+        .colors()
+        .into_iter()
+        .flat_map(|color| [color.r, color.g, color.b])
+        .collect::<Vec<_>>();
+    let mut encoded = Vec::new();
+    BmpEncoder::new(&mut encoded)
+        .encode(&rgb, image.width(), image.height(), ExtendedColorType::Rgb8)
+        .map_err(|error| WieError::FatalError(error.to_string()))?;
+
+    Ok(encoded)
 }
 
 pub fn encode_png(image: &dyn Image) -> Result<Vec<u8>> {

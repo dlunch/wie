@@ -10,7 +10,7 @@ use core::mem::size_of;
 
 use wie_backend::{
     Event,
-    canvas::{Clip, Color, PixelType, Rgb565Pixel, string_width},
+    canvas::{ArgbPixel, Clip, Color, ImageBuffer, PixelType, Rgb565Pixel, VecImageBuffer, encode_bmp, string_width},
 };
 use wie_util::{Result, read_generic, write_generic};
 
@@ -254,9 +254,31 @@ pub async fn encode_image(
     height: i32,
     length: WIPICWord,
 ) -> Result<u32> {
-    tracing::warn!("stub MC_grpEncodeImage({:#x}, {x}, {y}, {width}, {height}, {length:#x})", source.0);
+    tracing::debug!("MC_grpEncodeImage({:#x}, {x}, {y}, {width}, {height}, {length:#x})", source.0);
     write_generic(context, length, 0u32)?;
-    Ok(0)
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(source)?)?);
+    if x < 0
+        || y < 0
+        || width <= 0
+        || height <= 0
+        || i64::from(x) + i64::from(width) > i64::from(framebuffer.0.width)
+        || i64::from(y) + i64::from(height) > i64::from(framebuffer.0.height)
+    {
+        return Ok(0);
+    }
+
+    let source = framebuffer.image(context)?;
+    let mut region = VecImageBuffer::<ArgbPixel>::new(width as u32, height as u32);
+    for row in 0..height {
+        for col in 0..width {
+            region.put_pixel(col, row, source.get_pixel(x + col, y + row));
+        }
+    }
+    let encoded = encode_bmp(&region)?;
+    let buffer = context.alloc(encoded.len() as u32)?;
+    context.write_bytes(context.data_ptr(buffer)?, &encoded)?;
+    write_generic(context, length, encoded.len() as u32)?;
+    Ok(buffer.0)
 }
 
 pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICIndirectPtr) -> Result<()> {
@@ -693,6 +715,41 @@ mod tests {
     use crate::{MethodImpl, context::test::TestContext};
 
     use super::*;
+
+    #[futures_test::test]
+    async fn encoded_framebuffer_region_can_be_loaded_as_an_image() -> Result<()> {
+        let mut context = TestContext::new();
+        let source = create_offscreen_framebuffer(&mut context, 3, 2).await?;
+        let framebuffer = FrameBuffer(read_generic(&context, context.data_ptr(source)?)?);
+        framebuffer.write(&mut context, &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0xf8, 0xe0, 0x07])?;
+        let length_ptr = context.alloc_raw(4)?;
+        let output = context.alloc_raw(4)?;
+        for (x, y, width, height) in [(0, 0, 3, 2), (1, 1, 2, 1)] {
+            let encoded = WIPICIndirectPtr(encode_image(&mut context, source, x, y, width, height, length_ptr).await?);
+            assert_ne!(encoded.0, 0);
+            let length: u32 = read_generic(&context, length_ptr)?;
+            assert!(length > 0);
+            assert_eq!(read_generic::<[u8; 2], _>(&context, context.data_ptr(encoded)?)?, *b"BM");
+            create_image(&mut context, output, encoded, 0, length).await?;
+            let handle: WIPICIndirectPtr = read_generic(&context, output)?;
+            let image: WIPICImage = read_generic(&context, context.data_ptr(handle)?)?;
+            let decoded = FrameBuffer(image.img).image(&mut context)?;
+            assert_eq!((decoded.width(), decoded.height()), (width as u32, height as u32));
+            let original = framebuffer.image(&mut context)?;
+            for row in 0..height {
+                for col in 0..width {
+                    let expected = original.get_pixel(x + col, y + row);
+                    let actual = decoded.get_pixel(col, row);
+                    assert_eq!([actual.r, actual.g, actual.b], [expected.r, expected.g, expected.b]);
+                }
+            }
+        }
+        for (x, y, width, height) in [(-1, 0, 1, 1), (0, 0, 0, 1), (2, 1, 2, 1), (0, 0, i32::MAX, 1)] {
+            assert_eq!(encode_image(&mut context, source, x, y, width, height, length_ptr).await?, 0);
+            assert_eq!(read_generic::<u32, _>(&context, length_ptr)?, 0);
+        }
+        Ok(())
+    }
 
     #[futures_test::test]
     async fn indexed_bmp_transparency_is_preserved_when_drawn() -> Result<()> {
