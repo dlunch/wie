@@ -65,7 +65,6 @@ windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsA
 wie-app-android = { path = "android" }
 jni = "0.21"
 ndk = "0.9"
-ndk-context = "0.1"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 midly = { version = "0.5", default-features = false, features = ["std"] }

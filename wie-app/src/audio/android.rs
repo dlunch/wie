@@ -1,4 +1,4 @@
-use std::sync::{OnceLock, mpsc};
+use std::sync::mpsc;
 
 use anyhow::{Context, Result, anyhow};
 use jni::{
@@ -9,9 +9,6 @@ use tauri::{AppHandle, Manager};
 use wie_backend::{AudioEventData, AudioHandle, AudioSequence};
 
 use super::{Warning, smf};
-
-// CPAL needs an application context for the lifetime of the process, not an Activity.
-static APPLICATION_CONTEXT: OnceLock<GlobalRef> = OnceLock::new();
 
 pub(super) struct Midi {
     vm: JavaVM,
@@ -28,16 +25,6 @@ impl Midi {
                 webview.jni_handle().exec(move |env, activity, _| {
                     let result = (|| -> Result<_> {
                         let vm = env.get_java_vm()?;
-                        let context = env
-                            .call_method(activity, "getApplicationContext", "()Landroid/content/Context;", &[])?
-                            .l()?;
-                        let context = env.new_global_ref(context)?;
-                        APPLICATION_CONTEXT.get_or_init(|| {
-                            unsafe {
-                                ndk_context::initialize_android_context(vm.get_java_vm_pointer().cast(), context.as_obj().as_raw().cast());
-                            }
-                            context
-                        });
                         let helper = (|| -> Result<_> {
                             let loader = env.call_method(activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
                             let name = env.new_string("net.dlunch.wie.audio.NativeAudio")?;
