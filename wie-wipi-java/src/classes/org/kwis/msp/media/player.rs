@@ -120,6 +120,10 @@ impl Player {
     async fn stop_clip(jvm: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::stop({clip:?})");
 
+        if clip.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "clip is null").await);
+        }
+
         let player: ClassInstanceRef<MidpPlayer> = jvm
             .get_field(&clip, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
             .await?;
@@ -142,7 +146,7 @@ mod test {
     use std::sync::Mutex;
 
     use bytemuck::cast_slice;
-    use jvm::{ClassInstanceRef, runtime::JavaLangString};
+    use jvm::{ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
     use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_backend::{AudioCommand, AudioEventData};
@@ -198,6 +202,19 @@ mod test {
             Box::new([wie_midp::get_protos().into(), get_protos().into()]),
             Box::new(platform),
             |jvm, _| async move {
+                let result: JvmResult<bool> = jvm
+                    .invoke_static(
+                        "org/kwis/msp/media/Player",
+                        "stop",
+                        "(Lorg/kwis/msp/media/Clip;)Z",
+                        (ClassInstanceRef::<Clip>::new(None),),
+                    )
+                    .await;
+                let Err(JavaError::JavaException(exception)) = result else {
+                    panic!("expected NullPointerException");
+                };
+                assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
+
                 // A single SMAF note with a 20 ms gate time.
                 let mut smaf = *b"MMMD\0\0\0\x0dSEQU\0\0\0\x03\0\x21\x01\0\0";
                 let r#type: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "audio/test").await?.into();
