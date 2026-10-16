@@ -959,6 +959,13 @@ pub async fn create_image(
     Ok(1)
 }
 
+pub async fn destroy_image(context: &mut dyn WIPICContext, ptr_image: WIPICIndirectPtr) -> Result<()> {
+    tracing::debug!("MC_grpDestroyImage({:#x})", ptr_image.0);
+    let image: LgtImage = read_record(context, ptr_image)?;
+    destroy_offscreen_framebuffer(context, WIPICIndirectPtr(image.ptr_framebuffer)).await?;
+    context.free(ptr_image)
+}
+
 pub async fn get_image_framebuffer(context: &mut dyn WIPICContext, ptr_image: WIPICIndirectPtr) -> Result<WIPICIndirectPtr> {
     Ok(WIPICIndirectPtr(read_record::<LgtImage>(context, ptr_image)?.ptr_framebuffer))
 }
@@ -979,15 +986,59 @@ mod tests {
     use futures::FutureExt;
     use test_utils::{TestPlatform, run_jvm_test_with_system};
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{Result, read_generic, write_generic};
+    use wie_util::{ByteWrite, Result, read_generic, write_generic};
     use wie_wipi_c::WIPICContext;
+    use wipi_types::wipic::{WIPICFramebuffer, WIPICIndirectPtr};
 
     use super::{
         DISPLAY_PROPERTIES_ROOT, GRAPHICS_STATE_ROOT, LgtDisplayProperties, LgtFramebuffer, LgtGraphicsContext, LgtGraphicsState, LgtGraphicsView,
-        application_y, get_context, init_context, init_process_state, normalize_context, presentation_image, set_context, set_display_property,
+        LgtImage, application_y, create_image, destroy_image, get_context, init_context, init_process_state, normalize_context, presentation_image,
+        set_context, set_display_property,
     };
     use crate::runtime::wipi_c::context::LgtWIPICContext;
     use wie_backend::canvas::{ArgbPixel, Image, PixelType, VecImageBuffer};
+
+    #[test]
+    fn destroying_an_image_releases_its_guest_allocations() -> Result<()> {
+        run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
+            let mut core = ArmCore::new(wie_backend::Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })
+            .unwrap();
+            Allocator::init(&mut core).unwrap();
+            let mut context = LgtWIPICContext::new(core.clone(), system, jvm);
+            let mut bmp = [0u8; 58];
+            bmp[..2].copy_from_slice(b"BM");
+            for (offset, value) in [(2, 58u32), (10, 54), (14, 40), (18, 1), (22, 1), (34, 4)] {
+                bmp[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+            }
+            bmp[26] = 1;
+            bmp[28] = 24;
+            let encoded = context.alloc(bmp.len() as u32).unwrap();
+            context.write_bytes(encoded.0, &bmp).unwrap();
+            let output = context.alloc_raw(4).unwrap();
+            create_image(&mut context, output, encoded, 0, bmp.len() as u32).await.unwrap();
+            let image: WIPICIndirectPtr = read_generic(&context, output).unwrap();
+            let public: LgtImage = read_generic(&context, image.0).unwrap();
+            let framebuffer: LgtFramebuffer = read_generic(&context, public.ptr_framebuffer).unwrap();
+            let backing: WIPICFramebuffer = read_generic(&context, public.ptr_image).unwrap();
+            let allocations = [image.0, public.ptr_framebuffer, framebuffer.ptr_graphics, public.ptr_image, backing.buf.0]
+                .map(|address| (address - 4, read_generic::<u32, _>(&context, address - 4).unwrap() + 4));
+            for (address, size) in allocations {
+                assert!(Allocator::is_allocated(&core, address, size).unwrap());
+            }
+
+            destroy_image(&mut context, image).await.unwrap();
+
+            for (address, size) in allocations {
+                assert!(!Allocator::is_allocated(&core, address, size).unwrap());
+            }
+            assert!(Allocator::is_allocated(&core, encoded.0 - 4, bmp.len() as u32 + 4).unwrap());
+            Ok(())
+        })
+    }
 
     #[test]
     fn context_queries_write_values_and_exclusive_clip_bounds() -> Result<()> {

@@ -57,7 +57,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::Printk => kernel::printk.into_body(),
         WIPICSvcId::Sprintk => kernel::sprintk.into_body(),
         WIPICSvcId::Unk13 => unk13.into_body(),
-        WIPICSvcId::Unk1 => unk1.into_body(),
+        WIPICSvcId::GetCurProgramId => kernel::get_cur_program_id.into_body(),
         WIPICSvcId::Exit => kernel::exit.into_body(),
         WIPICSvcId::GetProgramName => kernel::get_program_name.into_body(),
         WIPICSvcId::Alloc => kernel::alloc.into_body(),
@@ -105,13 +105,13 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::GetFontDescent => shared_graphics::get_font_descent.into_body(),
         WIPICSvcId::GetStringWidth => shared_graphics::get_string_width.into_body(),
         WIPICSvcId::CreateImage => graphics::create_image.into_body(),
-        WIPICSvcId::Unk0 => unk0.into_body(),
+        WIPICSvcId::DestroyImage => graphics::destroy_image.into_body(),
         WIPICSvcId::EncodeImage => shared_graphics::encode_image.into_body(),
-        WIPICSvcId::Unk11 => unk11.into_body(),
-        WIPICSvcId::Unk3 => unk3.into_body(),
-        WIPICSvcId::Unk4 => unk4.into_body(),
-        WIPICSvcId::Unk7 => unk7.into_body(),
-        WIPICSvcId::Unk6 => unk6.into_body(),
+        WIPICSvcId::PostEvent => shared_graphics::post_event.into_body(),
+        WIPICSvcId::GetSupportModeCount => im::get_support_mode_count.into_body(),
+        WIPICSvcId::GetSupportedModes => im::get_supported_modes.into_body(),
+        WIPICSvcId::SetCurrentMode => im::set_current_mode.into_body(),
+        WIPICSvcId::GetCurrentMode => im::get_current_mode.into_body(),
         WIPICSvcId::HandleInput => im::handle_input.into_body(),
         WIPICSvcId::TimeNow => time_now.into_body(),
         WIPICSvcId::TimeComponent => time_component.into_body(),
@@ -147,19 +147,19 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::ClipCreate => media::clip_create.into_body(),
         WIPICSvcId::ClipFree => media::clip_free.into_body(),
         WIPICSvcId::ClipPutData => media::clip_put_data.into_body(),
-        WIPICSvcId::Unk15 => unk15.into_body(),
+        WIPICSvcId::ClipClearData => media::clip_clear_data.into_body(),
         WIPICSvcId::ClipGetVolume => media::clip_get_volume.into_body(),
         WIPICSvcId::ClipSetVolume => media::clip_set_volume.into_body(),
         WIPICSvcId::Play => media::play.into_body(),
         WIPICSvcId::Pause => media::pause.into_body(),
         WIPICSvcId::Resume => media::resume.into_body(),
         WIPICSvcId::Stop => media::stop.into_body(),
-        WIPICSvcId::Unk5 => unk5.into_body(),
+        WIPICSvcId::SetVolume => media::set_volume.into_body(),
         WIPICSvcId::Vibrator => media::vibrator.into_body(),
         WIPICSvcId::Unk14 => unk14.into_body(),
         WIPICSvcId::ClipAllocPlayer => media::clip_alloc_player.into_body(),
         WIPICSvcId::ClipFreePlayer => media::clip_free_player.into_body(),
-        WIPICSvcId::Unk10 => unk10.into_body(),
+        WIPICSvcId::GetDefaultVolume => media::get_default_volume.into_body(),
         WIPICSvcId::SetMuteState => media::set_mute_state.into_body(),
         WIPICSvcId::GetMuteState => media::get_mute_state.into_body(),
         WIPICSvcId::BackLight => misc::back_light.into_body(),
@@ -249,22 +249,6 @@ async fn clet_register(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), fu
     Ok(())
 }
 
-async fn unk0(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk0({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    // graphics
-
-    Ok(0)
-}
-
-async fn unk1(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk1({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    // kernel
-
-    Ok(0)
-}
-
 async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     tracing::warn!("stub unk2");
 
@@ -274,38 +258,6 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     write_null_terminated_string_bytes(context, result, app_id.as_bytes())?;
 
     Ok(result)
-}
-
-async fn unk3(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk3({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    Ok(0)
-}
-
-async fn unk4(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk4({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    Ok(0)
-}
-
-async fn unk5(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk5({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    // media
-
-    Ok(0)
-}
-
-async fn unk6(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk6({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    Ok(0)
-}
-
-async fn unk7(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk7({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    Ok(0)
 }
 
 async fn time_now(context: &mut dyn WIPICContext, component_class: u32) -> Result<u32> {
@@ -386,18 +338,6 @@ fn civil_from_days(days: i64) -> (i32, i32, i32) {
     (year as i32, month as i32, day as i32)
 }
 
-async fn unk10(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk10({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    Ok(0)
-}
-
-async fn unk11(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk11({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    Ok(0)
-}
-
 async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
     tracing::warn!("stub unk13({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
@@ -408,14 +348,6 @@ async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
 
 async fn unk14(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
     tracing::warn!("stub unk14({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    // media
-
-    Ok(0)
-}
-
-async fn unk15(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk15({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // media
 

@@ -9,7 +9,7 @@ use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody,
-    api::{database, graphics, kernel, media, misc, net, uic, util},
+    api::{database, graphics, im, kernel, media, misc, net, uic, util},
 };
 
 use crate::runtime::{
@@ -469,10 +469,10 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICGraphicsMethodId::EncodeImage => Some(graphics::encode_image.into_body()),
             WIPICGraphicsMethodId::PostEvent => Some(graphics::post_event.into_body()),
             WIPICGraphicsMethodId::HandleInput => Some(gen_stub(37, "MC_imHandleInput")),
-            WIPICGraphicsMethodId::SetCurrentMode => Some(gen_stub(38, "MC_imSetCurrentMode")),
-            WIPICGraphicsMethodId::GetCurrentMode => Some(gen_stub(39, "MC_imGetCurrentMode")),
-            WIPICGraphicsMethodId::GetSupportModeCount => Some(gen_stub(40, "MC_imGetSupportModeCount")),
-            WIPICGraphicsMethodId::GetSupportedModes => Some(gen_stub(41, "MC_imGetSupportedModes")),
+            WIPICGraphicsMethodId::SetCurrentMode => Some(im::set_current_mode.into_body()),
+            WIPICGraphicsMethodId::GetCurrentMode => Some(im::get_current_mode.into_body()),
+            WIPICGraphicsMethodId::GetSupportModeCount => Some(im::get_support_mode_count.into_body()),
+            WIPICGraphicsMethodId::GetSupportedModes => Some(im::get_supported_modes.into_body()),
             WIPICGraphicsMethodId::FillPolygon => Some(gen_stub(42, "MC_grpFillPolygon")),
             WIPICGraphicsMethodId::DrawPolygon => Some(gen_stub(43, "MC_grpDrawPolygon")),
             WIPICGraphicsMethodId::ShowAnnunciator => Some(gen_stub(44, "OEMC_grpShowAnnunciator")),
