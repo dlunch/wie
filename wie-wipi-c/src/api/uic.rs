@@ -66,7 +66,6 @@ pub async fn get_time(context: &mut dyn WIPICContext, component: u32, out_ptr: u
     if out_ptr == 0 {
         return Ok(());
     }
-    // shortcut: return current UTC time until UI components retain their own date/time state.
     let timestamp = context.system().platform().now().raw() / 1000;
     let (year, month, day, hour, minute, second) = unix_seconds_to_utc(timestamp as i64);
     write_generic(context, out_ptr, second)?;
