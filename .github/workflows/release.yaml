@@ -310,8 +310,10 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          xcrun dsymutil target/universal-apple-darwin/release/wie-app
-          npx --yes sentry debug-files upload --include-sources --wait target/universal-apple-darwin/release/wie-app.dSYM
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            xcrun dsymutil "target/$target/release/wie-app"
+            npx --yes sentry debug-files upload --include-sources --wait "target/$target/release/wie-app.dSYM"
+          done
 
       - name: Package bundles
         run: |
