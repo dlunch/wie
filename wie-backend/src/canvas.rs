@@ -6,7 +6,10 @@ use core::mem::size_of;
 
 use ab_glyph::{Font as GlyphFont, FontArc, ScaleFont};
 use bytemuck::{Pod, cast_slice, pod_collect_to_vec};
-use image::{ExtendedColorType, ImageEncoder, ImageReader, codecs::png::PngEncoder};
+use image::{
+    DynamicImage, ExtendedColorType, ImageEncoder, ImageReader,
+    codecs::{bmp::BmpDecoder, png::PngEncoder},
+};
 use num_traits::{Num, Zero};
 
 use wie_util::{Result, WieError};
@@ -906,6 +909,34 @@ pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
 
     if data.starts_with(b"LBMP") {
         return decode_lbmp(data);
+    }
+
+    // WIPI indexed BMPs mark transparency in bfReserved1 and biClrImportant (0x100 | index).
+    if data.len() >= 54
+        && data.starts_with(b"BM")
+        && data[6..10] == [1, 0, 0, 0]
+        && data[14..18] == [40, 0, 0, 0]
+        && data[28..30] == [8, 0]
+        && data[51..54] == [1, 0, 0]
+    {
+        let mut decoder = BmpDecoder::new(Cursor::new(data)).map_err(|error| WieError::FatalError(error.to_string()))?;
+        let palette = decoder
+            .get_palette()
+            .ok_or_else(|| WieError::FatalError("Indexed BMP palette missing".into()))?
+            .to_vec();
+        decoder.set_indexed_color(true);
+        let indices = DynamicImage::from_decoder(decoder)
+            .map_err(|error| WieError::FatalError(error.to_string()))?
+            .into_luma8();
+        let pixels = indices
+            .pixels()
+            .map(|pixel| {
+                let index = pixel.0[0];
+                let [r, g, b] = palette[index as usize];
+                u32::from_le_bytes([b, g, r, if index == data[50] { 0 } else { 255 }])
+            })
+            .collect();
+        return Ok(Box::new(VecImageBuffer::<ArgbPixel>::from_raw(indices.width(), indices.height(), pixels)));
     }
 
     let image = ImageReader::new(Cursor::new(&data))
