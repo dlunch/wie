@@ -41,6 +41,7 @@ impl HandsetProperty {
 
         let value = match name.as_ref() {
             "VIBRATORLEVEL" => "0",
+            "VOLUMELEVEL" => "100",
             _ => "",
         };
 
