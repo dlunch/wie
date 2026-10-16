@@ -255,7 +255,6 @@ pub async fn encode_image(
     length: WIPICWord,
 ) -> Result<u32> {
     tracing::warn!("stub MC_grpEncodeImage({:#x}, {x}, {y}, {width}, {height}, {length:#x})", source.0);
-    // shortcut: the encoded-image format is unverified, implement when a consumer needs it.
     write_generic(context, length, 0u32)?;
     Ok(0)
 }

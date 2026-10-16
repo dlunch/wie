@@ -43,7 +43,6 @@ pub async fn socket_close(_context: &mut dyn WIPICContext, fd: i32) -> Result<i3
     Ok(-1) // M_E_ERROR
 }
 
-// shortcut: transport is unavailable, implement these APIs when a network backend exists.
 pub async fn socket(_context: &mut dyn WIPICContext, domain: i32, socket_type: i32) -> Result<i32> {
     tracing::warn!("stub MC_netSocket({domain}, {socket_type})");
     Ok(-1)

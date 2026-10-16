@@ -974,17 +974,59 @@ pub async fn get_image_property(context: &mut dyn WIPICContext, ptr_image: WIPIC
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
+    use alloc::{boxed::Box, vec};
 
     use futures::FutureExt;
+    use test_utils::{TestPlatform, run_jvm_test_with_system};
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{Result, read_generic};
+    use wie_util::{Result, read_generic, write_generic};
+    use wie_wipi_c::WIPICContext;
 
     use super::{
         DISPLAY_PROPERTIES_ROOT, GRAPHICS_STATE_ROOT, LgtDisplayProperties, LgtFramebuffer, LgtGraphicsContext, LgtGraphicsState, LgtGraphicsView,
-        application_y, init_process_state, normalize_context, presentation_image, set_display_property,
+        application_y, get_context, init_context, init_process_state, normalize_context, presentation_image, set_context, set_display_property,
     };
+    use crate::runtime::wipi_c::context::LgtWIPICContext;
     use wie_backend::canvas::{ArgbPixel, Image, PixelType, VecImageBuffer};
+
+    #[test]
+    fn context_queries_write_values_and_exclusive_clip_bounds() -> Result<()> {
+        run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
+            let mut core = ArmCore::new(wie_backend::Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })
+            .unwrap();
+            Allocator::init(&mut core).unwrap();
+            let mut context = LgtWIPICContext::new(core, system, jvm);
+            let graphics = context.alloc_raw(size_of::<LgtGraphicsContext>() as u32).unwrap();
+            let buffer = context.alloc_raw(20).unwrap();
+            init_context(&mut context, graphics).await.unwrap();
+
+            for (operation, value) in [(1, 0xf800), (2, 0x07e0), (4, 128), (5, 2), (6, 42), (7, 12), (8, 1), (9, 1)] {
+                set_context(&mut context, graphics, operation, value).await.unwrap();
+                write_generic(&mut context, buffer, [u32::MAX; 5]).unwrap();
+                get_context(&mut context, graphics, operation, buffer).await.unwrap();
+                assert_eq!(
+                    read_generic::<[u32; 5], _>(&context, buffer).unwrap(),
+                    [value, u32::MAX, u32::MAX, u32::MAX, u32::MAX]
+                );
+            }
+            write_generic(&mut context, buffer, [-3i32, 2, 27, 41, 123]).unwrap();
+            set_context(&mut context, graphics, 0, buffer).await.unwrap();
+            write_generic(&mut context, buffer, [123i32; 5]).unwrap();
+            get_context(&mut context, graphics, 0, buffer).await.unwrap();
+            assert_eq!(read_generic::<[i32; 5], _>(&context, buffer).unwrap(), [-3, 2, 27, 41, 123]);
+
+            write_generic(&mut context, buffer, [-5i32, 7, 123, 123, 123]).unwrap();
+            set_context(&mut context, graphics, 10, buffer).await.unwrap();
+            write_generic(&mut context, buffer, [123i32; 5]).unwrap();
+            get_context(&mut context, graphics, 10, buffer).await.unwrap();
+            assert_eq!(read_generic::<[i32; 5], _>(&context, buffer).unwrap(), [-5, 7, 123, 123, 123]);
+            Ok(())
+        })
+    }
 
     #[test]
     fn process_state_initializes_once_for_the_clet_lifecycle() -> Result<()> {

@@ -4,7 +4,6 @@ use wie_util::Result;
 
 use crate::WIPICContext;
 
-// shortcut: transport is unavailable, implement these APIs when a serial backend exists.
 pub async fn open(_context: &mut dyn WIPICContext, port: i32, param: WIPICWord) -> Result<i32> {
     tracing::warn!("stub MC_srlOpen({port}, {param:#x})");
     Ok(-1)
