@@ -77,7 +77,7 @@ pub fn run() {
                         api.prevent_close();
                         let window = window.clone();
                         tauri::async_runtime::spawn(async move {
-                            let _ = completion.await;
+                            completion.await;
                             let _ = window.close();
                         });
                     }
@@ -95,7 +95,7 @@ pub fn run() {
                 api.prevent_exit();
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
-                    let _ = completion.await;
+                    completion.await;
                     app.exit(code.unwrap_or(0));
                 });
             }

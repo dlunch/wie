@@ -8,15 +8,13 @@ import { rustPanic } from "./panic";
 import { initializeSettings } from "./settings";
 
 const main = async () => {
+  Sentry.init({
+    dsn: "https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928",
+    // Each failed run needs an event ID that the feedback dialog can reference.
+    integrations: defaults => defaults.filter(integration => integration.name !== "Dedupe"),
+  });
   const native = isTauri();
   const backend = await initializeWie();
-  if (backend.rendering === "canvas") {
-    Sentry.init({
-      dsn: "https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928",
-      // Each failed run needs an event ID that the feedback dialog can reference.
-      integrations: defaults => defaults.filter(integration => integration.name !== "Dedupe"),
-    });
-  }
   document.documentElement.classList.add(backend.rendering === "native" ? "native" : "browser");
   const output = document.getElementById("player-output") as HTMLDivElement;
   const browserScripts = document.getElementById("browser-scripts") as HTMLTemplateElement;
@@ -47,7 +45,6 @@ const main = async () => {
     try {
       await runApp(backend, app, settings);
     } catch (error) {
-      if (backend.rendering === "native") throw error;
       const failure = rustPanic ?? error;
       const panicked = rustPanic !== undefined;
       const eventId = Sentry.captureException(failure, {
@@ -79,6 +76,7 @@ const main = async () => {
 
 const start = () => {
   void main().catch(error => {
+    Sentry.captureException(error);
     window.alert(`라이브러리를 열 수 없습니다. ${String(error)}`);
     console.error(`라이브러리를 열 수 없습니다. ${String(error)}`, error);
   });

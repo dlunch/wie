@@ -35,7 +35,7 @@ export interface Wie {
   deleteApp(id: string): Promise<void>;
   readSettings(): Promise<Settings>;
   writeSettings(settings: Settings): Promise<void>;
-  startApp(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession>;
+  startApp(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession | undefined>;
 }
 
 export const initializeWie = async (): Promise<Wie> => {

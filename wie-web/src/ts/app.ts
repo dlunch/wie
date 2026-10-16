@@ -48,7 +48,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   let preparing = true;
   let suspended = false;
   let ending = false;
-  let start: Promise<PlayerSession>;
+  let start: Promise<PlayerSession | undefined>;
 
   playerTitle.textContent = app.title;
   playerWarning.hidden = true;
@@ -67,7 +67,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
     inputs.clear();
     updateControls();
     try {
-      await (await start).stop();
+      await (await start)?.stop();
       if (error !== undefined) reject(error);
       else resolve();
     } catch (stopError) {

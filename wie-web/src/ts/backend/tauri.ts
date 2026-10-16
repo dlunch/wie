@@ -52,18 +52,22 @@ export const initializeWie = async (): Promise<Wie> => {
           } else if (event.type === "warning") {
             report(event);
           } else {
-            startupError = event.type === "error" ? new Error(event.message) : new Error("App stopped during initialization");
             receivedClock();
-            if (session) report(event);
+            report(event);
           }
         });
-        const started = await invoke<{ sessionId: number; filename: string; bytes: number[] }>("start_app", { id, events });
+        const started = await invoke<{ sessionId: number; filename: string; bytes: number[] } | null>("start_app", { id, events });
+        if (started === null) {
+          report({ type: "stopped" });
+          return;
+        }
         host = new TauriHost(started.sessionId, error => {
           startupError ??= error;
-          if (session) report({ type: "error", message: String(error) });
+          if (session) report({ type: "error", message: String(error), cause: error });
         });
         try {
           await clockReady;
+          if (ended) return;
           if (startupError !== undefined) throw startupError;
           host.lifecycle(lifecycle!);
           const [{ startWasmSession }, fontResponse] = await Promise.all([
@@ -72,6 +76,7 @@ export const initializeWie = async (): Promise<Wie> => {
           ]);
           if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
           const font = new Uint8Array(await fontResponse.arrayBuffer());
+          if (ended) return;
           if (startupError !== undefined) throw startupError;
           const startedSession = startWasmSession(started.filename, new Uint8Array(started.bytes), font, report, host, lifecycle!.suspended);
           session = startedSession;
@@ -97,12 +102,16 @@ export const initializeWie = async (): Promise<Wie> => {
       }
       let ended = false;
       let stopping: Promise<void> | undefined;
-      const events = new Channel<SessionEvent>(event => {
+      const events = new Channel<Exclude<SessionEvent, { type: "error" }>>(event => {
         if (ended) return;
-        if (event.type === "stopped" || event.type === "error") ended = true;
+        if (event.type === "stopped") ended = true;
         onEvent(event);
       });
-      const sessionId = await invoke<number>("start_app", { id, events });
+      const sessionId = await invoke<number | null>("start_app", { id, events });
+      if (sessionId === null) {
+        onEvent({ type: "stopped" });
+        return;
+      }
       let commands = Promise.resolve();
 
       const send = (command: string, args: Record<string, unknown> = {}) => {
