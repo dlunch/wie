@@ -114,6 +114,23 @@ impl KtfEmulator {
         find_client_bin(jar).is_ok()
     }
 
+    pub fn validate_archive(files: &BTreeMap<String, Vec<u8>>) -> Result<()> {
+        let adf = files
+            .get("__adf__")
+            .ok_or_else(|| WieError::FatalError("Missing __adf__ in KTF archive".into()))?;
+        let jar_filename = format!("{}.jar", KtfAdf::parse(adf).aid);
+        let (_, jar) = files
+            .iter()
+            .find(|(path, _)| path.trim_start_matches("P/") == jar_filename)
+            .ok_or_else(|| WieError::FatalError(format!("Missing {jar_filename} in KTF archive")))?;
+        Self::validate_jar(jar)
+    }
+
+    pub fn validate_jar(jar: &[u8]) -> Result<()> {
+        let (_, client_bin) = find_client_bin(jar)?;
+        validate_client_bin(&client_bin)
+    }
+
     fn load(
         platform: Box<dyn Platform>,
         jar_filename: &str,
@@ -129,8 +146,7 @@ impl KtfEmulator {
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
             if path == jar_filename {
-                let (_, client_bin) = find_client_bin(data)?;
-                validate_client_bin(&client_bin)?;
+                Self::validate_jar(data)?;
             }
             system.filesystem().add_virtual(path, data.clone());
         }

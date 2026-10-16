@@ -21,7 +21,7 @@ use midir::MidiOutput;
 use sentry::{Hub, protocol::Context};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie::{extract_app_metadata, load_emulator};
+use wie::{determine_file_type, extract_app_metadata, load_emulator};
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
 use wie_core_arm_native::NativeExecutor;
 use wie_j2me::J2MEEmulator;
@@ -249,7 +249,7 @@ fn set_app_context(filename: &str, bytes: &[u8]) {
         .into_iter()
         .collect::<BTreeMap<_, _>>();
     // Diagnostics must not make optional app metadata a prerequisite for execution.
-    if let Ok(metadata) = extract_app_metadata(filename, bytes) {
+    if let Ok(metadata) = determine_file_type(filename, bytes).and_then(|file_type| extract_app_metadata(filename, bytes, file_type)) {
         context.insert("id".into(), metadata.id.into());
         context.insert("title".into(), metadata.title.into());
     }
