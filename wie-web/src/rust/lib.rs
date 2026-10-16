@@ -180,7 +180,8 @@ impl ImportedAppMetadata {
 
 #[wasm_bindgen(js_name = extractAppMetadata)]
 pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMetadata, JsError> {
-    let metadata = wie::extract_app_metadata(filename, buf).map_err(|error| JsError::new(&error.to_string()))?;
+    let file_type = wie::determine_file_type(filename, buf).map_err(|error| JsError::new(&error.to_string()))?;
+    let metadata = wie::extract_app_metadata(filename, buf, file_type).map_err(|error| JsError::new(&error.to_string()))?;
     Ok(ImportedAppMetadata {
         id: metadata.id,
         title: metadata.title,

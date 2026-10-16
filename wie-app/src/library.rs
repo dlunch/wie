@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow, ensure};
 use rusqlite::{Connection, Error as SqliteError, ErrorCode, OptionalExtension, Result as SqliteResult, params};
 use serde::{Deserialize, Serialize};
 
-use wie::extract_app_metadata;
+use wie::{determine_file_type, extract_app_metadata};
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,7 +59,8 @@ impl Library {
     }
 
     pub fn import(&mut self, filename: &str, bytes: &[u8]) -> Result<()> {
-        let metadata = extract_app_metadata(filename, bytes)?;
+        let file_type = determine_file_type(filename, bytes)?;
+        let metadata = extract_app_metadata(filename, bytes, file_type)?;
         let added_at: u64 = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis().try_into()?;
         match self.connection.execute(
             "INSERT INTO apps (id, title, filename, added_at, icon, archive) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -114,6 +115,7 @@ mod tests {
 
     use rusqlite::params;
     use tempfile::tempdir;
+    use wie::{FileType, extract_app_metadata};
     use wie_backend::{DatabaseRepository as _, Filesystem as _};
     use zip::{ZipWriter, write::SimpleFileOptions};
 
@@ -136,10 +138,41 @@ mod tests {
     }
 
     #[test]
+    fn library_rejects_unsupported_ktf_apps() {
+        let root = tempdir().unwrap();
+        let mut library = Library::new(root.path().to_owned()).unwrap();
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        writer.start_file("META-INF/MANIFEST.MF", SimpleFileOptions::default()).unwrap();
+        writer
+            .write_all(b"MIDlet-Name: Unsupported app\nMIDlet-1: Unsupported app, , example.Main\n")
+            .unwrap();
+        writer.start_file("client.bin40", SimpleFileOptions::default()).unwrap();
+        writer.write_all(&[0x28, 0, 0, 0, 0x1c, 0x1b, 0, 0, 0, 0, 0, 0]).unwrap();
+        let jar = writer.finish().unwrap().into_inner();
+
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        writer.start_file("__adf__", SimpleFileOptions::default()).unwrap();
+        writer
+            .write_all(b"Name:Unsupported app\nAID:test\nPID:PDtest\nMClass:example.Main\n")
+            .unwrap();
+        writer.start_file("test.jar", SimpleFileOptions::default()).unwrap();
+        writer.write_all(&jar).unwrap();
+        let archive = writer.finish().unwrap().into_inner();
+
+        for (filename, bytes) in [("test.jar", jar), ("test.zip", archive)] {
+            let metadata = extract_app_metadata(filename, &bytes, FileType::Ktf).unwrap();
+            assert_eq!(metadata.title, "Unsupported app");
+            let error = library.import(filename, &bytes).unwrap_err();
+            assert_eq!(error.to_string(), "Fatal error: Unsupported KTF client.bin format");
+            assert!(library.list().unwrap().is_empty());
+        }
+    }
+
+    #[test]
     fn library_import_uses_midlet_display_name() {
         let root = tempdir().unwrap();
         let mut library = Library::new(root.path().to_owned()).unwrap();
-        for (filename, midlet_name, expected) in [("named.jar", " App title ", "App title"), ("unnamed.jar", " ", "Suite title")] {
+        for (filename, midlet_name, expected) in [("named.jar", " App title ", "App title"), ("other.jar", "Other app", "Other app")] {
             let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
             writer.start_file("META-INF/MANIFEST.MF", SimpleFileOptions::default()).unwrap();
             write!(writer, "MIDlet-Name: Suite title\nMIDlet-1: {midlet_name}, /icon.png, example.Main\n").unwrap();
@@ -147,10 +180,11 @@ mod tests {
             writer.write_all(b"icon").unwrap();
             let jar = writer.finish().unwrap().into_inner();
             library.import(filename, &jar).unwrap();
-            let (metadata, _) = library.read_archive(filename).unwrap();
+            let (metadata, _) = library.read_archive(expected).unwrap();
             assert_eq!(metadata.title, expected);
-            assert_eq!(metadata.id, filename);
+            assert_eq!(metadata.id, expected);
             assert_eq!(metadata.icon.as_deref(), Some(b"icon".as_slice()));
+            assert_eq!(library.import("renamed.jar", &jar).unwrap_err().to_string(), "App is already imported");
         }
     }
 

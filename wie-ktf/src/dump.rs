@@ -7,7 +7,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{ByteRead, Result, WieError};
 
 use crate::{
-    adf::{KtfAdf, find_client_bin, parse_bss_size},
+    adf::{KtfAdf, find_client_bin, parse_bss_size, validate_client_bin},
     emulator::IMAGE_BASE,
 };
 
@@ -28,6 +28,7 @@ pub async fn dump_image(zip: &[u8]) -> Result<Vec<u8>> {
         .ok_or_else(|| WieError::FatalError(format!("Missing {jar_filename} in KTF archive")))?;
 
     let (client_bin_name, data) = find_client_bin(jar)?;
+    validate_client_bin(&data)?;
     let bss_size = parse_bss_size(&client_bin_name)?;
 
     let mut core = ArmCore::new(wie_backend::Options {
