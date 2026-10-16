@@ -1,11 +1,13 @@
 import path from "path";
 import os from "os";
 import { spawn } from "child_process";
+import { mkdir } from "fs/promises";
 
 import webpack from "webpack";
 import HtmlBundlerPlugin from "html-bundler-webpack-plugin";
 import TsConfigPathsPlugin from "tsconfig-paths-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
+import { createSentrySDK } from "sentry";
 
 class WasmPackPlugin {
   readonly crateDir: string;
@@ -31,15 +33,24 @@ class WasmPackPlugin {
       needsBuild = [...modified].some(f => f === cargoToml || f.startsWith(rustDir + path.sep));
     });
 
-    compiler.hooks.beforeCompile.tapPromise("WasmPackPlugin", () => {
-      if (!needsBuild) return Promise.resolve();
+    compiler.hooks.beforeCompile.tapPromise("WasmPackPlugin", async () => {
+      if (!needsBuild) return;
       needsBuild = false;
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const args = ["build", this.crateDir, "--target", "bundler", dev ? "--dev" : "--release"];
         const proc = spawn("wasm-pack", args, { stdio: "inherit", env });
         proc.on("exit", code => code === 0 ? resolve() : reject(new Error(`wasm-pack exited with code ${code}`)));
         proc.on("error", reject);
       });
+      if (!dev) {
+        const debugDir = path.resolve(this.crateDir, "../target/sentry");
+        await mkdir(debugDir, { recursive: true });
+        await createSentrySDK()["wasm-split"]({
+          input: path.join(this.crateDir, "pkg/wie_web_bg.wasm"),
+          debugOut: path.join(debugDir, "wie_web.debug.wasm"),
+          strip: true,
+        });
+      }
     });
 
     compiler.hooks.afterCompile.tap("WasmPackPlugin", compilation => {
