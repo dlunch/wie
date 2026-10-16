@@ -13,6 +13,8 @@ pub async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WI
 }
 
 pub async fn inet_addr(context: &mut dyn WIPICContext, address: WIPICWord) -> Result<WIPICWord> {
+    tracing::debug!("MC_utilInetAddr({address:#x})");
+
     let bytes = read_null_terminated_string_bytes(context, address)?;
     let address = str::from_utf8(&bytes).ok().and_then(|value| value.parse::<Ipv4Addr>().ok());
     Ok(address.map_or(u32::MAX, |address| u32::from_le_bytes(address.octets())))
