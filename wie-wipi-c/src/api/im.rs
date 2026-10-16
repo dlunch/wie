@@ -4,6 +4,26 @@ use wipi_types::wipic::WIPICWord;
 
 use crate::context::WIPICContext;
 
+pub async fn get_support_mode_count(_context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::warn!("stub MC_imGetSurpportModeCount()");
+    Ok(0)
+}
+
+pub async fn get_supported_modes(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_imGetSupportedModes()");
+    Ok(0)
+}
+
+pub async fn set_current_mode(_context: &mut dyn WIPICContext, mode: i32) -> Result<i32> {
+    tracing::warn!("stub MC_imSetCurrentMode({mode})");
+    Ok(-1)
+}
+
+pub async fn get_current_mode(_context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::warn!("stub MC_imGetCurrentMode()");
+    Ok(-1)
+}
+
 pub async fn handle_input(
     context: &mut dyn WIPICContext,
     key: WIPICWord,

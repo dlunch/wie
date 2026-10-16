@@ -42,3 +42,35 @@ pub async fn socket_close(_context: &mut dyn WIPICContext, fd: i32) -> Result<i3
 
     Ok(-1) // M_E_ERROR
 }
+
+pub async fn socket(_context: &mut dyn WIPICContext, domain: i32, socket_type: i32) -> Result<i32> {
+    tracing::warn!("stub MC_netSocket({domain}, {socket_type})");
+    Ok(-1)
+}
+
+pub async fn socket_connect(
+    _context: &mut dyn WIPICContext,
+    fd: i32,
+    address: WIPICWord,
+    port: WIPICWord,
+    cb: WIPICWord,
+    param: WIPICWord,
+) -> Result<i32> {
+    tracing::warn!("stub MC_netSocketConnect({fd}, {address:#x}, {port}, {cb:#x}, {param:#x})");
+    Ok(-1)
+}
+
+pub async fn socket_write(_context: &mut dyn WIPICContext, fd: i32, buffer: WIPICWord, length: i32) -> Result<i32> {
+    tracing::warn!("stub MC_netSocketWrite({fd}, {buffer:#x}, {length})");
+    Ok(-1)
+}
+
+pub async fn socket_read(_context: &mut dyn WIPICContext, fd: i32, buffer: WIPICWord, length: i32) -> Result<i32> {
+    tracing::warn!("stub MC_netSocketRead({fd}, {buffer:#x}, {length})");
+    Ok(-1)
+}
+
+pub async fn set_read_callback(_context: &mut dyn WIPICContext, fd: i32, cb: WIPICWord, param: WIPICWord) -> Result<i32> {
+    tracing::warn!("stub MC_netSetReadCB({fd}, {cb:#x}, {param:#x})");
+    Ok(-1)
+}

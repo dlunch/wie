@@ -153,6 +153,11 @@ pub async fn clip_get_data(_context: &mut dyn WIPICContext, clip: WIPICWord, buf
     Ok(0)
 }
 
+pub async fn clip_clear_data(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<i32> {
+    tracing::warn!("stub MC_mdaClipClearData({clip:#x})");
+    Ok(0)
+}
+
 pub async fn clip_set_position(_context: &mut dyn WIPICContext, clip: WIPICWord, ms: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaClipSetPosition({clip:#x}, {ms:#x})");
 
@@ -181,6 +186,11 @@ pub async fn set_volume(_context: &mut dyn WIPICContext, volume: i32) -> Result<
     tracing::warn!("stub MC_mdaSetVolume({volume})");
 
     Ok(())
+}
+
+pub async fn get_default_volume(_context: &mut dyn WIPICContext, category: WIPICWord) -> Result<i32> {
+    tracing::warn!("stub OEMC_mdaGetDefaultVolume({category:#x})");
+    Ok(0)
 }
 
 pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> Result<i32> {

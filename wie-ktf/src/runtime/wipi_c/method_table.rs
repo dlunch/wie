@@ -9,7 +9,7 @@ use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody,
-    api::{database, graphics, kernel, media, misc, net, uic, util},
+    api::{database, graphics, im, kernel, media, misc, net, uic, util},
 };
 
 use crate::runtime::{
@@ -301,10 +301,10 @@ pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
     vec![
         net::connect.into_body(),
         net::close.into_body(),
-        gen_stub(2, "MC_netSocket"),
-        gen_stub(3, "MC_netSocketConnect"),
-        gen_stub(4, "MC_netSocketWrite"),
-        gen_stub(5, "MC_netSocketRead"),
+        net::socket.into_body(),
+        net::socket_connect.into_body(),
+        net::socket_write.into_body(),
+        net::socket_read.into_body(),
         net::socket_close.into_body(),
         gen_stub(7, "MC_netSocketBind"),
         gen_stub(8, "MC_netGetMaxPacketLength"),
@@ -312,7 +312,7 @@ pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(10, "MC_netSocketRcvFrom"),
         gen_stub(11, "MC_netGetHostAddr"),
         gen_stub(12, "MC_netSocketAccept"),
-        gen_stub(13, "MC_netSetReadCB"),
+        net::set_read_callback.into_body(),
         gen_stub(14, "MC_netSetWriteCB"),
         gen_stub(15, "MC_netHttpOpen"),
         gen_stub(16, "MC_netHttpConnect"),
@@ -466,13 +466,13 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICGraphicsMethodId::CreateImage => Some(graphics::create_image.into_body()),
             WIPICGraphicsMethodId::DestroyImage => Some(graphics::destroy_image.into_body()),
             WIPICGraphicsMethodId::DecodeNextImage => Some(gen_stub(34, "MC_grpDecodeNextImage")),
-            WIPICGraphicsMethodId::EncodeImage => Some(gen_stub(35, "MC_grpEncodeImage")),
+            WIPICGraphicsMethodId::EncodeImage => Some(graphics::encode_image.into_body()),
             WIPICGraphicsMethodId::PostEvent => Some(graphics::post_event.into_body()),
             WIPICGraphicsMethodId::HandleInput => Some(gen_stub(37, "MC_imHandleInput")),
-            WIPICGraphicsMethodId::SetCurrentMode => Some(gen_stub(38, "MC_imSetCurrentMode")),
-            WIPICGraphicsMethodId::GetCurrentMode => Some(gen_stub(39, "MC_imGetCurrentMode")),
-            WIPICGraphicsMethodId::GetSupportModeCount => Some(gen_stub(40, "MC_imGetSupportModeCount")),
-            WIPICGraphicsMethodId::GetSupportedModes => Some(gen_stub(41, "MC_imGetSupportedModes")),
+            WIPICGraphicsMethodId::SetCurrentMode => Some(im::set_current_mode.into_body()),
+            WIPICGraphicsMethodId::GetCurrentMode => Some(im::get_current_mode.into_body()),
+            WIPICGraphicsMethodId::GetSupportModeCount => Some(im::get_support_mode_count.into_body()),
+            WIPICGraphicsMethodId::GetSupportedModes => Some(im::get_supported_modes.into_body()),
             WIPICGraphicsMethodId::FillPolygon => Some(gen_stub(42, "MC_grpFillPolygon")),
             WIPICGraphicsMethodId::DrawPolygon => Some(gen_stub(43, "MC_grpDrawPolygon")),
             WIPICGraphicsMethodId::ShowAnnunciator => Some(gen_stub(44, "OEMC_grpShowAnnunciator")),
