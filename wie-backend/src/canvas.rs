@@ -7,7 +7,7 @@ use core::mem::size_of;
 use ab_glyph::{Font as GlyphFont, FontArc, ScaleFont};
 use bytemuck::{Pod, cast_slice, pod_collect_to_vec};
 use image::{
-    DynamicImage, ExtendedColorType, ImageDecoder, ImageEncoder, ImageReader, Limits,
+    DynamicImage, ExtendedColorType, ImageEncoder, ImageReader,
     codecs::{bmp::BmpDecoder, png::PngEncoder},
 };
 use num_traits::{Num, Zero};
@@ -920,9 +920,6 @@ pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
         && data[51..54] == [1, 0, 0]
     {
         let mut decoder = BmpDecoder::new(Cursor::new(data)).map_err(|error| WieError::FatalError(error.to_string()))?;
-        Limits::default()
-            .reserve(decoder.total_bytes())
-            .map_err(|error| WieError::FatalError(error.to_string()))?;
         let palette = decoder
             .get_palette()
             .ok_or_else(|| WieError::FatalError("Indexed BMP palette missing".into()))?
