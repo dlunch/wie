@@ -245,6 +245,21 @@ pub async fn create_image(
     Ok(1) // MC_GRP_IMAGE_DONE
 }
 
+pub async fn encode_image(
+    context: &mut dyn WIPICContext,
+    source: WIPICIndirectPtr,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    length: WIPICWord,
+) -> Result<u32> {
+    tracing::warn!("stub MC_grpEncodeImage({:#x}, {x}, {y}, {width}, {height}, {length:#x})", source.0);
+    // shortcut: the encoded-image format is unverified, implement when a consumer needs it.
+    write_generic(context, length, 0u32)?;
+    Ok(0)
+}
+
 pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICIndirectPtr) -> Result<()> {
     tracing::debug!("MC_grpDestroyImage({:#x})", image.0);
 

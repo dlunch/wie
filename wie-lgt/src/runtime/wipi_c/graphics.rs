@@ -522,6 +522,33 @@ pub async fn set_context(context: &mut dyn WIPICContext, ptr_context: WIPICWord,
     write_generic(context, ptr_context, graphics)
 }
 
+pub async fn get_context(context: &mut dyn WIPICContext, ptr_context: WIPICWord, operation: WIPICWord, output: WIPICWord) -> Result<()> {
+    tracing::debug!("MC_grpGetContext({ptr_context:#x}, {operation}, {output:#x})");
+    let graphics: LgtGraphicsContext = read_generic(context, ptr_context)?;
+    match operation {
+        0 => write_generic(
+            context,
+            output,
+            [
+                graphics.clip_x1,
+                graphics.clip_y1,
+                graphics.clip_x2.wrapping_add(1),
+                graphics.clip_y2.wrapping_add(1),
+            ],
+        ),
+        1 => write_generic(context, output, graphics.foreground),
+        2 => write_generic(context, output, graphics.background),
+        4 => write_generic(context, output, graphics.alpha),
+        5 => write_generic(context, output, graphics.pixel_op),
+        6 => write_generic(context, output, graphics.pixel_param),
+        7 => write_generic(context, output, graphics.font),
+        8 => write_generic(context, output, graphics.style),
+        9 => write_generic(context, output, graphics.xor_enabled),
+        10 => write_generic(context, output, [graphics.offset_x, graphics.offset_y]),
+        _ => Ok(()),
+    }
+}
+
 pub async fn put_pixel(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x: i32, y: i32, ptr_graphics: WIPICWord) -> Result<()> {
     let resolved = resolve_framebuffer(context, dst)?;
     let graphics = resolve_context(context, &resolved, ptr_graphics)?;
