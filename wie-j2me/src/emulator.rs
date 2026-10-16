@@ -20,7 +20,7 @@ pub struct J2MEEmulator {
 impl J2MEEmulator {
     pub fn jar_metadata(jar: &[u8]) -> Result<Option<(String, Option<Vec<u8>>)>> {
         let files = extract_zip(jar)?;
-        let Some(manifest) = files.get("META-INF/MANIFEST.MF") else {
+        let Some((_, manifest)) = files.iter().find(|(path, _)| path.eq_ignore_ascii_case("META-INF/MANIFEST.MF")) else {
             return Ok(None);
         };
         let descriptor = J2MEDescriptor::parse(manifest);
@@ -46,8 +46,9 @@ impl J2MEEmulator {
 
     pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>) -> Result<Self> {
         let contents = extract_zip(&jar)?;
-        let manifest = contents
-            .get("META-INF/MANIFEST.MF")
+        let (_, manifest) = contents
+            .iter()
+            .find(|(path, _)| path.eq_ignore_ascii_case("META-INF/MANIFEST.MF"))
             .ok_or_else(|| WieError::FatalError("JAR manifest not found".into()))?;
         let descriptor = J2MEDescriptor::parse(manifest);
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
@@ -218,18 +219,23 @@ mod tests {
     #[test]
     fn jar_and_jad_use_midlet_name_for_storage() {
         let manifest = b"MIDlet-Name: My MIDlet Suite\nMIDlet-1: App title, , example.Main\n";
-        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
-        writer.start_file("META-INF/MANIFEST.MF", SimpleFileOptions::default()).unwrap();
-        writer.write_all(manifest).unwrap();
-        let jar = writer.finish().unwrap().into_inner();
+        for path in ["META-INF/MANIFEST.MF", "meta-inf/manifest.mf", "Meta-Inf/Manifest.Mf"] {
+            let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+            writer.start_file(path, SimpleFileOptions::default()).unwrap();
+            writer.write_all(manifest).unwrap();
+            let jar = writer.finish().unwrap().into_inner();
+            let (title, _) = J2MEEmulator::jar_metadata(&jar).unwrap().unwrap();
+            assert_eq!(title, "App title");
 
-        for filename in ["original.jar", "renamed.jar"] {
-            let emulator = J2MEEmulator::from_jar(Box::new(TestPlatform::new()), filename, jar.clone()).unwrap();
-            assert_eq!(emulator.system.pid(), "App title");
-            assert_eq!(emulator.system.aid(), "App title");
-            let emulator = J2MEEmulator::from_jad_jar(Box::new(TestPlatform::new()), manifest.to_vec(), filename.to_string(), jar.clone()).unwrap();
-            assert_eq!(emulator.system.pid(), "App title");
-            assert_eq!(emulator.system.aid(), "App title");
+            for filename in ["original.jar", "renamed.jar"] {
+                let emulator = J2MEEmulator::from_jar(Box::new(TestPlatform::new()), filename, jar.clone()).unwrap();
+                assert_eq!(emulator.system.pid(), "App title");
+                assert_eq!(emulator.system.aid(), "App title");
+                let emulator =
+                    J2MEEmulator::from_jad_jar(Box::new(TestPlatform::new()), manifest.to_vec(), filename.to_string(), jar.clone()).unwrap();
+                assert_eq!(emulator.system.pid(), "App title");
+                assert_eq!(emulator.system.aid(), "App title");
+            }
         }
     }
 
