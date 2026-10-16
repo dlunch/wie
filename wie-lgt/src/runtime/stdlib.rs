@@ -45,7 +45,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
             x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&memset, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Time as u32 => EmulatedFunction::call(&time, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Localtime as u32 => EmulatedFunction::call(&localtime, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Unk3 as u32 => EmulatedFunction::call(&unk3, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Atexit as u32 => EmulatedFunction::call(&atexit, core, &mut ()).await?.write(core, lr),
             _ => Err(WieError::FatalError(format!("Unknown lgt stdlib import: {:#x}", id.0))),
         }
     }
@@ -385,12 +385,10 @@ async fn unk2(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     Ok(())
 }
 
-async fn unk3(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("unk3({a0:#x})");
+async fn atexit(_core: &mut ArmCore, _: &mut (), callback: u32) -> Result<u32> {
+    tracing::warn!("stub atexit({callback:#x})");
 
-    let _: () = core.run_function(a0, &[]).await?;
-
-    Ok(())
+    Ok(0)
 }
 
 async fn strstr(core: &mut ArmCore, _: &mut (), ptr_haystack: u32, ptr_needle: u32) -> Result<u32> {

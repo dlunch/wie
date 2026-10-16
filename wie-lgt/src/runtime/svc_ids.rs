@@ -404,7 +404,7 @@ pub enum StdlibSvcId {
     Memset = 0x418,
     Time = 0x41a,
     Localtime = 0x420,
-    Unk3 = 0x424,
+    Atexit = 0x424,
 }
 
 impl From<StdlibSvcId> for u32 {
