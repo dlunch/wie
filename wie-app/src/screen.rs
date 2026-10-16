@@ -67,6 +67,7 @@ struct LibraryWindow {
 struct UiView {
     native: Rc<platform::View>,
     pending: Arc<Mutex<Pending>>,
+    #[cfg(desktop)]
     window: WebviewWindow,
     playing: Cell<bool>,
     #[cfg(desktop)]
@@ -126,6 +127,7 @@ impl NativeView {
     pub fn new(window: WebviewWindow) -> Result<Self> {
         let pending = Arc::new(Mutex::new(Pending::default()));
         let state = pending.clone();
+        #[cfg(desktop)]
         let window_for_view = window.clone();
         let errors = pending.clone();
         window.with_webview(move |webview| {
@@ -133,6 +135,7 @@ impl NativeView {
                 VIEW.set(Some(Rc::new(UiView {
                     native,
                     pending: state,
+                    #[cfg(desktop)]
                     window: window_for_view,
                     playing: Cell::new(false),
                     #[cfg(desktop)]
