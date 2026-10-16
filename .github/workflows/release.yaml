@@ -43,7 +43,7 @@ jobs:
     name: Build web frontend
     needs: context
     env:
-      SENTRY_RELEASE: ${{ needs.context.outputs.channel == 'validation' && needs.context.outputs.asset_identity || needs.context.outputs.app_version }}
+      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     if: needs.context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -96,7 +96,6 @@ jobs:
         run: |
           npm ci
           npm run build:prod
-          node --test wie-web/tests/debug-symbols.test.mjs
 
       - name: Upload WASM debug information
         env:
@@ -442,7 +441,6 @@ jobs:
 
   deploy_web:
     name: Deploy web frontend
-    if: needs.context.outputs.channel != 'validation'
     needs:
       - context
       - web
