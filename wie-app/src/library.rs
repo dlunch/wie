@@ -172,7 +172,7 @@ mod tests {
     fn library_import_uses_midlet_display_name() {
         let root = tempdir().unwrap();
         let mut library = Library::new(root.path().to_owned()).unwrap();
-        for (filename, midlet_name, expected) in [("named.jar", " App title ", "App title"), ("unnamed.jar", " ", "Suite title")] {
+        for (filename, midlet_name, expected) in [("named.jar", " App title ", "App title"), ("other.jar", "Other app", "Other app")] {
             let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
             writer.start_file("META-INF/MANIFEST.MF", SimpleFileOptions::default()).unwrap();
             write!(writer, "MIDlet-Name: Suite title\nMIDlet-1: {midlet_name}, /icon.png, example.Main\n").unwrap();
@@ -180,10 +180,11 @@ mod tests {
             writer.write_all(b"icon").unwrap();
             let jar = writer.finish().unwrap().into_inner();
             library.import(filename, &jar).unwrap();
-            let (metadata, _) = library.read_archive(filename).unwrap();
+            let (metadata, _) = library.read_archive(expected).unwrap();
             assert_eq!(metadata.title, expected);
-            assert_eq!(metadata.id, filename);
+            assert_eq!(metadata.id, expected);
             assert_eq!(metadata.icon.as_deref(), Some(b"icon".as_slice()));
+            assert_eq!(library.import("renamed.jar", &jar).unwrap_err().to_string(), "App is already imported");
         }
     }
 
