@@ -10,6 +10,7 @@ const config: webpack.Configuration = merge(commonConfig("production"), {
   devtool: "hidden-source-map",
   plugins: [
     sentryWebpackPlugin({
+      // Fail the build on upload errors, which the plugin otherwise only logs.
       errorHandler(error) { throw error; },
       sourcemaps: {
         filesToDeleteAfterUpload: ["wie-web/dist/**/*.map"],
