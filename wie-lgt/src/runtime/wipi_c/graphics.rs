@@ -25,10 +25,6 @@ struct LgtGraphicsState {
     physical_width: u32,
     physical_height: u32,
     use_annunciator: u32,
-    application_view_active: u32,
-    ptr_screen_backing: u32,
-    ptr_screen_view: u32,
-    ptr_annunciator_view: u32,
     ptr_screen_wrapper: u32,
 }
 
@@ -86,10 +82,6 @@ pub fn init_process_state(core: &mut ArmCore, physical_width: u32, physical_heig
             properties.physical_height
         },
         use_annunciator: properties.use_annunciator,
-        application_view_active: 0,
-        ptr_screen_backing: 0,
-        ptr_screen_view: 0,
-        ptr_annunciator_view: 0,
         ptr_screen_wrapper: 0,
     };
     let ptr_state = Allocator::alloc(core, size_of::<LgtGraphicsState>() as u32)?;
@@ -173,17 +165,9 @@ fn annunciator_height(width: u32) -> u32 {
     }
 }
 
-fn requested_application_y(state: &LgtGraphicsState) -> u32 {
+fn application_y(state: &LgtGraphicsState) -> u32 {
     if state.use_annunciator != 0 {
         annunciator_height(state.physical_width)
-    } else {
-        0
-    }
-}
-
-fn application_y(state: &LgtGraphicsState) -> u32 {
-    if state.application_view_active != 0 {
-        requested_application_y(state)
     } else {
         0
     }
@@ -332,32 +316,6 @@ fn image_framebuffer(context: &dyn WIPICContext, ptr_image: WIPICIndirectPtr) ->
     Ok(FrameBuffer(read_record(context, WIPICIndirectPtr(image.ptr_image))?))
 }
 
-fn activate_application_view(context: &mut dyn WIPICContext, handle: WIPICIndirectPtr) -> Result<()> {
-    let (ptr_state, mut state) = state(context)?;
-    if state.application_view_active != 0 || state.use_annunciator == 0 || state.ptr_screen_wrapper != handle.0 {
-        return Ok(());
-    }
-
-    let app_y = requested_application_y(&state);
-    let app_height = state.physical_height.checked_sub(app_y).ok_or_else(|| {
-        WieError::FatalError(alloc::format!(
-            "Invalid LGT display region: {}x{} with annunciator {app_y}",
-            state.physical_width,
-            state.physical_height
-        ))
-    })?;
-    let ptr_screen_view_handle = WIPICIndirectPtr(state.ptr_screen_view);
-    let mut screen_view: LgtGraphicsView = read_record(context, ptr_screen_view_handle)?;
-    screen_view.y = app_y as i32;
-    screen_view.height = app_height;
-    write_generic(context, context.data_ptr(ptr_screen_view_handle)?, screen_view)?;
-
-    let ptr_annunciator_view = create_view(context, WIPICIndirectPtr(state.ptr_screen_backing), 0, 0, state.physical_width, app_y)?;
-    state.application_view_active = 1;
-    state.ptr_annunciator_view = ptr_annunciator_view.0;
-    write_generic(context, ptr_state, state)
-}
-
 pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, kind: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({kind:#x})");
     if kind != 0 {
@@ -369,8 +327,16 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, kind: WIPICW
         return Ok(WIPICIndirectPtr(state.ptr_screen_wrapper));
     }
 
+    let app_y = application_y(&state);
+    let app_height = state.physical_height.checked_sub(app_y).ok_or_else(|| {
+        WieError::FatalError(alloc::format!(
+            "Invalid LGT display region: {}x{} with annunciator {app_y}",
+            state.physical_width,
+            state.physical_height
+        ))
+    })?;
     let ptr_backing = create_backing(context, state.physical_width, state.physical_height)?;
-    let ptr_screen_view = create_view(context, ptr_backing, 0, 0, state.physical_width, state.physical_height)?;
+    let ptr_screen_view = create_view(context, ptr_backing, 0, app_y as i32, state.physical_width, app_height)?;
     let ptr_wrapper = alloc_record(
         context,
         LgtFramebuffer {
@@ -381,9 +347,6 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, kind: WIPICW
         },
     )?;
 
-    state.ptr_screen_backing = ptr_backing.0;
-    state.ptr_screen_view = ptr_screen_view.0;
-    state.ptr_annunciator_view = 0;
     state.ptr_screen_wrapper = ptr_wrapper.0;
     write_generic(context, ptr_state, state)?;
     resize_presentation(context, state.physical_width, state.physical_height)?;
@@ -426,7 +389,6 @@ pub async fn destroy_offscreen_framebuffer(context: &mut dyn WIPICContext, handl
 
 pub async fn get_framebuffer_pointer(context: &mut dyn WIPICContext, handle: WIPICIndirectPtr) -> Result<WIPICWord> {
     tracing::debug!("MC_GRP_GET_FRAME_BUFFER_POINTER({:#x})", handle.0);
-    activate_application_view(context, handle)?;
     Ok(resolve_framebuffer(context, handle)?.framebuffer.0.buf.0)
 }
 
@@ -988,12 +950,13 @@ mod tests {
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::{ByteWrite, Result, read_generic, write_generic};
     use wie_wipi_c::WIPICContext;
-    use wipi_types::wipic::{WIPICFramebuffer, WIPICIndirectPtr};
+    use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICIndirectPtr};
 
     use super::{
         DISPLAY_PROPERTIES_ROOT, GRAPHICS_STATE_ROOT, LgtDisplayProperties, LgtFramebuffer, LgtGraphicsContext, LgtGraphicsState, LgtGraphicsView,
-        LgtImage, application_y, create_image, destroy_image, get_context, init_context, init_process_state, normalize_context, presentation_image,
-        set_context, set_display_property,
+        LgtImage, create_image, destroy_image, get_context, get_display_info, get_framebuffer_bpl, get_framebuffer_height, get_framebuffer_pointer,
+        get_screen_framebuffer, init_context, init_process_state, normalize_context, presentation_image, set_context, set_display_property,
+        set_use_annunciator,
     };
     use crate::runtime::wipi_c::context::LgtWIPICContext;
     use wie_backend::canvas::{ArgbPixel, Image, PixelType, VecImageBuffer};
@@ -1149,23 +1112,41 @@ mod tests {
     }
 
     #[test]
-    fn annunciator_request_only_changes_application_geometry_after_raw_screen_access() {
-        let mut state = LgtGraphicsState {
-            physical_width: 240,
-            physical_height: 320,
-            use_annunciator: 1,
-            application_view_active: 0,
-            ptr_screen_backing: 0,
-            ptr_screen_view: 0,
-            ptr_annunciator_view: 0,
-            ptr_screen_wrapper: 0,
-        };
+    fn screen_geometry_is_stable_before_and_after_raw_pointer_access() -> Result<()> {
+        for (use_annunciator, app_y) in [(1, 24u32), (0, 0)] {
+            run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), move |jvm, system| async move {
+                let mut core = ArmCore::new(wie_backend::Options {
+                    enable_gdbserver: false,
+                    aot: None,
+                    profile: None,
+                })
+                .unwrap();
+                Allocator::init(&mut core).unwrap();
+                init_process_state(&mut core, 240, 320).unwrap();
+                set_use_annunciator(&mut core, use_annunciator).unwrap();
+                let mut context = LgtWIPICContext::new(core, system, jvm);
+                let info = context.alloc_raw(size_of::<WIPICDisplayInfo>() as u32).unwrap();
+                get_display_info(&mut context, 0, info).await.unwrap();
+                let before: WIPICDisplayInfo = read_generic(&context, info).unwrap();
+                assert_eq!(before.height, 320 - app_y);
 
-        assert_eq!(application_y(&state), 0);
-        state.application_view_active = 1;
-        assert_eq!(application_y(&state), 24);
-        state.use_annunciator = 0;
-        assert_eq!(application_y(&state), 0);
+                let screen = get_screen_framebuffer(&mut context, 0).await.unwrap();
+                let height = get_framebuffer_height(&mut context, screen).await.unwrap() as u32;
+                let bpl = get_framebuffer_bpl(&mut context, screen).await.unwrap() as u32;
+                let pixels = get_framebuffer_pointer(&mut context, screen).await.unwrap();
+                assert_eq!(height, before.height);
+                assert_eq!(get_framebuffer_height(&mut context, screen).await.unwrap() as u32, height);
+                get_display_info(&mut context, 0, info).await.unwrap();
+                assert_eq!(read_generic::<WIPICDisplayInfo, _>(&context, info).unwrap().height, height);
+
+                let following = context.alloc(1024).unwrap();
+                context.write_bytes(pixels + app_y * bpl, &vec![0x5a; (height * bpl) as usize]).unwrap();
+                // A full native draw must leave the next heap allocation intact.
+                context.free(following).unwrap();
+                Ok(())
+            })?;
+        }
+        Ok(())
     }
 
     #[test]
@@ -1174,10 +1155,6 @@ mod tests {
             physical_width: 240,
             physical_height: 320,
             use_annunciator: 1,
-            application_view_active: 1,
-            ptr_screen_backing: 0,
-            ptr_screen_view: 0,
-            ptr_annunciator_view: 0,
             ptr_screen_wrapper: 0,
         };
         let framebuffer = LgtFramebuffer {

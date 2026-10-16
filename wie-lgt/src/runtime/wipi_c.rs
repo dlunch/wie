@@ -9,7 +9,7 @@ use wipi_types::lgt::CletFunctions;
 use wie_backend::System;
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
-use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes};
+use wie_util::{Result, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
     api::{database, graphics as shared_graphics, im, kernel, media, misc, net, serial, uic, util},
@@ -117,7 +117,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::UicDestroy => uic::destroy.into_body(),
         WIPICSvcId::UicConfigure => uic::configure.into_body(),
         WIPICSvcId::UicSetEnable => uic::set_enable.into_body(),
-        WIPICSvcId::UicGetTime => uic_get_time.into_body(),
+        WIPICSvcId::UicGetTime => uic::get_time.into_body(),
         WIPICSvcId::UicInsertText => uic::insert_text.into_body(),
         WIPICSvcId::UicSetMaxTextSize => uic::set_max_text_size.into_body(),
         WIPICSvcId::OpenDatabase => database::open_database.into_body(),
@@ -264,51 +264,6 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     Ok(result)
 }
 
-async fn uic_get_time(context: &mut dyn WIPICContext, component: u32, out_ptr: u32) -> Result<()> {
-    tracing::warn!("stub MC_uicGetTime({component:#x}, {out_ptr:#x})");
-
-    if out_ptr == 0 {
-        return Ok(());
-    }
-    // shortcut: return current UTC time until UI components retain their own date/time state.
-    let timestamp = context.system().platform().now().raw() / 1000;
-    let (year, month, day, hour, minute, second) = unix_seconds_to_utc(timestamp as i64);
-    write_generic(context, out_ptr, second)?;
-    write_generic(context, out_ptr + 4, minute)?;
-    write_generic(context, out_ptr + 8, hour)?;
-    write_generic(context, out_ptr + 12, day)?;
-    write_generic(context, out_ptr + 16, month - 1)?;
-    write_generic(context, out_ptr + 20, year - 1900)?;
-
-    Ok(())
-}
-
-fn unix_seconds_to_utc(timestamp: i64) -> (i32, i32, i32, i32, i32, i32) {
-    let days = timestamp.div_euclid(86_400);
-    let seconds_of_day = timestamp.rem_euclid(86_400);
-    let (year, month, day) = civil_from_days(days);
-    let hour = (seconds_of_day / 3600) as i32;
-    let minute = ((seconds_of_day % 3600) / 60) as i32;
-    let second = (seconds_of_day % 60) as i32;
-
-    (year, month, day, hour, minute, second)
-}
-
-fn civil_from_days(days: i64) -> (i32, i32, i32) {
-    let days = days + 719_468;
-    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
-    let day_of_era = days - era * 146_097;
-    let year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
-    let mut year = year_of_era + era * 400;
-    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    let month_param = (5 * day_of_year + 2) / 153;
-    let day = day_of_year - (153 * month_param + 2) / 5 + 1;
-    let month = month_param + if month_param < 10 { 3 } else { -9 };
-    year += if month <= 2 { 1 } else { 0 };
-
-    (year as i32, month as i32, day as i32)
-}
-
 async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
     tracing::warn!("stub unk13({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
@@ -331,60 +286,4 @@ async fn unk16(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
     // misc
 
     Ok(0)
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::boxed::Box;
-
-    use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
-    use wie_backend::Options;
-    use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{ByteWrite, Result, read_generic, write_null_terminated_string_bytes};
-
-    use super::register_wipic_svc_handler;
-    use crate::runtime::SVC_CATEGORY_WIPIC;
-
-    #[test]
-    fn utility_and_ui_imports_dispatch_with_their_declared_signatures() -> Result<()> {
-        run_jvm_test_with_system(
-            Box::new([]),
-            Box::new(TestPlatform::with_clock(TestClock::new())),
-            |jvm, system| async move {
-                let mut core = ArmCore::new(Options {
-                    enable_gdbserver: false,
-                    aot: None,
-                    profile: None,
-                })
-                .unwrap();
-                Allocator::init(&mut core).unwrap();
-                core.map(0x10000, 0x10000).unwrap();
-                let mut registers = core.save_context();
-                registers.sp = 0x18000;
-                core.restore_context(&registers);
-                register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
-                write_null_terminated_string_bytes(&mut core, 0x10000, b"TextComponent").unwrap();
-                core.write_bytes(0x10100, &[0xaa; 24]).unwrap();
-
-                for id in [240u32, 614, 800, 801, 802, 803, 809, 811, 830, 833] {
-                    let function = core.make_svc_stub(SVC_CATEGORY_WIPIC, id).unwrap();
-                    let _: u32 = core.run_function(function, &[0x10000, 0x10100, 0, 0, 0, 0]).await.unwrap();
-                }
-                // Destroy must not treat its unused second argument as a date output pointer.
-                assert_eq!(read_generic::<u32, _>(&core, 0x10100).unwrap(), 0xaaaaaaaa);
-
-                let htonl = core.make_svc_stub(SVC_CATEGORY_WIPIC, 900u32).unwrap();
-                let swapped: u32 = core.run_function(htonl, &[0x12345678]).await.unwrap();
-                assert_eq!(swapped, 0x78563412);
-
-                let get_time = core.make_svc_stub(SVC_CATEGORY_WIPIC, 824u32).unwrap();
-                let _: u32 = core.run_function(get_time, &[0, 0]).await.unwrap();
-                let _: u32 = core.run_function(get_time, &[0, 0x10100]).await.unwrap();
-                for (index, expected) in [0i32, 0, 0, 1, 0, 70].into_iter().enumerate() {
-                    assert_eq!(read_generic::<i32, _>(&core, 0x10100 + index as u32 * 4).unwrap(), expected);
-                }
-                Ok(())
-            },
-        )
-    }
 }

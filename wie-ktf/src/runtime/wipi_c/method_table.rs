@@ -241,7 +241,7 @@ pub fn get_uic_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(21, "MC_uicSetTimeMask"),
         gen_stub(22, "MC_uicSetTime"),
         gen_stub(23, "MC_uicSetTimeLong"),
-        gen_stub(24, "MC_uicGetTime"),
+        uic::get_time.into_body(),
         gen_stub(25, "MC_uicAddMenuItem"),
         uic::get_menu_item.into_body(),
         gen_stub(27, "MC_uicRemoveMenuItem"),
