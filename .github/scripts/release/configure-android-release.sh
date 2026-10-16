@@ -10,6 +10,8 @@ echo "ANDROID_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
 cat >> wie-app/gen/android/app/build.gradle.kts <<'EOF'
 
 android {
+    ndkPath = System.getenv("ANDROID_NDK_HOME")
+    packaging.jniLibs.keepDebugSymbols.clear()
     signingConfigs {
         create("release") {
             storeFile = file(System.getenv("ANDROID_KEYSTORE_PATH"))

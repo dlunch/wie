@@ -222,21 +222,38 @@ jobs:
           name: web-frontend
           path: wie-web/dist
 
-      - name: Build unsigned packages
+      - name: Install Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+
+      - name: Build Linux executable
         uses: tauri-apps/tauri-action@v1
         with:
+          tauriScript: cargo tauri
           projectPath: wie-app
           retryAttempts: 2
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
-            --ci --target x86_64-unknown-linux-gnu --bundles appimage,deb --no-sign
+            --ci --target x86_64-unknown-linux-gnu --no-bundle
 
       - name: Upload native debug information
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-        run: npx --yes sentry debug-files upload --include-sources --wait target/x86_64-unknown-linux-gnu/release/wie-app
+        run: |
+          binary=target/x86_64-unknown-linux-gnu/release/wie-app
+          objcopy --only-keep-debug "$binary" "$binary.debug"
+          strip --strip-debug "$binary"
+          npx --yes sentry debug-files upload --include-sources --wait "$binary.debug"
+
+      - name: Bundle stripped Linux executable
+        working-directory: wie-app
+        run: >-
+          cargo tauri bundle
+          --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+          --ci --target x86_64-unknown-linux-gnu --bundles appimage,deb --no-sign
 
       - name: Package bundles
         run: |
@@ -362,10 +379,10 @@ jobs:
         working-directory: wie-app
         run: cargo tauri icon ../wie-web/src/assets/favicon.png
 
-      - name: Configure Android signing
+      - name: Configure Android release
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: bash .github/scripts/release/configure-android-signing.sh
+        run: bash .github/scripts/release/configure-android-release.sh
 
       - name: Build signed Android packages
         uses: tauri-apps/tauri-action@v1
@@ -468,6 +485,7 @@ jobs:
         run: |
           mkdir -p dist
           archive=$(find target wie-app/gen -type d -name '*.xcarchive' -print -quit)
+          rm -rf "$archive/dSYMs"
           ditto -c -k --keepParent "$archive" "dist/wie-${{ needs.context.outputs.asset_identity }}-ios-aarch64-unsigned.xcarchive.zip"
 
       - name: Upload iOS artifacts
