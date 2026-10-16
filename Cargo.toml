@@ -30,6 +30,7 @@ opt-level = 1
 
 [profile.release]
 lto = true
+debug = 2
 
 [workspace.package]
 version = "0.2.5"

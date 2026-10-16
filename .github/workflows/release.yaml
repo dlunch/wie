@@ -168,6 +168,14 @@ jobs:
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --ci --target x86_64-pc-windows-msvc --bundles msi,nsis --no-sign
 
+      - name: Upload native debug information
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: npx --yes sentry debug-files upload --include-sources --wait target/x86_64-pc-windows-msvc/release/*.pdb
+
       - name: Package installers
         shell: pwsh
         run: |
@@ -223,6 +231,13 @@ jobs:
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --ci --target x86_64-unknown-linux-gnu --bundles appimage,deb --no-sign
 
+      - name: Upload native debug information
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: npx --yes sentry debug-files upload --include-sources --wait target/x86_64-unknown-linux-gnu/release/wie-app
+
       - name: Package bundles
         run: |
           mkdir -p dist
@@ -271,6 +286,15 @@ jobs:
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --ci --target universal-apple-darwin --bundles app,dmg --no-sign
+
+      - name: Upload native debug information
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          xcrun dsymutil target/universal-apple-darwin/release/wie-app
+          npx --yes sentry debug-files upload --include-sources --wait target/universal-apple-darwin/release/wie-app.dSYM
 
       - name: Package bundles
         run: |
@@ -358,6 +382,13 @@ jobs:
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --target aarch64 --apk --aab --ci
 
+      - name: Upload native debug information
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: npx --yes sentry debug-files upload --include-sources --wait target/aarch64-linux-android/release/libwie_app.so
+
       - name: Package Android bundles
         run: |
           mkdir -p dist
@@ -425,6 +456,13 @@ jobs:
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --target aarch64 --no-sign --archive-only
             --build-number ${{ needs.context.outputs.run_number }} --ci
+
+      - name: Upload native debug information
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: npx --yes sentry debug-files upload --include-sources --wait wie-app/gen/apple/build/wie-app_iOS.xcarchive/dSYMs
 
       - name: Package iOS archive
         run: |

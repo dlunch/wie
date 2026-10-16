@@ -20,11 +20,7 @@ class WasmPackPlugin {
     const dev = compiler.options.mode !== "production";
 
     const cargoBin = path.join(os.homedir(), ".cargo", "bin");
-    const env = {
-      ...process.env,
-      PATH: `${cargoBin}${path.delimiter}${process.env.PATH ?? ""}`,
-      ...(!dev && { CARGO_PROFILE_RELEASE_DEBUG: "2" }),
-    };
+    const env = { ...process.env, PATH: `${cargoBin}${path.delimiter}${process.env.PATH ?? ""}` };
 
     const rustDir = path.join(this.crateDir, "src/rust");
     const cargoToml = path.join(this.crateDir, "Cargo.toml");
