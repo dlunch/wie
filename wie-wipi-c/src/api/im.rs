@@ -1,17 +1,36 @@
-use wie_util::{Result, write_generic};
+use wie_util::{Result, read_generic, write_generic};
 
 use wipi_types::wipic::WIPICWord;
 
 use crate::context::WIPICContext;
 
+const INPUT_MODES_PTR: u32 = 0x7fff1020;
+const INPUT_MODES: [&[u8]; 4] = [b"EN/L\0", b"EN/S\0", b"KO\0", b"N123\0"];
+
 pub async fn get_support_mode_count(_context: &mut dyn WIPICContext) -> Result<i32> {
     tracing::warn!("stub MC_imGetSurpportModeCount()");
-    Ok(0)
+    Ok(INPUT_MODES.len() as i32)
 }
 
-pub async fn get_supported_modes(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
+pub async fn get_supported_modes(context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub MC_imGetSupportedModes()");
-    Ok(0)
+
+    let modes: u32 = read_generic(context, INPUT_MODES_PTR)?;
+    if modes != 0 {
+        return Ok(modes);
+    }
+
+    let table_size = (INPUT_MODES.len() * size_of::<u32>()) as u32;
+    let strings_size = INPUT_MODES.iter().map(|mode| mode.len() as u32).sum::<u32>();
+    let modes = context.alloc_raw(table_size + strings_size)?;
+    let mut string_ptr = modes + table_size;
+    for (index, mode) in INPUT_MODES.iter().enumerate() {
+        write_generic(context, modes + (index * size_of::<u32>()) as u32, string_ptr)?;
+        context.write_bytes(string_ptr, mode)?;
+        string_ptr += mode.len() as u32;
+    }
+    write_generic(context, INPUT_MODES_PTR, modes)?;
+    Ok(modes)
 }
 
 pub async fn set_current_mode(_context: &mut dyn WIPICContext, mode: i32) -> Result<i32> {
