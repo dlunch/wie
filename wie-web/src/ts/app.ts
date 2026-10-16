@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Settings, createIcons } from "lucide";
 
+import { recordPageView } from "./analytics";
 import type { LibraryApp, PlayerSession, Wie } from "./backend";
 import type { SettingsController } from "./settings";
 
@@ -33,7 +34,7 @@ const icons = {
   Settings,
 };
 
-export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsController): Promise<boolean> => new Promise((resolve, reject) => {
+export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsController, trackGameplay: boolean): Promise<boolean> => new Promise((resolve, reject) => {
   const playerView = document.getElementById("player-view") as HTMLElement;
   const playerTitle = document.getElementById("player-title") as HTMLElement;
   const playerStatus = document.getElementById("player-status") as HTMLElement;
@@ -164,6 +165,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
     if (ending) return;
     switch (event.type) {
       case "ready":
+        if (preparing && trackGameplay) recordPageView(app.title);
         preparing = false;
         updateControls();
         break;

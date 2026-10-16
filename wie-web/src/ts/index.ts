@@ -2,6 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import * as Sentry from "@sentry/browser";
 import { wasmIntegration } from "@sentry/wasm";
 
+import { recordPageView } from "./analytics";
 import { runApp } from "./app";
 import { initializeWie, type LibraryApp } from "./backend";
 import { initializeLibrary } from "./library";
@@ -41,6 +42,14 @@ const main = async () => {
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;
   const settings = await initializeSettings(backend);
+  let pageLeaving = false;
+  if (!native) {
+    window.addEventListener("pagehide", () => { pageLeaving = true; });
+    window.addEventListener("pageshow", () => {
+      pageLeaving = false;
+      if (!libraryView.hidden) recordPageView();
+    });
+  }
 
   const routeToApp = async (app: LibraryApp) => {
     let failed = false;
@@ -48,7 +57,7 @@ const main = async () => {
     libraryView.hidden = true;
     playerView.hidden = false;
     try {
-      failed = await runApp(backend, app, settings);
+      failed = await runApp(backend, app, settings, !native);
       if (failed) window.alert(RESTART_MESSAGE);
     } catch (error) {
       failed = true;
@@ -80,6 +89,7 @@ const main = async () => {
       } else if (!rustPanic) {
         playerView.hidden = true;
         libraryView.hidden = false;
+        if (!native && !pageLeaving) recordPageView();
       }
     }
   };
