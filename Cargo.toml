@@ -29,7 +29,7 @@ opt-level = 1
 opt-level = 1
 
 [profile.release]
-lto = true
+lto = "off"
 debug = 2
 
 [workspace.package]
