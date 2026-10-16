@@ -23,6 +23,19 @@ use self::{grp_context::WIPICGraphicsContextIdx, image::create_wipi_image};
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some apps require a 16bpp framebuffer
 const SCREEN_FRAMEBUFFER_PTR: u32 = 0x7fff1000;
 
+pub async fn fill_polygon(
+    _context: &mut dyn WIPICContext,
+    dst: WIPICIndirectPtr,
+    x_points: WIPICWord,
+    y_points: WIPICWord,
+    n_points: i32,
+    pgc: WIPICWord,
+) -> Result<()> {
+    tracing::warn!("stub MC_grpFillPolygon({:#x}, {x_points:#x}, {y_points:#x}, {n_points}, {pgc:#x})", dst.0);
+
+    Ok(())
+}
+
 pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({a0:#x})");
 

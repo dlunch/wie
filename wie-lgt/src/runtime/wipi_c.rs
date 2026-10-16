@@ -5,22 +5,19 @@ pub(super) mod graphics;
 
 use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
 use wipi_types::lgt::CletFunctions;
-use wipi_types::wipic::WIPICIndirectPtr;
 
 use wie_backend::System;
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
-use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes};
+use wie_util::{Result, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{database, graphics as shared_graphics, im, kernel, media, misc, net, serial, util},
+    api::{database, graphics as shared_graphics, im, kernel, media, misc, net, serial, uic, util},
 };
 
 use context::LgtWIPICContext;
 
 use crate::runtime::{SVC_CATEGORY_WIPIC, svc_ids::WIPICSvcId};
-
-const TIME_VALUE_PTR: u32 = 0x7fff1004;
 
 struct WIPICMethodResult {
     result: WIPICResult,
@@ -108,16 +105,21 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::DestroyImage => graphics::destroy_image.into_body(),
         WIPICSvcId::EncodeImage => shared_graphics::encode_image.into_body(),
         WIPICSvcId::PostEvent => shared_graphics::post_event.into_body(),
+        WIPICSvcId::FillPolygon => shared_graphics::fill_polygon.into_body(),
         WIPICSvcId::GetSupportModeCount => im::get_support_mode_count.into_body(),
         WIPICSvcId::GetSupportedModes => im::get_supported_modes.into_body(),
         WIPICSvcId::SetCurrentMode => im::set_current_mode.into_body(),
         WIPICSvcId::GetCurrentMode => im::get_current_mode.into_body(),
         WIPICSvcId::HandleInput => im::handle_input.into_body(),
-        WIPICSvcId::TimeNow => time_now.into_body(),
-        WIPICSvcId::TimeComponent => time_component.into_body(),
-        WIPICSvcId::TimeConvert => time_convert.into_body(),
-        WIPICSvcId::TimeToTm => time_to_tm.into_body(),
-        WIPICSvcId::DateTimeToTm => time_to_tm.into_body(),
+        WIPICSvcId::UicCreateApplicationContext => uic::create_application_context.into_body(),
+        WIPICSvcId::UicGetClass => uic::get_class.into_body(),
+        WIPICSvcId::UicCreate => uic::create.into_body(),
+        WIPICSvcId::UicDestroy => uic::destroy.into_body(),
+        WIPICSvcId::UicConfigure => uic::configure.into_body(),
+        WIPICSvcId::UicSetEnable => uic::set_enable.into_body(),
+        WIPICSvcId::UicGetTime => uic::get_time.into_body(),
+        WIPICSvcId::UicInsertText => uic::insert_text.into_body(),
+        WIPICSvcId::UicSetMaxTextSize => uic::set_max_text_size.into_body(),
         WIPICSvcId::OpenDatabase => database::open_database.into_body(),
         WIPICSvcId::ReadRecordSingle => database::stream_read.into_body(),
         WIPICSvcId::WriteRecordSingle => database::stream_write.into_body(),
@@ -138,10 +140,12 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::SocketWrite => net::socket_write.into_body(),
         WIPICSvcId::SocketRead => net::socket_read.into_body(),
         WIPICSvcId::SetReadCallback => net::set_read_callback.into_body(),
+        WIPICSvcId::SetWriteCallback => net::set_write_callback.into_body(),
         WIPICSvcId::SerialOpen => serial::open.into_body(),
         WIPICSvcId::SerialWrite => serial::write.into_body(),
         WIPICSvcId::SerialSetWriteCallback => serial::set_write_callback.into_body(),
         WIPICSvcId::SerialClose => serial::close.into_body(),
+        WIPICSvcId::Htonl => util::htonl.into_body(),
         WIPICSvcId::Htons => util::htons.into_body(),
         WIPICSvcId::InetAddr => util::inet_addr.into_body(),
         WIPICSvcId::ClipCreate => media::clip_create.into_body(),
@@ -258,84 +262,6 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     write_null_terminated_string_bytes(context, result, app_id.as_bytes())?;
 
     Ok(result)
-}
-
-async fn time_now(context: &mut dyn WIPICContext, component_class: u32) -> Result<u32> {
-    let epoch_seconds = context.system().platform().now().raw() / 1000;
-    tracing::debug!("LGT_timeNow({component_class:#x}) -> {epoch_seconds}");
-
-    write_time_value(context, epoch_seconds as u32)
-}
-
-async fn time_component(_context: &mut dyn WIPICContext, name: u32) -> Result<u32> {
-    tracing::debug!("LGT_timeComponent({name:#x})");
-
-    Ok(name)
-}
-
-async fn time_convert(context: &mut dyn WIPICContext, date_time: u32, component: u32) -> Result<u32> {
-    tracing::debug!("LGT_timeConvert({date_time:#x}, {component:#x})");
-
-    let timestamp = read_time_value(context, date_time)?;
-    write_time_value(context, timestamp)
-}
-
-async fn time_to_tm(context: &mut dyn WIPICContext, time_value: u32, out_ptr: u32) -> Result<i32> {
-    tracing::debug!("LGT_timeToTm({time_value:#x}, {out_ptr:#x})");
-
-    let timestamp = read_time_value(context, time_value)?;
-    let (year, month, day, hour, minute, second) = unix_seconds_to_utc(timestamp as i64);
-    write_generic(context, out_ptr, second)?;
-    write_generic(context, out_ptr + 4, minute)?;
-    write_generic(context, out_ptr + 8, hour)?;
-    write_generic(context, out_ptr + 12, day)?;
-    write_generic(context, out_ptr + 16, month - 1)?;
-    write_generic(context, out_ptr + 20, year - 1900)?;
-
-    Ok(0)
-}
-
-fn write_time_value(context: &mut dyn WIPICContext, timestamp: u32) -> Result<u32> {
-    let time_value_ptr: u32 = read_generic(context, TIME_VALUE_PTR)?;
-    let memory = if time_value_ptr != 0 {
-        WIPICIndirectPtr(time_value_ptr)
-    } else {
-        let memory = context.alloc(4)?;
-        write_generic(context, TIME_VALUE_PTR, memory.0)?;
-        memory
-    };
-    write_generic(context, context.data_ptr(memory)?, timestamp)?;
-    Ok(memory.0)
-}
-
-fn read_time_value(context: &mut dyn WIPICContext, handle: u32) -> Result<u32> {
-    read_generic(context, context.data_ptr(WIPICIndirectPtr(handle))?)
-}
-
-fn unix_seconds_to_utc(timestamp: i64) -> (i32, i32, i32, i32, i32, i32) {
-    let days = timestamp.div_euclid(86_400);
-    let seconds_of_day = timestamp.rem_euclid(86_400);
-    let (year, month, day) = civil_from_days(days);
-    let hour = (seconds_of_day / 3600) as i32;
-    let minute = ((seconds_of_day % 3600) / 60) as i32;
-    let second = (seconds_of_day % 60) as i32;
-
-    (year, month, day, hour, minute, second)
-}
-
-fn civil_from_days(days: i64) -> (i32, i32, i32) {
-    let days = days + 719_468;
-    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
-    let day_of_era = days - era * 146_097;
-    let year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
-    let mut year = year_of_era + era * 400;
-    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    let month_param = (5 * day_of_year + 2) / 153;
-    let day = day_of_year - (153 * month_param + 2) / 5 + 1;
-    let month = month_param + if month_param < 10 { 3 } else { -9 };
-    year += if month <= 2 { 1 } else { 0 };
-
-    (year as i32, month as i32, day as i32)
 }
 
 async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
