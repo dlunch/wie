@@ -102,6 +102,10 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
     ],
   },
   plugins: [
+    new webpack.EnvironmentPlugin({
+      ENVIRONMENT: "development",
+      SENTRY_RELEASE: "local",
+    }),
     new HtmlBundlerPlugin({
       entry: {
         index: {

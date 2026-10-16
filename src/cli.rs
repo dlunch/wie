@@ -129,8 +129,12 @@ pub fn run() -> anyhow::Result<()> {
         .with_writer(stderr)
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
-    let _guard =
-        sentry::init(sentry::ClientOptions::new().dsn("https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928"));
+    let _guard = sentry::init(
+        sentry::ClientOptions::new()
+            .dsn("https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928")
+            .environment(option_env!("ENVIRONMENT").unwrap_or("development"))
+            .release(option_env!("SENTRY_RELEASE").unwrap_or("local")),
+    );
 
     let args = Args::parse();
 

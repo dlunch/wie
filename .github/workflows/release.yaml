@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'nightly' }}
+
 jobs:
   context:
     name: Resolve release context
@@ -39,6 +42,8 @@ jobs:
   web:
     name: Build web frontend
     needs: context
+    env:
+      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     if: needs.context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -118,6 +123,8 @@ jobs:
 
   windows:
     name: Build Windows x64
+    env:
+      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
@@ -165,6 +172,8 @@ jobs:
 
   linux:
     name: Build Linux x64
+    env:
+      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
@@ -216,6 +225,8 @@ jobs:
 
   macos:
     name: Build macOS universal
+    env:
+      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
@@ -262,6 +273,8 @@ jobs:
 
   android:
     name: Build Android aarch64
+    env:
+      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
@@ -345,6 +358,8 @@ jobs:
 
   ios:
     name: Build iOS aarch64
+    env:
+      SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
