@@ -7385,11 +7385,13 @@ dependencies = [
  "async-trait",
  "bytemuck",
  "jvm",
+ "test-utils",
  "tracing",
  "wie-backend",
  "wie-jvm-support",
  "wie-midp",
  "wie-util",
+ "zip",
 ]
 
 [[package]]

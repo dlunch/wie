@@ -73,12 +73,9 @@ pub fn extract_app_metadata(filename: &str, bytes: &[u8], file_type: FileType) -
                 .zip(SktEmulator::archive_title(&files))
                 .map(|(id, title)| (id, title, SktEmulator::archive_icon(&files)))
         }
-        file_type => {
-            let id = if matches!(file_type, FileType::J2me) {
-                filename
-            } else {
-                &filename[..filename.len() - 4]
-            };
+        FileType::J2me => J2MEEmulator::jar_metadata(bytes)?.map(|(title, icon)| (title.clone(), title, icon)),
+        _ => {
+            let id = &filename[..filename.len() - 4];
             J2MEEmulator::jar_metadata(bytes)?.map(|(title, icon)| (id.to_owned(), title, icon))
         }
     };
