@@ -50,7 +50,9 @@ pub enum SessionEvent {
     Warning {
         message: String,
     },
-    Stopped,
+    Stopped {
+        failed: bool,
+    },
 }
 
 type Completion = Shared<BoxFuture<'static, ()>>;
@@ -221,6 +223,9 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
                     || {
                         if let Err(error) = worker.run(receiver, started) {
                             sentry::integrations::anyhow::capture_anyhow(&error);
+                            true
+                        } else {
+                            false
                         }
                     },
                 )
@@ -230,15 +235,19 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
             let app = app.clone();
             let completion = async move {
                 // Panics are captured by the Rust Sentry hook before the worker joins.
-                let _ = worker.await;
+                let failed = worker.await.unwrap_or(true);
                 #[cfg(not(target_os = "ios"))]
-                if let Err(error) = view.set_playing(false) {
-                    sentry::integrations::anyhow::capture_anyhow(&error);
-                }
+                let failed = match view.set_playing(false) {
+                    Ok(()) => failed,
+                    Err(error) => {
+                        sentry::integrations::anyhow::capture_anyhow(&error);
+                        true
+                    }
+                };
                 let state = app.state::<AppState>();
                 state.runtime.lock().unwrap().session = None;
                 if initialized.load(Ordering::Acquire) {
-                    let _ = events.send(SessionEvent::Stopped);
+                    let _ = events.send(SessionEvent::Stopped { failed });
                 }
             }
             .boxed()

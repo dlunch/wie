@@ -65,7 +65,7 @@ export const startWasmSession = (
       // Aborting panics do not unwind Rust borrows; only JavaScript resources can be released.
       if (rustPanic) audio.dispose();
       else emulator.free();
-      onEvent({ type: "stopped" });
+      onEvent({ type: "stopped", failed: false });
     },
   };
 

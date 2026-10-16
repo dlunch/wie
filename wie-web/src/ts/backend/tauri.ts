@@ -58,7 +58,7 @@ export const initializeWie = async (): Promise<Wie> => {
         });
         const started = await invoke<{ sessionId: number; filename: string; bytes: number[] } | null>("start_app", { id, events });
         if (started === null) {
-          report({ type: "stopped" });
+          report({ type: "stopped", failed: true });
           return;
         }
         host = new TauriHost(started.sessionId, error => {
@@ -109,7 +109,7 @@ export const initializeWie = async (): Promise<Wie> => {
       });
       const sessionId = await invoke<number | null>("start_app", { id, events });
       if (sessionId === null) {
-        onEvent({ type: "stopped" });
+        onEvent({ type: "stopped", failed: true });
         return;
       }
       let commands = Promise.resolve();
