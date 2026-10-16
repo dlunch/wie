@@ -559,6 +559,13 @@ svg {
   line-height: 14px;
 }
 
+.native .player-warning[role="alert"] {
+  max-height: none;
+  padding: 12px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 .native .button-container {
   display: grid;
   min-height: 0;

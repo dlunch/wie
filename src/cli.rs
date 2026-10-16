@@ -6,7 +6,7 @@ mod window;
 
 use core::str;
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::{BTreeMap, HashMap, hash_map::Entry},
     fs::{self, File},
     io::{LineWriter, Write, stderr},
     path::{Path, PathBuf},
@@ -18,9 +18,10 @@ use std::{
 use clap::Parser;
 use directories::ProjectDirs;
 use midir::MidiOutput;
+use sentry::{Hub, protocol::Context};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie::load_emulator;
+use wie::{extract_app_metadata, load_emulator};
 use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
 use wie_core_arm_native::NativeExecutor;
 use wie_j2me::J2MEEmulator;
@@ -173,6 +174,7 @@ fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallba
 }
 
 fn start(filename: &str, options: Options, midi_device: Option<usize>, data_dir: &Path) -> anyhow::Result<()> {
+    let _scope = Hub::current().push_scope();
     let window = WindowImpl::new(240, 320)?;
     let font = Font::try_from_static(include_bytes!("../assets/neodgm.ttf"))?;
     let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device, data_dir));
@@ -182,11 +184,13 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>, data_dir:
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("jad") {
         let jar_filename = filename.replace(".jad", ".jar");
         let jar = fs::read(&jar_filename)?;
+        set_app_context(&jar_filename, &jar);
 
         let jar_filename = jar_filename[jar_filename.rfind('/').unwrap_or(0) + 1..].to_owned();
 
         Box::new(J2MEEmulator::from_jad_jar(platform, buf, jar_filename, jar)?)
     } else {
+        set_app_context(filename, &buf);
         load_emulator(filename, buf, platform, options)?
     };
 
@@ -238,6 +242,18 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>, data_dir:
 
         Ok(())
     })
+}
+
+fn set_app_context(filename: &str, bytes: &[u8]) {
+    let mut context = [("filename".into(), filename.rsplit(['/', '\\']).next().unwrap().into())]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+    // Diagnostics must not make optional app metadata a prerequisite for execution.
+    if let Ok(metadata) = extract_app_metadata(filename, bytes) {
+        context.insert("id".into(), metadata.id.into());
+        context.insert("title".into(), metadata.title.into());
+    }
+    sentry::configure_scope(|scope| scope.set_context("emulated_app", Context::Other(context)));
 }
 
 fn select_midi_output_index(port_count: usize, requested: Option<usize>) -> Option<usize> {

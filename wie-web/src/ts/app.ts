@@ -33,7 +33,7 @@ const icons = {
   Settings,
 };
 
-export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsController): Promise<void> => new Promise((resolve, reject) => {
+export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsController): Promise<boolean> => new Promise((resolve, reject) => {
   const playerView = document.getElementById("player-view") as HTMLElement;
   const playerTitle = document.getElementById("player-title") as HTMLElement;
   const playerStatus = document.getElementById("player-status") as HTMLElement;
@@ -48,7 +48,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   let preparing = true;
   let suspended = false;
   let ending = false;
-  let start: Promise<PlayerSession>;
+  let start: Promise<PlayerSession | undefined>;
 
   playerTitle.textContent = app.title;
   playerWarning.hidden = true;
@@ -60,18 +60,19 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
     playerView.setAttribute("aria-busy", String(busy));
     for (const button of buttons) button.disabled = busy;
   };
-  const finish = async (error?: unknown) => {
+  const finish = async (error?: unknown, failed = false) => {
     if (ending) return;
     ending = true;
     abortController.abort();
     inputs.clear();
     updateControls();
     try {
-      await (await start).stop();
+      await (await start)?.stop();
       if (error !== undefined) reject(error);
-      else resolve();
+      else resolve(failed);
     } catch (stopError) {
-      reject(error ?? stopError);
+      if (failed) resolve(true);
+      else reject(error ?? stopError);
     } finally {
       playerStatus.hidden = true;
       playerWarning.hidden = true;
@@ -176,10 +177,10 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
         playerWarning.hidden = false;
         break;
       case "stopped":
-        void finish();
+        void finish(undefined, event.failed);
         break;
       case "error":
-        void finish(new Error(event.message));
+        void finish(event.cause ?? new Error(event.message));
         break;
     }
   });

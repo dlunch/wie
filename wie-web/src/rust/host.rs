@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::*;
 
 use wie_backend::{Database, DatabaseRepository, Filesystem, RecordId, StorageRequest as BackendStorageRequest};
 
-use crate::{audio_sink::AudioPlayer, util::run_js_future};
+use crate::util::run_js_future;
 
 #[wasm_bindgen]
 extern "C" {
@@ -21,9 +21,6 @@ extern "C" {
 
     #[wasm_bindgen(method, structural, catch)]
     async fn storage(this: &WasmHost, request: &JsValue) -> Result<JsValue, JsValue>;
-
-    #[wasm_bindgen(method, structural, getter)]
-    pub fn audio(this: &WasmHost) -> AudioPlayer;
 
     #[wasm_bindgen(method, structural)]
     pub fn now(this: &WasmHost) -> f64;

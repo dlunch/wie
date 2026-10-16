@@ -1,6 +1,8 @@
 import { WieWeb } from "@pkg";
 
 import type { PlayerSession, SessionEvent } from "../backend";
+import { AudioPlayer } from "../midi";
+import { rustPanic } from "../panic";
 import type { EmulatorHost } from "./tauri-host";
 
 export interface WasmSession extends PlayerSession {
@@ -15,10 +17,18 @@ export const startWasmSession = (
   host?: EmulatorHost,
   suspended = false,
 ): WasmSession => {
+  if (rustPanic) throw rustPanic;
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
   canvas.width = 240;
   canvas.height = 320;
-  const emulator = new WieWeb(filename, archive, canvas, font, host);
+  const audio = host?.audio ?? new AudioPlayer();
+  let emulator: WieWeb;
+  try {
+    emulator = new WieWeb(filename, archive, canvas, font, audio, host);
+  } catch (error) {
+    audio.dispose();
+    throw rustPanic ?? error;
+  }
   const keys = new Set<string>();
   let running = true;
   let preparing = true;
@@ -52,8 +62,10 @@ export const startWasmSession = (
       if (!running) return;
       running = false;
       cancelAnimationFrame(frame);
-      emulator.free();
-      onEvent({ type: "stopped" });
+      // Aborting panics do not unwind Rust borrows; only JavaScript resources can be released.
+      if (rustPanic) audio.dispose();
+      else emulator.free();
+      onEvent({ type: "stopped", failed: false });
     },
   };
 
@@ -71,9 +83,8 @@ export const startWasmSession = (
       }
       frame = requestAnimationFrame(update);
     } catch (error) {
-      running = false;
-      emulator.free();
-      onEvent({ type: "error", message: String(error) });
+      const cause = rustPanic ?? error;
+      onEvent({ type: "error", message: String(cause), cause });
     }
   };
   onEvent({ type: "suspended", suspended });

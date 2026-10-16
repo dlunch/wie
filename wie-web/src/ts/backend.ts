@@ -19,8 +19,8 @@ export type SessionEvent =
   | { type: "ready" }
   | { type: "suspended"; suspended: boolean }
   | { type: "warning"; message: string }
-  | { type: "stopped" }
-  | { type: "error"; message: string };
+  | { type: "stopped"; failed: boolean }
+  | { type: "error"; message: string; cause?: unknown };
 
 export interface PlayerSession {
   key(key: string, pressed: boolean): Promise<void>;
@@ -35,7 +35,7 @@ export interface Wie {
   deleteApp(id: string): Promise<void>;
   readSettings(): Promise<Settings>;
   writeSettings(settings: Settings): Promise<void>;
-  startApp(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession>;
+  startApp(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession | undefined>;
 }
 
 export const initializeWie = async (): Promise<Wie> => {

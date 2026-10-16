@@ -15,8 +15,7 @@ export type StorageResult = null | boolean | number | number[];
 export type HostLifecycle = { type: "lifecycle"; suspended: boolean; guestTimeMs: number };
 export type HostEvent = HostLifecycle
   | { type: "warning"; message: string }
-  | { type: "error"; message: string }
-  | { type: "stopped" };
+  | { type: "stopped"; failed: boolean };
 
 type AudioEvent =
   | [time: number, kind: "midi", data: Uint8Array]

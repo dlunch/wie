@@ -15,6 +15,7 @@ use futures::{
     future::{BoxFuture, Shared},
     lock::Mutex as AsyncMutex,
 };
+use sentry::protocol::Context;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, ipc::Channel};
 
@@ -49,13 +50,12 @@ pub enum SessionEvent {
     Warning {
         message: String,
     },
-    Stopped,
-    Error {
-        message: String,
+    Stopped {
+        failed: bool,
     },
 }
 
-type Completion = Shared<BoxFuture<'static, Result<(), String>>>;
+type Completion = Shared<BoxFuture<'static, ()>>;
 
 struct Session {
     id: u64,
@@ -180,7 +180,7 @@ pub async fn write_settings(state: State<'_, AppState>, settings: Settings) -> R
 }
 
 #[tauri::command]
-pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, events: Channel<SessionEvent>) -> Result<StartedApp, String> {
+pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, events: Channel<SessionEvent>) -> Result<Option<StartedApp>, String> {
     let (started_app, startup, completion) = {
         let settings_store = state.settings.lock().await;
         let settings = settings_store.read().await.map_err(|error| error.to_string())?;
@@ -192,6 +192,15 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
                 return Err("An app is already running".to_owned());
             }
             let (metadata, bytes) = library.read_archive(&id).map_err(|error| error.to_string())?;
+            let app_context = Context::Other(
+                [
+                    ("id".into(), metadata.id.into()),
+                    ("title".into(), metadata.title.into()),
+                    ("filename".into(), metadata.filename.clone().into()),
+                ]
+                .into_iter()
+                .collect(),
+            );
             let mut runtime = state.runtime.lock().unwrap();
             let session_id = runtime.next_id;
             runtime.next_id += 1;
@@ -208,27 +217,38 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
                 suspended: runtime.suspended,
             }
             .prepare(session_id, metadata.filename, bytes);
-            let worker = tauri::async_runtime::spawn_blocking(move || worker.run(receiver, started).map_err(|error| format!("{error:#}")));
+            let worker = tauri::async_runtime::spawn_blocking(move || {
+                sentry::with_scope(
+                    |scope| scope.set_context("emulated_app", app_context),
+                    || {
+                        if let Err(error) = worker.run(receiver, started) {
+                            sentry::integrations::anyhow::capture_anyhow(&error);
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                )
+            });
             #[cfg(not(target_os = "ios"))]
             let view = state.view.clone();
             let app = app.clone();
             let completion = async move {
-                let result = match worker.await {
-                    Ok(result) => result,
-                    Err(error) => Err(format!("App worker failed: {error}")),
-                };
+                // Panics are captured by the Rust Sentry hook before the worker joins.
+                let failed = worker.await.unwrap_or(true);
                 #[cfg(not(target_os = "ios"))]
-                let result = result.and(view.set_playing(false).map_err(|error| error.to_string()));
+                let failed = match view.set_playing(false) {
+                    Ok(()) => failed,
+                    Err(error) => {
+                        sentry::integrations::anyhow::capture_anyhow(&error);
+                        true
+                    }
+                };
                 let state = app.state::<AppState>();
                 state.runtime.lock().unwrap().session = None;
                 if initialized.load(Ordering::Acquire) {
-                    let event = match &result {
-                        Ok(()) => SessionEvent::Stopped,
-                        Err(message) => SessionEvent::Error { message: message.clone() },
-                    };
-                    let _ = events.send(event);
+                    let _ = events.send(SessionEvent::Stopped { failed });
                 }
-                result
             }
             .boxed()
             .shared();
@@ -243,15 +263,12 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
         .await
         .map_err(|error| error.to_string())??
     };
-    let watcher = completion.clone();
-    tauri::async_runtime::spawn(async move {
-        let _ = watcher.await;
-    });
+    tauri::async_runtime::spawn(completion.clone());
     if startup.await.is_err() {
-        completion.await?;
-        return Err("App stopped before initialization completed".into());
+        completion.await;
+        return Ok(None);
     }
-    Ok(started_app)
+    Ok(Some(started_app))
 }
 
 #[tauri::command]
@@ -261,7 +278,7 @@ pub async fn stop_app(state: State<'_, AppState>, session_id: u64) -> Result<(),
         runtime.session.as_mut().filter(|session| session.id == session_id).map(Session::stop)
     };
     if let Some(completion) = completion {
-        completion.await?;
+        completion.await;
     }
     Ok(())
 }

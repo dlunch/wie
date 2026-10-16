@@ -217,7 +217,7 @@ impl SessionWorker {
             };
             if let Err(error) = result {
                 failure.get_or_insert(error);
-                // Close admission, then drain already accepted storage before completion reports the error.
+                // Close admission, then drain already accepted storage before session termination.
                 let _ = self.app.state::<AppState>().stop_app();
             }
         }

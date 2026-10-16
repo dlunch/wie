@@ -24,8 +24,15 @@ impl J2MEEmulator {
             return Ok(None);
         };
         let descriptor = J2MEDescriptor::parse(manifest);
+        let title = descriptor
+            .properties
+            .get("MIDlet-1")
+            .and_then(|value| value.split(',').next())
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(&descriptor.name);
 
-        if descriptor.name.is_empty() || descriptor.main_class_name.is_empty() {
+        if title.is_empty() || descriptor.main_class_name.is_empty() {
             return Ok(None);
         }
 
@@ -35,7 +42,7 @@ impl J2MEEmulator {
             files.get(descriptor.icon.trim_start_matches('/')).cloned()
         };
 
-        Ok(Some((descriptor.name, icon)))
+        Ok(Some((title.to_owned(), icon)))
     }
 
     pub fn from_jad_jar(platform: Box<dyn Platform>, jad: Vec<u8>, jar_filename: String, jar: Vec<u8>) -> Result<Self> {
