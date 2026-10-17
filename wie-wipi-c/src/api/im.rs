@@ -2,10 +2,7 @@ use wie_util::{Result, read_generic, write_generic, write_null_terminated_table}
 
 use wipi_types::wipic::WIPICWord;
 
-use crate::{
-    context::WIPICContext,
-    globals::{CURRENT_INPUT_MODE, INPUT_MODES_PTR},
-};
+use crate::{context::WIPICContext, globals::INPUT_MODES_PTR};
 
 const INPUT_MODES: [&[u8]; 4] = [b"EN/L\0", b"EN/S\0", b"KO\0", b"N123\0"];
 
@@ -37,18 +34,14 @@ pub async fn get_supported_modes(context: &mut dyn WIPICContext) -> Result<WIPIC
     Ok(modes)
 }
 
-pub async fn set_current_mode(context: &mut dyn WIPICContext, mode: i32) -> Result<i32> {
-    tracing::debug!("MC_imSetCurrentMode({mode})");
-    if !(0..INPUT_MODES.len() as i32).contains(&mode) {
-        return Ok(0);
-    }
-    write_generic(context, CURRENT_INPUT_MODE, mode)?;
-    Ok(1)
+pub async fn set_current_mode(_context: &mut dyn WIPICContext, mode: i32) -> Result<i32> {
+    tracing::warn!("stub MC_imSetCurrentMode({mode})");
+    Ok(-1)
 }
 
-pub async fn get_current_mode(context: &mut dyn WIPICContext) -> Result<i32> {
-    tracing::debug!("MC_imGetCurrentMode()");
-    read_generic(context, CURRENT_INPUT_MODE)
+pub async fn get_current_mode(_context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::warn!("stub MC_imGetCurrentMode()");
+    Ok(-1)
 }
 
 pub async fn handle_input(
@@ -76,7 +69,7 @@ mod tests {
 
     use crate::context::test::TestContext;
 
-    use super::{get_current_mode, get_support_mode_count, get_supported_modes, set_current_mode};
+    use super::{get_support_mode_count, get_supported_modes};
 
     #[futures_test::test]
     async fn input_mode_queries_reuse_valid_guest_strings() -> Result<()> {
@@ -91,15 +84,6 @@ mod tests {
             assert_eq!(read_null_terminated_string_bytes(&context, pointer)?, name);
         }
         assert_eq!(get_supported_modes(&mut context).await?, modes);
-        assert_eq!(get_current_mode(&mut context).await?, 0);
-        for mode in 0..count {
-            assert_eq!(set_current_mode(&mut context, mode).await?, 1);
-            assert_eq!(get_current_mode(&mut context).await?, mode);
-        }
-        for mode in [-1, count] {
-            assert_eq!(set_current_mode(&mut context, mode).await?, 0);
-            assert_eq!(get_current_mode(&mut context).await?, count - 1);
-        }
         Ok(())
     }
 }

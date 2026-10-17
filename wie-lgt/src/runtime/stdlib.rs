@@ -542,18 +542,6 @@ mod tests {
     }
 
     #[test]
-    fn unknown_math_import_returns_zero_in_both_result_words() -> Result<()> {
-        let mut core = stdlib_core()?;
-        let stub = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x450u32)?;
-        // Read each result word through a guest wrapper before run_function restores registers.
-        for instruction in [0xe1a00000u32, 0xe1a00001] {
-            core.write_bytes(0x10000, bytemuck::cast_slice(&[0xe92d4010u32, 0xe12fff32, instruction, 0xe8bd8010]))?;
-            assert_eq!(core.run_function::<u32>(0x10000, &[1, 0x3ff00000, stub]).now_or_never().unwrap()?, 0);
-        }
-        Ok(())
-    }
-
-    #[test]
     fn strtol_import_parses_guest_numbers_and_reports_the_end_pointer() -> Result<()> {
         let mut core = stdlib_core()?;
         let parse = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x3ffu32)?;

@@ -12,10 +12,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError, read_generic, write_generic};
 use wie_wipi_c::{
     WIPICContext,
-    api::{
-        graphics::{FrameBuffer, decode_image_framebuffer, primitives},
-        uic,
-    },
+    api::graphics::{FrameBuffer, decode_image_framebuffer, primitives},
 };
 
 use crate::runtime::globals::{DISPLAY_PROPERTIES_ROOT, GRAPHICS_STATE_ROOT};
@@ -526,21 +523,6 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x:
         color,
         graphics.clip,
     )
-}
-
-pub async fn paint_component(context: &mut dyn WIPICContext, component: u32, ptr_graphics: u32) -> Result<()> {
-    let screen = get_screen_framebuffer(context, 0).await?;
-    let resolved = resolve_framebuffer(context, screen)?;
-    let graphics = resolve_context(context, &resolved, ptr_graphics)?;
-    uic::paint_component(
-        context,
-        component,
-        &resolved.framebuffer,
-        graphics.clip,
-        graphics.translation_x,
-        graphics.translation_y,
-    )
-    .await
 }
 
 pub async fn fill_rect(
