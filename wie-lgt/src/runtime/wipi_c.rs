@@ -53,6 +53,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::GetFramebufferBpp => graphics::get_framebuffer_bpp.into_body(),
         WIPICSvcId::Printk => kernel::printk.into_body(),
         WIPICSvcId::Sprintk => kernel::sprintk.into_body(),
+        WIPICSvcId::Execute => kernel::execute.into_body(),
         WIPICSvcId::Unk13 => unk13.into_body(),
         WIPICSvcId::GetCurProgramId => kernel::get_cur_program_id.into_body(),
         WIPICSvcId::Exit => kernel::exit.into_body(),
@@ -115,11 +116,19 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::UicGetClass => uic::get_class.into_body(),
         WIPICSvcId::UicCreate => uic::create.into_body(),
         WIPICSvcId::UicDestroy => uic::destroy.into_body(),
+        WIPICSvcId::UicPaint => graphics::paint_component.into_body(),
+        WIPICSvcId::UicHandleEvent => handle_component_event.into_body(),
         WIPICSvcId::UicConfigure => uic::configure.into_body(),
         WIPICSvcId::UicSetEnable => uic::set_enable.into_body(),
+        WIPICSvcId::UicSetFgColor => uic::set_fg_color.into_body(),
+        WIPICSvcId::UicSetBgColor => uic::set_bg_color.into_body(),
+        WIPICSvcId::UicSetLabelAlignment => uic::set_label_alignment.into_body(),
         WIPICSvcId::UicGetTime => uic::get_time.into_body(),
         WIPICSvcId::UicInsertText => uic::insert_text.into_body(),
+        WIPICSvcId::UicDeleteText => uic::delete_text.into_body(),
         WIPICSvcId::UicSetMaxTextSize => uic::set_max_text_size.into_body(),
+        WIPICSvcId::UicGetTextSize => uic::get_text_size.into_body(),
+        WIPICSvcId::UicGetText => uic::get_text.into_body(),
         WIPICSvcId::OpenDatabase => database::open_database.into_body(),
         WIPICSvcId::ReadRecordSingle => database::stream_read.into_body(),
         WIPICSvcId::WriteRecordSingle => database::stream_write.into_body(),
@@ -208,6 +217,14 @@ pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm
     core.register_svc_handler(SVC_CATEGORY_WIPIC, handle_wipic_svc, &(system.clone(), jvm.clone()))
 }
 
+async fn handle_component_event(context: &mut dyn WIPICContext, component: u32, event_type: i32, param1: i32, param2: i32) -> Result<i32> {
+    let event_type = match event_type {
+        502..=504 => event_type - 500,
+        _ => event_type,
+    };
+    uic::handle_event(context, component, event_type, param1, param2).await
+}
+
 async fn clet_register(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), function_table: u32, a1: u32) -> Result<()> {
     tracing::debug!("clet_register({function_table:#x}, {a1:#x})");
 
@@ -286,4 +303,81 @@ async fn unk16(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
     // misc
 
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+
+    use test_utils::{TestPlatform, run_jvm_test_with_system};
+    use wie_backend::Options;
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{ByteWrite, Result, read_generic, read_null_terminated_string_bytes, write_generic};
+
+    use super::{graphics, register_wipic_svc_handler};
+    use crate::runtime::SVC_CATEGORY_WIPIC;
+
+    #[test]
+    fn text_component_imports_edit_and_paint_with_lgt_event_and_graphics_abis() -> Result<()> {
+        run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })
+            .unwrap();
+            Allocator::init(&mut core).unwrap();
+            core.map(0x10000, 0x10000).unwrap();
+            let mut registers = core.save_context();
+            registers.sp = 0x18000;
+            core.restore_context(&registers);
+            graphics::init_process_state(&mut core, 240, 320).unwrap();
+            graphics::set_use_annunciator(&mut core, 1).unwrap();
+            register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
+            let buffer = Allocator::alloc(&mut core, 128).unwrap();
+
+            async fn call(core: &mut ArmCore, id: u32, args: &[u32]) -> u32 {
+                let stub = core.make_svc_stub(SVC_CATEGORY_WIPIC, id).unwrap();
+                core.run_function(stub, args).await.unwrap()
+            }
+
+            core.write_bytes(buffer, b"TextComponent\0").unwrap();
+            let application = call(&mut core, 0x320, &[]).await;
+            let class = call(&mut core, 0x321, &[buffer]).await;
+            assert_eq!(call(&mut core, 0x321, &[buffer]).await, class);
+            let component = call(&mut core, 0x322, &[application, class]).await;
+            call(&mut core, 0x329, &[component, 4, 5, 40, 20, 3]).await;
+            call(&mut core, 0x32b, &[component, 1]).await;
+            call(&mut core, 0x330, &[component, 0xff0000]).await;
+            call(&mut core, 0x331, &[component, 0xffffff]).await;
+            call(&mut core, 0x334, &[component, 0]).await;
+            core.write_bytes(buffer, b"AB").unwrap();
+            assert_eq!(call(&mut core, 0x33e, &[component, 0, buffer, 2]).await, 2);
+            assert_eq!(call(&mut core, 0x12e, &[3]).await, 1);
+            assert_eq!(call(&mut core, 0x328, &[component, 502, u32::from(b'7'), 0]).await, 1);
+            assert_eq!(call(&mut core, 0x328, &[component, 503, u32::from(b'7'), 0]).await, 0);
+            assert_eq!(call(&mut core, 0x342, &[component]).await, 3);
+            call(&mut core, 0x33f, &[component, 0, 1]).await;
+            assert_eq!(call(&mut core, 0x343, &[component, 0, buffer, 3]).await, 2);
+            assert_eq!(read_null_terminated_string_bytes(&core, buffer).unwrap(), b"B7");
+            assert_eq!(call(&mut core, 0x341, &[component, i32::MAX as u32]).await as i32, -17);
+            assert_eq!(call(&mut core, 0x342, &[component]).await, 2);
+
+            call(&mut core, 0xcd, &[buffer]).await;
+            write_generic(&mut core, buffer + 64, [0i32, 0, 30, 30]).unwrap();
+            call(&mut core, 0xce, &[buffer, 0, buffer + 64]).await;
+            call(&mut core, 0x325, &[component, buffer]).await;
+            let screen = call(&mut core, 0xca, &[0]).await;
+            let pixels = call(&mut core, 0x32, &[screen]).await;
+            let pixel = |x: u32, y: u32| read_generic::<u16, _>(&core, pixels + (y * 240 + x) * 2).unwrap();
+            assert_eq!(pixel(29, 48), 0xffff);
+            assert_eq!(pixel(30, 48), 0);
+            assert_eq!(pixel(4, 24), 0);
+            assert!((29..49).any(|y| (4..30).any(|x| pixel(x, y) & 0xf800 > 0 && pixel(x, y) & 0x07e0 == 0)));
+            call(&mut core, 0x323, &[component]).await;
+            core.write_bytes(buffer, b"UnavailableProgram\0").unwrap();
+            assert_eq!(call(&mut core, 0x67, &[buffer, 0]).await as i32, -9);
+            Ok(())
+        })
+    }
 }
