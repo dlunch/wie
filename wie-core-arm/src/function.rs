@@ -180,6 +180,14 @@ impl ResultWriter<()> for () {
     }
 }
 
+impl ResultWriter<f64> for f64 {
+    fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
+        let bits = self.to_bits();
+        core.write_return_value(&[bits as u32, (bits >> 32) as u32])?;
+        core.set_next_pc(next_pc)
+    }
+}
+
 /// `ResultWriter` that ignores the caller-provided LR and jumps to its own
 /// destination. Used by handlers that replace inline code (no real return
 /// address) and need to resume execution at a custom PC.

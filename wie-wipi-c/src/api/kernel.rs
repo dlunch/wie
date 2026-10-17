@@ -275,7 +275,7 @@ pub async fn exit(context: &mut dyn WIPICContext, code: i32) -> Result<()> {
 pub async fn execute(context: &mut dyn WIPICContext, name: WIPICWord, parameter_count: i32) -> Result<i32> {
     let name = read_null_terminated_string_bytes(context, name)?;
     let name = encoding_rs::EUC_KR.decode(&name).0;
-    tracing::warn!("MC_knlExecute({name}, {parameter_count}): no installed external program");
+    tracing::warn!("stub MC_knlExecute({name}, {parameter_count}): no installed external program");
     Ok(-9) // M_E_INVALID: the execution name does not identify an installed program.
 }
 

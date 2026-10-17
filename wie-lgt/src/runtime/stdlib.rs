@@ -434,9 +434,9 @@ async fn unk2(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     Ok(())
 }
 
-async fn unk450(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+async fn unk450(_core: &mut ArmCore, _: &mut ()) -> Result<f64> {
     tracing::warn!("stub lgt stdlib unk450");
-    core.write_return_value(&[0, 0])
+    Ok(0.0)
 }
 
 async fn atexit(_core: &mut ArmCore, _: &mut (), callback: u32) -> Result<u32> {

@@ -1193,4 +1193,29 @@ mod tests {
             EngineStopReason::Yield => panic!("expected SVC, got yield"),
         }
     }
+
+    #[test]
+    fn double_result_reaches_guest_registers_in_low_high_word_order() {
+        async fn return_double(_core: &mut ArmCore, value: &mut f64) -> Result<f64> {
+            Ok(*value)
+        }
+
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })
+        .unwrap();
+        // push {r4, lr}; mov r4, r3; blx r2; stmia r4, {r0, r1}; pop {r4, pc}
+        let code = [0xe92d4010u32, 0xe1a04003, 0xe12fff32, 0xe8840003, 0xe8bd8010];
+        core.load(bytemuck::cast_slice(&code), 0x1000, 0x1000).unwrap();
+        let mut context = core.save_context();
+        context.sp = 0x2000;
+        core.restore_context(&context);
+        core.register_svc_handler(1, return_double, &-1.1).unwrap();
+        let function = core.make_svc_stub(1, 0u32).unwrap();
+        futures::executor::block_on(core.run_function::<()>(0x1000, &[0, 0, function, 0x1800])).unwrap();
+        assert_eq!(read_generic::<u32, _>(&core, 0x1800).unwrap(), 0x9999999a);
+        assert_eq!(read_generic::<u32, _>(&core, 0x1804).unwrap(), 0xbff19999);
+    }
 }
