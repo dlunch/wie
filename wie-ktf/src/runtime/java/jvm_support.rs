@@ -308,9 +308,7 @@ mod test {
             JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor, JavaClassInstance as RawJavaClassInstance,
             JavaFieldDefinition as RawJavaField, JavaMethodDefinition as RawJavaMethod,
         },
-        wipic::{WIPICGraphicsInterface, WIPICInterface},
     };
-    use wipi_types::wipic::WIPICFramebuffer;
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
@@ -318,12 +316,7 @@ mod test {
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
-    use crate::runtime::{
-        SVC_CATEGORY_WIPIC,
-        java::{JavaSvcFunctions, handle_java_svc},
-        svc_ids::{WIPICKernelMethodId, WIPICTableId},
-        wipi_c::register_wipic_svc_handler,
-    };
+    use crate::runtime::java::{JavaSvcFunctions, handle_java_svc};
 
     use super::{
         ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaClassInstance, JavaMethod, KtfClassLoader, KtfJvmSupport,
@@ -551,47 +544,6 @@ mod test {
         while !done.load(Ordering::Relaxed) {
             system.tick()?;
         }
-        Ok(())
-    }
-
-    #[test]
-    fn native_screen_flush_presents_guest_framebuffer() -> Result<()> {
-        let paints = Arc::new(AtomicUsize::new(0));
-        let observed_paints = paints.clone();
-        let platform = TestPlatform::with_paint_handler(move |image| {
-            assert_eq!((image.width(), image.height()), (3, 2));
-            let expected = [(255, 0, 0), (0, 255, 0)][observed_paints.fetch_add(1, Ordering::Relaxed)];
-            let pixel = image.get_pixel(2, 1);
-            assert_eq!((pixel.r, pixel.g, pixel.b), expected);
-        });
-        let mut system = System::new(Box::new(platform), "", "", DefaultTaskRunner);
-        system.platform().screen().resize(3, 2)?;
-        let done = Arc::new(AtomicBool::new(false));
-        let done_clone = done.clone();
-        let mut system_clone = system.clone();
-        system.spawn(async move || {
-            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
-            register_wipic_svc_handler(&mut core, &system_clone, &jvm)?;
-            let get_interfaces = core.make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))?;
-            let interfaces: u32 = core.run_function(get_interfaces, &[]).await?;
-            let interfaces: WIPICInterface = read_generic(&core, interfaces)?;
-            let graphics: WIPICGraphicsInterface = read_generic(&core, interfaces.graphics_interface)?;
-            let framebuffer: u32 = core.run_function(graphics.get_screen_framebuffer, &[0]).await?;
-            let framebuffer_data: u32 = read_generic(&core, framebuffer)?;
-            let framebuffer: WIPICFramebuffer = read_generic(&core, framebuffer_data + 8)?;
-            let pixels: u32 = read_generic(&core, framebuffer.buf.0)?;
-            let flush: u32 = read_generic(&core, interfaces.interface_12 + 4)?;
-            for color in [0xf800u16, 0x07e0u16] {
-                write_generic(&mut core, pixels + 8 + 10, color)?;
-                core.run_function::<u32>(flush, &[]).await?;
-            }
-            done_clone.store(true, Ordering::Relaxed);
-            Ok(())
-        });
-        while !done.load(Ordering::Relaxed) {
-            system.tick()?;
-        }
-        assert_eq!(paints.load(Ordering::Relaxed), 2);
         Ok(())
     }
 

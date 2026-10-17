@@ -328,13 +328,24 @@ pub async fn draw_image(
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(framebuffer)?)?);
     let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
+    let gctx: WIPICGraphicsContext = read_generic(context, graphics_context)?;
 
     let src_image = FrameBuffer(image.img).image(context)?;
-    let clip = Clip {
-        x: dx as _,
-        y: dy as _,
-        width: w as _,
-        height: h as _,
+    let clip = if gctx.mask & 1 != 0 {
+        let [left, top, right, bottom] = gctx.clip.map(|value| i32::from(value as i16));
+        Clip {
+            x: left,
+            y: top,
+            width: (right - left).max(0) as u32,
+            height: (bottom - top).max(0) as u32,
+        }
+    } else {
+        Clip {
+            x: dx,
+            y: dy,
+            width: w as u32,
+            height: h as u32,
+        }
     };
 
     primitives::draw_image(context, &framebuffer, dx, dy, w as u32, h as u32, &*src_image, sx, sy, clip)
@@ -770,7 +781,7 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn indexed_bmp_transparency_is_preserved_when_drawn() -> Result<()> {
+    async fn indexed_images_preserve_transparency_and_context_clipping() -> Result<()> {
         for (reserved, important, transparent) in [(1u16, 0x101u32, Some(1)), (1, 0x100, Some(0)), (0, 0x101, None), (1, 3, None)] {
             let mut bmp = vec![0u8; 70];
             bmp[..2].copy_from_slice(b"BM");
@@ -797,23 +808,28 @@ mod tests {
             let image: WIPICIndirectPtr = read_generic(&context, output)?;
             let destination = create_offscreen_framebuffer(&mut context, 4, 1).await?;
             let framebuffer = FrameBuffer(read_generic(&context, context.data_ptr(destination)?)?);
-            framebuffer.write(&mut context, &[0xe0, 0x07, 0xe0, 0x07, 0xe0, 0x07, 0xe0, 0x07])?;
             let graphics_context = context.alloc_raw(size_of::<WIPICGraphicsContext>() as u32)?;
             init_context(&mut context, graphics_context).await?;
-            draw_image(&mut context, destination, 1, 0, 3, 1, image, 0, 0, graphics_context).await?;
+            let clip = context.alloc_raw(16)?;
+            write_generic(&mut context, clip, [2i32, 0, 3, 1])?;
+            for clip_ptr in [clip, 0] {
+                set_context(&mut context, graphics_context, WIPICGraphicsContextIdx::ClipIdx, clip_ptr).await?;
+                framebuffer.write(&mut context, &[0xe0, 0x07, 0xe0, 0x07, 0xe0, 0x07, 0xe0, 0x07])?;
+                draw_image(&mut context, destination, 1, 0, 3, 1, image, 0, 0, graphics_context).await?;
 
-            let drawn = framebuffer.image(&mut context)?;
-            assert_eq!(drawn.get_pixel(0, 0).g, 255);
-            for index in 0..3 {
-                let color = drawn.get_pixel(index + 1, 0);
-                let expected = if transparent == Some(index) {
-                    [0, 255, 0]
-                } else if index == 2 {
-                    [0, 0, 0]
-                } else {
-                    [255, 0, 255]
-                };
-                assert_eq!([color.r, color.g, color.b], expected);
+                let drawn = framebuffer.image(&mut context)?;
+                assert_eq!(drawn.get_pixel(0, 0).g, 255);
+                for index in 0..3 {
+                    let color = drawn.get_pixel(index + 1, 0);
+                    let expected = if transparent == Some(index) || (clip_ptr != 0 && index != 1) {
+                        [0, 255, 0]
+                    } else if index == 2 {
+                        [0, 0, 0]
+                    } else {
+                        [255, 0, 255]
+                    };
+                    assert_eq!([color.r, color.g, color.b], expected);
+                }
             }
         }
         Ok(())
