@@ -9,6 +9,10 @@ on:
 
 name: Web CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   web_ci:
     runs-on: ubuntu-latest
