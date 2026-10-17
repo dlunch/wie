@@ -44,7 +44,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
             x if x == StdlibSvcId::Time as u32 => EmulatedFunction::call(&time, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Localtime as u32 => EmulatedFunction::call(&localtime, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Atexit as u32 => EmulatedFunction::call(&atexit, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Abort as u32 => Err(WieError::FatalError("Guest called abort()".into())),
+            x if x == StdlibSvcId::Abort as u32 => EmulatedFunction::call(&abort, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Malloc as u32 => EmulatedFunction::call(&malloc, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Realloc as u32 => EmulatedFunction::call(&realloc, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Free as u32 => EmulatedFunction::call(&free, core, &mut ()).await?.write(core, lr),
@@ -437,6 +437,10 @@ async fn unk2(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
 async fn unk450(_core: &mut ArmCore, _: &mut ()) -> Result<f64> {
     tracing::warn!("stub lgt stdlib unk450");
     Ok(0.0)
+}
+
+async fn abort(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
+    Err(WieError::FatalError("Guest called abort()".into()))
 }
 
 async fn atexit(_core: &mut ArmCore, _: &mut (), callback: u32) -> Result<u32> {
