@@ -48,12 +48,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
             x if x == StdlibSvcId::Malloc as u32 => EmulatedFunction::call(&malloc, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Realloc as u32 => EmulatedFunction::call(&realloc, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Free as u32 => EmulatedFunction::call(&free, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Unk450 as u32 => {
-                tracing::warn!("stub lgt stdlib unk450");
-                // shortcut: unidentified double-to-double import returns 0.0 until its function is identified.
-                core.write_return_value(&[0, 0])?;
-                core.set_next_pc(lr)
-            }
+            x if x == StdlibSvcId::Unk450 as u32 => EmulatedFunction::call(&unk450, core, &mut ()).await?.write(core, lr),
             _ => Err(WieError::FatalError(format!("Unknown lgt stdlib import: {:#x}", id.0))),
         }
     }
@@ -442,6 +437,11 @@ async fn unk2(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     // error exit?
 
     Ok(())
+}
+
+async fn unk450(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+    tracing::warn!("stub lgt stdlib unk450");
+    core.write_return_value(&[0, 0])
 }
 
 async fn atexit(_core: &mut ArmCore, _: &mut (), callback: u32) -> Result<u32> {
