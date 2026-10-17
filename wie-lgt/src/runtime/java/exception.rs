@@ -5,7 +5,8 @@ use bytemuck::{Pod, Zeroable};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, RUN_FUNCTION_LR};
 use wie_util::{Result, read_generic, write_generic};
 
-const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
+use crate::runtime::globals::SUPPORT_CONTEXT_BASE;
+
 const FRAME_WORDS: u32 = 18;
 
 // Fixed guest-memory context shared by the LGT Java SVC handlers.

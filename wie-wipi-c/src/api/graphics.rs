@@ -16,12 +16,11 @@ use wie_util::{Result, read_generic, write_generic};
 
 use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICGraphicsContext, WIPICImage, WIPICIndirectPtr, WIPICWord};
 
-use crate::context::WIPICContext;
+use crate::{context::WIPICContext, globals::SCREEN_FRAMEBUFFER_PTR};
 
 use self::{grp_context::WIPICGraphicsContextIdx, image::create_wipi_image};
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some apps require a 16bpp framebuffer
-const SCREEN_FRAMEBUFFER_PTR: u32 = 0x7fff1000;
 
 pub async fn fill_polygon(
     _context: &mut dyn WIPICContext,

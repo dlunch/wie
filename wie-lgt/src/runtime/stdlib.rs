@@ -12,10 +12,7 @@ use wie_util::{
 };
 use wie_wipi_c::api::kernel;
 
-use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
-
-// GLOBAL_DATA_BASE + 0x101c, immediately after the LGT display properties.
-const STRTOK_STATE: u32 = 0x7fff101c;
+use crate::runtime::{SVC_CATEGORY_STDLIB, globals::STRTOK_STATE, svc_ids::StdlibSvcId};
 
 pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Result<()> {
     async fn handle_stdlib_svc(core: &mut ArmCore, system: &mut System, id: SvcId) -> Result<()> {
