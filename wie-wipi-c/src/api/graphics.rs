@@ -72,8 +72,14 @@ pub async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, o
     let mut grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
     match op {
         WIPICGraphicsContextIdx::ClipIdx => {
-            let clip: [i32; 4] = read_generic(context, pv)?;
-            grp_ctx.clip = clip.map(|value| value as u16);
+            // MC_GRP_CONTEXT_CLIP_MASK is cleared when clipping is disabled.
+            if pv == 0 {
+                grp_ctx.mask &= !1;
+            } else {
+                let clip: [i32; 4] = read_generic(context, pv)?;
+                grp_ctx.clip = clip.map(|value| value as u16);
+                grp_ctx.mask |= 1;
+            }
         }
         WIPICGraphicsContextIdx::FgPixelIdx => {
             grp_ctx.fgpxl = pv as _;
@@ -847,6 +853,13 @@ mod tests {
         write_generic(&mut context, output, [999i32; 5])?;
         get.call(&mut context, Box::new([ptr_context, 0, output])).await?;
         assert_eq!(read_generic::<[i32; 5], _>(&context, output)?, [-5, -8, 176, 220, 999]);
+
+        let graphics: WIPICGraphicsContext = read_generic(&context, ptr_context)?;
+        assert_eq!(graphics.mask & 1, 1);
+        set.call(&mut context, Box::new([ptr_context, 0, 0])).await?;
+        let graphics: WIPICGraphicsContext = read_generic(&context, ptr_context)?;
+        assert_eq!(graphics.mask & 1, 0);
+        assert_eq!(graphics.fgpxl, 0x12345678);
 
         write_generic(&mut context, input, [-12i32, 34])?;
         set.call(&mut context, Box::new([ptr_context, 10, input])).await?;
