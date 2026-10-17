@@ -365,7 +365,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICKernelMethodId::Printk => Some(kernel::printk.into_body()),
             WIPICKernelMethodId::Sprintk => Some(kernel::sprintk.into_body()),
             WIPICKernelMethodId::GetExecNames => Some(gen_stub(2, "MC_knlGetExecNames")),
-            WIPICKernelMethodId::Execute => Some(gen_stub(3, "MC_knlExecute")),
+            WIPICKernelMethodId::Execute => Some(kernel::execute.into_body()),
             WIPICKernelMethodId::Mexecute => Some(gen_stub(4, "MC_knlMExecute")),
             WIPICKernelMethodId::Load => Some(gen_stub(5, "MC_knlLoad")),
             WIPICKernelMethodId::Mload => Some(gen_stub(6, "MC_knlMLoad")),

@@ -36,6 +36,46 @@ pub async fn configure(_context: &mut dyn WIPICContext, cc: WIPICWord, x: i32, y
     Ok(())
 }
 
+pub async fn paint(_context: &mut dyn WIPICContext, cc: u32, graphics: u32) -> Result<()> {
+    tracing::warn!("stub MC_uicPaint({cc:#x}, {graphics:#x})");
+    Ok(())
+}
+
+pub async fn handle_event(_context: &mut dyn WIPICContext, cc: u32, event_type: i32, param1: i32, param2: i32) -> Result<i32> {
+    tracing::warn!("stub MC_uicHandleEvent({cc:#x}, {event_type}, {param1}, {param2})");
+    Ok(0)
+}
+
+pub async fn set_fg_color(_context: &mut dyn WIPICContext, cc: u32, color: u32) -> Result<()> {
+    tracing::warn!("stub MC_uicSetFgColor({cc:#x}, {color:#x})");
+    Ok(())
+}
+
+pub async fn set_bg_color(_context: &mut dyn WIPICContext, cc: u32, color: u32) -> Result<()> {
+    tracing::warn!("stub MC_uicSetBgColor({cc:#x}, {color:#x})");
+    Ok(())
+}
+
+pub async fn set_label_alignment(_context: &mut dyn WIPICContext, cc: u32, align: i32) -> Result<i32> {
+    tracing::warn!("stub MC_uicSetLabelAlignment({cc:#x}, {align})");
+    Ok(0)
+}
+
+pub async fn delete_text(_context: &mut dyn WIPICContext, cc: u32, idx: i32, len: i32) -> Result<()> {
+    tracing::warn!("stub MC_uicDeleteText({cc:#x}, {idx}, {len})");
+    Ok(())
+}
+
+pub async fn get_text_size(_context: &mut dyn WIPICContext, cc: u32) -> Result<i32> {
+    tracing::warn!("stub MC_uicGetTextSize({cc:#x})");
+    Ok(0)
+}
+
+pub async fn get_text(_context: &mut dyn WIPICContext, cc: u32, idx: i32, destination: u32, len: i32) -> Result<i32> {
+    tracing::warn!("stub MC_uicGetText({cc:#x}, {idx}, {destination:#x}, {len})");
+    Ok(0)
+}
+
 pub async fn set_enable(_context: &mut dyn WIPICContext, cc: WIPICWord, enable: i32) -> Result<()> {
     tracing::warn!("stub MC_uicSetEnable({cc:#x}, {enable})");
 

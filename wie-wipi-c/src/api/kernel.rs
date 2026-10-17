@@ -272,6 +272,11 @@ pub async fn exit(context: &mut dyn WIPICContext, code: i32) -> Result<()> {
     Ok(())
 }
 
+pub async fn execute(_context: &mut dyn WIPICContext, name: WIPICWord, parameter_count: i32) -> Result<i32> {
+    tracing::warn!("stub MC_knlExecute({name:#x}, {parameter_count})");
+    Ok(-9) // M_E_INVALID: the execution name does not identify an installed program.
+}
+
 pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub MC_knlGetCurProgramID()");
 
