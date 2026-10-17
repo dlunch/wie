@@ -33,6 +33,7 @@ extern "C" {
         imports: &Object,
         frame: u32,
         regions: u32,
+        recompilation: bool,
     ) -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(catch, js_name = loadArmCache)]
@@ -165,7 +166,7 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
                 });
             }
             let digest = Reflect::get(&lookup, &"digest".into())?;
-            let dispatcher = prepare_dispatcher(code, Some(&record), &key, &digest, regions.len()).await?;
+            let dispatcher = prepare_dispatcher(code, Some(&record), &key, &digest, regions.len(), false).await?;
             Ok::<_, JsValue>((CompiledArtifact { regions }, dispatcher))
         }
         .await;
@@ -196,7 +197,7 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
         });
     }
     let record = cache_key.and_then(|key| cache::encode(&key, &bytes, &serialized));
-    let dispatcher = prepare_dispatcher(&bytes, record.as_deref(), &key, &JsValue::UNDEFINED, regions.len()).await?;
+    let dispatcher = prepare_dispatcher(&bytes, record.as_deref(), &key, &JsValue::UNDEFINED, regions.len(), module != 0).await?;
     Ok((CompiledArtifact { regions }, dispatcher))
 }
 
@@ -214,6 +215,7 @@ async fn prepare_dispatcher(
     key: &JsValue,
     cached_digest: &JsValue,
     region_count: usize,
+    recompilation: bool,
 ) -> Result<Function, JsValue> {
     let mut warmup = Box::new(RunFrame {
         cpsr: 0x1f,
@@ -233,6 +235,7 @@ async fn prepare_dispatcher(
         &imports,
         &mut *warmup as *mut RunFrame as u32,
         region_count as u32,
+        recompilation,
     )?;
     let result = JsFuture::from(promise).await;
     result?.dyn_into::<Function>()

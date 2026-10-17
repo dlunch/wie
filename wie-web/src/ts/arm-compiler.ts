@@ -91,9 +91,9 @@ export function yieldToMainThread(): Promise<void> {
 
 export async function compileArm(
     bytes: Uint8Array, record: Uint8Array | undefined, keyBytes: Uint8Array | undefined, cachedDigest: Uint8Array | undefined, imports: WebAssembly.Imports,
-    frame: number, regionCount: number,
+    frame: number, regionCount: number, recompilation: boolean,
 ): Promise<Function> {
-    let outcome = cachedDigest === undefined ? "miss" : "persistent-hit";
+    let outcome = cachedDigest === undefined ? "compiled" : "persistent-hit";
     try {
         const key = keyBytes && Array.from(keyBytes, byte => byte.toString(16).padStart(2, "0")).join("");
         let digest = cachedDigest;
@@ -135,6 +135,6 @@ export async function compileArm(
         outcome = String(error);
         throw error;
     } finally {
-        console.info("ARM AOT prepared", outcome);
+        console.info(recompilation ? "ARM AOT recompiled" : "ARM AOT prepared", outcome);
     }
 }
