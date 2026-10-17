@@ -352,7 +352,14 @@ pub fn get_unk3_method_table() -> Vec<WIPICMethodBody> {
 }
 
 pub fn get_unk12_method_table() -> Vec<WIPICMethodBody> {
-    vec![gen_unk_stub(12, 0), gen_unk_stub(12, 1), gen_unk_stub(12, 2)]
+    async fn unk_screen_flush(context: &mut dyn WIPICContext) -> Result<()> {
+        tracing::debug!("KTF unk_screen_flush()");
+        let framebuffer = graphics::get_screen_framebuffer(context, 0).await?;
+        let width = graphics::get_framebuffer_width(context, framebuffer).await? as u32;
+        let height = graphics::get_framebuffer_height(context, framebuffer).await? as u32;
+        graphics::flush_lcd(context, 0, framebuffer, 0, 0, width, height).await
+    }
+    vec![gen_unk_stub(12, 0), unk_screen_flush.into_body(), gen_unk_stub(12, 2)]
 }
 
 pub fn get_stub_method_table(interface: WIPICWord) -> Vec<WIPICMethodBody> {
