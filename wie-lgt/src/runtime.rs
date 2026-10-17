@@ -1,3 +1,4 @@
+mod globals;
 pub mod init;
 mod java;
 mod stdlib;

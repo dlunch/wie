@@ -3,6 +3,7 @@ extern crate alloc;
 
 pub mod api;
 mod context;
+mod globals;
 mod method;
 
 pub use self::context::{WIPICContext, WIPICResult};

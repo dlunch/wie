@@ -15,8 +15,8 @@ use wie_wipi_c::{
     api::graphics::{FrameBuffer, decode_image_framebuffer, primitives},
 };
 
-const GRAPHICS_STATE_ROOT: u32 = 0x7fff1008;
-const DISPLAY_PROPERTIES_ROOT: u32 = 0x7fff1010;
+use crate::runtime::globals::{DISPLAY_PROPERTIES_ROOT, GRAPHICS_STATE_ROOT};
+
 const FRAMEBUFFER_DEPTH: u32 = 16;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
