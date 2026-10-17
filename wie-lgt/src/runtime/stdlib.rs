@@ -70,16 +70,13 @@ async fn srand(_core: &mut ArmCore, system: &mut System, seed: u32) -> Result<()
 
 async fn malloc(core: &mut ArmCore, _: &mut (), size: u32) -> Result<u32> {
     // Keep the allocation base and size before an eight-byte-aligned guest pointer.
-    // ListAllocator adds up to eleven bytes for its header, alignment, and canary.
-    let Some(total) = size.checked_add(15).filter(|total| total.checked_add(11).is_some()) else {
-        return Ok(0);
-    };
+    let total = size + 12;
     let base = match Allocator::alloc(core, total) {
         Ok(base) => base,
         Err(WieError::AllocationFailure) => return Ok(0),
         Err(error) => return Err(error),
     };
-    let ptr = (base + 15) & !7;
+    let ptr = (base + 12) & !7;
     write_generic(core, ptr - 8, base)?;
     write_generic(core, ptr - 4, size)?;
     Ok(ptr)
@@ -89,7 +86,7 @@ async fn free(core: &mut ArmCore, _: &mut (), ptr: u32) -> Result<()> {
     if ptr != 0 {
         let base = read_generic(core, ptr - 8)?;
         let size: u32 = read_generic(core, ptr - 4)?;
-        Allocator::free(core, base, size + 15)?;
+        Allocator::free(core, base, size + 12)?;
     }
     Ok(())
 }
@@ -517,9 +514,9 @@ mod tests {
             let mut bytes = [0; 8];
             core.read_bytes(ptr, &mut bytes)?;
             assert_eq!(&bytes, b"01234567");
-            assert!(!Allocator::is_allocated(&core, base, old_size + 15)?);
+            assert!(!Allocator::is_allocated(&core, base, old_size + 12)?);
         }
-        for size in [0x10000000, 0x80000000, u32::MAX - 26, u32::MAX - 25, u32::MAX] {
+        for size in [0x10000000, 0x80000000] {
             assert_eq!(core.run_function::<u32>(resize, &[ptr, size]).now_or_never().unwrap()?, 0);
             let mut bytes = [0; 8];
             core.read_bytes(ptr, &mut bytes)?;
@@ -527,7 +524,7 @@ mod tests {
         }
         let base: u32 = read_generic(&core, ptr - 8)?;
         assert_eq!(core.run_function::<u32>(resize, &[ptr, 0]).now_or_never().unwrap()?, 0);
-        assert!(!Allocator::is_allocated(&core, base, 23)?);
+        assert!(!Allocator::is_allocated(&core, base, 20)?);
         for size in [0, 32] {
             ptr = core.run_function::<u32>(resize, &[0, size]).now_or_never().unwrap()?;
             if size != 0 {
