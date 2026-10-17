@@ -65,12 +65,7 @@ async fn srand(_core: &mut ArmCore, system: &mut System, seed: u32) -> Result<()
 
 async fn malloc(core: &mut ArmCore, _: &mut (), size: u32) -> Result<u32> {
     // Keep the allocation base and size before an eight-byte-aligned guest pointer.
-    let total = size + 12;
-    let base = match Allocator::alloc(core, total) {
-        Ok(base) => base,
-        Err(WieError::AllocationFailure) => return Ok(0),
-        Err(error) => return Err(error),
-    };
+    let base = Allocator::alloc(core, size + 12)?;
     let ptr = (base + 12) & !7;
     write_generic(core, ptr - 8, base)?;
     write_generic(core, ptr - 4, size)?;
@@ -92,7 +87,7 @@ async fn realloc(core: &mut ArmCore, context: &mut (), ptr: u32, size: u32) -> R
         return Ok(0);
     }
     let new_ptr = malloc(core, context, size).await?;
-    if new_ptr != 0 && ptr != 0 {
+    if ptr != 0 {
         let old_size: u32 = read_generic(core, ptr - 4)?;
         memcpy(core, context, new_ptr, ptr, size.min(old_size)).await?;
         free(core, context, ptr).await?;
@@ -517,7 +512,10 @@ mod tests {
             assert!(!Allocator::is_allocated(&core, base, old_size + 12)?);
         }
         for size in [0x10000000, 0x80000000] {
-            assert_eq!(core.run_function::<u32>(resize, &[ptr, size]).now_or_never().unwrap()?, 0);
+            assert!(matches!(
+                core.run_function::<u32>(resize, &[ptr, size]).now_or_never().unwrap(),
+                Err(WieError::AllocationFailure)
+            ));
             let mut bytes = [0; 8];
             core.read_bytes(ptr, &mut bytes)?;
             assert_eq!(&bytes, b"01234567");
