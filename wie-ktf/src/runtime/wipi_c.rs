@@ -83,3 +83,65 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
 pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
     core.register_svc_handler(SVC_CATEGORY_WIPIC, handle_wipic_svc, &(system.clone(), jvm.clone()))
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::{boxed::Box, sync::Arc};
+    use core::sync::atomic::{AtomicUsize, Ordering};
+
+    use test_utils::{TestPlatform, run_jvm_test_with_system};
+    use wipi_types::{
+        ktf::wipic::{WIPICGraphicsInterface, WIPICInterface},
+        wipic::WIPICFramebuffer,
+    };
+
+    use wie_backend::Options;
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{Result, read_generic, write_generic};
+
+    use super::{SVC_CATEGORY_WIPIC, WIPICKernelMethodId, WIPICTableId, register_wipic_svc_handler};
+
+    #[test]
+    fn native_screen_flush_presents_guest_framebuffer() -> Result<()> {
+        let paints = Arc::new(AtomicUsize::new(0));
+        let observed_paints = paints.clone();
+        let platform = TestPlatform::with_paint_handler(move |image| {
+            assert_eq!((image.width(), image.height()), (3, 2));
+            let expected = [(255, 0, 0), (0, 255, 0)][observed_paints.fetch_add(1, Ordering::Relaxed)];
+            let pixel = image.get_pixel(2, 1);
+            assert_eq!((pixel.r, pixel.g, pixel.b), expected);
+        });
+        run_jvm_test_with_system(Box::new([]), Box::new(platform), |jvm, system| async move {
+            system.platform().screen().resize(3, 2).unwrap();
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })
+            .unwrap();
+            Allocator::init(&mut core).unwrap();
+            let mut registers = core.save_context();
+            registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
+            core.restore_context(&registers);
+            register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
+            let get_interfaces = core
+                .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))
+                .unwrap();
+            let interfaces: u32 = core.run_function(get_interfaces, &[]).await.unwrap();
+            let interfaces: WIPICInterface = read_generic(&core, interfaces).unwrap();
+            let graphics: WIPICGraphicsInterface = read_generic(&core, interfaces.graphics_interface).unwrap();
+            let framebuffer: u32 = core.run_function(graphics.get_screen_framebuffer, &[0]).await.unwrap();
+            let framebuffer_data: u32 = read_generic(&core, framebuffer).unwrap();
+            let framebuffer: WIPICFramebuffer = read_generic(&core, framebuffer_data + 8).unwrap();
+            let pixels: u32 = read_generic(&core, framebuffer.buf.0).unwrap();
+            let flush: u32 = read_generic(&core, interfaces.interface_12 + 4).unwrap();
+            for color in [0xf800u16, 0x07e0u16] {
+                write_generic(&mut core, pixels + 8 + 10, color).unwrap();
+                core.run_function::<u32>(flush, &[]).await.unwrap();
+            }
+            Ok(())
+        })?;
+        assert_eq!(paints.load(Ordering::Relaxed), 2);
+        Ok(())
+    }
+}
