@@ -341,13 +341,13 @@ fn gen_unk_stub(id: u32, index: u32) -> WIPICMethodBody {
     body.into_body()
 }
 
-pub fn get_unk3_method_table() -> Vec<WIPICMethodBody> {
+pub fn get_im_method_table() -> Vec<WIPICMethodBody> {
     vec![
-        gen_unk_stub(3, 0),
-        gen_unk_stub(3, 1),
-        gen_unk_stub(3, 2),
-        gen_unk_stub(3, 3),
-        gen_unk_stub(3, 4),
+        im::handle_input.into_body(),
+        im::set_current_mode.into_body(),
+        im::get_current_mode.into_body(),
+        im::get_support_mode_count.into_body(),
+        im::get_supported_modes.into_body(),
     ]
 }
 
@@ -476,7 +476,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICGraphicsMethodId::DecodeNextImage => Some(gen_stub(34, "MC_grpDecodeNextImage")),
             WIPICGraphicsMethodId::EncodeImage => Some(graphics::encode_image.into_body()),
             WIPICGraphicsMethodId::PostEvent => Some(graphics::post_event.into_body()),
-            WIPICGraphicsMethodId::HandleInput => Some(gen_stub(37, "MC_imHandleInput")),
+            WIPICGraphicsMethodId::HandleInput => Some(im::handle_input.into_body()),
             WIPICGraphicsMethodId::SetCurrentMode => Some(im::set_current_mode.into_body()),
             WIPICGraphicsMethodId::GetCurrentMode => Some(im::get_current_mode.into_body()),
             WIPICGraphicsMethodId::GetSupportModeCount => Some(im::get_support_mode_count.into_body()),
@@ -500,7 +500,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICGraphicsMethodId::EncodeImageEx => Some(gen_stub(58, "OEMC_grpEncodeImageEx")),
             WIPICGraphicsMethodId::GetImageInfo => Some(gen_stub(59, "OEMC_grpGetImageInfo")),
         },
-        WIPICTableId::Interface3 => get_unk3_method_table().into_iter().nth(function_id as usize),
+        WIPICTableId::Interface3 => get_im_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Interface4 => {
             if function_id < 64 {
                 Some(gen_stub(4, "stub"))
