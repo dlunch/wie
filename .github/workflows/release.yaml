@@ -278,8 +278,8 @@ jobs:
       - name: Package bundles
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}-unsigned.AppImage"
-          cp target/${{ matrix.target }}/release/bundle/deb/*.deb "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}-unsigned.deb"
+          cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}.AppImage"
+          cp target/${{ matrix.target }}/release/bundle/deb/*.deb "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}.deb"
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7

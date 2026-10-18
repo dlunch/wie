@@ -5,20 +5,9 @@ set -euo pipefail
 repo="repos/$GITHUB_REPOSITORY"
 tag=$RELEASE_TAG
 
-artifact_notes() {
-  cat <<EOF
-## Artifact notes
-
-- The macOS artifacts are not notarized.
-- Android AAB files cannot be installed directly on a device.
-- The iOS \`.xcarchive.zip\` is not an IPA for device installation, TestFlight, or App Store submission.
-EOF
-}
-
 if [[ "$CHANNEL" == stable ]]; then
   if ! release_id=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json databaseId --jq '.databaseId' 2>/dev/null); then
-    initial_body=$(artifact_notes)
-    release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f name="$tag" -f body="$initial_body" -F draft=true -F prerelease=false)
+    release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f name="$tag" -F draft=true -F prerelease=false)
     release_id=$(jq -r '.id' <<< "$release")
   fi
 
@@ -29,24 +18,19 @@ if [[ "$CHANNEL" == stable ]]; then
     generate_notes_args+=(-f previous_tag_name="$PREVIOUS_TAG")
   fi
   notes=$(gh api "${generate_notes_args[@]}" --jq '.body')
-  body="$(artifact_notes)
-
-## Changes
+  body="## Changes
 
 $notes"
   gh api --method PATCH "$repo/releases/$release_id" -f name="$tag" -f body="$body" -F draft=false -F prerelease=false >/dev/null
 else
   if ! release_id=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json databaseId --jq '.databaseId' 2>/dev/null); then
-    initial_body=$(artifact_notes)
-    release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name=nightly -f body="$initial_body" -F draft=true -F prerelease=true)
+    release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name=nightly -F draft=true -F prerelease=true)
     release_id=$(jq -r '.id' <<< "$release")
   fi
 
   gh release upload "$tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
-  body="$(artifact_notes)
-
-## Nightly
+  body="## Nightly
 
 - Target SHA: \`$TARGET_SHA\`"
   gh api --method PATCH "$repo/releases/$release_id" -f name=nightly -f body="$body" -F draft=false -F prerelease=true >/dev/null
