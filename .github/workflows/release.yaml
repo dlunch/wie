@@ -288,13 +288,17 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-  macos:
-    name: Build macOS universal
+  macos_build:
+    name: Build macOS ${{ matrix.target }}
     env:
       SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
     runs-on: macos-latest
     steps:
       - name: Checkout target
@@ -307,7 +311,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - name: Download web frontend
         uses: actions/download-artifact@v8
@@ -315,14 +319,14 @@ jobs:
           name: web-frontend
           path: wie-web/dist
 
-      - name: Build unsigned universal bundles
+      - name: Build macOS executable
         uses: tauri-apps/tauri-action@v1
         with:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
-            --ci --target universal-apple-darwin --bundles app,dmg --no-sign
+            --ci --target ${{ matrix.target }} --no-bundle
 
       - name: Upload native debug information
         env:
@@ -330,10 +334,57 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          for target in aarch64-apple-darwin x86_64-apple-darwin; do
-            xcrun dsymutil "target/$target/release/wie-app"
-            npx --yes sentry debug-files upload --include-sources --wait "target/$target/release/wie-app.dSYM"
-          done
+          xcrun dsymutil target/${{ matrix.target }}/release/wie-app
+          npx --yes sentry debug-files upload --include-sources --wait target/${{ matrix.target }}/release/wie-app.dSYM
+
+      - name: Upload macOS executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/wie-app
+          if-no-files-found: error
+
+  macos:
+    name: Bundle macOS universal
+    needs:
+      - context
+      - macos_build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+
+      - name: Download macOS executables
+        uses: actions/download-artifact@v8
+        with:
+          pattern: '*-apple-darwin'
+          path: target
+
+      - name: Merge macOS executables
+        run: |
+          binary=target/universal-apple-darwin/release/wie-app
+          mkdir -p "$(dirname "$binary")"
+          xcrun lipo -create target/aarch64-apple-darwin/wie-app target/x86_64-apple-darwin/wie-app -output "$binary"
+          chmod +x "$binary"
+
+      - name: Bundle unsigned universal executable
+        working-directory: wie-app
+        run: >-
+          cargo tauri bundle
+          --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+          --ci --target universal-apple-darwin --bundles app,dmg --no-sign
 
       - name: Package bundles
         run: |
