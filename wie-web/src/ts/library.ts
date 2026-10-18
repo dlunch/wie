@@ -1,6 +1,7 @@
 import { Check, CircleHelp, EllipsisVertical, Globe2, Plus, Settings, Trash2, Upload, X, createIcons } from "lucide";
 
 import type { LibraryApp, Wie } from "./backend";
+import { t } from "./i18n";
 import type { SettingsController } from "./settings";
 
 const APPS_PER_PAGE = 12;
@@ -53,6 +54,12 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   let dragging = false;
   let suppressClick = false;
   let currentPageIndex = 0;
+  let importStatusText = () => "";
+
+  const setImportStatus = (text: () => string) => {
+    importStatusText = text;
+    importStatus.textContent = text();
+  };
 
   const closeMenu = () => {
     menu.classList.remove("visible");
@@ -61,9 +68,29 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
 
   const openImportDialog = () => {
     closeMenu();
-    importStatus.textContent = "";
+    setImportStatus(() => "");
     importStatus.classList.remove("error");
     importDialog.showModal();
+  };
+
+  const updateLabels = () => {
+    importStatus.textContent = importStatusText();
+    manageAppsLabel.textContent = t(manageMode ? "manageDone" : "deleteApps");
+    const pages = libraryPages.querySelectorAll<HTMLElement>(".library-page");
+    pages.forEach((page, index) => {
+      page.setAttribute("aria-label", t("libraryPage", { page: index + 1, count: pages.length }));
+    });
+    const addButton = libraryPages.querySelector<HTMLButtonElement>(".add-app")!;
+    addButton.title = t("addApp");
+    addButton.setAttribute("aria-label", t("addApp"));
+    addButton.querySelector(".app-title")!.textContent = t("addApp");
+    libraryPages.querySelectorAll<HTMLButtonElement>(".delete-app-button").forEach((button, index) => {
+      button.title = t("deleteApp", { title: apps[index].title });
+      button.setAttribute("aria-label", button.title);
+    });
+    Array.from(pageIndicators.children).forEach((indicator, index) => {
+      indicator.setAttribute("aria-label", t("goToPage", { page: index + 1 }));
+    });
   };
 
   const renderLibrary = (targetPageIndex = currentPageIndex) => {
@@ -76,7 +103,6 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
     libraryView.classList.toggle("manage-mode", manageMode);
     menuManageApps.disabled = apps.length === 0;
     menuManageApps.setAttribute("aria-pressed", String(manageMode));
-    manageAppsLabel.textContent = manageMode ? "삭제 완료" : "앱 삭제";
 
     const oldManageIcon = menuManageApps.querySelector("svg, i");
     const manageIcon = document.createElement("i");
@@ -91,15 +117,12 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
     for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
       const page = document.createElement("section");
       page.className = "library-page";
-      page.setAttribute("aria-label", `${pageIndex + 1} / ${pageCount} 페이지`);
 
       for (const app of entries.slice(pageIndex * APPS_PER_PAGE, (pageIndex + 1) * APPS_PER_PAGE)) {
         if (!app) {
           const addButton = document.createElement("button");
           addButton.className = "app-entry add-app";
           addButton.type = "button";
-          addButton.title = "앱 추가";
-          addButton.setAttribute("aria-label", "앱 추가");
 
           const icon = document.createElement("span");
           icon.className = "app-icon add-app-icon";
@@ -109,7 +132,6 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
 
           const label = document.createElement("span");
           label.className = "app-title";
-          label.textContent = "앱 추가";
           addButton.append(icon, label);
           addButton.addEventListener("click", openImportDialog);
           page.appendChild(addButton);
@@ -185,8 +207,6 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
         const deleteButton = document.createElement("button");
         deleteButton.className = "delete-app-button";
         deleteButton.type = "button";
-        deleteButton.title = `${app.title} 삭제`;
-        deleteButton.setAttribute("aria-label", `${app.title} 삭제`);
         const trash = document.createElement("i");
         trash.dataset.lucide = "trash-2";
         deleteButton.appendChild(trash);
@@ -205,7 +225,6 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
       const indicator = document.createElement("button");
       indicator.className = "page-indicator";
       indicator.type = "button";
-      indicator.setAttribute("aria-label", `${pageIndex + 1} 페이지로 이동`);
       indicator.classList.toggle("active", pageIndex === currentPageIndex);
       indicator.addEventListener("click", () => {
         libraryPages.scrollTo({ left: pageIndex * libraryPages.firstElementChild!.clientWidth, behavior: "smooth" });
@@ -213,6 +232,7 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
       pageIndicators.appendChild(indicator);
     }
 
+    updateLabels();
     pageIndicators.hidden = pageCount < 2;
     libraryPages.scrollLeft = currentPageIndex * libraryPages.firstElementChild!.clientWidth;
     createIcons({ icons, root: libraryView });
@@ -319,7 +339,7 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   helpDialog.addEventListener("close", () => {
     void settings.set("helpDismissed", hideHelp.checked).catch(error => {
       hideHelp.checked = settings.get("helpDismissed");
-      window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
+      window.alert(t("settingsSaveFailed", { error: String(error) }));
     });
   });
 
@@ -330,7 +350,7 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
 
     chooseArchive.disabled = true;
     importStatus.classList.remove("error");
-    importStatus.textContent = `${files.length}개 앱 파일을 확인하는 중입니다.`;
+    setImportStatus(() => t("checkingFiles", { count: files.length }));
 
     try {
       const failures: string[] = [];
@@ -340,7 +360,7 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
         try {
           const filename = file.name.toLowerCase();
           if (!filename.endsWith(".zip") && !filename.endsWith(".jar")) {
-            throw new Error("ZIP 또는 JAR 파일이 아닙니다.");
+            throw new Error(t("invalidArchive"));
           }
 
           await backend.importApp(file);
@@ -359,12 +379,14 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
         importDialog.close();
       } else {
         importStatus.classList.add("error");
-        const result = addedCount > 0 ? `${addedCount}개 앱을 추가했습니다. ` : "";
-        importStatus.textContent = `${result}추가하지 못한 파일: ${failures.join(" / ")}`;
+        setImportStatus(() => {
+          const result = addedCount > 0 ? `${t("appsAdded", { count: addedCount })} ` : "";
+          return `${result}${t("importFailures", { files: failures.join(" / ") })}`;
+        });
       }
     } catch (error) {
       importStatus.classList.add("error");
-      importStatus.textContent = `앱을 추가할 수 없습니다. ${String(error)}`;
+      setImportStatus(() => t("importFailed", { error: String(error) }));
     } finally {
       chooseArchive.disabled = false;
       archiveInput.value = "";
@@ -410,7 +432,7 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
       deleteDialog.close();
       renderLibrary();
     } catch (error) {
-      window.alert(`앱을 삭제할 수 없습니다. ${String(error)}`);
+      window.alert(t("deleteFailed", { error: String(error) }));
     } finally {
       confirmDelete.disabled = false;
     }
@@ -420,10 +442,11 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
       await settings.set("welcomeSeen", true);
       welcomeDialog.close();
     } catch (error) {
-      window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
+      window.alert(t("settingsSaveFailed", { error: String(error) }));
     }
   });
 
+  document.addEventListener("wie:languagechange", updateLabels);
   renderLibrary();
   if (!settings.get("welcomeSeen")) {
     welcomeDialog.showModal();

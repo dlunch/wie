@@ -1,6 +1,7 @@
-import { Music2, Volume2, X, createIcons } from "lucide";
+import { Languages, Music2, Volume2, X, createIcons } from "lucide";
 
 import type { Settings, Wie } from "./backend";
+import { getLanguagePreference, setLanguagePreference, t, type LanguagePreference } from "./i18n";
 
 export interface SettingsController {
   get<K extends keyof Settings>(key: K): Settings[K];
@@ -12,6 +13,7 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
   const dialog = document.getElementById("settings-dialog") as HTMLDialogElement;
   const midiSlider = document.getElementById("volume-midi") as HTMLInputElement;
   const pcmSlider = document.getElementById("volume-pcm") as HTMLInputElement;
+  const languageSelect = document.getElementById("language-preference") as HTMLSelectElement;
   let values = await backend.readSettings();
   let pending = Promise.resolve();
 
@@ -29,6 +31,7 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
       return saved;
     },
     open() {
+      languageSelect.value = getLanguagePreference();
       dialog.showModal();
     },
   };
@@ -39,11 +42,20 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
     slider.addEventListener("input", () => {
       void settings.set(key, slider.valueAsNumber / 100).catch(error => {
         slider.value = String(values[key] * 100);
-        window.alert(`설정을 저장할 수 없습니다. ${String(error)}`);
+        window.alert(t("settingsSaveFailed", { error: String(error) }));
       });
     });
   }
-  createIcons({ icons: { Music2, Volume2, X }, root: dialog });
+  languageSelect.value = getLanguagePreference();
+  languageSelect.addEventListener("change", () => {
+    try {
+      setLanguagePreference(languageSelect.value as LanguagePreference);
+    } catch (error) {
+      languageSelect.value = getLanguagePreference();
+      window.alert(t("settingsSaveFailed", { error: String(error) }));
+    }
+  });
+  createIcons({ icons: { Languages, Music2, Volume2, X }, root: dialog });
 
   return settings;
 };

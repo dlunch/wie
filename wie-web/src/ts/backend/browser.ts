@@ -3,6 +3,7 @@ import { extractAppMetadata } from "@pkg";
 import { AppLibraryStore } from "../app_library_store";
 import type { LibraryApp, Wie } from "../backend";
 import { configStore } from "../config_store";
+import { t } from "../i18n";
 import { setMasterVolume, setPcmVolume } from "../midi";
 import { startWasmSession } from "./wasm";
 
@@ -30,7 +31,7 @@ export const initializeWie = async (): Promise<Wie> => {
           await store.add(app, archive);
         } catch (error) {
           if (error instanceof DOMException && error.name === "ConstraintError") {
-            throw new Error(`이미 라이브러리에 추가된 앱입니다: ${app.title}`);
+            throw new Error(t("appAlreadyAdded", { title: app.title }));
           }
           throw error;
         }
@@ -64,7 +65,7 @@ export const initializeWie = async (): Promise<Wie> => {
         backend.readSettings(),
         fetch(new URL("../../../../assets/neodgm.ttf", import.meta.url)),
       ]);
-      if (!app || !archive) throw new Error("저장된 앱 파일을 찾을 수 없습니다.");
+      if (!app || !archive) throw new Error(t("appFileMissing"));
       if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
       const fontData = new Uint8Array(await fontResponse.arrayBuffer());
       setMasterVolume(settings.midiVolume);

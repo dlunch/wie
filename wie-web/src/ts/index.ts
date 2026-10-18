@@ -5,11 +5,10 @@ import { wasmIntegration } from "@sentry/wasm";
 import { recordPageView } from "./analytics";
 import { runApp } from "./app";
 import { initializeWie, type LibraryApp } from "./backend";
+import { getLocale, initializeLocalization, t } from "./i18n";
 import { initializeLibrary } from "./library";
 import { rustPanic } from "./panic";
 import { initializeSettings } from "./settings";
-
-const RESTART_MESSAGE = "오류로 실행이 중단되었습니다. wie 앱을 완전히 종료한 뒤 다시 실행해 주세요.";
 
 const main = async () => {
   Sentry.init({
@@ -58,7 +57,7 @@ const main = async () => {
     playerView.hidden = false;
     try {
       failed = await runApp(backend, app, settings, !native);
-      if (failed) window.alert(RESTART_MESSAGE);
+      if (failed) window.alert(t("restartRequired"));
     } catch (error) {
       failed = true;
       const failure = rustPanic ?? error;
@@ -69,12 +68,13 @@ const main = async () => {
       });
       Sentry.showReportDialog({
         eventId,
+        lang: getLocale(),
         onError: () => {
-          window.alert(native ? RESTART_MESSAGE : String(failure));
+          window.alert(native ? t("restartRequired") : String(failure));
           if (panicked && !native) window.location.reload();
         },
-        ...(native ? { subtitle: RESTART_MESSAGE } : panicked ? {
-          subtitle: "에뮬레이터가 중단되었습니다. 다시 실행하려면 페이지를 새로고침해 주세요.",
+        ...(native ? { subtitle: t("restartRequired") } : panicked ? {
+          subtitle: t("emulatorStopped"),
           onClose: () => window.location.reload(),
         } : {}),
       });
@@ -82,7 +82,7 @@ const main = async () => {
       Sentry.setContext("emulated_app", null);
       if (native && failed) {
         const warning = document.getElementById("player-warning") as HTMLElement;
-        warning.textContent = RESTART_MESSAGE;
+        warning.textContent = t("restartRequired");
         warning.setAttribute("role", "alert");
         warning.hidden = false;
         playerView.querySelectorAll<HTMLButtonElement>("button").forEach(button => { button.disabled = true; });
@@ -98,10 +98,11 @@ const main = async () => {
 };
 
 const start = () => {
+  initializeLocalization();
   void main().catch(error => {
     Sentry.captureException(error);
-    window.alert(isTauri() ? RESTART_MESSAGE : `라이브러리를 열 수 없습니다. ${String(error)}`);
-    console.error(`라이브러리를 열 수 없습니다. ${String(error)}`, error);
+    window.alert(isTauri() ? t("restartRequired") : t("libraryOpenFailed", { error: String(error) }));
+    console.error(t("libraryOpenFailed", { error: String(error) }), error);
   });
 };
 

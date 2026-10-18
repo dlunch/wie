@@ -42,7 +42,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -644,7 +645,7 @@ svg {
 
 .settings-fields label {
   display: grid;
-  grid-template-columns: 20px 64px minmax(0, 1fr);
+  grid-template-columns: 20px 100px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   font-size: 0.9rem;
@@ -659,6 +660,16 @@ svg {
   width: 100%;
   min-width: 0;
   margin: 0;
+}
+
+.settings-fields select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  color: var(--fg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }
 
 .welcome-steps {
@@ -749,6 +760,7 @@ svg {
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 24px;
@@ -786,6 +798,15 @@ kbd {
 }
 
 @media (max-width: 600px) {
+  .settings-fields label {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .settings-fields input,
+  .settings-fields select {
+    grid-column: 2;
+  }
+
   .library-header {
     padding: 20px 18px 10px;
   }
