@@ -133,13 +133,23 @@ jobs:
           if-no-files-found: error
 
   windows:
-    name: Build Windows x64
+    name: Build Windows ${{ matrix.arch }}
     env:
       SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - arch: aarch64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout target
         uses: actions/checkout@v7
@@ -151,7 +161,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
 
       - name: Download web frontend
         uses: actions/download-artifact@v8
@@ -166,7 +176,7 @@ jobs:
           retryAttempts: 2
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
-            --ci --target x86_64-pc-windows-msvc --bundles msi,nsis --no-sign
+            --ci --target ${{ matrix.target }} --bundles msi,nsis --no-sign
 
       - name: Upload native debug information
         shell: bash
@@ -174,30 +184,40 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-        run: npx --yes sentry debug-files upload --include-sources --wait target/x86_64-pc-windows-msvc/release/*.pdb
+        run: npx --yes sentry debug-files upload --include-sources --wait target/${{ matrix.target }}/release/*.pdb
 
       - name: Package installers
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item (Get-ChildItem target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-x86_64-unsigned.msi"
-          Copy-Item (Get-ChildItem target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-x86_64-unsigned-setup.exe"
+          Copy-Item (Get-ChildItem target/${{ matrix.target }}/release/bundle/msi/*.msi | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-${{ matrix.arch }}-unsigned.msi"
+          Copy-Item (Get-ChildItem target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-${{ matrix.arch }}-unsigned-setup.exe"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: release-windows
+          name: release-windows-${{ matrix.arch }}
           path: dist/*
           if-no-files-found: error
 
   linux:
-    name: Build Linux x64
+    name: Build Linux ${{ matrix.arch }}
     env:
       SENTRY_RELEASE: ${{ needs.context.outputs.app_version }}
     needs:
       - context
       - web
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-26.04
+            target: x86_64-unknown-linux-gnu
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout target
         uses: actions/checkout@v7
@@ -214,7 +234,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-gnu
+          targets: ${{ matrix.target }}
 
       - name: Download web frontend
         uses: actions/download-artifact@v8
@@ -235,7 +255,7 @@ jobs:
           retryAttempts: 2
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
-            --ci --target x86_64-unknown-linux-gnu --no-bundle
+            --ci --target ${{ matrix.target }} --no-bundle
 
       - name: Upload native debug information
         env:
@@ -243,7 +263,7 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          binary=target/x86_64-unknown-linux-gnu/release/wie-app
+          binary=target/${{ matrix.target }}/release/wie-app
           objcopy --only-keep-debug "$binary" "$binary.debug"
           strip --strip-debug "$binary"
           npx --yes sentry debug-files upload --include-sources --wait "$binary.debug"
@@ -253,18 +273,18 @@ jobs:
         run: >-
           cargo tauri bundle
           --config '{"version":"${{ needs.context.outputs.app_version }}"}'
-          --ci --target x86_64-unknown-linux-gnu --bundles appimage,deb --no-sign
+          --ci --target ${{ matrix.target }} --bundles appimage,deb --no-sign
 
       - name: Package bundles
         run: |
           mkdir -p dist
-          cp target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-x86_64-unsigned.AppImage"
-          cp target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-x86_64-unsigned.deb"
+          cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}-unsigned.AppImage"
+          cp target/${{ matrix.target }}/release/bundle/deb/*.deb "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}-unsigned.deb"
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: release-linux
+          name: release-linux-${{ matrix.arch }}
           path: dist/*
           if-no-files-found: error
 
