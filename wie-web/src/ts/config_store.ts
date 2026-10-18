@@ -1,4 +1,7 @@
+import type { LanguagePreference } from "./i18n";
+
 const defaults = {
+  language: "system" as LanguagePreference,
   midiVolume: 0.5,
   pcmVolume: 0.5,
   helpDismissed: false,
@@ -11,6 +14,9 @@ export const configStore = {
   get<K extends keyof Config>(key: K): Config[K] {
     try {
       const value: unknown = JSON.parse(localStorage.getItem(`wie_config_${key}`) ?? "null");
+      if (key === "language" && value !== "system" && value !== "ko" && value !== "en") {
+        return defaults[key];
+      }
       if (typeof value === typeof defaults[key] && (typeof value !== "number" || (value >= 0 && value <= 1))) {
         return value as Config[K];
       }

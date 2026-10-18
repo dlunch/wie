@@ -8,14 +8,14 @@
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>wie - 피처폰 앱 에뮬레이터 (WIPI/J2ME)</title>
-    <meta name="description" content="옛 한국 피처폰의 WIPI/J2ME 앱을 웹 브라우저에서 바로 실행하는 에뮬레이터. 앱을 브라우저에 보관하고 모바일과 PC에서 실행할 수 있습니다." />
-    <meta name="keywords" content="wie, WIPI, J2ME, 피처폰, 피처폰 앱, 에뮬레이터, 모바일 앱, 추억의 앱, 휴대폰 에뮬레이터" />
+    <title data-i18n-text="pageTitle">wie - 피처폰 앱 에뮬레이터 (WIPI/J2ME)</title>
+    <meta name="description" data-i18n-content="pageDescription" content="옛 한국 피처폰의 WIPI/J2ME 앱을 웹 브라우저에서 바로 실행하는 에뮬레이터. 앱을 브라우저에 보관하고 모바일과 PC에서 실행할 수 있습니다." />
+    <meta name="keywords" data-i18n-content="pageKeywords" content="wie, WIPI, J2ME, 피처폰, 피처폰 앱, 에뮬레이터, 모바일 앱, 추억의 앱, 휴대폰 에뮬레이터" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="wie - 피처폰 앱 에뮬레이터" />
-    <meta property="og:description" content="옛 한국 피처폰의 WIPI/J2ME 앱을 웹 브라우저에서 바로 실행하는 에뮬레이터." />
+    <meta property="og:title" data-i18n-content="socialTitle" content="wie - 피처폰 앱 에뮬레이터" />
+    <meta property="og:description" data-i18n-content="socialDescription" content="옛 한국 피처폰의 WIPI/J2ME 앱을 웹 브라우저에서 바로 실행하는 에뮬레이터." />
     <meta property="og:url" content="https://wie.dlunch.net/" />
-    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:locale" data-i18n-content="socialLocale" content="ko_KR" />
     <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/png" href="../assets/favicon.png" />
     <link rel="stylesheet" href="@css/style.css" />
@@ -44,16 +44,16 @@
         <div class="brand-block">
           <img class="brand-icon" src="../assets/favicon.png" alt="" width="42" height="42" />
           <strong class="brand-name">wie</strong>
-          <h1>라이브러리</h1>
+          <h1 data-i18n-text="library">라이브러리</h1>
         </div>
         <div class="library-menu-wrap">
-          <button id="library-menu-toggle" class="icon-button" type="button" title="메뉴" aria-label="메뉴" aria-expanded="false">
+          <button id="library-menu-toggle" class="icon-button" type="button" title="메뉴" data-i18n-title="menu" aria-label="메뉴" data-i18n-aria-label="menu" aria-expanded="false">
             <i data-lucide="ellipsis-vertical"></i>
           </button>
           <div id="library-menu" class="library-menu" role="menu">
             <button id="menu-add-app" type="button" role="menuitem">
               <i data-lucide="plus"></i>
-              <span>앱 추가</span>
+              <span data-i18n-text="addApp">앱 추가</span>
             </button>
             <button id="menu-manage-apps" type="button" role="menuitem">
               <i data-lucide="trash-2"></i>
@@ -61,11 +61,11 @@
             </button>
             <button id="menu-settings" type="button" role="menuitem">
               <i data-lucide="settings"></i>
-              <span>설정</span>
+              <span data-i18n-text="settings">설정</span>
             </button>
             <button id="menu-help" type="button" role="menuitem">
               <i data-lucide="circle-help"></i>
-              <span>조작 도움말</span>
+              <span data-i18n-text="help">조작 도움말</span>
             </button>
             <a href="https://github.com/dlunch/wie" target="_blank" rel="noopener noreferrer" role="menuitem">
               <img src="https://cdn.simpleicons.org/github/0f172a" alt="" width="18" height="18" />
@@ -73,7 +73,7 @@
             </a>
             <a href="https://wie-site.dlunch.net/" target="_blank" rel="noopener noreferrer" role="menuitem">
               <i data-lucide="globe-2"></i>
-              <span>프로젝트 웹사이트</span>
+              <span data-i18n-text="projectWebsite">프로젝트 웹사이트</span>
             </a>
           </div>
         </div>
@@ -81,12 +81,12 @@
 
       <main class="library-main">
         <div id="library-pages" class="library-pages" aria-live="polite">
-          <p class="library-loading">라이브러리를 불러오는 중입니다.</p>
+          <p class="library-loading" data-i18n-text="libraryLoading">라이브러리를 불러오는 중입니다.</p>
         </div>
-        <div id="page-indicators" class="page-indicators" aria-label="라이브러리 페이지"></div>
+        <div id="page-indicators" class="page-indicators" aria-label="라이브러리 페이지" data-i18n-aria-label="libraryPages"></div>
       </main>
 
-      <div class="library-ad" aria-label="광고">
+      <div class="library-ad" aria-label="광고" data-i18n-aria-label="advertisement">
         <ins
           class="adsbygoogle"
           style="display:block;width:100%;height:100%"
@@ -101,11 +101,11 @@
 
     <section id="player-view" class="player-view" hidden>
       <header class="player-toolbar">
-        <button id="back-to-library" class="icon-button" type="button" title="라이브러리" aria-label="라이브러리로 돌아가기">
+        <button id="back-to-library" class="icon-button" type="button" title="라이브러리" data-i18n-title="library" aria-label="라이브러리로 돌아가기" data-i18n-aria-label="backToLibrary">
           <i data-lucide="arrow-left"></i>
         </button>
         <strong id="player-title" class="player-title"></strong>
-        <button id="app-settings" class="icon-button" type="button" title="설정" aria-label="설정">
+        <button id="app-settings" class="icon-button" type="button" title="설정" data-i18n-title="settings" aria-label="설정" data-i18n-aria-label="settings">
           <i data-lucide="settings"></i>
         </button>
       </header>
@@ -113,23 +113,23 @@
       <main class="player-main">
         <div id="player-output">
           <div id="player-status" class="player-status" role="status" hidden>
-            <span id="player-status-label">실행 준비중</span>
+            <span id="player-status-label" data-i18n-text="preparing">실행 준비중</span>
             <progress aria-labelledby="player-status-label"></progress>
           </div>
         </div>
         <p id="player-warning" class="player-warning" role="status" hidden></p>
 
-        <div class="button-container" aria-label="앱 키패드">
+        <div class="button-container" aria-label="앱 키패드" data-i18n-aria-label="keypad">
           <p>
-            <button data-key="UP" aria-label="위"><i data-lucide="arrow-up"></i></button>
+            <button data-key="UP" aria-label="위" data-i18n-aria-label="up"><i data-lucide="arrow-up"></i></button>
           </p>
           <p>
-            <button data-key="LEFT" aria-label="왼쪽"><i data-lucide="arrow-left"></i></button>
+            <button data-key="LEFT" aria-label="왼쪽" data-i18n-aria-label="left"><i data-lucide="arrow-left"></i></button>
             <button data-key="OK">OK</button>
-            <button data-key="RIGHT" aria-label="오른쪽"><i data-lucide="arrow-right"></i></button>
+            <button data-key="RIGHT" aria-label="오른쪽" data-i18n-aria-label="right"><i data-lucide="arrow-right"></i></button>
           </p>
           <p>
-            <button data-key="DOWN" aria-label="아래"><i data-lucide="arrow-down"></i></button>
+            <button data-key="DOWN" aria-label="아래" data-i18n-aria-label="down"><i data-lucide="arrow-down"></i></button>
           </p>
           <p><button data-key="CLR">CLR</button></p>
           <p>
@@ -159,12 +159,21 @@
     <dialog id="settings-dialog" class="app-dialog">
       <form method="dialog">
         <header class="dialog-header">
-          <h2>설정</h2>
-          <button class="icon-button dialog-close" value="cancel" title="닫기" aria-label="닫기">
+          <h2 data-i18n-text="settings">설정</h2>
+          <button class="icon-button dialog-close" value="cancel" title="닫기" data-i18n-title="close" aria-label="닫기" data-i18n-aria-label="close">
             <i data-lucide="x"></i>
           </button>
         </header>
         <div class="settings-fields">
+          <label>
+            <i data-lucide="languages"></i>
+            <span data-i18n-text="language">언어</span>
+            <select id="language-preference">
+              <option value="system" data-i18n-text="systemLanguage">시스템 기본값</option>
+              <option value="ko">한국어</option>
+              <option value="en">English</option>
+            </select>
+          </label>
           <label>
             <i data-lucide="music-2"></i>
             <span>MIDI</span>
@@ -172,7 +181,7 @@
           </label>
           <label>
             <i data-lucide="volume-2"></i>
-            <span>효과음</span>
+            <span data-i18n-text="soundEffects">효과음</span>
             <input type="range" id="volume-pcm" min="0" max="100" value="50" />
           </label>
         </div>
@@ -182,17 +191,17 @@
     <dialog id="welcome-dialog" class="app-dialog">
       <form method="dialog">
         <header class="dialog-header">
-          <h2>wie에 오신 것을 환영합니다</h2>
+          <h2 data-i18n-text="welcome">wie에 오신 것을 환영합니다</h2>
         </header>
-        <p>wie는 WIPI와 J2ME 앱을 이 기기에서 보관하고 실행할 수 있는 에뮬레이터입니다.</p>
+        <p data-i18n-text="welcomeDescription">wie는 WIPI와 J2ME 앱을 이 기기에서 보관하고 실행할 수 있는 에뮬레이터입니다.</p>
         <ol class="welcome-steps">
-          <li><strong>앱 추가</strong><span>WIPI ZIP 또는 J2ME JAR 파일을 선택합니다.</span></li>
-          <li><strong>앱 실행</strong><span>라이브러리에서 추가된 앱 아이콘을 누릅니다.</span></li>
-          <li><strong>앱 관리</strong><span>오른쪽 위 메뉴에서 앱을 삭제하거나 설정을 변경합니다.</span></li>
+          <li><strong data-i18n-text="addApp">앱 추가</strong><span data-i18n-text="welcomeAdd">WIPI ZIP 또는 J2ME JAR 파일을 선택합니다.</span></li>
+          <li><strong data-i18n-text="launchApp">앱 실행</strong><span data-i18n-text="welcomeLaunch">라이브러리에서 추가된 앱 아이콘을 누릅니다.</span></li>
+          <li><strong data-i18n-text="manageApps">앱 관리</strong><span data-i18n-text="welcomeManage">오른쪽 위 메뉴에서 앱을 삭제하거나 설정을 변경합니다.</span></li>
         </ol>
         <footer class="dialog-actions welcome-actions">
-          <button class="secondary-command" value="cancel">닫기</button>
-          <button id="dismiss-welcome" class="primary-command" type="button">닫고 더 이상 보지 않기</button>
+          <button class="secondary-command" value="cancel" data-i18n-text="close">닫기</button>
+          <button id="dismiss-welcome" data-i18n-text="dismissWelcome" class="primary-command" type="button">닫고 더 이상 보지 않기</button>
         </footer>
       </form>
     </dialog>
@@ -200,15 +209,15 @@
     <dialog id="import-dialog" class="app-dialog">
       <form method="dialog">
         <header class="dialog-header">
-          <h2>앱 추가</h2>
-          <button class="icon-button dialog-close" value="cancel" title="닫기" aria-label="닫기">
+          <h2 data-i18n-text="addApp">앱 추가</h2>
+          <button class="icon-button dialog-close" value="cancel" title="닫기" data-i18n-title="close" aria-label="닫기" data-i18n-aria-label="close">
             <i data-lucide="x"></i>
           </button>
         </header>
-        <p>WIPI ZIP 또는 J2ME JAR 파일을 선택하거나 이 창에 끌어다 놓으세요.</p>
+        <p data-i18n-text="chooseArchiveDescription">WIPI ZIP 또는 J2ME JAR 파일을 선택하거나 이 창에 끌어다 놓으세요.</p>
         <button id="choose-archive" class="primary-command" type="button" autofocus>
           <i data-lucide="upload"></i>
-          <span>파일 선택</span>
+          <span data-i18n-text="chooseFile">파일 선택</span>
         </button>
         <p id="import-status" class="dialog-status" role="status" aria-live="polite"></p>
       </form>
@@ -218,15 +227,15 @@
     <dialog id="delete-dialog" class="app-dialog">
       <form method="dialog">
         <header class="dialog-header">
-          <h2>앱 삭제</h2>
-          <button class="icon-button dialog-close" value="cancel" title="닫기" aria-label="닫기">
+          <h2 data-i18n-text="deleteApps">앱 삭제</h2>
+          <button class="icon-button dialog-close" value="cancel" title="닫기" data-i18n-title="close" aria-label="닫기" data-i18n-aria-label="close">
             <i data-lucide="x"></i>
           </button>
         </header>
-        <p><strong id="delete-app-title"></strong>을(를) 라이브러리에서 삭제합니다.</p>
+        <p><strong id="delete-app-title"></strong><br /><span data-i18n-text="deleteConfirmation">이 앱을 라이브러리에서 삭제합니다.</span></p>
         <footer class="dialog-actions">
-          <button class="secondary-command" value="cancel">취소</button>
-          <button id="confirm-delete" class="danger-command" type="button">삭제</button>
+          <button class="secondary-command" value="cancel" data-i18n-text="cancel">취소</button>
+          <button id="confirm-delete" data-i18n-text="delete" class="danger-command" type="button">삭제</button>
         </footer>
       </form>
     </dialog>
@@ -234,25 +243,25 @@
     <dialog id="help-dialog" class="app-dialog help-dialog">
       <form method="dialog">
         <header class="dialog-header">
-          <h2>조작 도움말</h2>
-          <button class="icon-button dialog-close" value="cancel" title="닫기" aria-label="닫기">
+          <h2 data-i18n-text="help">조작 도움말</h2>
+          <button class="icon-button dialog-close" value="cancel" title="닫기" data-i18n-title="close" aria-label="닫기" data-i18n-aria-label="close">
             <i data-lucide="x"></i>
           </button>
         </header>
         <table>
           <tbody>
-            <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>숫자 1, 2, 3</td></tr>
-            <tr><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd></td><td>숫자 4, 5, 6</td></tr>
-            <tr><td><kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></td><td>숫자 7, 8, 9</td></tr>
+            <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td data-i18n-text="numbers123">숫자 1, 2, 3</td></tr>
+            <tr><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd></td><td data-i18n-text="numbers456">숫자 4, 5, 6</td></tr>
+            <tr><td><kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></td><td data-i18n-text="numbers789">숫자 7, 8, 9</td></tr>
             <tr><td><kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd></td><td>*, 0, #</td></tr>
-            <tr><td>방향키</td><td>이동</td></tr>
+            <tr><td data-i18n-text="arrowKeys">방향키</td><td data-i18n-text="move">이동</td></tr>
             <tr><td><kbd>Enter</kbd> / <kbd>Space</kbd></td><td>OK</td></tr>
             <tr><td><kbd>Backspace</kbd></td><td>CLR</td></tr>
           </tbody>
         </table>
         <footer class="dialog-actions">
-          <label><input id="hide-help" type="checkbox" /> 다시 보지 않기</label>
-          <button class="secondary-command" value="cancel">닫기</button>
+          <label><input id="hide-help" type="checkbox" /> <span data-i18n-text="hideHelp">다시 보지 않기</span></label>
+          <button class="secondary-command" value="cancel" data-i18n-text="close">닫기</button>
         </footer>
       </form>
     </dialog>
