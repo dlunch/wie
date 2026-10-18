@@ -520,7 +520,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICDatabaseMethodId::StreamRead => Some(database::stream_read.into_body()),
             WIPICDatabaseMethodId::StreamWrite => Some(database::stream_write.into_body()),
             WIPICDatabaseMethodId::CloseDatabase => Some(database::close_database.into_body()),
-            WIPICDatabaseMethodId::SelectRecord => Some(database::select_record_ktf.into_body()),
+            WIPICDatabaseMethodId::SelectRecord => Some(database::seek_record_single.into_body()),
             WIPICDatabaseMethodId::UpdateRecord => Some(database::stat_by_name_ktf.into_body()),
             WIPICDatabaseMethodId::DeleteRecord => Some(database::delete_record_ktf.into_body()),
             WIPICDatabaseMethodId::ListRecord => Some(database::list_record.into_body()),

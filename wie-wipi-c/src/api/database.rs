@@ -14,28 +14,25 @@ use crate::context::WIPICContext;
 ///
 /// KTF's `stream_read` / `stream_write` slots behave like a record-scoped
 /// `fread` / `fwrite` pair rather than the standard WIPI record-by-id API
-/// — the same record id 1 is walked sequentially with implicit cursors.
+/// — the same record id 1 is walked sequentially with an implicit cursor.
 /// The original interface field names (`read_record_single`,
 /// `write_record_single`) were a pre-disassembly guess; the impl-side names
 /// `stream_read` / `stream_write` reflect the verified semantics.
 ///
-/// The handle, including its read/write cursors and the in-memory mirror
+/// The handle, including its stream cursor and the in-memory mirror
 /// of record 1, lives entirely in emulated memory: the `DatabaseHandle`
 /// struct sits at the pointer returned from `open_database`, and the
 /// mirror itself is a separate guest-heap allocation referenced by
 /// `buffer_ptr`. Every op reads the struct, mutates it, writes it back —
 /// no host-side global state.
 ///
-/// `select_record` with a non-zero recid is treated as a seek: KTF apps
-/// use slot 4 to position the cursor at known byte offsets within the
-/// single backing record, e.g. for multi-slot save files.
+/// KTF slot 4 seeks within the stream using an offset and origin.
 #[derive(Pod, Zeroable, Copy, Clone)]
 #[repr(C)]
 struct DatabaseHandle {
     magic: u32,
     name: [u8; 32], // TODO hardcoded max size
-    read_cursor: u32,
-    write_cursor: u32,
+    cursor: u32,
     buffer_ptr: u32,
     buffer_len: u32,
     buffer_capacity: u32,
@@ -112,8 +109,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     let mut handle = DatabaseHandle {
         magic: DATABASE_HANDLE_MAGIC,
         name: [0; 32],
-        read_cursor: 0,
-        write_cursor: 0,
+        cursor: 0,
         buffer_ptr: 0,
         buffer_len: 0,
         buffer_capacity: 0,
@@ -195,16 +191,20 @@ pub async fn seek_record_single(context: &mut dyn WIPICContext, db_id: i32, offs
 
     let base = match origin {
         0 => 0,
-        1 => handle.read_cursor as i64,
+        1 => handle.cursor as i64,
         2 => handle.buffer_len as i64,
         _ => return Ok(-1),
     };
-    let position = (base + offset as i64).clamp(0, handle.buffer_len as i64) as u32;
-    handle.read_cursor = position;
-    handle.write_cursor = position;
+    let Ok(position) = i32::try_from(base + i64::from(offset)) else {
+        return Ok(-1);
+    };
+    if position < 0 {
+        return Ok(-1);
+    }
+    handle.cursor = position as u32;
     write_generic(context, db_id as _, handle)?;
 
-    Ok(position as i32)
+    Ok(position)
 }
 
 pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWord, buf_ptr: WIPICWord, capacity: WIPICWord) -> Result<i32> {
@@ -280,7 +280,7 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     // Cursor + len is guest-controlled, so guard the arithmetic. An
     // overflowed `new_end` would silently bypass the capacity check below
     // and let a write spill into unrelated guest memory.
-    let Some(new_end) = handle.write_cursor.checked_add(buf_len) else {
+    let Some(new_end) = handle.cursor.checked_add(buf_len) else {
         return Ok(-22); // M_E_BADRECID — closest "bad parameter" code
     };
 
@@ -308,15 +308,15 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
         handle.buffer_capacity = new_cap;
     }
 
-    // If the write_cursor was seeked past the prior end (e.g. via a slot 4
+    // If the cursor was seeked past the prior end (e.g. via a slot 4
     // multi-slot save), the bytes between the old end and the cursor were
     // never initialised. `alloc_raw` doesn't guarantee zeroed memory and
     // the snapshot below is flushed straight to disk, so explicitly zero
     // the gap to avoid leaking heap residue into the save file. This must
-    // run for `buf_len == 0` too: `new_end == write_cursor` still extends
+    // run for `buf_len == 0` too: `new_end == cursor` still extends
     // `buffer_len`, so the gap would otherwise be snapshotted uninitialised.
-    if handle.write_cursor > old_len {
-        let gap_size = (handle.write_cursor - old_len) as usize;
+    if handle.cursor > old_len {
+        let gap_size = (handle.cursor - old_len) as usize;
         let zeros = vec![0u8; gap_size];
         context.write_bytes(handle.buffer_ptr + old_len, &zeros)?;
     }
@@ -324,10 +324,10 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     if buf_len > 0 {
         let mut buf = vec![0u8; buf_len as usize];
         context.read_bytes(buf_ptr, &mut buf)?;
-        context.write_bytes(handle.buffer_ptr + handle.write_cursor, &buf)?;
+        context.write_bytes(handle.buffer_ptr + handle.cursor, &buf)?;
     }
 
-    handle.write_cursor = new_end;
+    handle.cursor = new_end;
     if new_end > handle.buffer_len {
         handle.buffer_len = new_end;
     }
@@ -456,13 +456,13 @@ pub async fn stream_read(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
         return Ok(-25); // M_E_INVALIDHANDLE
     };
 
-    if handle.read_cursor >= handle.buffer_len {
+    if handle.cursor >= handle.buffer_len {
         // Don't touch buf — caller may have passed a sentinel (NULL) that
         // we shouldn't write to. Some titles do this past EOF.
         return Ok(-23); // M_E_EOF
     }
 
-    let take = core::cmp::min(buf_len, handle.buffer_len - handle.read_cursor);
+    let take = core::cmp::min(buf_len, handle.buffer_len - handle.cursor);
     if take == 0 {
         return Ok(0);
     }
@@ -470,47 +470,13 @@ pub async fn stream_read(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
     // Copy from the guest-heap buffer into the caller's destination via
     // host-side scratch; `WIPICContext` doesn't expose an in-guest memmove.
     let mut data = vec![0u8; take as usize];
-    context.read_bytes(handle.buffer_ptr + handle.read_cursor, &mut data)?;
+    context.read_bytes(handle.buffer_ptr + handle.cursor, &mut data)?;
     context.write_bytes(buf_ptr, &data)?;
 
-    handle.read_cursor += take;
+    handle.cursor += take;
     write_generic(context, db_id as _, handle)?;
 
     Ok(take as _)
-}
-
-/// KTF custom slot 4 — repurposed from standard `MC_dbSelectRecord` into a
-/// stream-control op `(handle, offset, mode)` that seeks both read/write
-/// cursors. The standard WIPI signature `(db_id, rec_id, buf_ptr, buf_len)`
-/// is not implemented; LGT routes do not use this slot.
-pub async fn select_record_ktf(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, mode: WIPICWord, _buf_len: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_dbSelectRecord({db_id:#x}, {rec_id}, mode={mode:#x}, {_buf_len})");
-
-    let Some(mut handle) = load_handle(context, db_id)? else {
-        return Ok(-25); // M_E_INVALIDHANDLE
-    };
-
-    // KTF reuses slot 4 as a stream-control op `(handle, offset, mode)`. The
-    // shapes observed across apps:
-    //
-    //   - `(handle, slot_offset, 0)` — multi-slot save files store each
-    //     slot at a known byte offset within record 1; this seeks both
-    //     cursors so the next read/write hits the right slot while
-    //     preserving the bytes belonging to the other slots.
-    //   - `(handle, 0, 0)` and `(handle, 0, 2)` — rewinds both cursors.
-    //     mode=0 vs 2 isn't a length and isn't truncate (truncating on
-    //     mode=2 on the read path destroys a prefetched buffer during a
-    //     subsequent re-open and wipes the saved record). Both are treated
-    //     as plain seek-and-rewind.
-    if rec_id >= 0 {
-        let offset = rec_id as u32;
-        handle.read_cursor = offset;
-        handle.write_cursor = offset;
-        write_generic(context, db_id as _, handle)?;
-        return Ok(0);
-    }
-
-    Ok(-22) // M_E_BADRECID
 }
 
 /// Slot 5 — KTF custom `db_stat_by_name`. From observed call shape:
@@ -609,8 +575,8 @@ mod tests {
     use crate::context::test::TestContext;
 
     use super::{
-        KTF_DATABASE_STORAGE_LIMIT, delete_database, exists_database, list_databases, list_record_info, open_database, select_record, stream_read,
-        stream_write, update_record,
+        KTF_DATABASE_STORAGE_LIMIT, close_database, delete_database, exists_database, list_databases, list_record_info, open_database,
+        seek_record_single, select_record, stream_read, stream_write, update_record,
     };
 
     #[futures_test::test]
@@ -662,6 +628,34 @@ mod tests {
         let mut data = [0; 2];
         context.read_bytes(0x2100, &mut data).unwrap();
         assert_eq!(data, [4, 5]);
+    }
+
+    #[futures_test::test]
+    async fn stream_seek_appends_without_overwriting_existing_data() {
+        let mut context = database_test_context();
+        let db_id = open_test_database(&mut context).await;
+        context.write_bytes(0x2000, &[1, 2, 3, 4]).unwrap();
+        assert_eq!(stream_write(&mut context, db_id, 0x2000, 4).await.unwrap(), 4);
+        assert_eq!(seek_record_single(&mut context, db_id, 0, 0).await.unwrap(), 0);
+        assert_eq!(seek_record_single(&mut context, db_id, 0, 2).await.unwrap(), 4);
+        assert_eq!(stream_write(&mut context, db_id, 0x2000, 4).await.unwrap(), 4);
+        assert_eq!(seek_record_single(&mut context, db_id, -2, 1).await.unwrap(), 6);
+        assert_eq!(stream_read(&mut context, db_id, 0x2100, 2).await.unwrap(), 2);
+        let mut tail = [0; 2];
+        context.read_bytes(0x2100, &mut tail).unwrap();
+        assert_eq!(tail, [3, 4]);
+        assert_eq!(seek_record_single(&mut context, db_id, 10, 0).await.unwrap(), 10);
+        assert_eq!(stream_write(&mut context, db_id, 0x2000, 2).await.unwrap(), 2);
+        close_database(&mut context, db_id).await.unwrap();
+
+        let db_id = open_database(&mut context, 0x1000, 1, 0).await.unwrap();
+        assert_eq!(seek_record_single(&mut context, db_id, 0, 2).await.unwrap(), 12);
+        assert_eq!(seek_record_single(&mut context, db_id, -12, 2).await.unwrap(), 0);
+        assert_eq!(seek_record_single(&mut context, db_id, -1, 1).await.unwrap(), -1);
+        assert_eq!(stream_read(&mut context, db_id, 0x2100, 12).await.unwrap(), 12);
+        let mut data = [0; 12];
+        context.read_bytes(0x2100, &mut data).unwrap();
+        assert_eq!(data, [1, 2, 3, 4, 1, 2, 3, 4, 0, 0, 1, 2]);
     }
 
     #[futures_test::test]
