@@ -2,7 +2,7 @@
 
 use alloc::{string::String, vec};
 
-use wie_backend::canvas::{Clip, Color, Image, PixelType, Rgb8Pixel};
+use wie_backend::canvas::{Clip, Color, FONT_SIZE, Image, PixelType, Rgb8Pixel};
 use wie_util::{Result, read_null_terminated_string_bytes};
 
 use crate::{WIPICContext, api::graphics::FrameBuffer};
@@ -161,6 +161,8 @@ pub fn copy_framebuffer(
 
 pub fn draw_text(context: &mut dyn WIPICContext, framebuffer: &FrameBuffer, string: &str, x: i32, y: i32, color: Color, clip: Clip) -> Result<()> {
     let font = context.system().platform().font().clone();
+    // WIPI supplies a baseline; the canvas adds the fixed font size to its input y.
+    let y = y.wrapping_sub(FONT_SIZE as i32);
     write_canvas(context, framebuffer, |canvas| {
         canvas.draw_text(&font, string, x, y, wie_backend::canvas::TextAlignment::Left, color, clip)
     })

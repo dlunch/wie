@@ -10,7 +10,7 @@ use core::mem::size_of;
 
 use wie_backend::{
     Event,
-    canvas::{ArgbPixel, Clip, Color, ImageBuffer, PixelType, Rgb565Pixel, VecImageBuffer, encode_bmp, string_width},
+    canvas::{ArgbPixel, Clip, Color, FONT_SIZE, ImageBuffer, PixelType, Rgb565Pixel, VecImageBuffer, encode_bmp, string_width},
 };
 use wie_util::{Result, read_generic, write_generic};
 
@@ -539,7 +539,7 @@ pub async fn get_string_width(context: &mut dyn WIPICContext, font: i32, ptr_str
     let Some(string) = primitives::read_text(context, ptr_string, length)? else {
         return Ok(0);
     };
-    Ok(string_width(context.system().platform().font(), &string, 10.0) as i32)
+    Ok(string_width(context.system().platform().font(), &string, FONT_SIZE) as i32)
 }
 
 pub async fn draw_string(
@@ -737,11 +737,36 @@ pub async fn get_framebuffer_bpp(context: &mut dyn WIPICContext, framebuffer: WI
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, vec};
+
+    use test_utils::TestPlatform;
+
+    use wie_backend::{DefaultTaskRunner, System};
     use wie_util::ByteWrite;
 
     use crate::{MethodImpl, context::test::TestContext};
 
     use super::*;
+
+    #[futures_test::test]
+    async fn strings_are_positioned_at_the_requested_baseline() -> Result<()> {
+        let system = System::new(Box::new(TestPlatform::new()), "test-pid", "test-aid", DefaultTaskRunner);
+        let mut context = TestContext::with_system(system);
+        let destination = create_offscreen_framebuffer(&mut context, 32, 32).await?;
+        let framebuffer = FrameBuffer(read_generic(&context, context.data_ptr(destination)?)?);
+        framebuffer.write(&mut context, &[0; 32 * 32 * 2])?;
+        let graphics = context.alloc_raw(size_of::<WIPICGraphicsContext>() as u32)?;
+        init_context(&mut context, graphics).await?;
+        set_context(&mut context, graphics, WIPICGraphicsContextIdx::FgPixelIdx, 0xffff).await?;
+        let text = context.alloc_raw(3)?;
+        context.write_bytes(text, &[0xb0, 0xa1, 0])?;
+        draw_string(&mut context, destination, 2, 16, text, -1, graphics).await?;
+
+        let bottom = 16 + get_font_descent(&mut context, 0).await?;
+        let image = framebuffer.image(&mut context)?;
+        assert!((0..16).any(|y| (0..32).any(|x| image.get_pixel(x, y).r != 0)));
+        assert!((bottom..32).all(|y| (0..32).all(|x| image.get_pixel(x, y).r == 0)));
+        Ok(())
+    }
 
     #[futures_test::test]
     async fn encoded_framebuffer_region_can_be_loaded_as_an_image() -> Result<()> {

@@ -20,6 +20,8 @@ use wie_util::{Result, WieError};
 use self::lbmp::decode_lbmp;
 pub use self::res::decode_res;
 
+pub const FONT_SIZE: f32 = 10.0;
+
 #[derive(Clone, Debug)]
 pub struct Font(FontArc);
 
@@ -629,7 +631,7 @@ where
     }
 
     fn draw_text(&mut self, font: &Font, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color, clip: Clip) {
-        let size = 10.0; // TODO
+        let size = FONT_SIZE;
         let font = font.0.as_scaled(font.0.pt_to_px_scale(size).unwrap());
 
         let total_width = string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>();
