@@ -211,6 +211,7 @@ impl EventQueue {
             if let Some(x) = maybe_event {
                 let event_data = match x {
                     Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
+                    Event::Repaint => vec![EventQueueEvent::RepaintEvent as _, 1, 0, 0],
                     Event::Keydown(x) => vec![
                         EventQueueEvent::KeyEvent as _,
                         KeyboardEventType::KeyPressed as _,
@@ -314,6 +315,12 @@ impl EventQueue {
 
         match event_kind {
             EventQueueEvent::RepaintEvent => {
+                // Native repaint requests must invalidate the display before servicing it.
+                if event[1] != 0 {
+                    let _: () = jvm
+                        .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
+                        .await?;
+                }
                 let _: () = jvm
                     .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
                     .await?;
@@ -772,9 +779,22 @@ mod test {
                     .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 let _: () = jvm
-                    .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event,))
+                    .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "paintCount", "I").await?, 5);
+                for count in 6..=7 {
+                    system.event_queue().push(Event::Repaint);
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    assert_eq!(
+                        jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "paintCount", "I").await?,
+                        count
+                    );
+                }
                 Ok(())
             },
         )

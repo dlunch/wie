@@ -574,9 +574,7 @@ pub async fn draw_string(
 pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
     tracing::debug!("MC_grpRepaint({lcd}, {x}, {y}, {width}, {height})");
 
-    let platform = context.system().platform();
-    let screen = platform.screen();
-    screen.request_redraw().unwrap();
+    context.system().event_queue().push(Event::Repaint);
 
     Ok(())
 }
