@@ -57,10 +57,20 @@ pub async fn handle_input(
         "stub MC_imHandleInput({key:#x}, {event_type}, {ptr_committed:#x}, {ptr_committed_size:#x}, {ptr_composing:#x}, {ptr_composing_size:#x})"
     );
 
-    write_generic(context, ptr_committed_size, 0i32)?;
+    let capacity: i32 = read_generic(context, ptr_committed_size)?;
+    // shortcut: numeric key presses commit a placeholder until text input is implemented.
+    let size = if event_type == 2 && (u32::from(b'0')..=u32::from(b'9')).contains(&key) {
+        capacity.clamp(0, 4)
+    } else {
+        0
+    };
+    if size > 0 {
+        context.write_bytes(ptr_committed, &b"temp"[..size as usize])?;
+    }
+    write_generic(context, ptr_committed_size, size)?;
     write_generic(context, ptr_composing_size, 0i32)?;
 
-    Ok(0)
+    Ok(i32::from(size > 0))
 }
 
 #[cfg(test)]

@@ -102,6 +102,58 @@ mod tests {
     use super::{SVC_CATEGORY_WIPIC, WIPICKernelMethodId, WIPICTableId, register_wipic_svc_handler};
 
     #[test]
+    fn native_input_commits_placeholder_within_buffer_capacity() -> Result<()> {
+        run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })
+            .unwrap();
+            Allocator::init(&mut core).unwrap();
+            let mut registers = core.save_context();
+            registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
+            core.restore_context(&registers);
+            register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
+            let get_interfaces = core
+                .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))
+                .unwrap();
+            let interfaces: u32 = core.run_function(get_interfaces, &[]).await.unwrap();
+            let interfaces: WIPICInterface = read_generic(&core, interfaces).unwrap();
+            let handle_input: u32 = read_generic(&core, interfaces.interface_3).unwrap();
+            let graphics: WIPICGraphicsInterface = read_generic(&core, interfaces.graphics_interface).unwrap();
+            let buffer = Allocator::alloc(&mut core, 24).unwrap();
+            for function in [handle_input, graphics.handle_input] {
+                for (key, event, capacity, expected) in [
+                    (b'2', 2, 8i32, b"temp".as_slice()),
+                    (b'2', 2, 2, b"te"),
+                    (b'2', 2, 0, b""),
+                    (b'2', 3, 8, b""),
+                    (b'2', 4, 8, b""),
+                    (157, 2, 8, b""),
+                ] {
+                    write_generic(&mut core, buffer, [0xabu8; 8]).unwrap();
+                    write_generic(&mut core, buffer + 8, capacity).unwrap();
+                    write_generic(&mut core, buffer + 12, [0xcdu8; 8]).unwrap();
+                    write_generic(&mut core, buffer + 20, 8i32).unwrap();
+                    let handled: u32 = core
+                        .run_function(function, &[u32::from(key), event, buffer, buffer + 8, buffer + 12, buffer + 20])
+                        .await
+                        .unwrap();
+                    assert_eq!(handled, u32::from(!expected.is_empty()));
+                    assert_eq!(read_generic::<i32, _>(&core, buffer + 8).unwrap(), expected.len() as i32);
+                    assert_eq!(read_generic::<i32, _>(&core, buffer + 20).unwrap(), 0);
+                    let committed: [u8; 8] = read_generic(&core, buffer).unwrap();
+                    assert_eq!(&committed[..expected.len()], expected);
+                    assert!(committed[expected.len()..].iter().all(|byte| *byte == 0xab));
+                    assert_eq!(read_generic::<[u8; 8], _>(&core, buffer + 12).unwrap(), [0xcd; 8]);
+                }
+            }
+            Ok(())
+        })
+    }
+
+    #[test]
     fn native_screen_flush_presents_guest_framebuffer() -> Result<()> {
         let paints = Arc::new(AtomicUsize::new(0));
         let observed_paints = paints.clone();
