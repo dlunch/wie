@@ -1,4 +1,4 @@
-import { extractAppMetadata } from "@pkg";
+import { extractAppMetadata, migrateSaves } from "@pkg";
 
 import { AppLibraryStore } from "../app_library_store";
 import type { LibraryApp, Wie } from "../backend";
@@ -68,6 +68,7 @@ export const initializeWie = async (): Promise<Wie> => {
       if (!app || !archive) throw new Error(t("appFileMissing"));
       if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
       const fontData = new Uint8Array(await fontResponse.arrayBuffer());
+      await migrateSaves(app.filename, archive, app.id);
       setMasterVolume(settings.midiVolume);
       setPcmVolume(settings.pcmVolume);
       return startWasmSession(app.filename, archive, fontData, onEvent);

@@ -1,45 +1,15 @@
 // Temporary save migration added 2026-10-19; remove with the startup call once obsolete.
-use std::path::Path;
-
 use anyhow::Result;
 use rusqlite::params;
-use wie_backend::{extract_zip, normalize_guest_path};
+use wie::save_migration_identity;
+use wie_backend::normalize_guest_path;
 
 use crate::store::Store;
 
 pub fn run(store: &Store, pid: &str, filename: &str, bytes: &[u8]) -> Result<()> {
     let mut connection = store.lock().unwrap();
     let transaction = connection.transaction()?;
-    transaction.execute_batch("CREATE TABLE IF NOT EXISTS save_migrations (pid TEXT PRIMARY KEY NOT NULL)")?;
-    let migrated: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM save_migrations WHERE pid = ?1)", [pid], |row| row.get(0))?;
-    if migrated {
-        return Ok(());
-    }
-
-    let mut aid = pid.to_owned();
-    let mut clet = false;
-    if Path::new(filename)
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
-    {
-        let files = extract_zip(bytes)?;
-        let descriptor = files
-            .get("__adf__")
-            .map(|data| (data, true))
-            .or_else(|| files.get("app_info").map(|data| (data, false)));
-        if let Some((descriptor, trim)) = descriptor {
-            aid.clear();
-            for line in descriptor.split(|byte| *byte == b'\n') {
-                if let Some(value) = line.strip_prefix(b"AID:") {
-                    let value = String::from_utf8_lossy(value);
-                    aid = if trim { value.trim().to_owned() } else { value.into_owned() };
-                } else if let Some(value) = line.strip_prefix(b"MClass:") {
-                    let value = String::from_utf8_lossy(value);
-                    clet = if trim { value.trim() } else { &value } == "Clet";
-                }
-            }
-        }
-    }
+    let (aid, clet) = save_migration_identity(filename, bytes, pid)?;
     transaction.execute(
         "UPDATE OR IGNORE files SET pid = ?1 WHERE pid = ?2",
         params![pid, format!("migrated_aid_{aid}")],
@@ -66,7 +36,6 @@ pub fn run(store: &Store, pid: &str, filename: &str, bytes: &[u8]) -> Result<()>
             transaction.execute("DELETE FROM record_stores WHERE pid = ?1 AND name = ?2", params![pid, name])?;
         }
     }
-    transaction.execute("INSERT INTO save_migrations (pid) VALUES (?1)", [pid])?;
     transaction.commit()?;
     Ok(())
 }
@@ -84,7 +53,7 @@ mod tests {
     use super::run;
 
     #[test]
-    fn startup_migrates_saves_once_for_supported_apps() {
+    fn startup_migrates_legacy_saves_for_supported_apps() {
         for (filename, descriptor, contents, clet) in [
             ("app.zip", "__adf__", "AID: aid\r\nMClass: Clet\r\n", true),
             ("app.zip", "app_info", "AID:aid\nMClass:Clet\n", true),
@@ -135,7 +104,9 @@ mod tests {
                 assert_eq!(remaining, if clet { 3 } else { 4 });
                 let records: u32 = connection.query_row("SELECT COUNT(*) FROM records", [], |row| row.get(0)).unwrap();
                 assert_eq!(records, if clet { 4 } else { 5 });
-                connection.execute("DELETE FROM files WHERE pid = 'pid'", []).unwrap();
+                connection
+                    .execute("UPDATE files SET data = X'03' WHERE pid = 'pid' AND path = 'old'", [])
+                    .unwrap();
             }
             run(&store, "pid", filename, &archive).unwrap();
             let count: u32 = store
@@ -143,7 +114,13 @@ mod tests {
                 .unwrap()
                 .query_row("SELECT COUNT(*) FROM files WHERE pid = 'pid'", [], |row| row.get(0))
                 .unwrap();
-            assert_eq!(count, 0);
+            assert_eq!(count, 2);
+            let data: Vec<u8> = store
+                .lock()
+                .unwrap()
+                .query_row("SELECT data FROM files WHERE pid = 'pid' AND path = 'old'", [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(data, [3]);
         }
     }
 
