@@ -36,6 +36,12 @@ pub(crate) fn open(root: &Path) -> Result<Store> {
             PRIMARY KEY (pid, path)
         );",
     )?;
+    let has_aid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('files') WHERE name = 'aid')", [], |row| {
+        row.get(0)
+    })?;
+    if has_aid {
+        transaction.execute_batch("ALTER TABLE files RENAME COLUMN aid TO pid")?;
+    }
     transaction.commit()?;
     Ok(Arc::new(Mutex::new(connection)))
 }
