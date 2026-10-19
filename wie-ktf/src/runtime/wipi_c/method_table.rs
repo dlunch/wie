@@ -383,7 +383,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICKernelMethodId::GetParentProgramId => Some(gen_stub(10, "MC_knlGetParentProgramID")),
             WIPICKernelMethodId::GetAppManagerId => Some(gen_stub(11, "MC_knlGetAppManagerID")),
             WIPICKernelMethodId::GetProgramInfo => Some(gen_stub(12, "MC_knlGetProgramInfo")),
-            WIPICKernelMethodId::GetAccessLevel => Some(gen_stub(13, "MC_knlGetAccessLevel")),
+            WIPICKernelMethodId::GetAccessLevel => Some(kernel::get_access_level.into_body()),
             WIPICKernelMethodId::GetProgramName => Some(kernel::get_program_name.into_body()),
             WIPICKernelMethodId::CreateSharedBuf => Some(gen_stub(15, "MC_knlCreateSharedBuf")),
             WIPICKernelMethodId::DestroySharedBuf => Some(gen_stub(16, "MC_knlDestroySharedBuf")),

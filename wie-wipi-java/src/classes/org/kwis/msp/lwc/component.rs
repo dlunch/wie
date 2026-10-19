@@ -23,6 +23,10 @@ impl Component {
                 JavaMethodProto::new("configure", "(IIIII)V", Self::configure, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("setFocus", "()V", Self::set_focus, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("repaint", "()V", Self::repaint, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_area, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
@@ -72,5 +76,29 @@ impl Component {
         tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({this:?})");
 
         Ok(0)
+    }
+
+    async fn get_width(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::getWidth({this:?})");
+
+        Ok(0)
+    }
+
+    async fn repaint(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::repaint({this:?})");
+
+        Ok(())
+    }
+
+    async fn service_repaints(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::serviceRepaints({this:?})");
+
+        Ok(())
+    }
+
+    async fn repaint_area(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::repaint({this:?}, {x}, {y}, {width}, {height})");
+
+        Ok(())
     }
 }

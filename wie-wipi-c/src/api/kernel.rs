@@ -283,6 +283,11 @@ pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPIC
     Ok(1)
 }
 
+pub async fn get_access_level(_context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::warn!("stub MC_knlGetAccessLevel()");
+    Ok(0)
+}
+
 pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWord, buf_size: i32) -> Result<i32> {
     tracing::debug!("MC_knlGetProgramName({name_buf:#x}, {buf_size})");
 

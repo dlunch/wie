@@ -31,6 +31,7 @@ impl Canvas {
                     MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
                 ),
                 JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getKeyCode", "(I)I", Self::get_key_code, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
@@ -139,15 +140,38 @@ impl Canvas {
         tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({this:?}, {key})");
 
         let action = match MIDPKeyCode::from_raw(key) {
-            Some(MIDPKeyCode::UP) => 1,    // UP
-            Some(MIDPKeyCode::DOWN) => 6,  // DOWN
-            Some(MIDPKeyCode::LEFT) => 2,  // LEFT
-            Some(MIDPKeyCode::RIGHT) => 5, // RIGHT
-            Some(MIDPKeyCode::FIRE) => 8,  // FIRE,
+            Some(MIDPKeyCode::UP) => 1,        // UP
+            Some(MIDPKeyCode::DOWN) => 6,      // DOWN
+            Some(MIDPKeyCode::LEFT) => 2,      // LEFT
+            Some(MIDPKeyCode::RIGHT) => 5,     // RIGHT
+            Some(MIDPKeyCode::FIRE) => 8,      // FIRE
+            Some(MIDPKeyCode::KEY_NUM1) => 9,  // GAME_A
+            Some(MIDPKeyCode::KEY_NUM3) => 10, // GAME_B
+            Some(MIDPKeyCode::KEY_NUM7) => 11, // GAME_C
+            Some(MIDPKeyCode::KEY_NUM9) => 12, // GAME_D
             _ => 0,
         };
 
         Ok(action)
+    }
+
+    async fn get_key_code(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, action: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::getKeyCode({this:?}, {action})");
+
+        let key = match action {
+            1 => MIDPKeyCode::UP,
+            6 => MIDPKeyCode::DOWN,
+            2 => MIDPKeyCode::LEFT,
+            5 => MIDPKeyCode::RIGHT,
+            8 => MIDPKeyCode::FIRE,
+            9 => MIDPKeyCode::KEY_NUM1,  // GAME_A
+            10 => MIDPKeyCode::KEY_NUM3, // GAME_B
+            11 => MIDPKeyCode::KEY_NUM7, // GAME_C
+            12 => MIDPKeyCode::KEY_NUM9, // GAME_D
+            _ => return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid game action").await),
+        };
+
+        Ok(key as i32)
     }
 
     async fn key_pressed(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
@@ -234,7 +258,7 @@ impl Canvas {
 #[cfg(test)]
 mod test {
     use alloc::{boxed::Box, vec};
-    use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+    use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use test_utils::run_jvm_test;
@@ -430,6 +454,36 @@ mod test {
                     ("javax/microedition/lcdui/TestRecordingGameCanvas", true),
                 ] {
                     let canvas: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                    for (action, expected_key) in [
+                        (1, MIDPKeyCode::UP),
+                        (6, MIDPKeyCode::DOWN),
+                        (2, MIDPKeyCode::LEFT),
+                        (5, MIDPKeyCode::RIGHT),
+                        (8, MIDPKeyCode::FIRE),
+                        (9, MIDPKeyCode::KEY_NUM1),
+                        (10, MIDPKeyCode::KEY_NUM3),
+                        (11, MIDPKeyCode::KEY_NUM7),
+                        (12, MIDPKeyCode::KEY_NUM9),
+                    ] {
+                        let key: i32 = jvm
+                            .invoke_virtual(&canvas, "javax/microedition/lcdui/Canvas", "getKeyCode", "(I)I", (action,))
+                            .await?;
+                        assert_eq!(key, expected_key as i32);
+                        assert_eq!(
+                            jvm.invoke_virtual::<_, i32>(&canvas, "javax/microedition/lcdui/Canvas", "getGameAction", "(I)I", (key,))
+                                .await?,
+                            action
+                        );
+                    }
+                    for action in [-1, 0, 3, 4, 7, 13] {
+                        let result = jvm
+                            .invoke_virtual::<_, i32>(&canvas, "javax/microedition/lcdui/Canvas", "getKeyCode", "(I)I", (action,))
+                            .await;
+                        let Err(JavaError::JavaException(exception)) = result else {
+                            panic!("Expected IllegalArgumentException for action {action}");
+                        };
+                        assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
+                    }
                     let title = JavaLangString::from_rust_string(&jvm, "Canvas title").await?;
                     let _: () = jvm
                         .invoke_virtual(

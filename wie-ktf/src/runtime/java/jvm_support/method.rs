@@ -253,6 +253,12 @@ impl JavaMethod {
                 && exception_handler.current_pc < entry.to_pc
                 && Self::exception_class_matches(core, jvm, &*exception, entry.ptr_class)?
             {
+                // The guest catch block reads the thrown object from this frame slot.
+                write_generic(
+                    core,
+                    current_java_exception_handler + offset_of!(RawJavaExceptionHandler, unk3) as u32,
+                    KtfJvmSupport::class_instance_raw(&exception),
+                )?;
                 let restore_context: u32 = read_generic(core, exception_handler.ptr_functions + 4)?;
                 let contexts_base = current_java_exception_handler + 24;
 

@@ -12,6 +12,12 @@ vtable = [
 ]
 
 [[class]]
+name = "java/lang/Runtime"
+vtable = [
+    { name = "gc", descriptor = "()V", index = 13 },
+]
+
+[[class]]
 name = "java/lang/Class"
 vtable = [
     { name = "getResourceAsStream", descriptor = "(Ljava/lang/String;)Ljava/io/InputStream;", index = 16 },

@@ -6,7 +6,7 @@ pub mod classes;
 
 use wie_jvm_support::WieJavaClassProto;
 
-pub fn get_protos() -> [WieJavaClassProto; 42] {
+pub fn get_protos() -> [WieJavaClassProto; 45] {
     [
         crate::classes::org::kwis::msf::io::Network::as_proto(),
         crate::classes::org::kwis::msf::io::SchemeNotFoundException::as_proto(),
@@ -19,6 +19,7 @@ pub fn get_protos() -> [WieJavaClassProto; 42] {
         crate::classes::org::kwis::msp::db::DataBaseRecordException::as_proto(),
         crate::classes::org::kwis::msp::handset::BackLight::as_proto(),
         crate::classes::org::kwis::msp::handset::HandsetProperty::as_proto(),
+        crate::classes::org::kwis::msp::handset::LED::as_proto(),
         crate::classes::org::kwis::msp::io::File::as_proto(),
         crate::classes::org::kwis::msp::io::FileSystem::as_proto(),
         crate::classes::org::kwis::msp::lcdui::Card::as_proto(),
@@ -29,6 +30,7 @@ pub fn get_protos() -> [WieJavaClassProto; 42] {
         crate::classes::org::kwis::msp::lcdui::Image::as_proto(),
         crate::classes::org::kwis::msp::lcdui::ImageObserver::as_proto(),
         crate::classes::org::kwis::msp::lcdui::InputMethodHandler::as_proto(),
+        crate::classes::org::kwis::msp::lcdui::InputMethodListener::as_proto(),
         crate::classes::org::kwis::msp::lcdui::Main::as_proto(),
         crate::classes::org::kwis::msp::lcdui::Jlet::as_proto(),
         crate::classes::org::kwis::msp::lcdui::JletEventListener::as_proto(),
@@ -36,6 +38,7 @@ pub fn get_protos() -> [WieJavaClassProto; 42] {
         crate::classes::org::kwis::msp::lwc::Component::as_proto(),
         crate::classes::org::kwis::msp::lwc::ContainerComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::EventListener::as_proto(),
+        crate::classes::org::kwis::msp::lwc::FormComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::ShellComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::AnnunciatorComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::TextComponent::as_proto(),
