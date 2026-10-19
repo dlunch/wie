@@ -113,7 +113,7 @@ mod tests {
         io::{Cursor, Write},
     };
 
-    use rusqlite::{Connection, params};
+    use rusqlite::params;
     use tempfile::tempdir;
     use wie::{FileType, extract_app_metadata};
     use wie_backend::{DatabaseRepository as _, Filesystem as _};
@@ -208,16 +208,14 @@ mod tests {
         assert_eq!(second.id, "PD00000001");
 
         {
-            let connection = Connection::open(root.path().join("state.sqlite")).unwrap();
+            let store = store::open(root.path()).unwrap();
+            let connection = store.lock().unwrap();
             connection
                 .execute_batch(
-                    "CREATE TABLE files (
-                        aid TEXT NOT NULL,
-                        path TEXT NOT NULL,
-                        data BLOB NOT NULL,
-                        PRIMARY KEY (aid, path)
-                    );
-                    INSERT INTO files VALUES ('00000000', 'legacy', X'00FF');",
+                    "ALTER TABLE files RENAME COLUMN pid TO aid;
+                    INSERT INTO files VALUES ('00000000', 'legacy', X'00FF');
+                    INSERT INTO record_stores VALUES ('PD00000000', 'legacy-records', 2);
+                    INSERT INTO records VALUES ('PD00000000', 'legacy-records', 1, X'00FF');",
                 )
                 .unwrap();
         }
@@ -226,9 +224,8 @@ mod tests {
             let store = store::open(root.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            let mut legacy = [0; 2];
-            assert_eq!(filesystem.read("00000000", "legacy", 0, 2, &mut legacy).await, Some(2));
-            assert_eq!(legacy, [0, 255]);
+            assert!(!filesystem.exists("00000000", "legacy").await);
+            assert_eq!(repository.open("legacy-records", &first.id).await.get(1).await.unwrap(), [0, 255]);
             for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
                 let mut database = repository.open("save", id).await;
                 assert!(database.set(1, data).await);
@@ -406,9 +403,8 @@ mod tests {
             let store = store::open(restored.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            let mut legacy = [0; 2];
-            assert_eq!(filesystem.read("00000000", "legacy", 0, 2, &mut legacy).await, Some(2));
-            assert_eq!(legacy, [0, 255]);
+            assert!(!filesystem.exists("00000000", "legacy").await);
+            assert_eq!(repository.open("legacy-records", &first.id).await.get(1).await.unwrap(), [0, 255]);
             for (pid, record, file) in [
                 (&first.id, b"reset".as_slice(), b"\0\0r\0\0\0".as_slice()),
                 (&second.id, b"other".as_slice(), b"\0\0other".as_slice()),
