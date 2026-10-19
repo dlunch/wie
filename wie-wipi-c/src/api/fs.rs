@@ -33,10 +33,6 @@ pub async fn open(context: &mut dyn WIPICContext, name: u32, mode: i32, access_m
         return Ok(-3);
     }
 
-    // Native resources can live inside the application's JAR rather than the filesystem overlay.
-    if !filesystem.exists(&name).await && context.get_resource_size(&name).await?.is_some() {
-        filesystem.add_virtual(&name, context.read_resource(&name).await?);
-    }
     let exists = filesystem.exists(&name).await;
     if !exists && mode == OPEN_READ_ONLY {
         return Ok(-12); // M_E_NOENT
@@ -177,12 +173,8 @@ pub async fn file_attribute(context: &mut dyn WIPICContext, name: u32, output: u
     if !filesystem.is_valid_path(&name) {
         return Ok(-3);
     }
-    let size = match filesystem.size(&name).await {
-        Some(size) => size,
-        None => match context.get_resource_size(&name).await? {
-            Some(size) => size,
-            None => return Ok(-12),
-        },
+    let Some(size) = filesystem.size(&name).await else {
+        return Ok(-12);
     };
     write_generic(context, output, [0u32, 0, size as u32])?;
     Ok(0)
@@ -197,11 +189,7 @@ pub async fn exists(context: &mut dyn WIPICContext, name: u32, access_mode: i32)
     if !filesystem.is_valid_path(&name) {
         return Ok(-3);
     }
-    if filesystem.exists(&name).await || context.get_resource_size(&name).await?.is_some() {
-        Ok(0)
-    } else {
-        Ok(-12)
-    }
+    if filesystem.exists(&name).await { Ok(0) } else { Ok(-12) }
 }
 
 pub async fn remove(context: &mut dyn WIPICContext, name: u32, access_mode: i32) -> Result<i32> {
@@ -277,7 +265,7 @@ mod tests {
 
     use crate::{WIPICContext, context::test::TestContext};
 
-    use super::{STORAGE_LIMIT, available, close, exists, file_attribute, open, read, remove, seek, tell, write};
+    use super::{OPEN_READ_ONLY, STORAGE_LIMIT, available, close, exists, file_attribute, open, read, remove, seek, tell, write};
 
     #[futures_test::test]
     async fn file_cursor_and_persistence_are_independent_of_database_records() {
@@ -333,10 +321,15 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn packaged_files_use_the_filesystem_overlay_and_reject_invalid_paths() {
+    async fn filesystem_overlay_is_independent_of_resources_and_rejects_invalid_paths() {
         let system = System::new(Box::new(TestPlatform::new()), "test-pid", "test-aid", DefaultTaskRunner);
         let mut context = TestContext::with_system(system).with_resource("data/seed", b"seed");
         context.write_bytes(0x1000, b"data/seed\0").unwrap();
+
+        assert_eq!(open(&mut context, 0x1000, OPEN_READ_ONLY, 1).await.unwrap(), -12);
+        assert_eq!(exists(&mut context, 0x1000, 1).await.unwrap(), -12);
+        assert_eq!(file_attribute(&mut context, 0x1000, 0x2100, 1).await.unwrap(), -12);
+        context.system().filesystem().add_virtual("data/seed", b"seed".to_vec());
 
         let fd = open(&mut context, 0x1000, 8, 1).await.unwrap();
         assert_eq!(read(&mut context, fd, 0x2000, 4).await.unwrap(), 4);
