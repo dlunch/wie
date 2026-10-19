@@ -12,7 +12,7 @@
   "dependencies": {
     "@sentry/browser": "^11.7.0",
     "@sentry/wasm": "^11.6.0",
-    "@tauri-apps/api": "^2.12.3",
+    "@tauri-apps/api": "^2.12.4",
     "css-loader": "^7.1.5",
     "html-bundler-webpack-plugin": "^4.23.2",
     "lucide": "^1.56.0",
