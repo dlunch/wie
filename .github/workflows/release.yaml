@@ -96,6 +96,9 @@ jobs:
         run: |
           npm ci
           npm run build:prod
+          if [ "$ENVIRONMENT" = nightly ]; then
+            printf 'User-agent: *\nDisallow: /\n' > wie-web/dist/robots.txt
+          fi
 
       - name: Upload WASM debug information
         env:
