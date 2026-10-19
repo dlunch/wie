@@ -18,6 +18,9 @@ struct FileHandle {
 
 const FILE_HANDLE_MAGIC: u32 = 0x46534648;
 const STORAGE_LIMIT: u64 = 1024 * 1024;
+const OPEN_READ_ONLY: i32 = 1;
+const OPEN_WRITE_ONLY: i32 = 2;
+const OPEN_WRITE_TRUNCATE: i32 = 4;
 
 pub async fn open(context: &mut dyn WIPICContext, name: u32, mode: i32, access_mode: i32) -> Result<i32> {
     tracing::debug!("MC_fsOpen({name:#x}, {mode}, {access_mode})");
@@ -35,10 +38,10 @@ pub async fn open(context: &mut dyn WIPICContext, name: u32, mode: i32, access_m
         filesystem.add_virtual(&name, context.read_resource(&name).await?);
     }
     let exists = filesystem.exists(&name).await;
-    if !exists && mode == 1 {
+    if !exists && mode == OPEN_READ_ONLY {
         return Ok(-12); // M_E_NOENT
     }
-    if (mode == 4 || !exists) && !filesystem.truncate(&name, 0).await {
+    if (mode == OPEN_WRITE_TRUNCATE || !exists) && !filesystem.truncate(&name, 0).await {
         return Ok(-1); // M_E_ERROR
     }
 
@@ -71,7 +74,7 @@ pub async fn read(context: &mut dyn WIPICContext, fd: i32, buffer: u32, length: 
     let Some((mut handle, name)) = load_handle(context, fd) else {
         return Ok(-2); // M_E_BADFD
     };
-    if matches!(handle.mode, 2 | 4) {
+    if matches!(handle.mode, OPEN_WRITE_ONLY | OPEN_WRITE_TRUNCATE) {
         return Ok(-24); // M_E_ACCESS
     }
     if length < 0 {
@@ -107,7 +110,7 @@ pub async fn write(context: &mut dyn WIPICContext, fd: i32, buffer: u32, length:
     let Some((mut handle, name)) = load_handle(context, fd) else {
         return Ok(-2); // M_E_BADFD
     };
-    if handle.mode == 1 {
+    if handle.mode == OPEN_READ_ONLY {
         return Ok(-24); // M_E_ACCESS
     }
     if length < 0 || handle.position.checked_add(length).is_none() {
