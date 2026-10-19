@@ -1,4 +1,5 @@
 pub mod database;
+pub mod fs;
 pub mod graphics;
 pub mod im;
 pub mod kernel;
@@ -6,5 +7,6 @@ pub mod media;
 pub mod misc;
 pub mod net;
 pub mod serial;
+pub mod term_res;
 pub mod uic;
 pub mod util;

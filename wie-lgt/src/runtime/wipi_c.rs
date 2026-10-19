@@ -12,7 +12,7 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{database, graphics as shared_graphics, im, kernel, media, misc, net, serial, uic, util},
+    api::{database, fs, graphics as shared_graphics, im, kernel, media, misc, net, serial, term_res, uic, util},
 };
 
 use context::LgtWIPICContext;
@@ -139,7 +139,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::ListRecord => database::list_record.into_body(),
         WIPICSvcId::UpdateRecord => database::update_record.into_body(),
         WIPICSvcId::SelectRecord => database::select_record.into_body(),
-        WIPICSvcId::FsList => fs_list.into_body(),
+        WIPICSvcId::FsList => fs::list.into_body(),
         WIPICSvcId::ListDatabases => database::list_databases.into_body(),
         WIPICSvcId::ExistsDatabase => database::exists_database.into_body(),
         WIPICSvcId::Connect => net::connect.into_body(),
@@ -156,9 +156,10 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::SerialSetWriteCallback => serial::set_write_callback.into_body(),
         WIPICSvcId::SerialClose => serial::close.into_body(),
         WIPICSvcId::Htonl => util::htonl.into_body(),
-        WIPICSvcId::Htons | WIPICSvcId::Ntohs => util::htons.into_body(),
+        WIPICSvcId::Htons => util::htons.into_body(),
+        WIPICSvcId::Ntohs => util::ntohs.into_body(),
         WIPICSvcId::InetAddr => util::inet_addr.into_body(),
-        WIPICSvcId::TermResGetSupportedGroups => term_res_get_supported_groups.into_body(),
+        WIPICSvcId::TermResGetSupportedGroups => term_res::get_supported_groups.into_body(),
         WIPICSvcId::ClipCreate => media::clip_create.into_body(),
         WIPICSvcId::ClipFree => media::clip_free.into_body(),
         WIPICSvcId::ClipPutData => media::clip_put_data.into_body(),
@@ -262,18 +263,6 @@ async fn clet_register(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), fu
     }
 
     Ok(())
-}
-
-async fn fs_list(_context: &mut dyn WIPICContext, name: u32, buffer: u32, buffer_size: i32, access_mode: i32) -> Result<i32> {
-    tracing::warn!("stub MC_fsList({name:#x}, {buffer:#x}, {buffer_size}, {access_mode})");
-
-    Ok(-1) // M_E_ERROR
-}
-
-async fn term_res_get_supported_groups(_context: &mut dyn WIPICContext, res_group: u32, buf_size: i32) -> Result<i32> {
-    tracing::warn!("stub MC_termResGetSupportedGroups({res_group:#x}, {buf_size})");
-
-    Ok(-1) // M_E_ERROR
 }
 
 async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
