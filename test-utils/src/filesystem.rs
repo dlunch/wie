@@ -24,17 +24,30 @@ impl MemoryFilesystem {
 
 #[async_trait::async_trait]
 impl Filesystem for MemoryFilesystem {
-    async fn exists(&self, aid: &str, path: &str) -> bool {
-        self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
+    async fn remove(&self, pid: &str, path: &str) -> bool {
+        self.files.lock().remove(&(pid.to_string(), path.to_string())).is_some()
     }
 
-    async fn size(&self, aid: &str, path: &str) -> Option<usize> {
-        self.files.lock().get(&(aid.to_string(), path.to_string())).map(|v| v.len())
+    async fn usage(&self, pid: &str) -> u64 {
+        self.files
+            .lock()
+            .iter()
+            .filter(|((owner, _), _)| owner == pid)
+            .map(|(_, data)| data.len() as u64)
+            .sum()
     }
 
-    async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+    async fn exists(&self, pid: &str, path: &str) -> bool {
+        self.files.lock().contains_key(&(pid.to_string(), path.to_string()))
+    }
+
+    async fn size(&self, pid: &str, path: &str) -> Option<usize> {
+        self.files.lock().get(&(pid.to_string(), path.to_string())).map(|v| v.len())
+    }
+
+    async fn read(&self, pid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
         let files = self.files.lock();
-        let data = files.get(&(aid.to_string(), path.to_string()))?;
+        let data = files.get(&(pid.to_string(), path.to_string()))?;
 
         if offset >= data.len() {
             return Some(0);
@@ -45,9 +58,9 @@ impl Filesystem for MemoryFilesystem {
         Some(size_to_read)
     }
 
-    async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+    async fn write(&self, pid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
         let mut files = self.files.lock();
-        let file = files.entry((aid.to_string(), path.to_string())).or_default();
+        let file = files.entry((pid.to_string(), path.to_string())).or_default();
         if file.len() < offset + data.len() {
             file.resize(offset + data.len(), 0);
         }
@@ -56,9 +69,9 @@ impl Filesystem for MemoryFilesystem {
         data.len()
     }
 
-    async fn truncate(&self, aid: &str, path: &str, len: usize) {
+    async fn truncate(&self, pid: &str, path: &str, len: usize) {
         let mut files = self.files.lock();
-        let file = files.entry((aid.to_string(), path.to_string())).or_default();
+        let file = files.entry((pid.to_string(), path.to_string())).or_default();
         file.resize(len, 0);
     }
 }

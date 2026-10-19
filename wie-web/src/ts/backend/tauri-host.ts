@@ -1,12 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type StorageRequest =
-  | { op: "fileExists" | "fileSize"; aid: string; path: string }
-  | { op: "fileRead"; aid: string; path: string; offset: number; count: number }
-  | { op: "fileWrite"; aid: string; path: string; offset: number; data: number[] }
-  | { op: "fileTruncate"; aid: string; path: string; length: number }
+  | { op: "fileExists" | "fileSize"; pid: string; path: string }
+  | { op: "fileRead"; pid: string; path: string; offset: number; count: number }
+  | { op: "fileWrite"; pid: string; path: string; offset: number; data: number[] }
+  | { op: "fileTruncate"; pid: string; path: string; length: number }
   | { op: "dbOpen" | "dbExists" | "dbDelete" | "recordNextId" | "recordIds"; pid: string; name: string }
-  | { op: "dbUsage"; pid: string }
+  | { op: "fileUsage"; pid: string }
+  | { op: "fileRemove"; pid: string; path: string }
   | { op: "recordGet" | "recordDelete"; pid: string; name: string; id: number }
   | { op: "recordAdd"; pid: string; name: string; data: number[] }
   | { op: "recordSet"; pid: string; name: string; id: number; data: number[] };

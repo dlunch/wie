@@ -9,7 +9,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
-use crate::runtime::wipi_c::method_table::{self, get_database_interface, get_graphics_interface};
+use crate::runtime::wipi_c::method_table::{self, get_fs_interface, get_graphics_interface};
 
 use crate::runtime::svc_ids::WIPICTableId;
 
@@ -47,7 +47,7 @@ pub async fn get_wipic_interfaces(core: &mut ArmCore, context: &mut dyn WIPICCon
     tracing::trace!("get_wipic_interfaces");
 
     let graphics_interface = get_graphics_interface(core)?;
-    let database_interface = get_database_interface(core)?;
+    let fs_interface = get_fs_interface(core)?;
 
     let util_interface = write_methods(core, context, WIPICTableId::Util, method_table::get_util_method_table())?;
     let misc_interface = write_methods(core, context, WIPICTableId::Misc, method_table::get_misc_method_table())?;
@@ -55,7 +55,7 @@ pub async fn get_wipic_interfaces(core: &mut ArmCore, context: &mut dyn WIPICCon
     let interface_3 = write_methods(core, context, WIPICTableId::Interface3, method_table::get_im_method_table())?;
     let interface_4 = write_methods(core, context, WIPICTableId::Interface4, method_table::get_stub_method_table(4))?;
     let interface_5 = write_methods(core, context, WIPICTableId::Interface5, method_table::get_stub_method_table(5))?;
-    let database_interface = write_interface(context, database_interface)?;
+    let fs_interface = write_interface(context, fs_interface)?;
     let interface_7 = write_methods(core, context, WIPICTableId::Interface7, method_table::get_stub_method_table(7))?;
     let uic_interface = write_methods(core, context, WIPICTableId::Uic, method_table::get_uic_method_table())?;
     let media_interface = write_methods(core, context, WIPICTableId::Media, method_table::get_media_method_table())?;
@@ -74,7 +74,7 @@ pub async fn get_wipic_interfaces(core: &mut ArmCore, context: &mut dyn WIPICCon
         interface_3,
         interface_4,
         interface_5,
-        database_interface,
+        fs_interface,
         interface_7,
         uic_interface,
         media_interface,

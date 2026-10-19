@@ -382,61 +382,57 @@ impl TryFrom<u16> for WIPICGraphicsMethodId {
 
 #[derive(Copy, Clone)]
 #[repr(u16)]
-pub enum WIPICDatabaseMethodId {
-    OpenDatabase = 0,
-    /// KTF extension. Reads from the open record using a per-handle byte
-    /// cursor; signature `(fd, buf, len)`.
-    StreamRead = 1,
-    /// KTF extension. Writes to the open record at the per-handle cursor
-    /// (no recid argument); signature `(fd, buf, len)`.
-    StreamWrite = 2,
-    CloseDatabase = 3,
-    SelectRecord = 4,
-    UpdateRecord = 5,
-    DeleteRecord = 6,
-    ListRecord = 7,
-    SortRecords = 8,
-    GetAccessMode = 9,
-    GetNumberOfRecords = 10,
-    GetRecordSize = 11,
-    ListDatabases = 12,
-    Unk13 = 13,
-    Unk14 = 14,
-    Unk15 = 15,
+pub enum WIPICFsMethodId {
+    Open = 0,
+    Read = 1,
+    Write = 2,
+    Close = 3,
+    Seek = 4,
+    FileAttribute = 5,
+    Remove = 6,
+    Rename = 7,
+    MkDir = 8,
+    RmDir = 9,
+    List = 10,
+    TotalSpace = 11,
+    Available = 12,
+    SetMode = 13,
+    GetCounts = 14,
+    Tell = 15,
     Exists = 16,
 }
 
-impl From<WIPICDatabaseMethodId> for u16 {
-    fn from(value: WIPICDatabaseMethodId) -> Self {
+impl From<WIPICFsMethodId> for u16 {
+    fn from(value: WIPICFsMethodId) -> Self {
         value as u16
     }
 }
 
-impl TryFrom<u16> for WIPICDatabaseMethodId {
+impl TryFrom<u16> for WIPICFsMethodId {
     type Error = wie_util::WieError;
 
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         Ok(match value {
-            0 => Self::OpenDatabase,
-            1 => Self::StreamRead,
-            2 => Self::StreamWrite,
-            3 => Self::CloseDatabase,
-            4 => Self::SelectRecord,
-            5 => Self::UpdateRecord,
-            6 => Self::DeleteRecord,
-            7 => Self::ListRecord,
-            8 => Self::SortRecords,
-            9 => Self::GetAccessMode,
-            10 => Self::GetNumberOfRecords,
-            11 => Self::GetRecordSize,
-            12 => Self::ListDatabases,
-            13 => Self::Unk13,
-            14 => Self::Unk14,
-            15 => Self::Unk15,
+            0 => Self::Open,
+            1 => Self::Read,
+            2 => Self::Write,
+            3 => Self::Close,
+            4 => Self::Seek,
+            5 => Self::FileAttribute,
+            6 => Self::Remove,
+            7 => Self::Rename,
+            8 => Self::MkDir,
+            9 => Self::RmDir,
+            10 => Self::List,
+            11 => Self::TotalSpace,
+            12 => Self::Available,
+            13 => Self::SetMode,
+            14 => Self::GetCounts,
+            15 => Self::Tell,
             16 => Self::Exists,
             _ => {
                 return Err(wie_util::WieError::FatalError(alloc::format!(
-                    "Unknown KTF WIPIC database method id {value}"
+                    "Unknown KTF WIPIC filesystem method id {value}"
                 )));
             }
         })
@@ -453,7 +449,7 @@ pub enum WIPICTableId {
     Interface3 = 4,
     Interface4 = 5,
     Interface5 = 6,
-    Database = 7,
+    Fs = 7,
     Interface7 = 8,
     Uic = 9,
     Media = 10,
@@ -484,7 +480,7 @@ impl TryFrom<u32> for WIPICTableId {
             4 => Self::Interface3,
             5 => Self::Interface4,
             6 => Self::Interface5,
-            7 => Self::Database,
+            7 => Self::Fs,
             8 => Self::Interface7,
             9 => Self::Uic,
             10 => Self::Media,

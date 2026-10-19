@@ -18,6 +18,4 @@ pub trait DatabaseRepository {
     async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database>;
     async fn exists(&self, name: &str, app_id: &str) -> bool;
     async fn delete(&self, name: &str, app_id: &str) -> bool;
-    /// Returns the bytes occupied by all databases owned by `app_id`.
-    async fn usage(&self, app_id: &str) -> u64;
 }

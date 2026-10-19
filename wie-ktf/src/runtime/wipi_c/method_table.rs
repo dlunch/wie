@@ -1,7 +1,7 @@
 use alloc::{format, vec, vec::Vec};
 
 use wipi_types::{
-    ktf::wipic::{WIPICDatabaseInterface, WIPICGraphicsInterface, WIPICKnlInterface},
+    ktf::wipic::{WIPICFsInterface, WIPICGraphicsInterface, WIPICKnlInterface},
     wipic::WIPICWord,
 };
 
@@ -9,12 +9,12 @@ use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody,
-    api::{database, graphics, im, kernel, media, misc, net, uic, util},
+    api::{fs, graphics, im, kernel, media, misc, net, uic, util},
 };
 
 use crate::runtime::{
     SVC_CATEGORY_WIPIC,
-    svc_ids::{WIPICDatabaseMethodId, WIPICGraphicsMethodId, WIPICKernelMethodId, WIPICTableId},
+    svc_ids::{WIPICFsMethodId, WIPICGraphicsMethodId, WIPICKernelMethodId, WIPICTableId},
 };
 
 fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
@@ -191,27 +191,26 @@ pub fn get_misc_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
-pub fn get_database_interface(core: &mut ArmCore) -> Result<WIPICDatabaseInterface> {
-    let table_id = WIPICTableId::Database;
-
-    Ok(WIPICDatabaseInterface {
-        open_database: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::OpenDatabase))?,
-        read_record_single: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::StreamRead))?,
-        write_record_single: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::StreamWrite))?,
-        close_database: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::CloseDatabase))?,
-        select_record: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::SelectRecord))?,
-        update_record: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::UpdateRecord))?,
-        delete_record: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::DeleteRecord))?,
-        list_record: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::ListRecord))?,
-        sort_records: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::SortRecords))?,
-        get_access_mode: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::GetAccessMode))?,
-        get_number_of_records: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::GetNumberOfRecords))?,
-        get_record_size: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::GetRecordSize))?,
-        list_databases: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::ListDatabases))?,
-        unk13: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Unk13))?,
-        unk14: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Unk14))?,
-        unk15: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Unk15))?,
-        unk16: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Exists))?,
+pub fn get_fs_interface(core: &mut ArmCore) -> Result<WIPICFsInterface> {
+    let table_id = WIPICTableId::Fs;
+    Ok(WIPICFsInterface {
+        open: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Open))?,
+        read: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Read))?,
+        write: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Write))?,
+        close: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Close))?,
+        seek: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Seek))?,
+        file_attribute: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::FileAttribute))?,
+        remove: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Remove))?,
+        rename: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Rename))?,
+        make_directory: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::MkDir))?,
+        remove_directory: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::RmDir))?,
+        list: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::List))?,
+        total_space: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::TotalSpace))?,
+        available: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Available))?,
+        set_mode: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::SetMode))?,
+        get_counts: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::GetCounts))?,
+        tell: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Tell))?,
+        exists: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Exists))?,
     })
 }
 
@@ -515,24 +514,24 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
                 None
             }
         }
-        WIPICTableId::Database => match WIPICDatabaseMethodId::try_from(function_id).ok()? {
-            WIPICDatabaseMethodId::OpenDatabase => Some(database::open_database.into_body()),
-            WIPICDatabaseMethodId::StreamRead => Some(database::stream_read.into_body()),
-            WIPICDatabaseMethodId::StreamWrite => Some(database::stream_write.into_body()),
-            WIPICDatabaseMethodId::CloseDatabase => Some(database::close_database.into_body()),
-            WIPICDatabaseMethodId::SelectRecord => Some(database::seek_record_single.into_body()),
-            WIPICDatabaseMethodId::UpdateRecord => Some(database::stat_by_name_ktf.into_body()),
-            WIPICDatabaseMethodId::DeleteRecord => Some(database::delete_record_ktf.into_body()),
-            WIPICDatabaseMethodId::ListRecord => Some(database::list_record.into_body()),
-            WIPICDatabaseMethodId::SortRecords => Some(gen_stub(8, "MC_dbSortRecords")),
-            WIPICDatabaseMethodId::GetAccessMode => Some(gen_stub(9, "MC_dbGetAccessMode")),
-            WIPICDatabaseMethodId::GetNumberOfRecords => Some(gen_stub(10, "MC_dbGetNumberOfRecords")),
-            WIPICDatabaseMethodId::GetRecordSize => Some(gen_stub(11, "MC_dbGetRecordSize")),
-            WIPICDatabaseMethodId::ListDatabases => Some(database::list_databases.into_body()),
-            WIPICDatabaseMethodId::Unk13 => Some(gen_stub(13, "MC_dbUnk13")),
-            WIPICDatabaseMethodId::Unk14 => Some(gen_stub(14, "MC_dbUnk14")),
-            WIPICDatabaseMethodId::Unk15 => Some(gen_stub(15, "MC_dbUnk15")),
-            WIPICDatabaseMethodId::Exists => Some(database::exists_database.into_body()),
+        WIPICTableId::Fs => match WIPICFsMethodId::try_from(function_id).ok()? {
+            WIPICFsMethodId::Open => Some(fs::open.into_body()),
+            WIPICFsMethodId::Read => Some(fs::read.into_body()),
+            WIPICFsMethodId::Write => Some(fs::write.into_body()),
+            WIPICFsMethodId::Close => Some(fs::close.into_body()),
+            WIPICFsMethodId::Seek => Some(fs::seek.into_body()),
+            WIPICFsMethodId::FileAttribute => Some(fs::file_attribute.into_body()),
+            WIPICFsMethodId::Remove => Some(fs::remove.into_body()),
+            WIPICFsMethodId::Rename => Some(fs::rename.into_body()),
+            WIPICFsMethodId::MkDir => Some(fs::make_directory.into_body()),
+            WIPICFsMethodId::RmDir => Some(fs::remove_directory.into_body()),
+            WIPICFsMethodId::List => Some(fs::list.into_body()),
+            WIPICFsMethodId::TotalSpace => Some(fs::total_space.into_body()),
+            WIPICFsMethodId::Available => Some(fs::available.into_body()),
+            WIPICFsMethodId::SetMode => Some(fs::set_mode.into_body()),
+            WIPICFsMethodId::GetCounts => Some(fs::get_counts.into_body()),
+            WIPICFsMethodId::Tell => Some(fs::tell.into_body()),
+            WIPICFsMethodId::Exists => Some(fs::exists.into_body()),
         },
         WIPICTableId::Interface7 => {
             if function_id < 64 {

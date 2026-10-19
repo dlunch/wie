@@ -12,7 +12,7 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{database, fs, graphics as shared_graphics, im, kernel, media, misc, net, serial, term_res, uic, util},
+    api::{fs, graphics as shared_graphics, im, kernel, media, misc, net, serial, term_res, uic, util},
 };
 
 use context::LgtWIPICContext;
@@ -129,23 +129,25 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::UicSetMaxTextSize => uic::set_max_text_size.into_body(),
         WIPICSvcId::UicGetTextSize => uic::get_text_size.into_body(),
         WIPICSvcId::UicGetText => uic::get_text.into_body(),
-        WIPICSvcId::OpenDatabase => database::open_database.into_body(),
-        WIPICSvcId::ReadRecordSingle => database::stream_read.into_body(),
-        WIPICSvcId::WriteRecordSingle => database::stream_write.into_body(),
-        WIPICSvcId::CloseDatabase => database::close_database.into_body(),
-        WIPICSvcId::SeekRecordSingle => database::seek_record_single.into_body(),
-        WIPICSvcId::ListRecordInfo => database::list_record_info.into_body(),
-        WIPICSvcId::DeleteRecord => database::delete_database.into_body(),
-        WIPICSvcId::ListRecord => database::list_record.into_body(),
-        WIPICSvcId::UpdateRecord => database::update_record.into_body(),
-        WIPICSvcId::SelectRecord => database::select_record.into_body(),
+        WIPICSvcId::FsOpen => fs::open.into_body(),
+        WIPICSvcId::FsRead => fs::read.into_body(),
+        WIPICSvcId::FsWrite => fs::write.into_body(),
+        WIPICSvcId::FsClose => fs::close.into_body(),
+        WIPICSvcId::FsSeek => fs::seek.into_body(),
+        WIPICSvcId::FsFileAttribute => fs::file_attribute.into_body(),
+        WIPICSvcId::FsRemove => fs::remove.into_body(),
+        WIPICSvcId::FsRename => fs::rename.into_body(),
+        WIPICSvcId::FsMkDir => fs::make_directory.into_body(),
+        WIPICSvcId::FsRmDir => fs::remove_directory.into_body(),
         WIPICSvcId::FsList => fs::list.into_body(),
-        WIPICSvcId::ListDatabases => database::list_databases.into_body(),
-        WIPICSvcId::ExistsDatabase => database::exists_database.into_body(),
+        WIPICSvcId::FsAvailable => fs::available.into_body(),
+        WIPICSvcId::FsTell => fs::tell.into_body(),
+        WIPICSvcId::FsExists => fs::exists.into_body(),
         WIPICSvcId::Connect => net::connect.into_body(),
         WIPICSvcId::Close => net::close.into_body(),
         WIPICSvcId::SocketClose => net::socket_close.into_body(),
         WIPICSvcId::Socket => net::socket.into_body(),
+        WIPICSvcId::UnkSocket => unk_socket.into_body(),
         WIPICSvcId::SocketConnect => net::socket_connect.into_body(),
         WIPICSvcId::SocketWrite => net::socket_write.into_body(),
         WIPICSvcId::SocketRead => net::socket_read.into_body(),
@@ -160,6 +162,11 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::Ntohs => util::ntohs.into_body(),
         WIPICSvcId::InetAddr => util::inet_addr.into_body(),
         WIPICSvcId::TermResGetSupportedGroups => term_res::get_supported_groups.into_body(),
+        WIPICSvcId::TermResGetCount => term_res::get_count.into_body(),
+        WIPICSvcId::TermResGetList => term_res::get_list.into_body(),
+        WIPICSvcId::TermResGetFormat => term_res::get_format.into_body(),
+        WIPICSvcId::TermResGetSize => term_res::get_size.into_body(),
+        WIPICSvcId::TermResGetUiName => term_res::get_ui_name.into_body(),
         WIPICSvcId::ClipCreate => media::clip_create.into_body(),
         WIPICSvcId::ClipFree => media::clip_free.into_body(),
         WIPICSvcId::ClipPutData => media::clip_put_data.into_body(),
@@ -263,6 +270,12 @@ async fn clet_register(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), fu
     }
 
     Ok(())
+}
+
+async fn unk_socket(_context: &mut dyn WIPICContext, domain: i32, socket_type: i32) -> Result<i32> {
+    tracing::warn!("stub unk_socket({domain}, {socket_type})");
+
+    Ok(-1)
 }
 
 async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {

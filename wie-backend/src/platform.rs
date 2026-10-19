@@ -15,13 +15,19 @@ pub trait Platform: Send + Sync {
     fn vibrate(&self, duration_ms: u64, intensity: u8);
 }
 
-/// Platform filesystem abstraction. Every method is scoped by `aid`;
-/// implementations MUST NOT cross aid boundaries.
+/// Platform filesystem abstraction. Every method is scoped by `pid`;
+/// implementations MUST NOT cross pid boundaries.
 #[async_trait::async_trait]
 pub trait Filesystem: Send + Sync {
-    async fn exists(&self, aid: &str, path: &str) -> bool;
+    /// Remove a persistent file; returns false if missing or removal fails.
+    async fn remove(&self, pid: &str, path: &str) -> bool;
 
-    async fn size(&self, aid: &str, path: &str) -> Option<usize>;
+    /// Total persistent file bytes owned by `pid`.
+    async fn usage(&self, pid: &str) -> u64;
+
+    async fn exists(&self, pid: &str, path: &str) -> bool;
+
+    async fn size(&self, pid: &str, path: &str) -> Option<usize>;
 
     /// Read up to `count` bytes starting at `offset` into `buf[..count]`.
     ///
@@ -31,7 +37,7 @@ pub trait Filesystem: Send + Sync {
     ///   at end of file.
     /// - Caller guarantees `buf.len() >= count`. Implementations only write
     ///   to `buf[..n]`.
-    async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize>;
+    async fn read(&self, pid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize>;
 
     /// Write `data` starting at `offset`.
     ///
@@ -45,11 +51,11 @@ pub trait Filesystem: Send + Sync {
     /// - On failure (path rejected, disk full, permission denied, etc.)
     ///   MUST return `0` and log via `tracing::warn!` or `tracing::error!`.
     ///   Silent `0` returns are forbidden.
-    async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize;
+    async fn write(&self, pid: &str, path: &str, offset: usize, data: &[u8]) -> usize;
 
     /// Truncate the file to exactly `len` bytes. Creates the file if
     /// missing.
     /// - `len > current_size` → zero-fill extend.
     /// - `len < current_size` → tail bytes dropped.
-    async fn truncate(&self, aid: &str, path: &str, len: usize);
+    async fn truncate(&self, pid: &str, path: &str, len: usize);
 }

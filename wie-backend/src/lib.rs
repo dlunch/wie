@@ -22,7 +22,7 @@ pub use self::{
     platform::{Filesystem, Platform},
     screen::Screen,
     storage_request::StorageRequest,
-    system::{Event, FilesystemOverlay, KeyCode, System},
+    system::{Event, FilesystemOverlay, KeyCode, System, normalize_guest_path},
     task::YieldFuture,
     task_runner::{DefaultTaskRunner, TaskRunner},
     time::Instant,

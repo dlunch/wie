@@ -78,10 +78,6 @@ impl DatabaseRepository for WasmHost {
     async fn delete(&self, name: &str, app_id: &str) -> bool {
         self.request(StorageRequest::DbDelete { pid: app_id, name }).await
     }
-
-    async fn usage(&self, app_id: &str) -> u64 {
-        self.request(StorageRequest::DbUsage { pid: app_id }).await
-    }
 }
 
 struct HostDatabase {
@@ -154,28 +150,36 @@ impl Database for HostDatabase {
 
 #[async_trait::async_trait]
 impl Filesystem for WasmHost {
-    async fn exists(&self, aid: &str, path: &str) -> bool {
-        self.request(StorageRequest::FileExists { aid, path }).await
+    async fn remove(&self, pid: &str, path: &str) -> bool {
+        self.request(StorageRequest::FileRemove { pid, path }).await
     }
 
-    async fn size(&self, aid: &str, path: &str) -> Option<usize> {
-        self.request(StorageRequest::FileSize { aid, path }).await
+    async fn usage(&self, pid: &str) -> u64 {
+        self.request(StorageRequest::FileUsage { pid }).await
     }
 
-    async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
-        let data: Option<Vec<u8>> = self.request(StorageRequest::FileRead { aid, path, offset, count }).await;
+    async fn exists(&self, pid: &str, path: &str) -> bool {
+        self.request(StorageRequest::FileExists { pid, path }).await
+    }
+
+    async fn size(&self, pid: &str, path: &str) -> Option<usize> {
+        self.request(StorageRequest::FileSize { pid, path }).await
+    }
+
+    async fn read(&self, pid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+        let data: Option<Vec<u8>> = self.request(StorageRequest::FileRead { pid, path, offset, count }).await;
         let data = data?;
         let len = data.len().min(count);
         buf[..len].copy_from_slice(&data[..len]);
         Some(len)
     }
 
-    async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
-        self.request(StorageRequest::FileWrite { aid, path, offset, data }).await
+    async fn write(&self, pid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+        self.request(StorageRequest::FileWrite { pid, path, offset, data }).await
     }
 
-    async fn truncate(&self, aid: &str, path: &str, length: usize) {
-        self.request::<()>(StorageRequest::FileTruncate { aid, path, length }).await;
+    async fn truncate(&self, pid: &str, path: &str, length: usize) {
+        self.request::<()>(StorageRequest::FileTruncate { pid, path, length }).await;
     }
 }
 
@@ -188,39 +192,44 @@ mod tests {
     #[test]
     fn storage_requests_preserve_namespaces_offsets_and_empty_data() {
         let requests = [
+            (StorageRequest::FileUsage { pid: "app" }, json!({"op":"fileUsage","pid":"app"})),
             (
-                StorageRequest::FileExists { aid: "app", path: "save" },
-                json!({"op": "fileExists", "aid": "app", "path": "save"}),
+                StorageRequest::FileRemove { pid: "app", path: "save" },
+                json!({"op":"fileRemove","pid":"app","path":"save"}),
             ),
             (
-                StorageRequest::FileSize { aid: "app", path: "save" },
-                json!({"op": "fileSize", "aid": "app", "path": "save"}),
+                StorageRequest::FileExists { pid: "app", path: "save" },
+                json!({"op": "fileExists", "pid": "app", "path": "save"}),
+            ),
+            (
+                StorageRequest::FileSize { pid: "app", path: "save" },
+                json!({"op": "fileSize", "pid": "app", "path": "save"}),
             ),
             (
                 StorageRequest::FileRead {
-                    aid: "app",
+                    pid: "app",
                     path: "save",
                     offset: 2,
                     count: 4,
                 },
-                json!({"op": "fileRead", "aid": "app", "path": "save", "offset": 2, "count": 4}),
+                json!({"op": "fileRead", "pid": "app", "path": "save", "offset": 2, "count": 4}),
             ),
             (
                 StorageRequest::FileWrite {
-                    aid: "app",
+                    pid: "app",
                     path: "save",
                     offset: 3,
                     data: &[0, 255],
                 },
-                json!({"op": "fileWrite", "aid": "app", "path": "save", "offset": 3, "data": [0, 255]}),
+                json!({"op": "fileWrite", "pid": "app", "path": "save", "offset": 3, "data": [0, 255]}),
             ),
             (
                 StorageRequest::FileTruncate {
-                    aid: "app",
+                    pid: "app",
                     path: "save",
                     length: 0,
                 },
-                json!({"op": "fileTruncate", "aid": "app", "path": "save", "length": 0}),
+                json!({"op": "fileTruncate", "pid": "app", "path": "save", "length": 0}),
             ),
             (
                 StorageRequest::DbOpen {
@@ -243,7 +252,6 @@ mod tests {
                 },
                 json!({"op": "dbDelete", "pid": "owner", "name": "records"}),
             ),
-            (StorageRequest::DbUsage { pid: "owner" }, json!({"op": "dbUsage", "pid": "owner"})),
             (
                 StorageRequest::RecordNextId {
                     pid: "owner",
