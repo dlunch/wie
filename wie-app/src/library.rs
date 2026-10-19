@@ -211,14 +211,11 @@ mod tests {
             let store = store::open(root.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            for (id, aid, data) in [
-                (&first.id, "00000000", b"record".as_slice()),
-                (&second.id, "00000001", b"other".as_slice()),
-            ] {
+            for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
                 let mut database = repository.open("save", id).await;
                 assert!(database.set(1, data).await);
                 assert_eq!(database.next_id().await, 2);
-                assert_eq!(filesystem.write(aid, "save", 2, data).await, data.len());
+                assert_eq!(filesystem.write(id, "save", 2, data).await, data.len());
             }
         });
 
@@ -245,14 +242,11 @@ mod tests {
             let store = store::open(root.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            for (id, aid, data) in [
-                (&first.id, "00000000", b"record".as_slice()),
-                (&second.id, "00000001", b"other".as_slice()),
-            ] {
+            for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
                 assert_eq!(repository.database("save", id).get(1).await.as_deref(), Some(data));
-                assert_eq!(filesystem.size(aid, "save").await, Some(data.len() + 2));
+                assert_eq!(filesystem.size(id, "save").await, Some(data.len() + 2));
                 let mut bytes = vec![0; data.len() + 2];
-                assert_eq!(filesystem.read(aid, "save", 0, bytes.len(), &mut bytes).await, Some(bytes.len()));
+                assert_eq!(filesystem.read(id, "save", 0, bytes.len(), &mut bytes).await, Some(bytes.len()));
                 assert_eq!(&bytes[..2], &[0, 0]);
                 assert_eq!(&bytes[2..], data);
             }
@@ -340,13 +334,13 @@ mod tests {
                 Some(b"pid/app:save:1".as_slice())
             );
 
-            assert_eq!(filesystem.write("00000000", "save", 3, &[0xff, 0x00]).await, 2);
+            assert_eq!(filesystem.write(&first.id, "save", 3, &[0xff, 0x00]).await, 2);
             let mut bytes = [0; 8];
-            assert_eq!(filesystem.read("00000000", "save", 0, 8, &mut bytes).await, Some(8));
+            assert_eq!(filesystem.read(&first.id, "save", 0, 8, &mut bytes).await, Some(8));
             assert_eq!(&bytes, b"\0\0r\xff\0ord");
-            assert_eq!(filesystem.read("00000000", "save", 7, 8, &mut bytes).await, Some(1));
+            assert_eq!(filesystem.read(&first.id, "save", 7, 8, &mut bytes).await, Some(1));
             assert_eq!(&bytes, b"d\0r\xff\0ord");
-            assert_eq!(filesystem.read("00000000", "save", 8, 8, &mut bytes).await, Some(0));
+            assert_eq!(filesystem.read(&first.id, "save", 8, 8, &mut bytes).await, Some(0));
             assert_eq!(&bytes, b"d\0r\xff\0ord");
 
             store
@@ -358,25 +352,25 @@ mod tests {
                      BEGIN SELECT RAISE(ABORT, 'injected file growth failure'); END;",
                 )
                 .unwrap();
-            assert_eq!(filesystem.write("00000000", "save", 7, b"extension").await, 0);
-            assert_eq!(filesystem.size("00000000", "save").await, Some(8));
-            assert_eq!(filesystem.read("00000000", "save", 0, 8, &mut bytes).await, Some(8));
+            assert_eq!(filesystem.write(&first.id, "save", 7, b"extension").await, 0);
+            assert_eq!(filesystem.size(&first.id, "save").await, Some(8));
+            assert_eq!(filesystem.read(&first.id, "save", 0, 8, &mut bytes).await, Some(8));
             assert_eq!(&bytes, b"\0\0r\xff\0ord");
-            assert_eq!(filesystem.write("00000000", "failed", 2, b"new").await, 0);
-            assert!(!filesystem.exists("00000000", "failed").await);
+            assert_eq!(filesystem.write(&first.id, "failed", 2, b"new").await, 0);
+            assert!(!filesystem.exists(&first.id, "failed").await);
             store.lock().unwrap().execute_batch("DROP TRIGGER fail_file_growth").unwrap();
 
-            filesystem.truncate("00000000", "save", 3).await;
-            filesystem.truncate("00000000", "save", 6).await;
-            assert_eq!(filesystem.read("00000000", "save", 0, 8, &mut bytes).await, Some(6));
+            filesystem.truncate(&first.id, "save", 3).await;
+            filesystem.truncate(&first.id, "save", 6).await;
+            assert_eq!(filesystem.read(&first.id, "save", 0, 8, &mut bytes).await, Some(6));
             assert_eq!(&bytes[..6], b"\0\0r\0\0\0");
-            assert_eq!(filesystem.write("00000000", "empty", 5, &[]).await, 0);
-            assert_eq!(filesystem.size("00000000", "empty").await, Some(5));
-            filesystem.truncate("00000000", "empty", 0).await;
-            filesystem.truncate("00000000", "new", 0).await;
-            assert!(filesystem.exists("00000000", "new").await);
-            assert_eq!(filesystem.size("00000000", "new").await, Some(0));
-            assert_eq!(filesystem.read("00000000", "missing", 0, 8, &mut bytes).await, None);
+            assert_eq!(filesystem.write(&first.id, "empty", 5, &[]).await, 0);
+            assert_eq!(filesystem.size(&first.id, "empty").await, Some(5));
+            filesystem.truncate(&first.id, "empty", 0).await;
+            filesystem.truncate(&first.id, "new", 0).await;
+            assert!(filesystem.exists(&first.id, "new").await);
+            assert_eq!(filesystem.size(&first.id, "new").await, Some(0));
+            assert_eq!(filesystem.read(&first.id, "missing", 0, 8, &mut bytes).await, None);
         });
 
         // Cloud backup excludes the library; restore only the closed state database.
@@ -394,22 +388,22 @@ mod tests {
             let store = store::open(restored.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            for (pid, aid, record, file) in [
-                (&first.id, "00000000", b"reset".as_slice(), b"\0\0r\0\0\0".as_slice()),
-                (&second.id, "00000001", b"other".as_slice(), b"\0\0other".as_slice()),
+            for (pid, record, file) in [
+                (&first.id, b"reset".as_slice(), b"\0\0r\0\0\0".as_slice()),
+                (&second.id, b"other".as_slice(), b"\0\0other".as_slice()),
             ] {
                 let database = repository.open("save", pid).await;
                 assert_eq!(database.get(1).await.as_deref(), Some(record));
                 assert_eq!(database.get_record_ids().await, [1]);
                 assert_eq!(database.next_id().await, 2);
-                assert_eq!(filesystem.size(aid, "save").await, Some(file.len()));
+                assert_eq!(filesystem.size(pid, "save").await, Some(file.len()));
                 let mut bytes = [0; 8];
-                assert_eq!(filesystem.read(aid, "save", 0, bytes.len(), &mut bytes).await, Some(file.len()));
+                assert_eq!(filesystem.read(pid, "save", 0, bytes.len(), &mut bytes).await, Some(file.len()));
                 assert_eq!(&bytes[..file.len()], file);
             }
-            assert!(filesystem.exists("00000000", "empty").await);
-            assert_eq!(filesystem.size("00000000", "empty").await, Some(0));
-            assert_eq!(filesystem.read("00000000", "empty", 0, 1, &mut [1]).await, Some(0));
+            assert!(filesystem.exists(&first.id, "empty").await);
+            assert_eq!(filesystem.size(&first.id, "empty").await, Some(0));
+            assert_eq!(filesystem.read(&first.id, "empty", 0, 1, &mut [1]).await, Some(0));
         });
     }
 }

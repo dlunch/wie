@@ -50,15 +50,15 @@ fn normalize_guest_path(path: &str) -> Option<String> {
 pub struct FilesystemOverlay {
     platform: Arc<Box<dyn Platform>>,
     virtual_files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
-    aid: Arc<str>,
+    pid: Arc<str>,
 }
 
 impl FilesystemOverlay {
-    pub fn new(platform: Arc<Box<dyn Platform>>, aid: &str) -> Self {
+    pub fn new(platform: Arc<Box<dyn Platform>>, pid: &str) -> Self {
         Self {
             platform,
             virtual_files: Arc::new(Mutex::new(HashMap::new())),
-            aid: Arc::from(aid),
+            pid: Arc::from(pid),
         }
     }
 
@@ -73,7 +73,7 @@ impl FilesystemOverlay {
 
     async fn materialize_virtual(&self, normalized: &str) -> bool {
         let filesystem = self.platform.filesystem();
-        if filesystem.exists(&self.aid, normalized).await {
+        if filesystem.exists(&self.pid, normalized).await {
             return true;
         }
 
@@ -82,7 +82,7 @@ impl FilesystemOverlay {
             return true;
         };
 
-        let written = filesystem.write(&self.aid, normalized, 0, &virtual_data).await;
+        let written = filesystem.write(&self.pid, normalized, 0, &virtual_data).await;
         if written != virtual_data.len() {
             tracing::warn!(
                 path = normalized,
@@ -101,7 +101,7 @@ impl FilesystemOverlay {
             return false;
         };
 
-        if self.platform.filesystem().exists(&self.aid, &normalized).await {
+        if self.platform.filesystem().exists(&self.pid, &normalized).await {
             return true;
         }
         self.virtual_files.lock().contains_key(&normalized)
@@ -111,17 +111,17 @@ impl FilesystemOverlay {
         let Some(normalized) = normalize_guest_path(path) else {
             return false;
         };
-        self.platform.filesystem().remove(&self.aid, &normalized).await
+        self.platform.filesystem().remove(&self.pid, &normalized).await
     }
 
     pub async fn usage(&self) -> u64 {
-        self.platform.filesystem().usage(&self.aid).await
+        self.platform.filesystem().usage(&self.pid).await
     }
 
     pub async fn size(&self, path: &str) -> Option<usize> {
         let normalized = normalize_guest_path(path)?;
 
-        if let Some(size) = self.platform.filesystem().size(&self.aid, &normalized).await {
+        if let Some(size) = self.platform.filesystem().size(&self.pid, &normalized).await {
             return Some(size);
         }
         self.virtual_files.lock().get(&normalized).map(|d| d.len())
@@ -131,8 +131,8 @@ impl FilesystemOverlay {
         let normalized = normalize_guest_path(path)?;
 
         let plat_fs = self.platform.filesystem();
-        if plat_fs.exists(&self.aid, &normalized).await {
-            return plat_fs.read(&self.aid, &normalized, offset, count, buf).await;
+        if plat_fs.exists(&self.pid, &normalized).await {
+            return plat_fs.read(&self.pid, &normalized, offset, count, buf).await;
         }
 
         let files = self.virtual_files.lock();
@@ -152,7 +152,7 @@ impl FilesystemOverlay {
         if !self.materialize_virtual(&normalized).await {
             return 0;
         }
-        self.platform.filesystem().write(&self.aid, &normalized, offset, data).await
+        self.platform.filesystem().write(&self.pid, &normalized, offset, data).await
     }
 
     pub async fn truncate(&self, path: &str, len: usize) -> bool {
@@ -163,8 +163,8 @@ impl FilesystemOverlay {
             return false;
         }
         let filesystem = self.platform.filesystem();
-        filesystem.truncate(&self.aid, &normalized, len).await;
-        filesystem.size(&self.aid, &normalized).await == Some(len)
+        filesystem.truncate(&self.pid, &normalized, len).await;
+        filesystem.size(&self.pid, &normalized).await == Some(len)
     }
 }
 
@@ -200,30 +200,30 @@ mod tests {
     }
     #[async_trait::async_trait]
     impl Filesystem for StubFilesystem {
-        async fn remove(&self, aid: &str, path: &str) -> bool {
-            self.files.lock().remove(&(aid.to_string(), path.to_string())).is_some()
+        async fn remove(&self, pid: &str, path: &str) -> bool {
+            self.files.lock().remove(&(pid.to_string(), path.to_string())).is_some()
         }
 
-        async fn usage(&self, aid: &str) -> u64 {
+        async fn usage(&self, pid: &str) -> u64 {
             self.files
                 .lock()
                 .iter()
-                .filter(|((owner, _), _)| owner == aid)
+                .filter(|((owner, _), _)| owner == pid)
                 .map(|(_, data)| data.len() as u64)
                 .sum()
         }
 
-        async fn exists(&self, aid: &str, path: &str) -> bool {
-            self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
+        async fn exists(&self, pid: &str, path: &str) -> bool {
+            self.files.lock().contains_key(&(pid.to_string(), path.to_string()))
         }
 
-        async fn size(&self, aid: &str, path: &str) -> Option<usize> {
-            self.files.lock().get(&(aid.to_string(), path.to_string())).map(|v| v.len())
+        async fn size(&self, pid: &str, path: &str) -> Option<usize> {
+            self.files.lock().get(&(pid.to_string(), path.to_string())).map(|v| v.len())
         }
 
-        async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+        async fn read(&self, pid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
             let files = self.files.lock();
-            let data = files.get(&(aid.to_string(), path.to_string()))?;
+            let data = files.get(&(pid.to_string(), path.to_string()))?;
             if offset >= data.len() {
                 return Some(0);
             }
@@ -232,10 +232,10 @@ mod tests {
             Some(n)
         }
 
-        async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+        async fn write(&self, pid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
             let write_len = self.write_limit.unwrap_or(data.len()).min(data.len());
             let mut files = self.files.lock();
-            let file = files.entry((aid.to_string(), path.to_string())).or_default();
+            let file = files.entry((pid.to_string(), path.to_string())).or_default();
             if file.len() < offset + write_len {
                 file.resize(offset + write_len, 0);
             }
@@ -243,12 +243,12 @@ mod tests {
             write_len
         }
 
-        async fn truncate(&self, aid: &str, path: &str, len: usize) {
+        async fn truncate(&self, pid: &str, path: &str, len: usize) {
             if self.fail_truncate {
                 return;
             }
             let mut files = self.files.lock();
-            let file = files.entry((aid.to_string(), path.to_string())).or_default();
+            let file = files.entry((pid.to_string(), path.to_string())).or_default();
             file.resize(len, 0);
         }
     }
@@ -296,7 +296,7 @@ mod tests {
 
     fn setup_with_filesystem(fs: StubFilesystem) -> FilesystemOverlay {
         let platform: Arc<Box<dyn Platform>> = Arc::new(Box::new(StubPlatform { fs }));
-        FilesystemOverlay::new(platform, "test-aid")
+        FilesystemOverlay::new(platform, "test-pid")
     }
 
     #[futures_test::test]

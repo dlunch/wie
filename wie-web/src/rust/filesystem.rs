@@ -9,8 +9,8 @@ use crate::indexed_db_store::{Store, StoreKey};
 const DB_NAME: &str = "wie_filesystem";
 const STORE_NAME: &str = "files";
 
-fn make_key(aid: &str, path: &str) -> StoreKey {
-    StoreKey::Pair(aid.to_string(), path.to_string())
+fn make_key(pid: &str, path: &str) -> StoreKey {
+    StoreKey::Pair(pid.to_string(), path.to_string())
 }
 
 pub struct WebFilesystem {
@@ -40,9 +40,9 @@ impl WebFilesystem {
 
 #[async_trait::async_trait]
 impl Filesystem for WebFilesystem {
-    async fn remove(&self, aid: &str, path: &str) -> bool {
+    async fn remove(&self, pid: &str, path: &str) -> bool {
         let store = self.store().await;
-        let key = make_key(aid, path);
+        let key = make_key(pid, path);
         if store.get(key.clone()).await.is_none() {
             return false;
         }
@@ -50,11 +50,11 @@ impl Filesystem for WebFilesystem {
         true
     }
 
-    async fn usage(&self, aid: &str) -> u64 {
+    async fn usage(&self, pid: &str) -> u64 {
         let store = self.store().await;
         let mut usage = 0;
         for key in store.get_all_keys().await {
-            if matches!(&key, StoreKey::Pair(owner, _) if owner == aid)
+            if matches!(&key, StoreKey::Pair(owner, _) if owner == pid)
                 && let Some(data) = store.get(key).await
             {
                 usage += data.len() as u64;
@@ -63,16 +63,16 @@ impl Filesystem for WebFilesystem {
         usage
     }
 
-    async fn exists(&self, aid: &str, path: &str) -> bool {
-        self.store().await.get(make_key(aid, path)).await.is_some()
+    async fn exists(&self, pid: &str, path: &str) -> bool {
+        self.store().await.get(make_key(pid, path)).await.is_some()
     }
 
-    async fn size(&self, aid: &str, path: &str) -> Option<usize> {
-        self.store().await.get(make_key(aid, path)).await.map(|v| v.len())
+    async fn size(&self, pid: &str, path: &str) -> Option<usize> {
+        self.store().await.get(make_key(pid, path)).await.map(|v| v.len())
     }
 
-    async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
-        let data = self.store().await.get(make_key(aid, path)).await?;
+    async fn read(&self, pid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+        let data = self.store().await.get(make_key(pid, path)).await?;
 
         if offset >= data.len() {
             return Some(0);
@@ -83,8 +83,8 @@ impl Filesystem for WebFilesystem {
         Some(size_to_read)
     }
 
-    async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
-        let key = make_key(aid, path);
+    async fn write(&self, pid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+        let key = make_key(pid, path);
         let store = self.store().await;
         let existing = store.get(key.clone()).await.unwrap_or_default();
         let new_len = max(existing.len(), offset + data.len());
@@ -97,8 +97,8 @@ impl Filesystem for WebFilesystem {
         data.len()
     }
 
-    async fn truncate(&self, aid: &str, path: &str, len: usize) {
-        let key = make_key(aid, path);
+    async fn truncate(&self, pid: &str, path: &str, len: usize) {
+        let key = make_key(pid, path);
         let store = self.store().await;
         let existing = store.get(key.clone()).await.unwrap_or_default();
 

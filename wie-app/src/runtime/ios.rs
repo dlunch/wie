@@ -97,16 +97,16 @@ async fn dispatch_storage(request: StorageRequest, store: &Store) -> Value {
     let filesystem = SqliteFilesystem { store: store.clone() };
     let repository = DatabaseRepository { store: store.clone() };
     match request {
-        StorageRequest::FileExists { aid, path } => json!(filesystem.exists(&aid, &path).await),
-        StorageRequest::FileSize { aid, path } => json!(filesystem.size(&aid, &path).await),
-        StorageRequest::FileRead { aid, path, offset, count } => {
-            let Some(length) = filesystem.size(&aid, &path).await else {
+        StorageRequest::FileExists { pid, path } => json!(filesystem.exists(&pid, &path).await),
+        StorageRequest::FileSize { pid, path } => json!(filesystem.size(&pid, &path).await),
+        StorageRequest::FileRead { pid, path, offset, count } => {
+            let Some(length) = filesystem.size(&pid, &path).await else {
                 return Value::Null;
             };
             // Bound allocation by stored bytes, not an untrusted IPC read count.
             let count = count.min(length.saturating_sub(offset));
             let mut bytes = vec![0; count];
-            match filesystem.read(&aid, &path, offset, count, &mut bytes).await {
+            match filesystem.read(&pid, &path, offset, count, &mut bytes).await {
                 Some(read) => {
                     bytes.truncate(read);
                     json!(bytes)
@@ -114,11 +114,11 @@ async fn dispatch_storage(request: StorageRequest, store: &Store) -> Value {
                 None => Value::Null,
             }
         }
-        StorageRequest::FileWrite { aid, path, offset, data } => {
-            json!(filesystem.write(&aid, &path, offset, &data).await)
+        StorageRequest::FileWrite { pid, path, offset, data } => {
+            json!(filesystem.write(&pid, &path, offset, &data).await)
         }
-        StorageRequest::FileTruncate { aid, path, length } => {
-            filesystem.truncate(&aid, &path, length).await;
+        StorageRequest::FileTruncate { pid, path, length } => {
+            filesystem.truncate(&pid, &path, length).await;
             Value::Null
         }
         StorageRequest::DbOpen { pid, name } => {
@@ -127,8 +127,8 @@ async fn dispatch_storage(request: StorageRequest, store: &Store) -> Value {
         }
         StorageRequest::DbExists { pid, name } => json!(repository.exists(&name, &pid).await),
         StorageRequest::DbDelete { pid, name } => json!(repository.delete(&name, &pid).await),
-        StorageRequest::FileRemove { aid, path } => json!(filesystem.remove(&aid, &path).await),
-        StorageRequest::FileUsage { aid } => json!(filesystem.usage(&aid).await),
+        StorageRequest::FileRemove { pid, path } => json!(filesystem.remove(&pid, &path).await),
+        StorageRequest::FileUsage { pid } => json!(filesystem.usage(&pid).await),
         StorageRequest::RecordNextId { pid, name } => json!(repository.database(&name, &pid).next_id().await),
         StorageRequest::RecordIds { pid, name } => json!(repository.database(&name, &pid).get_record_ids().await),
         StorageRequest::RecordGet { pid, name, id } => json!(repository.database(&name, &pid).get(id).await),
@@ -331,14 +331,14 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let store = store::open(root.path()).unwrap();
             for (request, expected) in [
-                (json!({"op":"fileRead","aid":"aid","path":"save","offset":0,"count":8}), Value::Null),
-                (json!({"op":"fileWrite","aid":"aid","path":"save","offset":2,"data":[7,8]}), json!(2)),
-                (json!({"op":"fileUsage","aid":"aid"}), json!(4)),
-                (json!({"op":"fileUsage","aid":"other"}), json!(0)),
-                (json!({"op":"fileRead","aid":"aid","path":"save","offset":1,"count":8}), json!([0, 7, 8])),
-                (json!({"op":"fileTruncate","aid":"aid","path":"save","length":0}), Value::Null),
-                (json!({"op":"fileRead","aid":"aid","path":"save","offset":0,"count":8}), json!([])),
-                (json!({"op":"fileExists","aid":"other","path":"save"}), json!(false)),
+                (json!({"op":"fileRead","pid":"pid","path":"save","offset":0,"count":8}), Value::Null),
+                (json!({"op":"fileWrite","pid":"pid","path":"save","offset":2,"data":[7,8]}), json!(2)),
+                (json!({"op":"fileUsage","pid":"pid"}), json!(4)),
+                (json!({"op":"fileUsage","pid":"other"}), json!(0)),
+                (json!({"op":"fileRead","pid":"pid","path":"save","offset":1,"count":8}), json!([0, 7, 8])),
+                (json!({"op":"fileTruncate","pid":"pid","path":"save","length":0}), Value::Null),
+                (json!({"op":"fileRead","pid":"pid","path":"save","offset":0,"count":8}), json!([])),
+                (json!({"op":"fileExists","pid":"other","path":"save"}), json!(false)),
                 (json!({"op":"dbOpen","pid":"pid","name":"save"}), Value::Null),
                 (json!({"op":"recordAdd","pid":"pid","name":"save","data":[]}), json!(1)),
                 (json!({"op":"recordGet","pid":"pid","name":"save","id":1}), json!([])),
@@ -356,10 +356,10 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let store = store::open(root.path()).unwrap();
             for (request, expected) in [
-                (json!({"op":"fileSize","aid":"aid","path":"save"}), json!(0)),
-                (json!({"op":"fileRemove","aid":"other","path":"save"}), json!(false)),
-                (json!({"op":"fileRemove","aid":"aid","path":"save"}), json!(true)),
-                (json!({"op":"fileExists","aid":"aid","path":"save"}), json!(false)),
+                (json!({"op":"fileSize","pid":"pid","path":"save"}), json!(0)),
+                (json!({"op":"fileRemove","pid":"other","path":"save"}), json!(false)),
+                (json!({"op":"fileRemove","pid":"pid","path":"save"}), json!(true)),
+                (json!({"op":"fileExists","pid":"pid","path":"save"}), json!(false)),
                 (json!({"op":"recordGet","pid":"pid","name":"save","id":4}), json!([9])),
                 (json!({"op":"dbDelete","pid":"pid","name":"save"}), json!(true)),
                 (json!({"op":"recordGet","pid":"pid","name":"save","id":4}), Value::Null),
@@ -420,7 +420,7 @@ mod tests {
         assert!(matches!(AudioCommand::try_from(request).unwrap(), AudioCommand::Stop { handle: 3 }));
         assert!(
             serde_json::from_value::<StorageRequest>(json!({
-                "op":"fileRead","aid":"aid","path":"save","offset":-1,"count":8
+                "op":"fileRead","pid":"pid","path":"save","offset":-1,"count":8
             }))
             .is_err()
         );

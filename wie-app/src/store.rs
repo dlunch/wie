@@ -30,10 +30,10 @@ pub(crate) fn open(root: &Path) -> Result<Store> {
             FOREIGN KEY (pid, name) REFERENCES record_stores(pid, name) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS files (
-            aid TEXT NOT NULL,
+            pid TEXT NOT NULL,
             path TEXT NOT NULL,
             data BLOB NOT NULL,
-            PRIMARY KEY (aid, path)
+            PRIMARY KEY (pid, path)
         );",
     )?;
     transaction.commit()?;

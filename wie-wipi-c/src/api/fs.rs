@@ -284,6 +284,8 @@ mod tests {
         assert!(fd > 0);
         assert_eq!(tell(&mut context, fd).await.unwrap(), 0);
         assert_eq!(write(&mut context, fd, 0x2000, 4).await.unwrap(), 4);
+        assert_eq!(context.system().platform().filesystem().size("test-pid", "save").await, Some(4));
+        assert!(!context.system().platform().filesystem().exists("test-aid", "save").await);
         assert_eq!(tell(&mut context, fd).await.unwrap(), 4);
         assert_eq!(seek(&mut context, fd, -2, 1).await.unwrap(), 2);
         assert_eq!(read(&mut context, fd, 0x2100, 2).await.unwrap(), 2);

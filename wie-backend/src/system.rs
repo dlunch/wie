@@ -48,7 +48,7 @@ impl System {
             pid: pid.to_owned(),
             aid: aid.to_owned(), // TODO create metadata dictionary or something
             executor: Executor::new(),
-            filesystem: FilesystemOverlay::new(platform.clone(), aid),
+            filesystem: FilesystemOverlay::new(platform.clone(), pid),
             platform,
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: Arc::new(RwLock::new(Audio::new(audio_sink))),
