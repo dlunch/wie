@@ -964,7 +964,7 @@ mod test {
                 RawJavaExceptionHandler {
                     ptr_method: 0x10000,
                     current_pc: 1,
-                    unk3: 0xdeadbeef,
+                    ptr_exception_class_instance: 0xdeadbeef,
                     ptr_functions: 0x10300,
                     ..RawJavaExceptionHandler::zeroed()
                 },
