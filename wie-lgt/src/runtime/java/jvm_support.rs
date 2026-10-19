@@ -944,6 +944,19 @@ mod tests {
                 .unwrap();
             assert_eq!(own1, 0x7654_3210);
 
+            let runtime: Box<dyn ClassInstance> = jvm
+                .invoke_static("java/lang/Runtime", "getRuntime", "()Ljava/lang/Runtime;", ())
+                .await
+                .unwrap();
+            let runtime_definition = runtime.class_definition();
+            let runtime_definition = runtime_definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            let runtime_methods = runtime_definition.vtable_entries(&jvm).await?;
+            let gc = runtime_methods[13].method.as_ref().unwrap();
+            assert_eq!((gc.name().as_ref(), gc.descriptor().as_ref()), ("gc", "()V"));
+            let target: u32 = read_generic(&core, runtime_definition.ptr_vtable()? + 14 * size_of::<u32>() as u32)?;
+            assert_eq!(target, gc.target()?);
+            core.run_function::<u32>(target, &[LgtJvmSupport::class_instance_raw(&*runtime)]).await?;
+
             done_clone.store(true, Ordering::Relaxed);
             Ok(())
         });

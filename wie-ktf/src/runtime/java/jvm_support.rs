@@ -290,13 +290,13 @@ impl KtfJvmSupport {
 mod test {
     use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::{
-        mem::size_of,
+        mem::{offset_of, size_of},
         sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     };
 
     use bytemuck::Zeroable;
     use jvm::{
-        ClassInstanceRef, JavaValue, Jvm,
+        ClassInstance, ClassInstanceRef, JavaValue, Jvm,
         runtime::{JavaLangClass, JavaLangString},
     };
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
@@ -306,7 +306,8 @@ mod test {
         ExeInterfaceFunctions,
         java::{
             JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor, JavaClassInstance as RawJavaClassInstance,
-            JavaFieldDefinition as RawJavaField, JavaMethodDefinition as RawJavaMethod,
+            JavaExceptionHandler as RawJavaExceptionHandler, JavaFieldDefinition as RawJavaField, JavaMethodDefinition as RawJavaMethod,
+            JavaMethodExceptionTableEntry as RawJavaMethodExceptionTableEntry,
         },
     };
 
@@ -935,6 +936,63 @@ mod test {
             let ptr_exception = KtfJvmSupport::class_instance_raw(&exception);
             let result = JavaMethod::handle_exception(&mut core, &jvm, exception).await;
             assert!(matches!(result, Err(WieError::JavaException(ptr)) if ptr == ptr_exception));
+
+            core.map(0x10000, 0x1000)?;
+            write_generic(
+                &mut core,
+                0x10000,
+                RawJavaMethod {
+                    fn_body_native_or_exception_table: 0x10100,
+                    exception_table_count: 1,
+                    ..RawJavaMethod::zeroed()
+                },
+            )?;
+            write_generic(&mut core, 0x10100, 0x10120u32)?;
+            write_generic(
+                &mut core,
+                0x10120,
+                RawJavaMethodExceptionTableEntry {
+                    from_pc: 1,
+                    to_pc: 2,
+                    target: 3,
+                    ptr_class: runtime_exception_class.ptr_raw,
+                },
+            )?;
+            write_generic(
+                &mut core,
+                0x10200,
+                RawJavaExceptionHandler {
+                    ptr_method: 0x10000,
+                    current_pc: 1,
+                    ptr_exception_class_instance: 0xdeadbeef,
+                    ptr_functions: 0x10300,
+                    ..RawJavaExceptionHandler::zeroed()
+                },
+            )?;
+            write_generic(&mut core, 0x10304, 0x10401u32)?;
+            let thread_context = KtfJvmSupport::current_thread_context(&core)?;
+            write_generic(
+                &mut core,
+                thread_context + offset_of!(KtfJvmThreadContext, current_java_exception_handler) as u32,
+                0x10200u32,
+            )?;
+            let exception = Box::new(JavaClassInstance::from_raw(ptr_exception, &core));
+            let result = JavaMethod::handle_exception(&mut core, &jvm, exception).await;
+            assert!(matches!(
+                result,
+                Err(WieError::JavaExceptionUnwind {
+                    context_base: 0x10218,
+                    target: 3,
+                    next_pc: 0x10401
+                })
+            ));
+            let caught: u32 = read_generic(&core, 0x10210)?;
+            assert_eq!(caught, ptr_exception);
+            let caught = Box::new(JavaClassInstance::from_raw(caught, &core)) as Box<dyn ClassInstance>;
+            let _: () = jvm
+                .invoke_virtual(&caught, "java/lang/Throwable", "printStackTrace", "()V", ())
+                .await
+                .unwrap();
 
             done_clone.store(true, Ordering::Relaxed);
 

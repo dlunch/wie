@@ -511,16 +511,37 @@ async fn link_class_members(
     interface_method_indices: u32,
     non_virtual_method_targets: u32,
 ) -> Result<()> {
-    for index in link.instance_field_offset..link.instance_field_offset + link.instance_field_count {
-        let (name, descriptor) = read_member_name_and_descriptor(core, instance_field_imports, index)?;
-        let word_index = LgtJvmSupport::field_word_index(jvm, class_name, &name, &descriptor, false)?;
-        write_generic(core, instance_field_word_indices + index as u32 * size_of::<u16>() as u32, word_index)?;
-    }
-
-    for index in link.static_field_offset..link.static_field_offset + link.static_field_count {
-        let (name, descriptor) = read_member_name_and_descriptor(core, static_field_imports, index)?;
-        let word_index = LgtJvmSupport::field_word_index(jvm, class_name, &name, &descriptor, true)?;
-        write_generic(core, static_field_word_indices + index as u32 * size_of::<u16>() as u32, word_index)?;
+    for (offset, count, imports, indices, is_static) in [
+        (
+            link.instance_field_offset,
+            link.instance_field_count,
+            instance_field_imports,
+            instance_field_word_indices,
+            false,
+        ),
+        (
+            link.static_field_offset,
+            link.static_field_count,
+            static_field_imports,
+            static_field_word_indices,
+            true,
+        ),
+    ] {
+        let mut index = offset;
+        while index < offset + count {
+            let (name, descriptor) = read_member_name_and_descriptor(core, imports, index)?;
+            let word_index = LgtJvmSupport::field_word_index(jvm, class_name, &name, &descriptor, is_static)?;
+            let output = indices + index as u32 * size_of::<u16>() as u32;
+            if matches!(JavaType::parse(&descriptor), JavaType::Long | JavaType::Double) {
+                // Wide imports reserve two slots, ordered high word then low word.
+                write_generic(core, output, word_index + 1)?;
+                write_generic(core, output + size_of::<u16>() as u32, word_index)?;
+                index += 2;
+            } else {
+                write_generic(core, output, word_index)?;
+                index += 1;
+            }
+        }
     }
 
     for index in link.virtual_method_offset..link.virtual_method_offset + link.virtual_method_count {
@@ -737,7 +758,7 @@ mod tests {
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::{ByteWrite, Result, read_generic, write_generic, write_null_terminated_string_bytes};
 
-    use super::{LgtJvmSupport, java_link_imported_classes};
+    use super::{LgtJvmSupport, java_link_imported_classes, java_link_public_class};
 
     #[test]
     fn test_imported_member_link_outputs() -> Result<()> {
@@ -755,7 +776,7 @@ mod tests {
             Allocator::init(&mut core)?;
             let mut context = core.save_context();
             let stack = Allocator::alloc(&mut core, 0x100)?;
-            context.sp = stack + 0x100;
+            context.sp = stack + 0x80;
             core.restore_context(&context);
             let mut jvm = LgtJvmSupport::init(&mut core, &system_clone, None).await?;
             let class_name = "org/kwis/msp/lcdui/Font";
@@ -872,6 +893,78 @@ mod tests {
             );
             assert_eq!(read_generic::<u32, _>(&core, non_virtual_method_targets + 12)?, 0xe5e5_e5e5);
             assert_eq!(read_generic::<u32, _>(&core, interface_method_indices)?, 0xd4d4_d4d4);
+
+            for (class_name, descriptor, static_name) in [("java/util/Date", "J", None), ("java/lang/Double", "D", Some("MAX_VALUE"))] {
+                let class = jvm.resolve_class(class_name).await.unwrap();
+                let class_object = class.java_class();
+                let mut names = Vec::new();
+                for value in [class_name, "value", descriptor, static_name.unwrap_or(""), "TYPE", "Ljava/lang/Class;"] {
+                    let address = Allocator::alloc(&mut core, (value.len() + 1) as u32)?;
+                    write_null_terminated_string_bytes(&mut core, address, value.as_bytes())?;
+                    names.push(address);
+                }
+                let ptr_link = imported_classes + size_of::<u32>() as u32;
+                write_generic(
+                    &mut core,
+                    ptr_link,
+                    RawJavaClassLink {
+                        ptr_name: names[0],
+                        instance_field_offset: 1,
+                        instance_field_count: 2,
+                        static_field_offset: 1,
+                        static_field_count: if static_name.is_some() { 3 } else { 0 },
+                        virtual_method_offset: 0,
+                        virtual_method_count: 0,
+                        interface_method_offset: 0,
+                        interface_method_count: 0,
+                        non_virtual_method_offset: 0,
+                        non_virtual_method_count: 0,
+                    },
+                )?;
+                let fields = Allocator::alloc(&mut core, 8 * 4)?;
+                core.write_bytes(fields, &[0; 8 * 4])?;
+                write_generic(&mut core, fields + 8, names[1])?;
+                write_generic(&mut core, fields + 12, names[2])?;
+                let statics = Allocator::alloc(&mut core, 8 * 4)?;
+                core.write_bytes(statics, &[0; 8 * 4])?;
+                write_generic(&mut core, statics + 8, names[3])?;
+                write_generic(&mut core, statics + 12, names[2])?;
+                write_generic(&mut core, statics + 24, names[4])?;
+                write_generic(&mut core, statics + 28, names[5])?;
+                let indices = Allocator::alloc(&mut core, 16)?;
+                core.write_bytes(indices, &[0xa5; 16])?;
+                write_generic(&mut core, context.sp + 7 * 4, 0u32)?;
+                java_link_public_class(
+                    &mut core,
+                    &mut jvm,
+                    ptr_link,
+                    LgtJvmSupport::class_instance_raw(&*class_object),
+                    fields,
+                    statics,
+                    0,
+                    0,
+                    0,
+                    indices,
+                    indices + 8,
+                    0,
+                    0,
+                )
+                .await?;
+                let word = LgtJvmSupport::field_word_index(&jvm, class_name, "value", descriptor, false)?;
+                assert_eq!(read_generic::<u16, _>(&core, indices + 2)?, word + 1);
+                assert_eq!(read_generic::<u16, _>(&core, indices + 4)?, word);
+                assert_eq!(read_generic::<u16, _>(&core, indices)?, 0xa5a5);
+                assert_eq!(read_generic::<u16, _>(&core, indices + 6)?, 0xa5a5);
+                if let Some(name) = static_name {
+                    let word = LgtJvmSupport::field_word_index(&jvm, class_name, name, descriptor, true)?;
+                    assert_eq!(read_generic::<u16, _>(&core, indices + 10)?, word + 1);
+                    assert_eq!(read_generic::<u16, _>(&core, indices + 12)?, word);
+                    assert_eq!(
+                        read_generic::<u16, _>(&core, indices + 14)?,
+                        LgtJvmSupport::field_word_index(&jvm, class_name, "TYPE", "Ljava/lang/Class;", true)?
+                    );
+                }
+            }
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())

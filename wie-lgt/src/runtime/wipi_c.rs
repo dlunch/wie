@@ -12,7 +12,7 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{database, graphics as shared_graphics, im, kernel, media, misc, net, serial, uic, util},
+    api::{database, fs, graphics as shared_graphics, im, kernel, media, misc, net, serial, term_res, uic, util},
 };
 
 use context::LgtWIPICContext;
@@ -139,6 +139,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::ListRecord => database::list_record.into_body(),
         WIPICSvcId::UpdateRecord => database::update_record.into_body(),
         WIPICSvcId::SelectRecord => database::select_record.into_body(),
+        WIPICSvcId::FsList => fs::list.into_body(),
         WIPICSvcId::ListDatabases => database::list_databases.into_body(),
         WIPICSvcId::ExistsDatabase => database::exists_database.into_body(),
         WIPICSvcId::Connect => net::connect.into_body(),
@@ -156,7 +157,9 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::SerialClose => serial::close.into_body(),
         WIPICSvcId::Htonl => util::htonl.into_body(),
         WIPICSvcId::Htons => util::htons.into_body(),
+        WIPICSvcId::Ntohs => util::ntohs.into_body(),
         WIPICSvcId::InetAddr => util::inet_addr.into_body(),
+        WIPICSvcId::TermResGetSupportedGroups => term_res::get_supported_groups.into_body(),
         WIPICSvcId::ClipCreate => media::clip_create.into_body(),
         WIPICSvcId::ClipFree => media::clip_free.into_body(),
         WIPICSvcId::ClipPutData => media::clip_put_data.into_body(),

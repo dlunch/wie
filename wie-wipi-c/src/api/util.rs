@@ -18,6 +18,12 @@ pub async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WI
     Ok((val as u16).to_be() as _) // XXX we're always on little endian
 }
 
+pub async fn ntohs(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
+    tracing::debug!("MC_utilNtohs({val})");
+
+    Ok(u16::from_be(val as u16) as _) // XXX we're always on little endian
+}
+
 pub async fn inet_addr(context: &mut dyn WIPICContext, address: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_utilInetAddr({address:#x})");
 
