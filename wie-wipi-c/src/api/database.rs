@@ -207,6 +207,15 @@ pub async fn seek_record_single(context: &mut dyn WIPICContext, db_id: i32, offs
     Ok(position)
 }
 
+pub async fn tell(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
+    tracing::debug!("MC_fsTell({db_id:#x})");
+
+    let Some(handle) = load_handle(context, db_id)? else {
+        return Ok(-25); // M_E_INVALIDHANDLE
+    };
+    Ok(handle.cursor as i32)
+}
+
 pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWord, buf_ptr: WIPICWord, capacity: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_dbListRecordInfo({ptr_name:#x}, {buf_ptr:#x}, {capacity})");
 
@@ -576,7 +585,7 @@ mod tests {
 
     use super::{
         KTF_DATABASE_STORAGE_LIMIT, close_database, delete_database, exists_database, list_databases, list_record_info, open_database,
-        seek_record_single, select_record, stream_read, stream_write, update_record,
+        seek_record_single, select_record, stream_read, stream_write, tell, update_record,
     };
 
     #[futures_test::test]
@@ -634,13 +643,17 @@ mod tests {
     async fn stream_seek_appends_without_overwriting_existing_data() {
         let mut context = database_test_context();
         let db_id = open_test_database(&mut context).await;
+        assert_eq!(tell(&mut context, db_id).await.unwrap(), 0);
         context.write_bytes(0x2000, &[1, 2, 3, 4]).unwrap();
         assert_eq!(stream_write(&mut context, db_id, 0x2000, 4).await.unwrap(), 4);
+        assert_eq!(tell(&mut context, db_id).await.unwrap(), 4);
         assert_eq!(seek_record_single(&mut context, db_id, 0, 0).await.unwrap(), 0);
         assert_eq!(seek_record_single(&mut context, db_id, 0, 2).await.unwrap(), 4);
         assert_eq!(stream_write(&mut context, db_id, 0x2000, 4).await.unwrap(), 4);
         assert_eq!(seek_record_single(&mut context, db_id, -2, 1).await.unwrap(), 6);
+        assert_eq!(tell(&mut context, db_id).await.unwrap(), 6);
         assert_eq!(stream_read(&mut context, db_id, 0x2100, 2).await.unwrap(), 2);
+        assert_eq!(tell(&mut context, db_id).await.unwrap(), 8);
         let mut tail = [0; 2];
         context.read_bytes(0x2100, &mut tail).unwrap();
         assert_eq!(tail, [3, 4]);
