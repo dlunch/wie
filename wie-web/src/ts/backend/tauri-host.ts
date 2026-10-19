@@ -6,7 +6,8 @@ export type StorageRequest =
   | { op: "fileWrite"; aid: string; path: string; offset: number; data: number[] }
   | { op: "fileTruncate"; aid: string; path: string; length: number }
   | { op: "dbOpen" | "dbExists" | "dbDelete" | "recordNextId" | "recordIds"; pid: string; name: string }
-  | { op: "dbUsage"; pid: string }
+  | { op: "fileUsage"; aid: string }
+  | { op: "fileRemove"; aid: string; path: string }
   | { op: "recordGet" | "recordDelete"; pid: string; name: string; id: number }
   | { op: "recordAdd"; pid: string; name: string; data: number[] }
   | { op: "recordSet"; pid: string; name: string; id: number; data: number[] };

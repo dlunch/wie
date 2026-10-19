@@ -57,19 +57,6 @@ impl BackendDatabaseRepository for DatabaseRepository {
                 false
             })
     }
-
-    async fn usage(&self, app_id: &str) -> u64 {
-        self.store
-            .lock()
-            .unwrap()
-            .query_row("SELECT COALESCE(SUM(length(data)), 0) FROM records WHERE pid = ?1", [app_id], |row| {
-                row.get(0)
-            })
-            .unwrap_or_else(|error| {
-                tracing::warn!(app_id, %error, "Failed to read database usage");
-                0
-            })
-    }
 }
 
 struct SqliteDatabase {

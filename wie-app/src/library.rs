@@ -218,7 +218,6 @@ mod tests {
                 let mut database = repository.open("save", id).await;
                 assert!(database.set(1, data).await);
                 assert_eq!(database.next_id().await, 2);
-                assert_eq!(repository.usage(id).await, data.len() as u64);
                 assert_eq!(filesystem.write(aid, "save", 2, data).await, data.len());
             }
         });
@@ -251,7 +250,6 @@ mod tests {
                 (&second.id, "00000001", b"other".as_slice()),
             ] {
                 assert_eq!(repository.database("save", id).get(1).await.as_deref(), Some(data));
-                assert_eq!(repository.usage(id).await, data.len() as u64);
                 assert_eq!(filesystem.size(aid, "save").await, Some(data.len() + 2));
                 let mut bytes = vec![0; data.len() + 2];
                 assert_eq!(filesystem.read(aid, "save", 0, bytes.len(), &mut bytes).await, Some(bytes.len()));
@@ -262,7 +260,6 @@ mod tests {
             let mut database = repository.open("save", &first.id).await;
             assert_eq!(database.add(b"second").await, 2);
             assert!(database.set(1, b"updated").await);
-            assert_eq!(repository.usage(&first.id).await, 13);
             assert_eq!(database.next_id().await, 3);
             assert!(database.delete(1).await);
             let mut reopened = repository.open("save", &first.id).await;
@@ -300,11 +297,9 @@ mod tests {
             assert_eq!(reopened.add(b"failed").await, 0);
             assert_eq!(reopened.next_id().await, 4);
             assert!(reopened.get_record_ids().await.is_empty());
-            assert_eq!(repository.usage(&first.id).await, 0);
             store.lock().unwrap().execute_batch("DROP TRIGGER fail_record_insert").unwrap();
             assert_eq!(reopened.add(b"fourth").await, 4);
             assert_eq!(reopened.get_record_ids().await, [4]);
-            assert_eq!(repository.usage(&first.id).await, 6);
 
             store
                 .lock()
@@ -325,20 +320,16 @@ mod tests {
             assert!(repository.delete("save", &first.id).await);
             assert_eq!(repository.database("save", &first.id).get(1).await, None);
             assert!(!repository.exists("save", &first.id).await);
-            assert_eq!(repository.usage(&first.id).await, 0);
             let mut reset = repository.open("save", &first.id).await;
             assert!(reset.get_record_ids().await.is_empty());
             assert_eq!(reset.add(b"reset").await, 1);
             assert_eq!(reset.get_record_ids().await, [1]);
-            assert_eq!(repository.usage(&first.id).await, 5);
 
             for pid in ["pid/./app", "pid/app"] {
                 for name in ["save:1", "save_1"] {
                     assert_eq!(repository.open(name, pid).await.get(1).await.unwrap(), format!("{pid}:{name}").as_bytes());
                 }
             }
-            assert_eq!(repository.usage("pid/./app").await, 32);
-            assert_eq!(repository.usage("pid/app").await, 28);
             assert!(repository.delete("save:1", "pid/./app").await);
             assert_eq!(
                 repository.open("save_1", "pid/./app").await.get(1).await.as_deref(),
@@ -411,7 +402,6 @@ mod tests {
                 assert_eq!(database.get(1).await.as_deref(), Some(record));
                 assert_eq!(database.get_record_ids().await, [1]);
                 assert_eq!(database.next_id().await, 2);
-                assert_eq!(repository.usage(pid).await, record.len() as u64);
                 assert_eq!(filesystem.size(aid, "save").await, Some(file.len()));
                 let mut bytes = [0; 8];
                 assert_eq!(filesystem.read(aid, "save", 0, bytes.len(), &mut bytes).await, Some(file.len()));

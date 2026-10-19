@@ -107,6 +107,17 @@ impl FilesystemOverlay {
         self.virtual_files.lock().contains_key(&normalized)
     }
 
+    pub async fn remove(&self, path: &str) -> bool {
+        let Some(normalized) = normalize_guest_path(path) else {
+            return false;
+        };
+        self.platform.filesystem().remove(&self.aid, &normalized).await
+    }
+
+    pub async fn usage(&self) -> u64 {
+        self.platform.filesystem().usage(&self.aid).await
+    }
+
     pub async fn size(&self, path: &str) -> Option<usize> {
         let normalized = normalize_guest_path(path)?;
 
@@ -189,6 +200,19 @@ mod tests {
     }
     #[async_trait::async_trait]
     impl Filesystem for StubFilesystem {
+        async fn remove(&self, aid: &str, path: &str) -> bool {
+            self.files.lock().remove(&(aid.to_string(), path.to_string())).is_some()
+        }
+
+        async fn usage(&self, aid: &str) -> u64 {
+            self.files
+                .lock()
+                .iter()
+                .filter(|((owner, _), _)| owner == aid)
+                .map(|(_, data)| data.len() as u64)
+                .sum()
+        }
+
         async fn exists(&self, aid: &str, path: &str) -> bool {
             self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
         }

@@ -24,6 +24,19 @@ impl MemoryFilesystem {
 
 #[async_trait::async_trait]
 impl Filesystem for MemoryFilesystem {
+    async fn remove(&self, aid: &str, path: &str) -> bool {
+        self.files.lock().remove(&(aid.to_string(), path.to_string())).is_some()
+    }
+
+    async fn usage(&self, aid: &str) -> u64 {
+        self.files
+            .lock()
+            .iter()
+            .filter(|((owner, _), _)| owner == aid)
+            .map(|(_, data)| data.len() as u64)
+            .sum()
+    }
+
     async fn exists(&self, aid: &str, path: &str) -> bool {
         self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
     }

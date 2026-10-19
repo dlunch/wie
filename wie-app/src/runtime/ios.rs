@@ -127,7 +127,8 @@ async fn dispatch_storage(request: StorageRequest, store: &Store) -> Value {
         }
         StorageRequest::DbExists { pid, name } => json!(repository.exists(&name, &pid).await),
         StorageRequest::DbDelete { pid, name } => json!(repository.delete(&name, &pid).await),
-        StorageRequest::DbUsage { pid } => json!(repository.usage(&pid).await),
+        StorageRequest::FileRemove { aid, path } => json!(filesystem.remove(&aid, &path).await),
+        StorageRequest::FileUsage { aid } => json!(filesystem.usage(&aid).await),
         StorageRequest::RecordNextId { pid, name } => json!(repository.database(&name, &pid).next_id().await),
         StorageRequest::RecordIds { pid, name } => json!(repository.database(&name, &pid).get_record_ids().await),
         StorageRequest::RecordGet { pid, name, id } => json!(repository.database(&name, &pid).get(id).await),
@@ -332,6 +333,8 @@ mod tests {
             for (request, expected) in [
                 (json!({"op":"fileRead","aid":"aid","path":"save","offset":0,"count":8}), Value::Null),
                 (json!({"op":"fileWrite","aid":"aid","path":"save","offset":2,"data":[7,8]}), json!(2)),
+                (json!({"op":"fileUsage","aid":"aid"}), json!(4)),
+                (json!({"op":"fileUsage","aid":"other"}), json!(0)),
                 (json!({"op":"fileRead","aid":"aid","path":"save","offset":1,"count":8}), json!([0, 7, 8])),
                 (json!({"op":"fileTruncate","aid":"aid","path":"save","length":0}), Value::Null),
                 (json!({"op":"fileRead","aid":"aid","path":"save","offset":0,"count":8}), json!([])),
@@ -344,7 +347,6 @@ mod tests {
                 (json!({"op":"recordSet","pid":"pid","name":"save","id":4,"data":[9]}), json!(true)),
                 (json!({"op":"recordNextId","pid":"pid","name":"save"}), json!(5)),
                 (json!({"op":"recordIds","pid":"pid","name":"save"}), json!([1, 4])),
-                (json!({"op":"dbUsage","pid":"pid"}), json!(1)),
                 (json!({"op":"recordDelete","pid":"pid","name":"save","id":1}), json!(true)),
             ] {
                 let request: StorageRequest = serde_json::from_value(request).unwrap();
@@ -355,6 +357,9 @@ mod tests {
             let store = store::open(root.path()).unwrap();
             for (request, expected) in [
                 (json!({"op":"fileSize","aid":"aid","path":"save"}), json!(0)),
+                (json!({"op":"fileRemove","aid":"other","path":"save"}), json!(false)),
+                (json!({"op":"fileRemove","aid":"aid","path":"save"}), json!(true)),
+                (json!({"op":"fileExists","aid":"aid","path":"save"}), json!(false)),
                 (json!({"op":"recordGet","pid":"pid","name":"save","id":4}), json!([9])),
                 (json!({"op":"dbDelete","pid":"pid","name":"save"}), json!(true)),
                 (json!({"op":"recordGet","pid":"pid","name":"save","id":4}), Value::Null),

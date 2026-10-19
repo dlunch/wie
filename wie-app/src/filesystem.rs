@@ -11,6 +11,29 @@ pub(crate) struct SqliteFilesystem {
 
 #[async_trait::async_trait]
 impl Filesystem for SqliteFilesystem {
+    async fn remove(&self, aid: &str, path: &str) -> bool {
+        self.store
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM files WHERE aid = ?1 AND path = ?2", params![aid, path])
+            .map(|count| count != 0)
+            .unwrap_or_else(|error| {
+                tracing::warn!(aid, path, %error, "Failed to remove file");
+                false
+            })
+    }
+
+    async fn usage(&self, aid: &str) -> u64 {
+        self.store
+            .lock()
+            .unwrap()
+            .query_row("SELECT COALESCE(SUM(length(data)), 0) FROM files WHERE aid = ?1", [aid], |row| row.get(0))
+            .unwrap_or_else(|error| {
+                tracing::warn!(aid, %error, "Failed to read filesystem usage");
+                0
+            })
+    }
+
     async fn exists(&self, aid: &str, path: &str) -> bool {
         self.store
             .lock()

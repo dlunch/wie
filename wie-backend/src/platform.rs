@@ -19,6 +19,12 @@ pub trait Platform: Send + Sync {
 /// implementations MUST NOT cross aid boundaries.
 #[async_trait::async_trait]
 pub trait Filesystem: Send + Sync {
+    /// Remove a persistent file; returns false if missing or removal fails.
+    async fn remove(&self, aid: &str, path: &str) -> bool;
+
+    /// Total persistent file bytes owned by `aid`.
+    async fn usage(&self, aid: &str) -> u64;
+
     async fn exists(&self, aid: &str, path: &str) -> bool;
 
     async fn size(&self, aid: &str, path: &str) -> Option<usize>;

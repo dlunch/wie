@@ -49,6 +49,43 @@ impl CliFilesystem {
 
 #[async_trait::async_trait]
 impl Filesystem for CliFilesystem {
+    async fn remove(&self, aid: &str, path: &str) -> bool {
+        let Some(path) = self.path_for(aid, path) else {
+            return false;
+        };
+        match fs::remove_file(&path) {
+            Ok(()) => true,
+            Err(error) => {
+                tracing::warn!(?path, %error, "Failed to remove file");
+                false
+            }
+        }
+    }
+
+    async fn usage(&self, aid: &str) -> u64 {
+        let Some(path) = self.path_for(aid, "_") else {
+            return 0;
+        };
+        let mut pending = vec![path.parent().unwrap().to_owned()];
+        let mut usage = 0;
+        while let Some(path) = pending.pop() {
+            let Ok(entries) = fs::read_dir(path) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let Ok(kind) = entry.file_type() else {
+                    continue;
+                };
+                if kind.is_dir() {
+                    pending.push(entry.path());
+                } else if kind.is_file() {
+                    usage += entry.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+                }
+            }
+        }
+        usage
+    }
+
     async fn exists(&self, aid: &str, path: &str) -> bool {
         let Some(disk_path) = self.path_for(aid, path) else {
             return false;

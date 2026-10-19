@@ -78,10 +78,6 @@ impl DatabaseRepository for WasmHost {
     async fn delete(&self, name: &str, app_id: &str) -> bool {
         self.request(StorageRequest::DbDelete { pid: app_id, name }).await
     }
-
-    async fn usage(&self, app_id: &str) -> u64 {
-        self.request(StorageRequest::DbUsage { pid: app_id }).await
-    }
 }
 
 struct HostDatabase {
@@ -154,6 +150,14 @@ impl Database for HostDatabase {
 
 #[async_trait::async_trait]
 impl Filesystem for WasmHost {
+    async fn remove(&self, aid: &str, path: &str) -> bool {
+        self.request(StorageRequest::FileRemove { aid, path }).await
+    }
+
+    async fn usage(&self, aid: &str) -> u64 {
+        self.request(StorageRequest::FileUsage { aid }).await
+    }
+
     async fn exists(&self, aid: &str, path: &str) -> bool {
         self.request(StorageRequest::FileExists { aid, path }).await
     }
@@ -188,6 +192,11 @@ mod tests {
     #[test]
     fn storage_requests_preserve_namespaces_offsets_and_empty_data() {
         let requests = [
+            (StorageRequest::FileUsage { aid: "app" }, json!({"op":"fileUsage","aid":"app"})),
+            (
+                StorageRequest::FileRemove { aid: "app", path: "save" },
+                json!({"op":"fileRemove","aid":"app","path":"save"}),
+            ),
             (
                 StorageRequest::FileExists { aid: "app", path: "save" },
                 json!({"op": "fileExists", "aid": "app", "path": "save"}),
@@ -243,7 +252,6 @@ mod tests {
                 },
                 json!({"op": "dbDelete", "pid": "owner", "name": "records"}),
             ),
-            (StorageRequest::DbUsage { pid: "owner" }, json!({"op": "dbUsage", "pid": "owner"})),
             (
                 StorageRequest::RecordNextId {
                     pid: "owner",

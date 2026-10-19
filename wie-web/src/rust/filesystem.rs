@@ -40,6 +40,29 @@ impl WebFilesystem {
 
 #[async_trait::async_trait]
 impl Filesystem for WebFilesystem {
+    async fn remove(&self, aid: &str, path: &str) -> bool {
+        let store = self.store().await;
+        let key = make_key(aid, path);
+        if store.get(key.clone()).await.is_none() {
+            return false;
+        }
+        store.delete(key).await;
+        true
+    }
+
+    async fn usage(&self, aid: &str) -> u64 {
+        let store = self.store().await;
+        let mut usage = 0;
+        for key in store.get_all_keys().await {
+            if matches!(&key, StoreKey::Pair(owner, _) if owner == aid)
+                && let Some(data) = store.get(key).await
+            {
+                usage += data.len() as u64;
+            }
+        }
+        usage
+    }
+
     async fn exists(&self, aid: &str, path: &str) -> bool {
         self.store().await.get(make_key(aid, path)).await.is_some()
     }
