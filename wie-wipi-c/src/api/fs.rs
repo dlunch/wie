@@ -218,10 +218,14 @@ pub async fn remove(context: &mut dyn WIPICContext, name: u32, access_mode: i32)
 }
 
 pub async fn total_space(_context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::debug!("MC_fsTotalSpace()");
+
     Ok(STORAGE_LIMIT as i32)
 }
 
 pub async fn available(context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::debug!("MC_fsAvailable()");
+
     Ok(STORAGE_LIMIT.saturating_sub(context.system().filesystem().usage().await) as i32)
 }
 

@@ -29,6 +29,7 @@
 - **Visibility**: Use `pub` or default private visibility; do not use restricted visibility such as `pub(super)` or `pub(crate)`.
 
 ## Engineering Principles
+- Log every emulated API entry point with its API name and arguments, including no-argument functions. Follow surrounding conventions: `tracing::debug!` for implemented APIs and `tracing::warn!` with a `stub` prefix for stubs.
 - Invoke Java methods through the appropriate `Jvm::invoke_*` API, including calls within the same class; do not call their Rust implementations directly.
 - Prefer integration tests for observable behavior. Add unit tests only when integration testing is impractical or complex logic needs focused coverage.
 - Do not add tests solely to verify stub implementations.
