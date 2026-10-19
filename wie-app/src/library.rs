@@ -210,9 +210,11 @@ mod tests {
         {
             let store = store::open(root.path()).unwrap();
             let connection = store.lock().unwrap();
+            assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 1);
             connection
                 .execute_batch(
-                    "ALTER TABLE files RENAME COLUMN pid TO aid;
+                    "PRAGMA user_version = 0;
+                    ALTER TABLE files RENAME COLUMN pid TO aid;
                     INSERT INTO files VALUES ('00000000', 'legacy', X'00FF');
                     INSERT INTO record_stores VALUES ('PD00000000', 'legacy-records', 2);
                     INSERT INTO records VALUES ('PD00000000', 'legacy-records', 1, X'00FF');",
@@ -222,6 +224,14 @@ mod tests {
 
         tauri::async_runtime::block_on(async {
             let store = store::open(root.path()).unwrap();
+            assert_eq!(
+                store
+                    .lock()
+                    .unwrap()
+                    .query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+                    .unwrap(),
+                1
+            );
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
             assert!(!filesystem.exists("00000000", "legacy").await);
