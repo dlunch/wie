@@ -1,7 +1,7 @@
 use alloc::{format, vec, vec::Vec};
 
 use wipi_types::{
-    ktf::wipic::{WIPICGraphicsInterface, WIPICKnlInterface},
+    ktf::wipic::{WIPICFsInterface, WIPICGraphicsInterface, WIPICKnlInterface},
     wipic::WIPICWord,
 };
 
@@ -191,12 +191,27 @@ pub fn get_misc_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
-pub fn get_fs_interface(core: &mut ArmCore) -> Result<[u32; 17]> {
-    let mut interface = [0; 17];
-    for (index, method) in interface.iter_mut().enumerate() {
-        *method = core.make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Fs.function_id(index as u16))?;
-    }
-    Ok(interface)
+pub fn get_fs_interface(core: &mut ArmCore) -> Result<WIPICFsInterface> {
+    let table_id = WIPICTableId::Fs;
+    Ok(WIPICFsInterface {
+        open: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Open))?,
+        read: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Read))?,
+        write: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Write))?,
+        close: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Close))?,
+        seek: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Seek))?,
+        file_attribute: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::FileAttribute))?,
+        remove: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Remove))?,
+        rename: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Rename))?,
+        make_directory: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::MkDir))?,
+        remove_directory: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::RmDir))?,
+        list: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::List))?,
+        total_space: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::TotalSpace))?,
+        available: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Available))?,
+        set_mode: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::SetMode))?,
+        get_counts: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::GetCounts))?,
+        tell: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Tell))?,
+        exists: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICFsMethodId::Exists))?,
+    })
 }
 
 pub fn get_uic_method_table() -> Vec<WIPICMethodBody> {

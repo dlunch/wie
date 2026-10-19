@@ -74,7 +74,7 @@ pub async fn get_wipic_interfaces(core: &mut ArmCore, context: &mut dyn WIPICCon
         interface_3,
         interface_4,
         interface_5,
-        database_interface: fs_interface, // The dependency still names this FS table `database_interface`.
+        fs_interface,
         interface_7,
         uic_interface,
         media_interface,
