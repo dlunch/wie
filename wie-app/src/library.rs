@@ -234,7 +234,7 @@ mod tests {
             );
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            assert!(!filesystem.exists("00000000", "legacy").await);
+            assert!(filesystem.exists("migrated_aid_00000000", "legacy").await);
             assert_eq!(repository.open("legacy-records", &first.id).await.get(1).await.unwrap(), [0, 255]);
             for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
                 let mut database = repository.open("save", id).await;
@@ -413,7 +413,7 @@ mod tests {
             let store = store::open(restored.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            assert!(!filesystem.exists("00000000", "legacy").await);
+            assert!(filesystem.exists("migrated_aid_00000000", "legacy").await);
             assert_eq!(repository.open("legacy-records", &first.id).await.get(1).await.unwrap(), [0, 255]);
             for (pid, record, file) in [
                 (&first.id, b"reset".as_slice(), b"\0\0r\0\0\0".as_slice()),

@@ -12,7 +12,7 @@ use crate::platform::Platform;
 /// - `.` segments are dropped.
 /// - `..` segments, trailing `/`, backslashes, and empty results all
 ///   return `None`.
-fn normalize_guest_path(path: &str) -> Option<String> {
+pub fn normalize_guest_path(path: &str) -> Option<String> {
     if path.contains('\\') {
         return None;
     }

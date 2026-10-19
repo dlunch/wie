@@ -20,7 +20,7 @@ use self::{audio::Audio, event_queue::EventQueue};
 
 pub use self::{
     event_queue::{Event, KeyCode},
-    file_system::FilesystemOverlay,
+    file_system::{FilesystemOverlay, normalize_guest_path},
 };
 
 #[derive(Clone)]
