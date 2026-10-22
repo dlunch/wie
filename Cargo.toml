@@ -32,7 +32,7 @@ opt-level = 1
 debug = 2
 
 [workspace.package]
-version = "0.2.10"
+version = "0.2.11"
 edition = "2024"
 license = "MIT"
 description = "WIPI and J2ME emulator components"
@@ -75,22 +75,22 @@ tracing = { version = "^0.1", default-features = false, features = ["attributes"
 tracing-subscriber = { version = "^0.3", features = ["env-filter", "time"] }
 wipi-types = { version = "^0.0.4" }
 
-wie = { version = "0.2.10", path = ".", default-features = false }
-wie-backend = { version = "0.2.10", path = "wie-backend" }
-wie-j2me = { version = "0.2.10", path = "wie-j2me" }
-wie-ktf = { version = "0.2.10", path = "wie-ktf" }
-wie-lgt = { version = "0.2.10", path = "wie-lgt" }
-wie-midp = { version = "0.2.10", path = "wie-midp" }
-wie-skt = { version = "0.2.10", path = "wie-skt" }
-wie-util = { version = "0.2.10", path = "wie-util" }
-wie-core-arm = { version = "0.2.10", path = "wie-core-arm" }
-wie-core-arm-aot = { version = "0.2.10", path = "wie-core-arm-aot" }
-wie-core-arm-wasm = { version = "0.2.10", path = "wie-core-arm-wasm" }
-wie-core-arm-native = { version = "0.2.10", path = "wie-core-arm-native" }
-wie-jvm-support = { version = "0.2.10", path = "wie-jvm-support" }
-wie-skvm = { version = "0.2.10", path = "wie-skvm" }
-wie-wipi-c = { version = "0.2.10", path = "wie-wipi-c" }
-wie-wipi-java = { version = "0.2.10", path = "wie-wipi-java" }
+wie = { version = "0.2.11", path = ".", default-features = false }
+wie-backend = { version = "0.2.11", path = "wie-backend" }
+wie-j2me = { version = "0.2.11", path = "wie-j2me" }
+wie-ktf = { version = "0.2.11", path = "wie-ktf" }
+wie-lgt = { version = "0.2.11", path = "wie-lgt" }
+wie-midp = { version = "0.2.11", path = "wie-midp" }
+wie-skt = { version = "0.2.11", path = "wie-skt" }
+wie-util = { version = "0.2.11", path = "wie-util" }
+wie-core-arm = { version = "0.2.11", path = "wie-core-arm" }
+wie-core-arm-aot = { version = "0.2.11", path = "wie-core-arm-aot" }
+wie-core-arm-wasm = { version = "0.2.11", path = "wie-core-arm-wasm" }
+wie-core-arm-native = { version = "0.2.11", path = "wie-core-arm-native" }
+wie-jvm-support = { version = "0.2.11", path = "wie-jvm-support" }
+wie-skvm = { version = "0.2.11", path = "wie-skvm" }
+wie-wipi-c = { version = "0.2.11", path = "wie-wipi-c" }
+wie-wipi-java = { version = "0.2.11", path = "wie-wipi-java" }
 
 # dev-dependencies
 futures-test = { version = "^0.3" }
