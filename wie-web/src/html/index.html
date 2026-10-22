@@ -46,6 +46,13 @@
           <strong class="brand-name">wie</strong>
           <h1 data-i18n-text="library">라이브러리</h1>
         </div>
+        <label class="library-language">
+          <i data-lucide="globe-2" aria-hidden="true"></i>
+          <select id="library-language-preference" class="language-preference" title="언어" data-i18n-title="language" aria-label="언어" data-i18n-aria-label="language">
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+          </select>
+        </label>
         <div class="library-menu-wrap">
           <button id="library-menu-toggle" class="icon-button" type="button" title="메뉴" data-i18n-title="menu" aria-label="메뉴" data-i18n-aria-label="menu" aria-expanded="false">
             <i data-lucide="ellipsis-vertical"></i>
@@ -165,11 +172,10 @@
           </button>
         </header>
         <div class="settings-fields">
-          <label>
+          <label class="language-setting">
             <i data-lucide="languages"></i>
             <span data-i18n-text="language">언어</span>
-            <select id="language-preference">
-              <option value="system" data-i18n-text="systemLanguage">시스템 기본값</option>
+            <select id="language-preference" class="language-preference">
               <option value="ko">한국어</option>
               <option value="en">English</option>
             </select>

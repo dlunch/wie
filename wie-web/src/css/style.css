@@ -108,6 +108,7 @@ svg {
   margin: 0 auto;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 24px 28px 12px;
 }
 
@@ -148,6 +149,19 @@ svg {
 
 .library-menu-wrap {
   position: relative;
+}
+
+.library-language {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+#library-language-preference {
+  width: 100px;
+  font-size: 0.875rem;
 }
 
 .library-menu {
@@ -662,7 +676,7 @@ svg {
   margin: 0;
 }
 
-.settings-fields select {
+.language-preference {
   width: 100%;
   min-width: 0;
   min-height: 40px;
@@ -670,6 +684,10 @@ svg {
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 4px;
+}
+
+#library-view:not([hidden]) ~ #settings-dialog .language-setting {
+  display: none;
 }
 
 .welcome-steps {
@@ -809,6 +827,26 @@ kbd {
 
   .library-header {
     padding: 20px 18px 10px;
+  }
+
+  .brand-block {
+    display: grid;
+    grid-template-columns: 32px auto;
+    gap: 0 8px;
+  }
+
+  .brand-icon {
+    width: 32px;
+    height: 32px;
+    grid-row: span 2;
+  }
+
+  .brand-name {
+    font-size: 1.5rem;
+  }
+
+  .brand-block h1 {
+    font-size: 0.75rem;
   }
 
   .library-main {

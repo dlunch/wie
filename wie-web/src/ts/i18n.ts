@@ -27,7 +27,6 @@ const ko = {
   close: "닫기",
   soundEffects: "효과음",
   language: "언어",
-  systemLanguage: "시스템 기본값",
   welcome: "wie에 오신 것을 환영합니다",
   welcomeDescription: "wie는 WIPI와 J2ME 앱을 이 기기에서 보관하고 실행할 수 있는 에뮬레이터입니다.",
   welcomeAdd: "WIPI ZIP 또는 J2ME JAR 파일을 선택합니다.",
@@ -94,7 +93,6 @@ const en: Record<MessageKey, string> = {
   close: "Close",
   soundEffects: "Sound effects",
   language: "Language",
-  systemLanguage: "System default",
   welcome: "Welcome to wie",
   welcomeDescription: "wie is an emulator for storing and running WIPI and J2ME apps on this device.",
   welcomeAdd: "Choose WIPI ZIP or J2ME JAR files.",
@@ -145,10 +143,6 @@ export function t(key: MessageKey, params: Record<string, string | number> = {})
 
 export function getLocale(): "ko" | "en" {
   return locale;
-}
-
-export function getLanguagePreference(): LanguagePreference {
-  return preference;
 }
 
 function updateLocalization(): void {

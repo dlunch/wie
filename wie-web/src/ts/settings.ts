@@ -1,7 +1,7 @@
 import { Languages, Music2, Volume2, X, createIcons } from "lucide";
 
 import type { Settings, Wie } from "./backend";
-import { getLanguagePreference, setLanguagePreference, t, type LanguagePreference } from "./i18n";
+import { getLocale, setLanguagePreference, t, type LanguagePreference } from "./i18n";
 
 export interface SettingsController {
   get<K extends keyof Settings>(key: K): Settings[K];
@@ -13,7 +13,7 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
   const dialog = document.getElementById("settings-dialog") as HTMLDialogElement;
   const midiSlider = document.getElementById("volume-midi") as HTMLInputElement;
   const pcmSlider = document.getElementById("volume-pcm") as HTMLInputElement;
-  const languageSelect = document.getElementById("language-preference") as HTMLSelectElement;
+  const languageSelects = document.querySelectorAll<HTMLSelectElement>(".language-preference");
   let values = await backend.readSettings();
   let pending = Promise.resolve();
 
@@ -31,7 +31,6 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
       return saved;
     },
     open() {
-      languageSelect.value = getLanguagePreference();
       dialog.showModal();
     },
   };
@@ -46,15 +45,20 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
       });
     });
   }
-  languageSelect.value = getLanguagePreference();
-  languageSelect.addEventListener("change", () => {
-    try {
-      setLanguagePreference(languageSelect.value as LanguagePreference);
-    } catch (error) {
-      languageSelect.value = getLanguagePreference();
-      window.alert(t("settingsSaveFailed", { error: String(error) }));
-    }
-  });
+  for (const languageSelect of languageSelects) {
+    languageSelect.value = getLocale();
+    document.addEventListener("wie:languagechange", () => {
+      languageSelect.value = getLocale();
+    });
+    languageSelect.addEventListener("change", () => {
+      try {
+        setLanguagePreference(languageSelect.value as LanguagePreference);
+      } catch (error) {
+        languageSelect.value = getLocale();
+        window.alert(t("settingsSaveFailed", { error: String(error) }));
+      }
+    });
+  }
   createIcons({ icons: { Languages, Music2, Volume2, X }, root: dialog });
 
   return settings;
