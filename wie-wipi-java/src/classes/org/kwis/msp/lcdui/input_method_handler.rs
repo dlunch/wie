@@ -20,6 +20,7 @@ impl InputMethodHandler {
             methods: vec![
                 JavaMethodProto::new("<init>", "(I)V", Self::init, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("setCurrentMode", "(I)Z", Self::set_current_mode, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("hideSymbolCard", "()V", Self::hide_symbol_card, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "setInputMethodListener",
                     "(Lorg/kwis/msp/lcdui/InputMethodListener;)V",
@@ -33,7 +34,7 @@ impl InputMethodHandler {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, constraint: i32) -> JvmResult<()> {
-        tracing::debug!("stub org.kwis.msp.lcdui.InputMethodHandler::<init>({this:?}, {constraint})");
+        tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::<init>({this:?}, {constraint})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -44,6 +45,12 @@ impl InputMethodHandler {
         tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::setCurrentMode({this:?}, {mode})");
 
         Ok(true)
+    }
+
+    async fn hide_symbol_card(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::hideSymbolCard({this:?})");
+
+        Ok(())
     }
 
     async fn set_input_method_listener(

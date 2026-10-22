@@ -12,7 +12,7 @@ use crate::runtime::{SVC_CATEGORY_JAVA, SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY};
 
 mod abi;
 pub mod classes;
-mod exception;
+pub mod exception;
 mod interface;
 mod jvm_support;
 

@@ -24,7 +24,9 @@ impl TextComponent {
             ],
             fields: vec![
                 JavaFieldProto::new("m_cPos", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("m_td", "[C", FieldAccessFlags::PROTECTED),
                 JavaFieldProto::new("imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("iMode", "I", FieldAccessFlags::PROTECTED),
             ],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }

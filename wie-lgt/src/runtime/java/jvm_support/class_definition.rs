@@ -862,7 +862,15 @@ impl ClassDefinition for JavaClassDefinition {
             .collect::<Vec<_>>();
         let descriptor = self.descriptor().unwrap();
         if descriptor.ptr_instance_reference_bitmap != 0 {
-            for word_index in 0..descriptor.instance_field_word_count as u32 {
+            // The JVM visits parents separately, using their actual runtime field layouts.
+            let inherited_word_count = if descriptor.ptr_super_class == 0 {
+                0
+            } else {
+                Self::from_raw(descriptor.ptr_super_class, &self.core)
+                    .instance_field_word_count()
+                    .unwrap() as u32
+            };
+            for word_index in inherited_word_count..descriptor.instance_field_word_count as u32 {
                 let byte: u8 = read_generic(&self.core, descriptor.ptr_instance_reference_bitmap + word_index / 8).unwrap();
                 if byte & (0x80 >> (word_index % 8)) != 0 {
                     fields.push(Box::new(JavaReferenceField { word_index }));

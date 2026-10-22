@@ -463,6 +463,7 @@ mod tests {
             catch_context.lr = wrapper + 11;
             catch_context.cpsr = 0x3f;
             core.restore_context(&catch_context);
+            exception::init(&mut core)?;
             exception::push(&mut core)?;
             core.restore_context(&context);
 

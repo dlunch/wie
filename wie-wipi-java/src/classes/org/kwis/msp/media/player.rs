@@ -61,6 +61,12 @@ impl Player {
                     Self::stop_clip,
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new(
+                    "resume",
+                    "(Lorg/kwis/msp/media/Clip;)Z",
+                    Self::resume,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC,
