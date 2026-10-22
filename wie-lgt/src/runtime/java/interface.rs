@@ -48,12 +48,14 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x55 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk55)?,
         0x56 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorEnter)?,
         0x57 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorExit)?,
+        0x5b => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::LoadLongArray)?,
         0x61 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StoreReferenceArray)?,
         0x82 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::SetJarPath)?,
         0x83 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StartApplication)?,
         0xe1 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetStringClass)?,
         0xe2 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetStringArrayClass)?,
         0xfa => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StoreReferenceArrayUnchecked)?,
+        0xfd => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StoreLongArray)?,
         _ => return Err(WieError::FatalError(format!("Unknown lgt java import: {function_index:#x}"))),
     })
 }
@@ -85,6 +87,11 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::Unk55 => EmulatedFunction::call(&java_unk55, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::MonitorEnter => EmulatedFunction::call(&java_monitor_enter, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::MonitorExit => EmulatedFunction::call(&java_monitor_exit, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::LoadLongArray => {
+                let value = java_load_long_array(core, jvm, core.read_param(0)?, core.read_param(1)?).await?;
+                core.write_return_value(&[value as u32, (value as u64 >> 32) as u32])?;
+                core.set_next_pc(lr)
+            }
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetInterfaceDispatchTable => EmulatedFunction::call(&java_get_interface_dispatch_table, core, jvm)
                 .await?
@@ -92,6 +99,7 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::PopExceptionFrame => EmulatedFunction::call(&java_pop_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StoreReferenceArray => EmulatedFunction::call(&java_store_reference_array, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::StoreLongArray => EmulatedFunction::call(&java_store_long_array, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetStringClass => EmulatedFunction::call(&java_get_string_class, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetStringArrayClass => EmulatedFunction::call(&java_get_string_array_class, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::PendingException => EmulatedFunction::call(&java_pending_exception, core, &mut ()).await?.write(core, lr),
@@ -203,14 +211,17 @@ async fn java_get_interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, _p
 }
 
 async fn java_push_exception_frame(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+    tracing::debug!("java_push_exception_frame()");
     exception::push(core)
 }
 
 async fn java_pop_exception_frame(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+    tracing::debug!("java_pop_exception_frame()");
     exception::pop(core)
 }
 
 async fn java_pending_exception(core: &mut ArmCore, _: &mut ()) -> Result<u32> {
+    tracing::debug!("java_pending_exception()");
     exception::pending(core)
 }
 
@@ -240,9 +251,37 @@ async fn java_raise_arithmetic_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> 
     Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)))
 }
 
+async fn java_load_long_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_array: u32, index: u32) -> Result<i64> {
+    tracing::debug!("java_load_long_array({ptr_array:#x}, {index})");
+    if ptr_array == 0 {
+        let JavaError::JavaException(exception) = jvm.exception("java/lang/NullPointerException", "null array").await;
+        return Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)));
+    }
+    let array = LgtJvmSupport::class_instance_from_raw(core, ptr_array);
+    let values = jvm
+        .load_array::<i64>(&array, index as usize, 1)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    Ok(values[0])
+}
+
 async fn java_store_reference_array_unchecked(core: &mut ArmCore, _: &mut (), ptr_array: u32, index: u32, ptr_value: u32) -> Result<()> {
     let ptr_fields: u32 = read_generic(core, ptr_array + 2 * size_of::<u32>() as u32)?;
     write_generic(core, ptr_fields + (index + 1) * size_of::<u32>() as u32, ptr_value)
+}
+
+async fn java_store_long_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_array: u32, index: u32, high: u32, low: u32) -> Result<()> {
+    tracing::debug!("java_store_long_array({ptr_array:#x}, {index}, {high:#x}, {low:#x})");
+    if ptr_array == 0 {
+        let JavaError::JavaException(exception) = jvm.exception("java/lang/NullPointerException", "null array").await;
+        return Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)));
+    }
+    let mut array = LgtJvmSupport::class_instance_from_raw(core, ptr_array);
+    // This compiler helper passes the high word before the low word.
+    let value = ((high as u64) << 32 | low as u64) as i64;
+    jvm.store_array(&mut array, index as usize, [value])
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))
 }
 
 async fn java_store_reference_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_array: u32, index: u32, ptr_value: u32) -> Result<()> {

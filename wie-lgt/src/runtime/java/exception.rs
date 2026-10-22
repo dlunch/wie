@@ -1,6 +1,8 @@
-use core::mem::size_of;
+use alloc::boxed::Box;
+use core::{mem::size_of, pin::Pin, task::Poll};
 
 use bytemuck::{Pod, Zeroable};
+use futures::future::poll_fn;
 
 use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, RUN_FUNCTION_LR};
 use wie_util::{Result, read_generic, write_generic};
@@ -9,7 +11,33 @@ use crate::runtime::globals::SUPPORT_CONTEXT_BASE;
 
 const FRAME_WORDS: u32 = 18;
 
-// Fixed guest-memory context shared by the LGT Java SVC handlers.
+pub async fn run_java_thread(core: &ArmCore, mut future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
+    let mut core = core.clone();
+    let ptr_context = init(&mut core)?;
+    let mut poll_core = core.clone();
+    let result = core
+        .run_in_thread(move || {
+            poll_fn(move |context| {
+                if let Err(error) = write_generic(&mut poll_core, SUPPORT_CONTEXT_BASE, ptr_context) {
+                    return Poll::Ready(Err(error));
+                }
+                future.as_mut().poll(context)
+            })
+        })?
+        .await;
+
+    let context: JavaSupportContext = read_generic(&core, ptr_context)?;
+    let mut ptr_frame = context.ptr_current_exception_frame;
+    while ptr_frame != 0 {
+        let previous = read_generic(&core, ptr_frame)?;
+        Allocator::free(&mut core, ptr_frame, FRAME_WORDS * size_of::<u32>() as u32)?;
+        ptr_frame = previous;
+    }
+    Allocator::free(&mut core, ptr_context, size_of::<JavaSupportContext>() as u32)?;
+    result
+}
+
+// Each task owns this guest-memory state; the fixed ABI cell points at the active task.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaSupportContext {
@@ -17,13 +45,17 @@ struct JavaSupportContext {
     ptr_pending_exception: u32,
 }
 
-pub fn init(core: &mut ArmCore) -> Result<()> {
-    write_generic(core, SUPPORT_CONTEXT_BASE, JavaSupportContext::zeroed())
+pub fn init(core: &mut ArmCore) -> Result<u32> {
+    let ptr_context = Allocator::alloc(core, size_of::<JavaSupportContext>() as u32)?;
+    write_generic(core, ptr_context, JavaSupportContext::zeroed())?;
+    write_generic(core, SUPPORT_CONTEXT_BASE, ptr_context)?;
+    Ok(ptr_context)
 }
 
 pub fn push(core: &mut ArmCore) -> Result<()> {
     let context = core.save_context();
-    let mut support_context: JavaSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let ptr_context: u32 = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let mut support_context: JavaSupportContext = read_generic(core, ptr_context)?;
     let frame = [
         support_context.ptr_current_exception_frame,
         context.r0,
@@ -48,21 +80,23 @@ pub fn push(core: &mut ArmCore) -> Result<()> {
     write_generic(core, ptr_frame, frame)?;
     support_context.ptr_current_exception_frame = ptr_frame;
     support_context.ptr_pending_exception = 0;
-    write_generic(core, SUPPORT_CONTEXT_BASE, support_context)
+    write_generic(core, ptr_context, support_context)
 }
 
 pub fn pop(core: &mut ArmCore) -> Result<()> {
-    let mut support_context: JavaSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let ptr_context: u32 = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let mut support_context: JavaSupportContext = read_generic(core, ptr_context)?;
     let frame: [u32; FRAME_WORDS as usize] = read_generic(core, support_context.ptr_current_exception_frame)?;
     let ptr_frame = support_context.ptr_current_exception_frame;
     support_context.ptr_current_exception_frame = frame[0];
     support_context.ptr_pending_exception = 0;
-    write_generic(core, SUPPORT_CONTEXT_BASE, support_context)?;
+    write_generic(core, ptr_context, support_context)?;
     Allocator::free(core, ptr_frame, FRAME_WORDS * size_of::<u32>() as u32)
 }
 
 pub fn pending(core: &ArmCore) -> Result<u32> {
-    let support_context: JavaSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let ptr_context: u32 = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let support_context: JavaSupportContext = read_generic(core, ptr_context)?;
     Ok(support_context.ptr_pending_exception)
 }
 
@@ -72,7 +106,8 @@ pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
         return Ok(None);
     }
 
-    let mut support_context: JavaSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let ptr_context: u32 = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let mut support_context: JavaSupportContext = read_generic(core, ptr_context)?;
     if support_context.ptr_current_exception_frame == 0 {
         return Ok(None);
     }
@@ -80,7 +115,7 @@ pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
     let ptr_frame = support_context.ptr_current_exception_frame;
     let frame: [u32; FRAME_WORDS as usize] = read_generic(core, ptr_frame)?;
     support_context.ptr_pending_exception = ptr_exception;
-    write_generic(core, SUPPORT_CONTEXT_BASE, support_context)?;
+    write_generic(core, ptr_context, support_context)?;
 
     let context = ArmCoreContext {
         r0: frame[1],
@@ -109,43 +144,65 @@ pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::boxed::Box;
+    use core::task::{Context, Poll, Waker};
+
+    use wie_backend::YieldFuture;
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::Result;
 
-    use super::{init, pending, pop, push, unwind};
+    use super::{pending, pop, push, run_java_thread, unwind};
 
     #[test]
-    fn exception_frame_restores_guest_context() -> Result<()> {
+    fn exception_frames_are_restored_per_thread() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
             aot: None,
             profile: None,
         })?;
         Allocator::init(&mut core)?;
-        init(&mut core)?;
 
-        let mut context = core.save_context();
-        context.r4 = 0x44;
-        context.sp = 0x12000;
-        context.lr = 0x4001;
-        core.restore_context(&context);
-        push(&mut core)?;
+        let mut threads = [0x4001, 0x5001].map(|resume| {
+            let mut thread_core = core.clone();
+            Box::pin(run_java_thread(
+                &core,
+                Box::pin(async move {
+                    let mut context = thread_core.save_context();
+                    context.r4 = resume;
+                    context.lr = resume;
+                    thread_core.restore_context(&context);
+                    push(&mut thread_core)?;
+                    YieldFuture::new().await;
 
-        context.r4 = 0;
-        context.lr = 0;
-        core.restore_context(&context);
-        assert_eq!(unwind(&mut core, 0x1234)?, Some(0x4001));
+                    let stack = context.sp;
+                    context.r4 = 0;
+                    context.lr = 0;
+                    thread_core.restore_context(&context);
+                    assert_eq!(unwind(&mut thread_core, resume)?, Some(resume));
+                    let restored = thread_core.save_context();
+                    assert_eq!(restored.r4, resume);
+                    assert_eq!(restored.sp, stack);
+                    assert_eq!(restored.pc, resume & !1);
+                    YieldFuture::new().await;
+                    assert_eq!(pending(&thread_core)?, resume);
 
-        let restored = core.save_context();
-        assert_eq!(restored.r4, 0x44);
-        assert_eq!(restored.sp, 0x12000);
-        assert_eq!(restored.pc, 0x4000);
-        assert_eq!(pending(&core)?, 0x1234);
-
-        pop(&mut core)?;
-        assert_eq!(pending(&core)?, 0);
-        assert_eq!(unwind(&mut core, 0x5678)?, None);
-        assert_eq!(pending(&core)?, 0);
+                    pop(&mut thread_core)?;
+                    assert_eq!(pending(&thread_core)?, 0);
+                    assert_eq!(unwind(&mut thread_core, 0x5678)?, None);
+                    Ok(())
+                }),
+            ))
+        });
+        let mut context = Context::from_waker(Waker::noop());
+        for thread in &mut threads {
+            assert!(thread.as_mut().poll(&mut context).is_pending());
+        }
+        for thread in &mut threads {
+            assert!(thread.as_mut().poll(&mut context).is_pending());
+        }
+        for thread in &mut threads {
+            assert!(matches!(thread.as_mut().poll(&mut context), Poll::Ready(Ok(()))));
+        }
 
         Ok(())
     }

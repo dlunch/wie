@@ -61,6 +61,8 @@ pub enum JavaSystemSvcId {
     GetInterfaceDispatchTable = 32,
     MonitorEnter = 33,
     MonitorExit = 34,
+    LoadLongArray = 35,
+    StoreLongArray = 36,
 }
 
 impl TryFrom<SvcId> for JavaSystemSvcId {
@@ -103,6 +105,8 @@ impl TryFrom<SvcId> for JavaSystemSvcId {
             32 => Self::GetInterfaceDispatchTable,
             33 => Self::MonitorEnter,
             34 => Self::MonitorExit,
+            35 => Self::LoadLongArray,
+            36 => Self::StoreLongArray,
             _ => {
                 return Err(wie_util::WieError::FatalError(alloc::format!(
                     "Unknown LGT Java system SVC id {}",
@@ -259,6 +263,7 @@ pub enum WIPICSvcId {
     Pause = 0x4bb,
     Resume = 0x4bc,
     Stop = 0x4bd,
+    GetVolume = 0x4bf,
     SetVolume = 0x4c0,
     Vibrator = 0x4c1,
     Unk14 = 0x4c2,
@@ -408,6 +413,7 @@ impl TryFrom<SvcId> for WIPICSvcId {
             0x4bb => Self::Pause,
             0x4bc => Self::Resume,
             0x4bd => Self::Stop,
+            0x4bf => Self::GetVolume,
             0x4c0 => Self::SetVolume,
             0x4c1 => Self::Vibrator,
             0x4c2 => Self::Unk14,

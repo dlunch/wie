@@ -16,6 +16,7 @@ mod exception;
 mod interface;
 mod jvm_support;
 
+pub use exception::run_java_thread;
 pub use interface::{get_java_interface_method, register_java_system_svc_handler};
 pub use jvm_support::LgtJvmSupport;
 

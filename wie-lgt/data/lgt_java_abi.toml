@@ -9,11 +9,14 @@ vtable = [
     { name = "getClass", descriptor = "()Ljava/lang/Class;", index = 1 },
     { name = "equals", descriptor = "(Ljava/lang/Object;)Z", index = 3 },
     { name = "toString", descriptor = "()Ljava/lang/String;", index = 4 },
+    { name = "notify", descriptor = "()V", index = 5 },
 ]
 
 [[class]]
 name = "java/lang/Runtime"
 vtable = [
+    # shortcut: slot 12 is inferred; confirm against a caller that consumes its result.
+    { name = "totalMemory", descriptor = "()J", index = 12 },
     { name = "gc", descriptor = "()V", index = 13 },
 ]
 
@@ -33,6 +36,7 @@ vtable = [
     { name = "read", descriptor = "()I", index = 10 },
     { name = "read", descriptor = "([B)I", index = 11 },
     { name = "read", descriptor = "([BII)I", index = 12 },
+    { name = "skip", descriptor = "(J)J", index = 13 },
     { name = "available", descriptor = "()I", index = 14 },
     { name = "close", descriptor = "()V", index = 15 },
 ]
@@ -45,9 +49,36 @@ vtable = [
 ]
 
 [[class]]
+name = "java/io/OutputStream"
+vtable = [
+    { name = "write", descriptor = "(I)V", index = 10 },
+    { name = "write", descriptor = "([B)V", index = 11 },
+    { name = "close", descriptor = "()V", index = 14 },
+]
+
+[[class]]
+name = "java/io/ByteArrayOutputStream"
+vtable = [
+    { name = "toByteArray", descriptor = "()[B", index = 16 },
+]
+
+[[class]]
+name = "java/io/DataOutputStream"
+vtable = [
+    { name = "writeBoolean", descriptor = "(Z)V", index = 15 },
+    { name = "writeByte", descriptor = "(I)V", index = 16 },
+    { name = "writeShort", descriptor = "(I)V", index = 17 },
+    { name = "writeInt", descriptor = "(I)V", index = 19 },
+    { name = "writeLong", descriptor = "(J)V", index = 20 },
+]
+
+[[class]]
 name = "java/io/DataInputStream"
 vtable = [
     { name = "readByte", descriptor = "()B", index = 23 },
+    { name = "readUnsignedByte", descriptor = "()I", index = 24 },
+    { name = "readShort", descriptor = "()S", index = 25 },
+    { name = "readInt", descriptor = "()I", index = 28 },
 ]
 
 [[class]]
@@ -56,6 +87,8 @@ vtable = [
     { name = "length", descriptor = "()I", index = 10 },
     { name = "charAt", descriptor = "(I)C", index = 11 },
     { name = "getBytes", descriptor = "()[B", index = 14 },
+    { name = "startsWith", descriptor = "(Ljava/lang/String;)Z", index = 19 },
+    { name = "indexOf", descriptor = "(I)I", index = 21 },
     { name = "substring", descriptor = "(II)Ljava/lang/String;", index = 28 },
     { name = "trim", descriptor = "()Ljava/lang/String;", index = 33 },
     { name = "toCharArray", descriptor = "()[C", index = 34 },
@@ -66,6 +99,7 @@ name = "java/lang/StringBuffer"
 vtable = [
     { name = "append", descriptor = "(Ljava/lang/Object;)Ljava/lang/StringBuffer;", index = 17 },
     { name = "append", descriptor = "(Ljava/lang/String;)Ljava/lang/StringBuffer;", index = 18 },
+    { name = "append", descriptor = "(C)Ljava/lang/StringBuffer;", index = 22 },
     { name = "append", descriptor = "(I)Ljava/lang/StringBuffer;", index = 23 },
     { name = "delete", descriptor = "(II)Ljava/lang/StringBuffer;", index = 27 },
 ]
@@ -73,6 +107,7 @@ vtable = [
 [[class]]
 name = "java/io/PrintStream"
 vtable = [
+    { name = "println", descriptor = "(Z)V", index = 27 },
     { name = "println", descriptor = "(Ljava/lang/String;)V", index = 34 },
 ]
 
@@ -80,7 +115,15 @@ vtable = [
 name = "java/lang/Thread"
 vtable = [
     { name = "start", descriptor = "()V", index = 10 },
+    { name = "isAlive", descriptor = "()Z", index = 13 },
     { name = "setPriority", descriptor = "(I)V", index = 14 },
+]
+
+[[class]]
+name = "java/util/Calendar"
+vtable = [
+    { name = "get", descriptor = "(I)I", index = 19 },
+    { name = "setTime", descriptor = "(Ljava/util/Date;)V", index = 29 },
 ]
 
 [[class]]
@@ -90,6 +133,14 @@ vtable = [
     { name = "elementAt", descriptor = "(I)Ljava/lang/Object;", index = 23 },
     { name = "removeElementAt", descriptor = "(I)V", index = 27 },
     { name = "insertElementAt", descriptor = "(Ljava/lang/Object;I)V", index = 28 },
+]
+
+[[class]]
+name = "java/util/Stack"
+vtable = [
+    { name = "push", descriptor = "(Ljava/lang/Object;)Ljava/lang/Object;", index = 32 },
+    { name = "pop", descriptor = "()Ljava/lang/Object;", index = 33 },
+    { name = "empty", descriptor = "()Z", index = 35 },
 ]
 
 [[class]]

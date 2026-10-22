@@ -20,7 +20,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
 
-use crate::runtime::{LgtJvmSupport, init::load_native};
+use crate::runtime::{LgtJvmSupport, init::load_native, run_java_thread};
 
 struct LgtTaskRunner {
     core: ArmCore,
@@ -29,7 +29,7 @@ struct LgtTaskRunner {
 #[async_trait::async_trait]
 impl TaskRunner for LgtTaskRunner {
     async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
-        self.core.run_in_thread(async move || future.await)?.await
+        run_java_thread(&self.core, future).await
     }
 }
 
