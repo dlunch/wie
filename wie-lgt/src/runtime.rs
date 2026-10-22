@@ -12,4 +12,5 @@ const SVC_CATEGORY_JAVA: u32 = 4;
 const SVC_CATEGORY_STDLIB: u32 = 5;
 const SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY: u32 = 6;
 
-pub use java::{LgtJvmSupport, run_java_thread};
+pub use globals::SUPPORT_CONTEXT_BASE;
+pub use java::{LgtJvmSupport, exception};

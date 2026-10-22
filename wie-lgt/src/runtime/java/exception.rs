@@ -1,8 +1,6 @@
-use alloc::boxed::Box;
-use core::{mem::size_of, pin::Pin, task::Poll};
+use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
-use futures::future::poll_fn;
 
 use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, RUN_FUNCTION_LR};
 use wie_util::{Result, read_generic, write_generic};
@@ -10,32 +8,6 @@ use wie_util::{Result, read_generic, write_generic};
 use crate::runtime::globals::SUPPORT_CONTEXT_BASE;
 
 const FRAME_WORDS: u32 = 18;
-
-pub async fn run_java_thread(core: &ArmCore, mut future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
-    let mut core = core.clone();
-    let ptr_context = init(&mut core)?;
-    let mut poll_core = core.clone();
-    let result = core
-        .run_in_thread(move || {
-            poll_fn(move |context| {
-                if let Err(error) = write_generic(&mut poll_core, SUPPORT_CONTEXT_BASE, ptr_context) {
-                    return Poll::Ready(Err(error));
-                }
-                future.as_mut().poll(context)
-            })
-        })?
-        .await;
-
-    let context: JavaSupportContext = read_generic(&core, ptr_context)?;
-    let mut ptr_frame = context.ptr_current_exception_frame;
-    while ptr_frame != 0 {
-        let previous = read_generic(&core, ptr_frame)?;
-        Allocator::free(&mut core, ptr_frame, FRAME_WORDS * size_of::<u32>() as u32)?;
-        ptr_frame = previous;
-    }
-    Allocator::free(&mut core, ptr_context, size_of::<JavaSupportContext>() as u32)?;
-    result
-}
 
 // Each task owns this guest-memory state; the fixed ABI cell points at the active task.
 #[repr(C)]
@@ -50,6 +22,17 @@ pub fn init(core: &mut ArmCore) -> Result<u32> {
     write_generic(core, ptr_context, JavaSupportContext::zeroed())?;
     write_generic(core, SUPPORT_CONTEXT_BASE, ptr_context)?;
     Ok(ptr_context)
+}
+
+pub fn destroy(core: &mut ArmCore, ptr_context: u32) -> Result<()> {
+    let context: JavaSupportContext = read_generic(core, ptr_context)?;
+    let mut ptr_frame = context.ptr_current_exception_frame;
+    while ptr_frame != 0 {
+        let previous = read_generic(core, ptr_frame)?;
+        Allocator::free(core, ptr_frame, FRAME_WORDS * size_of::<u32>() as u32)?;
+        ptr_frame = previous;
+    }
+    Allocator::free(core, ptr_context, size_of::<JavaSupportContext>() as u32)
 }
 
 pub fn push(core: &mut ArmCore) -> Result<()> {
@@ -140,70 +123,4 @@ pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
     core.set_next_pc(context.lr)?;
 
     Ok(Some(context.lr))
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::boxed::Box;
-    use core::task::{Context, Poll, Waker};
-
-    use wie_backend::YieldFuture;
-    use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::Result;
-
-    use super::{pending, pop, push, run_java_thread, unwind};
-
-    #[test]
-    fn exception_frames_are_restored_per_thread() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
-        Allocator::init(&mut core)?;
-
-        let mut threads = [0x4001, 0x5001].map(|resume| {
-            let mut thread_core = core.clone();
-            Box::pin(run_java_thread(
-                &core,
-                Box::pin(async move {
-                    let mut context = thread_core.save_context();
-                    context.r4 = resume;
-                    context.lr = resume;
-                    thread_core.restore_context(&context);
-                    push(&mut thread_core)?;
-                    YieldFuture::new().await;
-
-                    let stack = context.sp;
-                    context.r4 = 0;
-                    context.lr = 0;
-                    thread_core.restore_context(&context);
-                    assert_eq!(unwind(&mut thread_core, resume)?, Some(resume));
-                    let restored = thread_core.save_context();
-                    assert_eq!(restored.r4, resume);
-                    assert_eq!(restored.sp, stack);
-                    assert_eq!(restored.pc, resume & !1);
-                    YieldFuture::new().await;
-                    assert_eq!(pending(&thread_core)?, resume);
-
-                    pop(&mut thread_core)?;
-                    assert_eq!(pending(&thread_core)?, 0);
-                    assert_eq!(unwind(&mut thread_core, 0x5678)?, None);
-                    Ok(())
-                }),
-            ))
-        });
-        let mut context = Context::from_waker(Waker::noop());
-        for thread in &mut threads {
-            assert!(thread.as_mut().poll(&mut context).is_pending());
-        }
-        for thread in &mut threads {
-            assert!(thread.as_mut().poll(&mut context).is_pending());
-        }
-        for thread in &mut threads {
-            assert!(matches!(thread.as_mut().poll(&mut context), Poll::Ready(Ok(()))));
-        }
-
-        Ok(())
-    }
 }

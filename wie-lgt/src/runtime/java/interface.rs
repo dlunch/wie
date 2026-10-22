@@ -87,11 +87,7 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::Unk55 => EmulatedFunction::call(&java_unk55, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::MonitorEnter => EmulatedFunction::call(&java_monitor_enter, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::MonitorExit => EmulatedFunction::call(&java_monitor_exit, core, jvm).await?.write(core, lr),
-            JavaSystemSvcId::LoadLongArray => {
-                let value = java_load_long_array(core, jvm, core.read_param(0)?, core.read_param(1)?).await?;
-                core.write_return_value(&[value as u32, (value as u64 >> 32) as u32])?;
-                core.set_next_pc(lr)
-            }
+            JavaSystemSvcId::LoadLongArray => EmulatedFunction::call(&java_load_long_array, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetInterfaceDispatchTable => EmulatedFunction::call(&java_get_interface_dispatch_table, core, jvm)
                 .await?

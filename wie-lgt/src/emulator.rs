@@ -1,4 +1,4 @@
-use core::pin::Pin;
+use core::{pin::Pin, task::Poll};
 
 use alloc::{
     borrow::ToOwned,
@@ -10,6 +10,7 @@ use alloc::{
 };
 
 use encoding_rs::EUC_KR;
+use futures::future::poll_fn;
 use jvm::{
     JavaError,
     runtime::{JavaIoInputStream, JavaLangClassLoader},
@@ -18,9 +19,9 @@ use jvm::{
 use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
-use wie_util::{Result, WieError};
+use wie_util::{Result, WieError, write_generic};
 
-use crate::runtime::{LgtJvmSupport, init::load_native, run_java_thread};
+use crate::runtime::{LgtJvmSupport, SUPPORT_CONTEXT_BASE, exception, init::load_native};
 
 struct LgtTaskRunner {
     core: ArmCore,
@@ -28,8 +29,23 @@ struct LgtTaskRunner {
 
 #[async_trait::async_trait]
 impl TaskRunner for LgtTaskRunner {
-    async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
-        run_java_thread(&self.core, future).await
+    async fn run(&self, mut future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
+        let mut core = self.core.clone();
+        let ptr_context = exception::init(&mut core)?;
+        let mut poll_core = core.clone();
+        let result = core
+            .run_in_thread(move || {
+                poll_fn(move |context| {
+                    if let Err(error) = write_generic(&mut poll_core, SUPPORT_CONTEXT_BASE, ptr_context) {
+                        return Poll::Ready(Err(error));
+                    }
+                    future.as_mut().poll(context)
+                })
+            })?
+            .await;
+
+        exception::destroy(&mut core, ptr_context)?;
+        result
     }
 }
 
@@ -224,7 +240,68 @@ impl LgtAppInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::LgtAppInfo;
+    use alloc::boxed::Box;
+    use core::task::{Context, Poll, Waker};
+
+    use wie_backend::{TaskRunner, YieldFuture};
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::Result;
+
+    use crate::runtime::exception::{pending, pop, push, unwind};
+
+    use super::{LgtAppInfo, LgtTaskRunner};
+
+    #[test]
+    fn exception_frames_are_restored_per_thread() -> Result<()> {
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })?;
+        Allocator::init(&mut core)?;
+        let runner = LgtTaskRunner { core: core.clone() };
+
+        let mut threads = [0x4001, 0x5001].map(|resume| {
+            let mut thread_core = core.clone();
+            runner.run(Box::pin(async move {
+                let mut context = thread_core.save_context();
+                context.r4 = resume;
+                context.lr = resume;
+                thread_core.restore_context(&context);
+                push(&mut thread_core)?;
+                YieldFuture::new().await;
+
+                let stack = context.sp;
+                context.r4 = 0;
+                context.lr = 0;
+                thread_core.restore_context(&context);
+                assert_eq!(unwind(&mut thread_core, resume)?, Some(resume));
+                let restored = thread_core.save_context();
+                assert_eq!(restored.r4, resume);
+                assert_eq!(restored.sp, stack);
+                assert_eq!(restored.pc, resume & !1);
+                YieldFuture::new().await;
+                assert_eq!(pending(&thread_core)?, resume);
+
+                pop(&mut thread_core)?;
+                assert_eq!(pending(&thread_core)?, 0);
+                assert_eq!(unwind(&mut thread_core, 0x5678)?, None);
+                Ok(())
+            }))
+        });
+        let mut context = Context::from_waker(Waker::noop());
+        for thread in &mut threads {
+            assert!(thread.as_mut().poll(&mut context).is_pending());
+        }
+        for thread in &mut threads {
+            assert!(thread.as_mut().poll(&mut context).is_pending());
+        }
+        for thread in &mut threads {
+            assert!(matches!(thread.as_mut().poll(&mut context), Poll::Ready(Ok(()))));
+        }
+
+        Ok(())
+    }
 
     #[test]
     fn parse_app_info_name() {
