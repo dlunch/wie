@@ -867,9 +867,9 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "classfile"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8e6fdc98d99da23d1e0e642f777d6538f97d1d3f7c8ca111ecc1b16d128a04c"
+checksum = "9aaf9a4af884df39dba10d2c61f7cbc04573f264bb834510411b83af28fd7082"
 dependencies = [
  "jvm-types",
  "nom 8.0.0",
@@ -2971,9 +2971,9 @@ dependencies = [
 
 [[package]]
 name = "jvm"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2aa354771d3dc7a63024dab79ec6ddced22f19821bf5e969fdc9069403e951ed"
+checksum = "8243d1c492bc3bf6ce51de801d99147ce744688fb063cb39deebb06f389a029e"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2991,9 +2991,9 @@ dependencies = [
 
 [[package]]
 name = "jvm-bytecode"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88b5281d8f7eda664bbca66852fd6daaea84cdf63b1fa3b797bedabb7227f084"
+checksum = "c440e988ea6d0e307162d222ec7ffd0d913e2a806719c2f704f816bea645ecd0"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -3009,9 +3009,9 @@ dependencies = [
 
 [[package]]
 name = "jvm-class-proto"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb5e86ac5bdabb4ad9a19e6ef1e35e177a0d168ebdf48d4d97f7b8aef28ae476"
+checksum = "b95d17925b0e910b0b4d674ca5e02e069eb6fe25224a4fa2259c457b27025e16"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -3021,9 +3021,9 @@ dependencies = [
 
 [[package]]
 name = "jvm-types"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b2fc16dc403bebd08fdee3eaeb196f5612e8b95ac50a54855e9ea37b95f3294"
+checksum = "3c7ea7fa7a98ccc5a5ac9cc62436fcf640e19baab05195eafb41d249eeece502"
 dependencies = [
  "bitflags 2.13.2",
 ]
@@ -4808,9 +4808,9 @@ dependencies = [
 
 [[package]]
 name = "rustjava-runtime"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fee1ca4edb28ff273d9e219f80a235f269856cdbc70c44005febdf5cc97bb970"
+checksum = "8c95b7403681d3d2cf93fdadad43f4e458bfaa6802b71d3d9221adbbabc8a6e0"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -4823,6 +4823,7 @@ dependencies = [
  "jvm-types",
  "libm",
  "parking_lot",
+ "percent-encoding",
  "regex",
  "tracing",
  "tracing-attributes",
