@@ -4,7 +4,6 @@ import { spawn } from "child_process";
 import { mkdir } from "fs/promises";
 
 import webpack from "webpack";
-import HtmlBundlerPlugin from "html-bundler-webpack-plugin";
 import TsConfigPathsPlugin from "tsconfig-paths-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import { createSentrySDK } from "sentry";
@@ -60,10 +59,15 @@ class WasmPackPlugin {
   }
 }
 
-const commonConfig = (mode: "development" | "production"): webpack.Configuration => ({
+const commonConfig: webpack.Configuration = {
   context: import.meta.dirname,
+  entry: { index: "./src/html/index.html" },
+  experiments: { html: true, css: true },
   output: {
     path: path.resolve(import.meta.dirname, "dist"),
+    filename: "assets/js/[name].[contenthash:8].js",
+    cssFilename: "assets/css/[name].[contenthash:8].css",
+    htmlFilename: "[name].html",
     clean: true,
   },
   ignoreWarnings: [
@@ -93,10 +97,6 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
         },
       },
       {
-        test: /\.(css|sass|scss)$/,
-        use: ["css-loader", "sass-loader"],
-      },
-      {
         test: /\.(ico|png|jp?g|webp|svg)$/,
         type: "asset/resource",
         generator: {
@@ -117,20 +117,6 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
       ENVIRONMENT: "development",
       SENTRY_RELEASE: "local",
     }),
-    new HtmlBundlerPlugin({
-      entry: {
-        index: {
-          import: "src/html/index.html",
-          data: { adtest: mode !== "production" },
-        },
-      },
-      js: {
-        filename: "assets/js/[name].[contenthash:8].js",
-      },
-      css: {
-        filename: "assets/css/[name].[contenthash:8].css",
-      },
-    }),
     new WasmPackPlugin(import.meta.dirname),
     new CopyPlugin({
       patterns: [
@@ -144,6 +130,6 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
       ],
     }),
   ],
-});
+};
 
 export default commonConfig;

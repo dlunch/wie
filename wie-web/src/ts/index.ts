@@ -35,7 +35,12 @@ const main = async () => {
   } else {
     output.className = "native-preparation";
   }
-  if (!native) document.head.append(document.importNode(browserScripts.content, true));
+  if (!native) {
+    if (process.env.NODE_ENV !== "production") {
+      document.querySelector<HTMLElement>(".adsbygoogle")!.dataset.adtest = "on";
+    }
+    document.head.append(document.importNode(browserScripts.content, true));
+  }
   browserScripts.remove();
 
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
