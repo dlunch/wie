@@ -216,13 +216,7 @@ impl Emulator for KtfEmulator {
     }
 
     fn tick(&mut self) -> Result<()> {
-        self.system.tick().map_err(|x| {
-            let reg_stack = self.core.dump_reg_stack(IMAGE_BASE);
-            match x {
-                WieError::FatalError(msg) => WieError::FatalError(format!("{msg}\n{reg_stack}")),
-                _ => WieError::FatalError(format!("{x}\n{reg_stack}")),
-            }
-        })
+        self.system.tick()
     }
 }
 

@@ -17,7 +17,7 @@ use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor
 use wie_core_arm::ArmCore;
 use wie_util::{Result, read_generic, read_null_terminated_string_bytes};
 
-use crate::runtime::java::jvm_support::LgtJvmSupport;
+use crate::runtime::{java::jvm_support::LgtJvmSupport, with_arm_context};
 
 type ClassLoaderProto = JavaClassProto<ArmCore>;
 
@@ -109,7 +109,7 @@ impl LgtClassLoader {
             Err(wie_util::WieError::JavaException(ptr_exception)) => {
                 Err(JavaError::JavaException(LgtJvmSupport::class_instance_from_raw(core, ptr_exception)))
             }
-            Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
+            Err(error) => Err(jvm.exception("net/wie/WieError", &with_arm_context(core, error).to_string()).await),
         }
     }
 }

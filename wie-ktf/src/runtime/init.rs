@@ -16,6 +16,7 @@ use crate::{
         java::interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
         svc_ids::InitSvcId,
         wipi_c::{interface::get_wipic_knl_interface, register_wipic_svc_handler},
+        with_arm_context,
     },
 };
 
@@ -56,7 +57,10 @@ pub async fn load_native(
 
     tracing::debug!("Loaded at {IMAGE_BASE:#x}, size {:#x}, bss {bss_size:#x}", data.len());
 
-    let wipi_exe = core.run_function(IMAGE_BASE + 1, &[bss_size]).await?;
+    let wipi_exe = core
+        .run_function(IMAGE_BASE + 1, &[bss_size])
+        .await
+        .map_err(|error| with_arm_context(core, error))?;
     tracing::debug!("Got wipi_exe {wipi_exe:#x}");
 
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
@@ -108,14 +112,18 @@ pub async fn load_native(
             exe_interface_functions.fn_init,
             &[ptr_param_0, ptr_current_jvm_thread_context, ptr_jvm_context, ptr_param_3, ptr_param_4],
         )
-        .await?;
+        .await
+        .map_err(|error| with_arm_context(core, error))?;
 
     if result != 0 {
         return Err(WieError::FatalError(format!("Init failed with code {result:#x}")));
     }
 
     // call init
-    let result = core.run_function::<u32>(wipi_exe.fn_init, &[]).await?;
+    let result = core
+        .run_function::<u32>(wipi_exe.fn_init, &[])
+        .await
+        .map_err(|error| with_arm_context(core, error))?;
     if result != 0 {
         return Err(WieError::FatalError(format!("wipi init failed with code {result:#x}")));
     }

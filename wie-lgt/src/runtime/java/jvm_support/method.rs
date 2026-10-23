@@ -1,4 +1,11 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    string::{String, ToString},
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
 use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
@@ -12,7 +19,7 @@ use wie_core_arm::{
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
-use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
+use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions, with_arm_context};
 
 use super::value::JavaValueCodec;
 
@@ -172,7 +179,7 @@ impl Method for JavaMethod {
                 Err(JavaError::JavaException(codec.object_from_raw(ptr_raw)))
             }
             Err(error) => {
-                let message = format!("{error}{}", self.core.dump_reg_stack(0x1000));
+                let message = with_arm_context(&core, error).to_string();
                 Err(jvm.exception("net/wie/WieError", &message).await)
             }
         }
