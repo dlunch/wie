@@ -13,7 +13,7 @@ use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
-use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
+use crate::{WIPICResult, context::WIPICContext, globals::PENDING_TIMERS_HEAD, method::MethodBody};
 
 pub use self::sprintf::sprintf;
 
@@ -21,6 +21,38 @@ pub use self::sprintf::sprintf;
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICTimer {
     fn_callback: WIPICWord,
+}
+
+#[repr(C, packed)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct PendingTimer {
+    next: WIPICWord,
+    ptr_timer: WIPICWord,
+    fn_callback: WIPICWord,
+    param: WIPICWord,
+}
+
+fn find_timer(context: &dyn WIPICContext, ptr_timer: WIPICWord) -> Result<(WIPICWord, WIPICWord)> {
+    let mut link = PENDING_TIMERS_HEAD;
+    loop {
+        let ptr: WIPICWord = read_generic(context, link)?;
+        if ptr == 0 || read_generic::<PendingTimer, _>(context, ptr)?.ptr_timer == ptr_timer {
+            return Ok((link, ptr));
+        }
+        link = ptr; // The first word of each entry is the next link.
+    }
+}
+
+fn cancel_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord) -> Result<()> {
+    let (link, ptr) = find_timer(context, ptr_timer)?;
+    if ptr != 0 {
+        let mut timer: PendingTimer = read_generic(context, ptr)?;
+        write_generic(context, link, timer.next)?;
+        // The queued callback owns this allocation until it is dispatched.
+        timer.ptr_timer = 0;
+        write_generic(context, ptr, timer)?;
+    }
+    Ok(())
 }
 
 pub async fn current_time(context: &mut dyn WIPICContext) -> Result<u64> {
@@ -75,6 +107,7 @@ pub async fn set_system_property(_context: &mut dyn WIPICContext, ptr_id: WIPICW
 pub async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_callback: WIPICWord) -> Result<()> {
     tracing::debug!("MC_knlDefTimer({ptr_timer:#x}, {fn_callback:#x})");
 
+    cancel_timer(context, ptr_timer)?;
     let timer = WIPICTimer { fn_callback };
 
     write_generic(context, ptr_timer, timer)?;
@@ -88,20 +121,25 @@ pub async fn set_timer(
     timeout_low: WIPICWord,
     timeout_high: WIPICWord,
     param: WIPICWord,
-) -> Result<()> {
+) -> Result<i32> {
     tracing::debug!("MC_knlSetTimer({ptr_timer:#x}, {timeout_low:#x}, {timeout_high:#x}, {param:#x})");
 
     struct TimerCallback {
-        ptr_timer: WIPICWord,
-        fn_callback: WIPICWord,
-        param: WIPICWord,
+        pending: WIPICWord,
     }
 
     #[async_trait::async_trait]
     impl MethodBody<WieError> for TimerCallback {
         #[tracing::instrument(name = "timer", skip_all)]
         async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICResult> {
-            context.call_function(self.fn_callback, &[self.ptr_timer, self.param]).await?;
+            let timer: PendingTimer = read_generic(context, self.pending)?;
+            if timer.ptr_timer != 0 {
+                cancel_timer(context, timer.ptr_timer)?;
+            }
+            context.free_raw(self.pending, size_of::<PendingTimer>() as _)?;
+            if timer.ptr_timer != 0 {
+                context.call_function(timer.fn_callback, &[timer.ptr_timer, timer.param]).await?;
+            }
 
             Ok(WIPICResult { results: Vec::new() })
         }
@@ -109,24 +147,29 @@ pub async fn set_timer(
 
     let now = context.system().platform().now();
     let timeout = (((timeout_high as u64) << 32) | (timeout_low as u64)) as _;
+    if find_timer(context, ptr_timer)?.1 != 0 {
+        return Ok(-5); // M_E_EXIST
+    }
     let timer: WIPICTimer = read_generic(context, ptr_timer)?;
+    let pending = context.alloc_raw(size_of::<PendingTimer>() as _)?;
+    let entry = PendingTimer {
+        next: read_generic(context, PENDING_TIMERS_HEAD)?,
+        ptr_timer,
+        fn_callback: timer.fn_callback,
+        param,
+    };
+    write_generic(context, pending, entry)?;
+    write_generic(context, PENDING_TIMERS_HEAD, pending)?;
 
-    context.set_timer(
-        now + timeout,
-        Box::new(TimerCallback {
-            ptr_timer,
-            fn_callback: timer.fn_callback,
-            param,
-        }),
-    );
+    context.set_timer(now + timeout, Box::new(TimerCallback { pending }));
 
-    Ok(())
+    Ok(0)
 }
 
-pub async fn unset_timer(_: &mut dyn WIPICContext, a0: WIPICWord) -> Result<()> {
-    tracing::warn!("stub MC_knlUnsetTimer({a0:#x})");
+pub async fn unset_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord) -> Result<()> {
+    tracing::debug!("MC_knlUnsetTimer({ptr_timer:#x})");
 
-    Ok(())
+    cancel_timer(context, ptr_timer)
 }
 
 pub async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
@@ -306,13 +349,68 @@ pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWor
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, string::String};
+    use alloc::{boxed::Box, string::String, sync::Arc, vec};
 
-    use wie_util::{ByteRead, ByteWrite, Result, read_null_terminated_string_bytes, write_null_terminated_string_bytes};
+    use test_utils::{TestClock, TestPlatform};
+
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_util::{ByteRead, ByteWrite, Result, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
     use crate::{WIPICContext, context::test::TestContext, method::MethodImpl};
 
-    use super::{alloc, calloc, free, get_resource, get_resource_id, get_system_property, sprintk};
+    use super::{alloc, calloc, def_timer, free, get_resource, get_resource_id, get_system_property, set_timer, sprintk, unset_timer};
+
+    #[futures_test::test]
+    async fn timers_cancel_and_rearm_without_stale_callbacks() -> Result<()> {
+        async fn timer_callback(context: &mut dyn WIPICContext, timer: u32, param: u32) -> Result<u32> {
+            if param == 3 {
+                assert_eq!(set_timer(context, timer, 10, 0, 4).await?, 0);
+            }
+            Ok(0)
+        }
+
+        let clock = TestClock::new();
+        let system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "", "", DefaultTaskRunner);
+        let mut context = TestContext::with_system(system);
+        let callback = 0x1234;
+        context.functions.push((callback, Arc::new(timer_callback.into_body())));
+        let timer = context.alloc_raw(8)?;
+        let other_timer = context.alloc_raw(8)?;
+        for timer in [timer, other_timer] {
+            write_generic(&mut context, timer + 4, 0x12345678u32)?;
+            def_timer(&mut context, timer, callback).await?;
+        }
+        for rearm in [false, true] {
+            assert_eq!(set_timer(&mut context, timer, 10, 0, 1).await?, 0);
+            let (_, stale) = context.timers.pop_front().unwrap();
+            for _ in 0..2 {
+                unset_timer(&mut context, timer).await?;
+            }
+            if rearm {
+                assert_eq!(set_timer(&mut context, timer, 10, 0, 2).await?, 0);
+            }
+            clock.advance(10);
+            stale.call(&mut context, Box::new([])).await?;
+            assert!(context.function_calls.is_empty(), "A cancelled reservation must not invoke the callback");
+        }
+        assert_eq!(set_timer(&mut context, other_timer, 10, 0, 99).await?, 0);
+
+        def_timer(&mut context, timer, callback).await?;
+        assert_eq!(set_timer(&mut context, timer, 10, 0, 3).await?, 0);
+        assert_eq!(set_timer(&mut context, timer, 10, 0, 77).await?, -5);
+        while let Some((due, callback)) = context.timers.pop_front() {
+            clock.set(due.raw());
+            callback.call(&mut context, Box::new([])).await?;
+        }
+        assert_eq!(
+            context.function_calls,
+            vec![(callback, vec![other_timer, 99]), (callback, vec![timer, 3]), (callback, vec![timer, 4])]
+        );
+        for timer in [timer, other_timer] {
+            assert_eq!(read_generic::<u32, _>(&context, timer + 4)?, 0x12345678);
+        }
+        Ok(())
+    }
 
     #[futures_test::test]
     async fn test_sprintk() -> Result<()> {
