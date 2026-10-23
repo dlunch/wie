@@ -137,7 +137,7 @@ let locale: "ko" | "en" = "en";
 
 export function t(key: MessageKey, params: Record<string, string | number> = {}): string {
   return (locale === "ko" ? ko : en)[key].replace(/\{(\w+)\}/g, (placeholder, name: string) =>
-    Object.hasOwn(params, name) ? String(params[name]) : placeholder,
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder,
   );
 }
 
