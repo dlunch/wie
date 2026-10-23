@@ -238,9 +238,9 @@ impl ArmCore {
     {
         // we don't need to save r0-r3, but to make it simple, we save all registers
         let previous_context = self.save_context();
-        let result = self.run_function_inner(address, params).await;
+        let result = self.run_function_inner(address, params).await?;
         self.restore_context(&previous_context);
-        result
+        Ok(result)
     }
 
     async fn run_function_inner<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
@@ -1039,10 +1039,10 @@ mod tests {
     }
 
     #[test]
-    fn failed_arm_calls_restore_caller_registers_and_stack() {
+    fn failed_arm_calls_preserve_fault_registers_and_stack() {
         async fn throwing_handler(core: &mut ArmCore, _: &mut ()) -> Result<()> {
             core.write_return_value(&[99, 98])?;
-            Err(WieError::JavaException(0x1234))
+            Err(WieError::FatalError("service failed".into()))
         }
 
         let mut core = ArmCore::new(Options {
@@ -1060,17 +1060,20 @@ mod tests {
         context.sp = 0x3000;
         context.lr = 0x4001;
         core.restore_context(&context);
-        let registers = core.dump_regs();
+        let result = futures::executor::block_on(core.run_function::<()>(target, &[1, 2, 3, 4, 5]));
+        assert!(matches!(result, Err(WieError::FatalError(_))));
+        let fault = core.save_context();
+        assert_eq!((fault.r0, fault.r1), (99, 98));
+        assert_eq!(fault.sp, context.sp - 4);
 
-        for address in [target, 0x1001] {
-            let result = futures::executor::block_on(core.run_function::<()>(address, &[1, 2, 3, 4, 5]));
-            if address == target {
-                assert!(matches!(result, Err(WieError::JavaException(0x1234))));
-            } else {
-                assert!(matches!(result, Err(WieError::InvalidMemoryAccess(_))));
-            }
-            assert_eq!(core.dump_regs(), registers);
-        }
+        core.restore_context(&context);
+        let result = futures::executor::block_on(core.run_function::<()>(0x20001, &[1, 2, 3, 4, 5]));
+        assert!(matches!(result, Err(WieError::InvalidMemoryAccess(0x20000))));
+        let fault = core.save_context();
+        assert_eq!((fault.r0, fault.r1), (1, 2));
+        assert_eq!(fault.sp, context.sp - 4);
+        assert_eq!(fault.pc, 0x20002);
+        assert_eq!(fault.cpsr & 0x3f, 0x3f);
     }
 
     #[test]

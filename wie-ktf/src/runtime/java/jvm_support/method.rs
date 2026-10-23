@@ -133,25 +133,25 @@ impl JavaMethod {
         // outermost frame whose caller is the Rust JVM rather than another ARM trampoline.
         async fn run_with_unwind(core: &mut ArmCore, mut pc: u32, mut args: Vec<u32>) -> Result<JavaMethodRunResult> {
             let caller_context = core.save_context();
-
             loop {
                 match core.run_function::<JavaMethodRunResult>(pc, &args).await {
-                    Ok(r) => {
-                        core.restore_context(&caller_context);
-                        return Ok(r);
-                    }
+                    Ok(r) => return Ok(r),
                     Err(WieError::JavaExceptionUnwind {
                         context_base,
                         target,
                         next_pc,
                     }) => {
                         tracing::debug!("Resuming via exception restore: pc={next_pc:#x}, context_base={context_base:#x}, target={target:#x}");
+                        core.restore_context(&caller_context);
                         pc = next_pc;
                         args = vec![context_base, target];
                     }
                     Err(e) => {
                         let error = match e {
-                            error @ WieError::JavaException(_) => error,
+                            error @ WieError::JavaException(_) => {
+                                core.restore_context(&caller_context);
+                                error
+                            }
                             error => {
                                 let context = core.dump_reg_stack(IMAGE_BASE);
                                 match error {
@@ -161,7 +161,6 @@ impl JavaMethod {
                                 }
                             }
                         };
-                        core.restore_context(&caller_context);
                         return Err(error);
                     }
                 }

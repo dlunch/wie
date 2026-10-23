@@ -65,7 +65,8 @@ pub fn register_java_system_svc_handler(core: &mut ArmCore, jvm: &Jvm, ptr_jar_p
 }
 
 async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (Jvm, u32), id: SvcId) -> Result<JumpTo> {
-    let (_, lr) = core.read_pc_lr()?;
+    let caller = core.save_context();
+    let lr = caller.lr;
     let result: Result<()> = async {
         match JavaSystemSvcId::try_from(id)? {
             JavaSystemSvcId::InterfaceUnk0 => EmulatedFunction::call(&java_unk0, core, &mut ()).await?.write(core, lr),
@@ -123,10 +124,13 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
 
     match result {
         Ok(()) => Ok(JumpTo(lr)),
-        Err(WieError::JavaException(ptr_exception)) => match exception::unwind(core, ptr_exception)? {
-            Some(resume_address) => Ok(JumpTo(resume_address)),
-            None => Err(WieError::JavaException(ptr_exception)),
-        },
+        Err(WieError::JavaException(ptr_exception)) => {
+            core.restore_context(&caller);
+            match exception::unwind(core, ptr_exception)? {
+                Some(resume_address) => Ok(JumpTo(resume_address)),
+                None => Err(WieError::JavaException(ptr_exception)),
+            }
+        }
         Err(error) => Err(error),
     }
 }

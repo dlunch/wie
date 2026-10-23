@@ -424,8 +424,8 @@ impl DebugInner {
             WieError::AllocationFailure => DebugSignal::Kill,
             WieError::InvalidMemoryAccess(_) => DebugSignal::Segv,
             WieError::Unimplemented(_) => DebugSignal::Sys,
-            WieError::JavaException(_) | WieError::JavaExceptionUnwind { .. } => DebugSignal::Trap,
             WieError::FatalError(_) => DebugSignal::Abrt,
+            _ => DebugSignal::Trap,
         };
         DebugStopReason::Signal(signal, thread_id)
     }
