@@ -81,7 +81,7 @@ impl ResultConverter<()> for () {
 
 #[cfg(test)]
 pub mod test {
-    use alloc::{boxed::Box, format, string::String, vec::Vec};
+    use alloc::{boxed::Box, collections::VecDeque, format, string::String, sync::Arc, vec::Vec};
 
     use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
@@ -100,6 +100,9 @@ pub mod test {
         last_alloc: usize,
         system: Option<System>,
         resources: Vec<(String, Vec<u8>)>,
+        pub functions: Vec<(WIPICWord, Arc<WIPICMethodBody>)>,
+        pub function_calls: Vec<(WIPICWord, Vec<WIPICWord>)>,
+        pub timers: VecDeque<(Instant, WIPICMethodBody)>,
     }
 
     impl TestContext {
@@ -111,6 +114,9 @@ pub mod test {
                 last_alloc: TEST_ALLOC_START,
                 system: None,
                 resources: Vec::new(),
+                functions: Vec::new(),
+                function_calls: Vec::new(),
+                timers: VecDeque::new(),
             }
         }
 
@@ -121,6 +127,9 @@ pub mod test {
                 last_alloc: TEST_ALLOC_START,
                 system: Some(system),
                 resources: Vec::new(),
+                functions: Vec::new(),
+                function_calls: Vec::new(),
+                timers: VecDeque::new(),
             }
         }
 
@@ -155,8 +164,11 @@ pub mod test {
             Ok(memory.0)
         }
 
-        async fn call_function(&mut self, _address: WIPICWord, _args: &[WIPICWord]) -> Result<WIPICWord> {
-            todo!()
+        async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord> {
+            let callback = self.functions.iter().find(|(ptr, _)| *ptr == address).unwrap().1.clone();
+            self.function_calls.push((address, args.to_vec()));
+            let result = callback.call(self, args.to_vec().into_boxed_slice()).await?;
+            Ok(result.results[0])
         }
 
         fn system(&mut self) -> &mut System {
@@ -179,8 +191,8 @@ pub mod test {
                 .ok_or_else(|| WieError::FatalError(format!("Missing test resource: {name}")))
         }
 
-        fn set_timer(&mut self, _due: Instant, _callback: WIPICMethodBody) {
-            todo!()
+        fn set_timer(&mut self, due: Instant, callback: WIPICMethodBody) {
+            self.timers.push_back((due, callback));
         }
     }
 
