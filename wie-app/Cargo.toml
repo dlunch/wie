@@ -74,4 +74,4 @@ tauri-plugin-haptics = "2"
 [dev-dependencies]
 tempfile = "3"
 midly = { version = "0.5", default-features = false, features = ["std"] }
-zip = { version = "^8.6", features = ["deflate"], default-features = false }
+zip = { workspace = true }
