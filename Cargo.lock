@@ -867,9 +867,9 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "classfile"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "701bafeeb2af10cf89377693d72fbd615665be8048ce4eba3199534ee3ecd4dd"
+checksum = "c8e6fdc98d99da23d1e0e642f777d6538f97d1d3f7c8ca111ecc1b16d128a04c"
 dependencies = [
  "jvm-types",
  "nom 8.0.0",
@@ -2971,9 +2971,9 @@ dependencies = [
 
 [[package]]
 name = "jvm"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "411e3e44a4b296e33eb380e861cb6f0603bf4aa12bad10493aa91f7b67438604"
+checksum = "2aa354771d3dc7a63024dab79ec6ddced22f19821bf5e969fdc9069403e951ed"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2991,9 +2991,9 @@ dependencies = [
 
 [[package]]
 name = "jvm-bytecode"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c56876991506aca7ce77b657505bc6fe4e246b480fc87d21498cb013c9d91c6"
+checksum = "88b5281d8f7eda664bbca66852fd6daaea84cdf63b1fa3b797bedabb7227f084"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -3009,9 +3009,9 @@ dependencies = [
 
 [[package]]
 name = "jvm-class-proto"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c39a2a787c050be6dd448c466fe94027fdc54552aa6f2e07b24356be2a6806eb"
+checksum = "cb5e86ac5bdabb4ad9a19e6ef1e35e177a0d168ebdf48d4d97f7b8aef28ae476"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -3021,9 +3021,9 @@ dependencies = [
 
 [[package]]
 name = "jvm-types"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "417db2fec75992ff63d3ef5ab6ac798d1b9dc8bef344d24af87fbcbd7489ad11"
+checksum = "2b2fc16dc403bebd08fdee3eaeb196f5612e8b95ac50a54855e9ea37b95f3294"
 dependencies = [
  "bitflags 2.13.2",
 ]
@@ -4808,9 +4808,9 @@ dependencies = [
 
 [[package]]
 name = "rustjava-runtime"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d19c101a2f4e9b56ca87c5ddb4990d61d91624f637549a60b006448b7fd56c6"
+checksum = "fee1ca4edb28ff273d9e219f80a235f269856cdbc70c44005febdf5cc97bb970"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -4827,7 +4827,7 @@ dependencies = [
  "tracing",
  "tracing-attributes",
  "url",
- "zip 8.6.0",
+ "zip",
 ]
 
 [[package]]
@@ -7287,7 +7287,7 @@ dependencies = [
  "wie-core-arm-native",
  "wie-util",
  "windows",
- "zip 9.0.5",
+ "zip",
 ]
 
 [[package]]
@@ -7317,7 +7317,7 @@ dependencies = [
  "tracing",
  "wie-core-arm-aot",
  "wie-util",
- "zip 9.0.5",
+ "zip",
 ]
 
 [[package]]
@@ -7389,7 +7389,7 @@ dependencies = [
  "wie-jvm-support",
  "wie-midp",
  "wie-util",
- "zip 9.0.5",
+ "zip",
 ]
 
 [[package]]
@@ -7435,7 +7435,7 @@ dependencies = [
  "wie-wipi-c",
  "wie-wipi-java",
  "wipi-types",
- "zip 9.0.5",
+ "zip",
 ]
 
 [[package]]
@@ -8242,20 +8242,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "zip"
-version = "8.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
-dependencies = [
- "crc32fast",
- "flate2",
- "indexmap 2.14.0",
- "memchr",
- "typed-path",
- "zopfli",
 ]
 
 [[package]]
