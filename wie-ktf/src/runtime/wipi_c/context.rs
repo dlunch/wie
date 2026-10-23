@@ -12,6 +12,8 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
+use crate::runtime::with_arm_context;
+
 #[derive(Clone)]
 pub struct KtfWIPICContext {
     core: ArmCore,
@@ -63,7 +65,10 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord> {
-        self.core.run_function(address, args).await
+        self.core
+            .run_function(address, args)
+            .await
+            .map_err(|error| with_arm_context(&self.core, error))
     }
 
     fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()> {
@@ -172,5 +177,85 @@ impl ByteRead for KtfWIPICContext {
 impl ByteWrite for KtfWIPICContext {
     fn write_bytes(&mut self, address: WIPICWord, data: &[u8]) -> wie_util::Result<()> {
         self.core.write_bytes(address, data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{boxed::Box, format, string::ToString, sync::Arc};
+    use core::sync::atomic::{AtomicBool, Ordering};
+
+    use bytemuck::Zeroable;
+
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_jvm_support::JvmSupport;
+    use wie_util::{Result, write_generic};
+    use wie_wipi_c::api::kernel;
+
+    use super::KtfWIPICContext;
+    use crate::runtime::{KtfJvmSupport, KtfJvmThreadContext};
+
+    #[test]
+    fn timer_fault_diagnostics_survive_java_exception_restoration() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_task = done.clone();
+        let mut system_task = system.clone();
+
+        system.spawn(async move || {
+            let mut core = ArmCore::new(wie_backend::Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })?;
+            Allocator::init(&mut core)?;
+            let mut caller = core.save_context();
+            caller.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
+            caller.cpsr = 0x10;
+            core.restore_context(&caller);
+            let thread = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
+            write_generic(&mut core, thread, KtfJvmThreadContext::zeroed())?;
+            KtfJvmSupport::set_current_thread_context(&mut core, thread)?;
+            let (jvm, _) = KtfJvmSupport::init(&mut core, &mut system_task, None).await?;
+            let queue = jvm.new_class("net/wie/EventQueue", "()V", ()).await.unwrap();
+            let timer = Allocator::alloc(&mut core, size_of::<kernel::WIPICTimer>() as u32)?;
+            let mut context = KtfWIPICContext::new(core.clone(), system_task.clone(), jvm.clone());
+
+            for instruction in [0x6800u16, 0xe800] {
+                let callback = Allocator::alloc(&mut core, 6)?;
+                write_generic(&mut core, callback, 0x2455u16)?; // movs r4, #0x55
+                write_generic(&mut core, callback + 2, 0x2000u16)?; // movs r0, #0
+                write_generic(&mut core, callback + 4, instruction)?; // ldr r0, [r0] or undefined instruction
+                kernel::def_timer(&mut context, timer, callback + 1).await?;
+                kernel::set_timer(&mut context, timer, 0, 0, 0).await?;
+                let event = jvm.instantiate_array("I", 4).await.unwrap();
+                let error = jvm
+                    .invoke_virtual::<_, ()>(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event,))
+                    .await
+                    .unwrap_err();
+                let message = JvmSupport::to_wie_err(&jvm, error).await.to_string();
+                let expected = if instruction == 0xe800 {
+                    format!("Undefined instruction at {:#x}", callback + 4)
+                } else {
+                    "Invalid memory access; address: 0".into()
+                };
+                assert!(message.contains(&expected), "Expected {expected}: {message}");
+                assert!(message.contains("R4: 0x55"), "{message}");
+                assert_eq!(message.matches("Possible call stack:").count(), 1, "{message}");
+                let restored = core.save_context();
+                assert_eq!(
+                    (restored.r4, restored.sp, restored.lr, restored.pc),
+                    (caller.r4, caller.sp, caller.lr, caller.pc)
+                );
+            }
+            done_task.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+        Ok(())
     }
 }

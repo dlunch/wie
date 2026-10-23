@@ -1,4 +1,4 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::ToString, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, string::ToString, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::{offset_of, size_of},
@@ -20,10 +20,7 @@ use wie_core_arm::{
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
-use crate::{
-    emulator::IMAGE_BASE,
-    runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions, java::jvm_support::JavaClassDefinition},
-};
+use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions, java::jvm_support::JavaClassDefinition, with_arm_context};
 
 use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueCodec};
 
@@ -133,35 +130,27 @@ impl JavaMethod {
         // outermost frame whose caller is the Rust JVM rather than another ARM trampoline.
         async fn run_with_unwind(core: &mut ArmCore, mut pc: u32, mut args: Vec<u32>) -> Result<JavaMethodRunResult> {
             let caller_context = core.save_context();
-
             loop {
                 match core.run_function::<JavaMethodRunResult>(pc, &args).await {
-                    Ok(r) => {
-                        core.restore_context(&caller_context);
-                        return Ok(r);
-                    }
+                    Ok(r) => return Ok(r),
                     Err(WieError::JavaExceptionUnwind {
                         context_base,
                         target,
                         next_pc,
                     }) => {
                         tracing::debug!("Resuming via exception restore: pc={next_pc:#x}, context_base={context_base:#x}, target={target:#x}");
+                        core.restore_context(&caller_context);
                         pc = next_pc;
                         args = vec![context_base, target];
                     }
                     Err(e) => {
                         let error = match e {
-                            error @ WieError::JavaException(_) => error,
-                            error => {
-                                let context = core.dump_reg_stack(IMAGE_BASE);
-                                match error {
-                                    WieError::Unimplemented(message) => WieError::Unimplemented(format!("{message}{context}")),
-                                    WieError::FatalError(message) => WieError::FatalError(format!("{message}{context}")),
-                                    error => WieError::FatalError(format!("{error}{context}")),
-                                }
+                            error @ WieError::JavaException(_) => {
+                                core.restore_context(&caller_context);
+                                error
                             }
+                            error => with_arm_context(core, error),
                         };
-                        core.restore_context(&caller_context);
                         return Err(error);
                     }
                 }

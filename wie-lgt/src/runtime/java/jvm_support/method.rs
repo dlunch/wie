@@ -1,4 +1,11 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    string::{String, ToString},
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
 use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
@@ -12,7 +19,7 @@ use wie_core_arm::{
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
-use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
+use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions, with_arm_context};
 
 use super::value::JavaValueCodec;
 
@@ -156,7 +163,9 @@ impl Method for JavaMethod {
         let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();
         let codec = JavaValueCodec::new(&self.core);
         let raw_args = encode_method_arguments(&codec, &args);
-        let result: Result<JavaMethodRunResult> = self.core.clone().run_function(self.target().unwrap(), &raw_args).await;
+        let mut core = self.core.clone();
+        let caller = core.save_context();
+        let result: Result<JavaMethodRunResult> = core.run_function(self.target().unwrap(), &raw_args).await;
         match result.map(|result| {
             if matches!(return_type, JavaType::Double | JavaType::Long) {
                 codec.decode_wide(result.low, result.high, &return_type)
@@ -165,9 +174,12 @@ impl Method for JavaMethod {
             }
         }) {
             Ok(value) => Ok(value),
-            Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
+            Err(WieError::JavaException(ptr_raw)) => {
+                core.restore_context(&caller);
+                Err(JavaError::JavaException(codec.object_from_raw(ptr_raw)))
+            }
             Err(error) => {
-                let message = format!("{error}{}", self.core.dump_reg_stack(0x1000));
+                let message = with_arm_context(&core, error).to_string();
                 Err(jvm.exception("net/wie/WieError", &message).await)
             }
         }
@@ -273,8 +285,10 @@ mod tests {
 
     use super::{JavaMethod, JavaMethodRunResult, RawJavaMethod};
     use crate::runtime::java::{
-        exception,
+        abi::{CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR},
+        exception, get_java_interface_method,
         jvm_support::{JavaClassInstance, LgtJvmImplementation, LgtJvmSupport},
+        register_java_system_svc_handler,
     };
 
     async fn rust_wide_bridge(_jvm: &Jvm, observed: &mut Arc<Mutex<Option<(i64, u64)>>>, integer: i64, floating: f64) -> JvmResult<i64> {
@@ -477,6 +491,48 @@ mod tests {
             exception::pop(&mut core)?;
             assert_eq!(exception::pending(&core)?, 0);
 
+            register_java_system_svc_handler(&mut core, &jvm, 0)?;
+            let initialize = get_java_interface_method(&mut core, 0x0d)?;
+            write_generic(&mut core, wrapper + 16, initialize)?;
+            let callback = Allocator::alloc(&mut core, 16)?;
+            write_generic(
+                &mut core,
+                callback,
+                [
+                    0x4801u16, // ldr r0, [pc, #4]
+                    0x2100,    // movs r1, #0
+                    0x4a01,    // ldr r2, [pc, #4]
+                    0x4710,    // bx r2
+                ],
+            )?;
+            write_generic(&mut core, callback + 8, LgtJvmSupport::class_instance_raw(&*database))?;
+            write_generic(&mut core, callback + 12, target)?;
+            let mut class_object = class.java_class();
+            jvm.put_field(
+                &mut class_object,
+                "java/lang/Class",
+                CLASS_INITIALIZATION_STATE_FIELD,
+                WORD_FIELD_DESCRIPTOR,
+                0i32,
+            )
+            .await
+            .unwrap();
+            core.restore_context(&catch_context);
+            exception::push(&mut core)?;
+            core.restore_context(&context);
+            let result: u32 = core
+                .run_function(wrapper + 1, &[LgtJvmSupport::class_instance_raw(&*class_object), callback + 1])
+                .await?;
+            assert_eq!(result, 2);
+            let pending = LgtJvmSupport::class_instance_from_raw(&core, exception::pending(&core)?);
+            assert!(
+                jvm.is_instance(&*pending, "org/kwis/msp/db/DataBaseRecordException"),
+                "{}",
+                pending.class_definition().name()
+            );
+            assert_eq!(core.save_context().sp, context.sp);
+            exception::pop(&mut core)?;
+
             done_clone.store(true, Ordering::Relaxed);
             Ok(())
         });
@@ -536,11 +592,17 @@ mod tests {
                 .await
                 .unwrap();
             let method = class.method("call", "()V", false).unwrap();
+            let caller = core.save_context();
             let result = method.run(&jvm, vec![JavaValue::Object(None)].into_boxed_slice()).await;
             let Err(JavaError::JavaException(exception)) = result else {
                 panic!("abstract method target must throw AbstractMethodError");
             };
             assert!(jvm.is_instance(&*exception, "java/lang/AbstractMethodError"));
+            let restored = core.save_context();
+            assert_eq!(
+                (restored.r0, restored.r1, restored.sp, restored.lr, restored.pc),
+                (caller.r0, caller.r1, caller.sp, caller.lr, caller.pc)
+            );
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())

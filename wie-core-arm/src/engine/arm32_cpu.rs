@@ -166,7 +166,7 @@ impl ArmEngine for Arm32CpuEngine {
             let cache_invalidation = self.instruction_cache_invalidation(pc, cpsr);
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();
             if !(self.cpu.step(&mut arm32cpu_memory)) {
-                return Err(WieError::FatalError("Undefined instruction".into()));
+                return Err(WieError::FatalError(format!("Undefined instruction at {pc:#x} (CPSR: {cpsr:#x})")));
             }
             if let Some(x) = arm32cpu_memory.memory_error {
                 return Err(WieError::InvalidMemoryAccess(x));

@@ -1,6 +1,5 @@
-use alloc::{string::ToString, vec};
+use alloc::vec;
 
-use futures::TryFutureExt;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
@@ -60,11 +59,7 @@ impl CletWrapperCard {
 
         let paint_clet: i32 = jvm.get_field(&this, "net/wie/CletWrapperCard", "paintClet", "I").await?;
 
-        context
-            .core
-            .run_function(paint_clet as _, &[])
-            .or_else(async move |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
-            .await
+        context.call_function(jvm, paint_clet as _, &[]).await
     }
 
     async fn key_notify(jvm: &Jvm, context: &mut CletWrapperContext, this: ClassInstanceRef<Self>, r#type: i32, key: i32) -> JvmResult<bool> {
@@ -72,11 +67,7 @@ impl CletWrapperCard {
 
         let handle_clet_event: i32 = jvm.get_field(&this, "net/wie/CletWrapperCard", "handleCletEvent", "I").await?;
         let r#type = r#type + 501; // TODO constants
-        let _: () = context
-            .core
-            .run_function(handle_clet_event as _, &[r#type as _, key as _, 0 as _])
-            .or_else(async move |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
-            .await?;
+        context.call_function(jvm, handle_clet_event as _, &[r#type as _, key as _, 0]).await?;
 
         Ok(true)
     }
@@ -92,12 +83,8 @@ impl CletWrapperCard {
         tracing::debug!("net.wie.CletWrapperCard::notifyEvent({this:?}, {type}, {param1}, {param2})");
 
         let handle_clet_event: i32 = jvm.get_field(&this, "net/wie/CletWrapperCard", "handleCletEvent", "I").await?;
-        let _: () = context
-            .core
-            .run_function(handle_clet_event as _, &[r#type as _, param1 as _, param2 as _])
-            .or_else(async move |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
-            .await?;
-
-        Ok(())
+        context
+            .call_function(jvm, handle_clet_event as _, &[r#type as _, param1 as _, param2 as _])
+            .await
     }
 }

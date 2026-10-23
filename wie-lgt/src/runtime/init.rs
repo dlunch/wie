@@ -16,6 +16,7 @@ use super::{
     stdlib::register_stdlib_svc_handler,
     svc_ids::{InitSvcId, JavaSystemSvcId},
     wipi_c::register_wipic_svc_handler,
+    with_arm_context,
 };
 
 fn register_init_svc_handler(core: &mut ArmCore, ptr_jar_path: u32) -> Result<()> {
@@ -76,7 +77,10 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, jar
     tracing::debug!("ptr_init_param_2: {ptr_init_param_2:#x}");
 
     tracing::debug!("Calling entrypoint {entrypoint:#x}");
-    let _: () = core.run_function(entrypoint + 1, &[ptr_init_param_1, ptr_init_param_2, 0]).await?;
+    let _: () = core
+        .run_function(entrypoint + 1, &[ptr_init_param_1, ptr_init_param_2, 0])
+        .await
+        .map_err(|error| with_arm_context(core, error))?;
 
     let init_param_1: InitParam1 = read_generic(core, ptr_init_param_1)?;
 
@@ -84,7 +88,10 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, jar
     let init_struct: InitStruct = read_generic(core, init_param_1.ptr_init_struct)?;
 
     tracing::debug!("Calling initializer at {:#x}", init_struct.fn_init);
-    let _: () = core.run_function(init_struct.fn_init, &[]).await?;
+    let _: () = core
+        .run_function(init_struct.fn_init, &[])
+        .await
+        .map_err(|error| with_arm_context(core, error))?;
 
     Ok(())
 }

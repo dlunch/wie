@@ -307,7 +307,7 @@ mod test {
         java::{
             JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor, JavaClassInstance as RawJavaClassInstance,
             JavaExceptionHandler as RawJavaExceptionHandler, JavaFieldDefinition as RawJavaField, JavaMethodDefinition as RawJavaMethod,
-            JavaMethodExceptionTableEntry as RawJavaMethodExceptionTableEntry,
+            JavaMethodExceptionTableEntry as RawJavaMethodExceptionTableEntry, WIPIJBInterface,
         },
     };
 
@@ -317,11 +317,11 @@ mod test {
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
-    use crate::runtime::java::{JavaSvcFunctions, handle_java_svc};
+    use crate::runtime::java::{JavaSvcFunctions, handle_java_svc, interface::get_wipi_jb_interface};
 
     use super::{
-        ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaClassInstance, JavaMethod, KtfClassLoader, KtfJvmSupport,
-        KtfJvmThreadContext, name::JavaFullName, value::JavaValueCodec,
+        ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, KtfClassLoader,
+        KtfJvmSupport, KtfJvmThreadContext, name::JavaFullName, value::JavaValueCodec,
     };
 
     use test_utils::{TestClock, TestPlatform};
@@ -777,6 +777,15 @@ mod test {
             let result: Box<dyn jvm::ClassInstance> = Box::new(JavaClassInstance::from_raw(result, &core));
             assert_eq!(JavaLangString::to_rust_string(&jvm, &result).await.unwrap(), "화장");
 
+            let caller = core.save_context();
+            let result = method.run(vec![chars.into(), (-1).into(), 2.into()].into_boxed_slice()).await;
+            assert!(matches!(result, Err(WieError::JavaException(_))));
+            let restored = core.save_context();
+            assert_eq!(
+                (restored.r0, restored.r1, restored.sp, restored.lr, restored.pc),
+                (caller.r0, caller.r1, caller.sp, caller.lr, caller.pc)
+            );
+
             write_generic(&mut core, ptr_args + 4, (-1i32) as u32)?;
             let result = core.run_function::<u32>(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await;
             assert!(matches!(result, Err(WieError::JavaException(_))));
@@ -859,6 +868,21 @@ mod test {
                         assert_eq!(jvm.load_array::<i32>(&destination, 0, 4).await.unwrap(), vec![22, 33, 0, 0]);
                     }
                 }
+
+                if name == "arraycopy" {
+                    core.load(&[0x55, 0x24, 0x00, 0xe8], 0x10000, 0x1000)?; // movs r4, #0x55; undefined
+                    let mut faulting_method = raw;
+                    faulting_method.fn_body_native_or_exception_table = 0x10001;
+                    write_generic(&mut core, method.ptr_raw, faulting_method)?;
+                    let result = method.run(args.into_boxed_slice()).await;
+                    let Err(WieError::FatalError(message)) = result else {
+                        panic!("Expected an ARM instruction fault");
+                    };
+                    assert!(message.contains("Undefined instruction at 0x10002"), "{message}");
+                    assert!(message.contains("R4: 0x55"), "{message}");
+                    assert_eq!(core.save_context().r4, 0x55);
+                    write_generic(&mut core, method.ptr_raw, raw)?;
+                }
             }
 
             done_clone.store(true, Ordering::Relaxed);
@@ -874,6 +898,14 @@ mod test {
 
     #[test]
     fn test_exception_class_matches_raw_class_and_vtable() -> Result<()> {
+        async fn throw_from_nested_call(core: &mut ArmCore, (jvm, ptr_exception): &mut (Jvm, u32)) -> Result<JavaMethodResult> {
+            let mut context = core.save_context();
+            context.r4 = 0x99;
+            core.restore_context(&context);
+            let exception = Box::new(JavaClassInstance::from_raw(*ptr_exception, core));
+            JavaMethod::handle_exception(core, jvm, exception).await
+        }
+
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
 
         let done = Arc::new(AtomicBool::new(false));
@@ -993,6 +1025,25 @@ mod test {
                 .invoke_virtual(&caught, "java/lang/Throwable", "printStackTrace", "()V", ())
                 .await
                 .unwrap();
+
+            core.register_svc_handler(5, throw_from_nested_call, &(jvm, ptr_exception))?;
+            let throwing = core.make_svc_stub(5, 0u32)?;
+            let ptr_interface = get_wipi_jb_interface(&mut core)?;
+            let interface: WIPIJBInterface = read_generic(&core, ptr_interface)?;
+            let mut caller = core.save_context();
+            caller.r4 = 0x55;
+            core.restore_context(&caller);
+            write_generic(&mut core, 0x10218 + 9 * 4, caller.sp)?;
+            write_generic(&mut core, 0x10400, [0x4620u16, 0x4770])?; // mov r0, r4; bx lr
+            for (entry, args) in [
+                (interface.fn_java_jump_1, vec![0, throwing]),
+                (interface.fn_java_jump_2, vec![0, 0, throwing]),
+                (interface.fn_java_jump_3, vec![0, 0, 0, throwing]),
+                (interface.fn_call_native, vec![throwing, 0x10500]),
+            ] {
+                let result: u32 = core.run_function(entry, &args).await?;
+                assert_eq!(result, caller.r4);
+            }
 
             done_clone.store(true, Ordering::Relaxed);
 
