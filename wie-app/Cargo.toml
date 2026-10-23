@@ -21,6 +21,7 @@ serde = { workspace = true }
 sentry = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 wie = { workspace = true }
 wie-backend = { workspace = true }
 wie-core-arm-native = { workspace = true }
