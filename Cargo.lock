@@ -7281,6 +7281,7 @@ dependencies = [
  "tauri-plugin-log",
  "tempfile",
  "tracing",
+ "tracing-subscriber",
  "wie",
  "wie-app-android",
  "wie-backend",

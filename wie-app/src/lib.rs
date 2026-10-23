@@ -12,6 +12,7 @@ mod settings;
 mod store;
 
 use tauri::{Manager, RunEvent, WindowEvent};
+use tracing_subscriber::layer::SubscriberExt;
 
 use runtime::AppState;
 
@@ -23,6 +24,8 @@ pub fn run() {
             .environment(option_env!("ENVIRONMENT").unwrap_or("development"))
             .release(option_env!("SENTRY_RELEASE").unwrap_or("local")),
     );
+    tracing::subscriber::set_global_default(tracing_subscriber::registry().with(sentry::integrations::tracing::layer()))
+        .expect("error while installing tracing subscriber");
 
     tauri::Builder::default()
         .setup(|app| {
