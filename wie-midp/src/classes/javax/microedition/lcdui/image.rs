@@ -28,6 +28,8 @@ impl Image {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
+                // SKVM exposes a public no-argument constructor.
+                JavaMethodProto::new("<init>", "()V", Self::init_empty, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("<init>", "(II[BI)V", Self::init, MethodAccessFlags::empty()),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
@@ -70,6 +72,12 @@ impl Image {
             ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
+    }
+
+    async fn init_empty(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Image::<init>({this:?})");
+
+        jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await
     }
 
     async fn init(
@@ -364,6 +372,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_can_be_constructed_without_pixel_data() -> wie_util::Result<()> {
+        test_utils::run_jvm_test(Box::new([crate::get_protos().into()]), |jvm| async move {
+            let image = jvm.new_class("javax/microedition/lcdui/Image", "()V", ()).await?;
+            let width: i32 = jvm
+                .invoke_virtual(&image, "javax/microedition/lcdui/Image", "getWidth", "()I", ())
+                .await?;
+            let height: i32 = jvm
+                .invoke_virtual(&image, "javax/microedition/lcdui/Image", "getHeight", "()I", ())
+                .await?;
+            assert_eq!((width, height), (0, 0));
+            Ok(())
+        })
+    }
 
     #[test]
     fn lbmp_images_preserve_grayscale_and_transparency_when_drawn() -> wie_util::Result<()> {
