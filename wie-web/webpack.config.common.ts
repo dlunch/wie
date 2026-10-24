@@ -48,6 +48,7 @@ class WasmPackPlugin {
           input: path.join(this.crateDir, "pkg/wie_web_bg.wasm"),
           debugOut: path.join(debugDir, "wie_web.debug.wasm"),
           strip: true,
+          stripNames: true,
         });
       }
     });
