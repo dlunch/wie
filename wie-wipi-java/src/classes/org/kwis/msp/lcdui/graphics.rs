@@ -264,7 +264,11 @@ impl Graphics {
                 "Ljavax/microedition/lcdui/Graphics;",
             )
             .await?;
-        let midp_font = Font::midp_font(jvm, &font).await?;
+        let midp_font = if font.is_null() {
+            None.into()
+        } else {
+            Font::midp_font(jvm, &font).await?
+        };
 
         jvm.invoke_virtual(
             &midp_graphics,
@@ -1170,7 +1174,10 @@ mod test {
     use wie_midp::classes::javax::microedition::lcdui::Image as MidpImage;
     use wie_util::Result;
 
-    use crate::{classes::org::kwis::msp::lcdui::Image, get_protos};
+    use crate::{
+        classes::org::kwis::msp::lcdui::{Font, Image},
+        get_protos,
+    };
 
     use super::Graphics;
 
@@ -1270,7 +1277,7 @@ mod test {
     }
 
     #[test]
-    fn test_draw_string_rejects_null() -> Result<()> {
+    fn test_null_text_and_font_arguments() -> Result<()> {
         run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (1, 1))
@@ -1279,6 +1286,21 @@ mod test {
                 .invoke_virtual(&image, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
                 .await?;
             let string: ClassInstanceRef<String> = None.into();
+
+            let font: ClassInstanceRef<Font> = None.into();
+            let _: () = jvm
+                .invoke_virtual(
+                    &graphics,
+                    "org/kwis/msp/lcdui/Graphics",
+                    "setFont",
+                    "(Lorg/kwis/msp/lcdui/Font;)V",
+                    (font,),
+                )
+                .await?;
+            let font: ClassInstanceRef<Font> = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "getFont", "()Lorg/kwis/msp/lcdui/Font;", ())
+                .await?;
+            assert!(!Font::midp_font(&jvm, &font).await?.is_null());
 
             assert!(
                 jvm.invoke_virtual::<_, ()>(
