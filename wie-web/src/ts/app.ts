@@ -185,8 +185,9 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
         void finish(event.cause ?? new Error(event.message));
         break;
     }
-  });
+  }, abortController.signal);
   void start.then(started => {
+    if (ending || abortController.signal.aborted) return;
     session = started;
     updateControls();
   }).catch(finish);

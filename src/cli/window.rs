@@ -1,10 +1,9 @@
 use alloc::sync::Arc;
-use core::{fmt::Debug, fmt::Formatter, num::NonZeroU32};
-use std::{fmt, sync::RwLock, vec};
+use std::sync::RwLock;
 
-use fast_image_resize::ResizeAlg;
-use fast_image_resize::{PixelType, ResizeOptions, SrcCropping};
-use softbuffer::{Context, Surface};
+use anyhow::{Error, Result, anyhow, bail};
+use futures::executor::block_on;
+use wgpu::{FilterMode, Instance, InstanceDescriptor, PollType};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize},
@@ -15,6 +14,8 @@ use winit::{
 };
 
 use wie_backend::{Screen, canvas::Image};
+use wie_renderer::{Frame, GpuContext, Presentation, Presenter, RenderTarget};
+use wie_util::{Result as WieResult, WieError};
 
 const MAX_DISPLAY_DIMENSION: u32 = 4096;
 const MAX_DISPLAY_PIXELS: u32 = 4 * 1024 * 1024;
@@ -27,24 +28,11 @@ fn is_valid_display_size(width: u32, height: u32) -> bool {
         && width.checked_mul(height).is_some_and(|pixels| pixels <= MAX_DISPLAY_PIXELS)
 }
 
-fn read_display_size(display_size: &RwLock<(u32, u32)>) -> (u32, u32) {
-    *display_size.read().unwrap()
-}
-
-fn write_display_size(display_size: &RwLock<(u32, u32)>, width: u32, height: u32) -> wie_util::Result<()> {
-    let mut display_size = display_size
-        .write()
-        .map_err(|_| wie_util::WieError::FatalError("Display size lock is poisoned".into()))?;
-    *display_size = (width, height);
-
-    Ok(())
-}
-
-#[derive(Debug)]
 pub enum WindowInternalEvent {
     Resize(u32, u32),
     RequestRedraw,
-    Paint(Vec<u32>),
+    Paint(Frame),
+    Error(String),
     Quit,
 }
 
@@ -67,64 +55,59 @@ impl WindowHandle {
         }
     }
 
-    fn send_event(&self, event: WindowInternalEvent) -> wie_util::Result<()> {
+    fn send_event(&self, event: WindowInternalEvent) -> WieResult<()> {
         self.event_loop_proxy
             .send_event(event)
-            .map_err(|_| wie_util::WieError::FatalError("Window event loop is closed".into()))
+            .map_err(|_| WieError::FatalError("Window event loop is closed".into()))
     }
 }
 
 impl Screen for WindowHandle {
-    fn resize(&self, width: u32, height: u32) -> wie_util::Result<()> {
+    fn resize(&self, width: u32, height: u32) -> WieResult<()> {
         if !is_valid_display_size(width, height) {
-            return Err(wie_util::WieError::FatalError(format!("Invalid display size: {width}x{height}")));
+            return Err(WieError::FatalError(format!("Invalid display size: {width}x{height}")));
         }
-
-        write_display_size(&self.display_size, width, height)?;
+        *self
+            .display_size
+            .write()
+            .map_err(|_| WieError::FatalError("Display size lock is poisoned".into()))? = (width, height);
         self.send_event(WindowInternalEvent::Resize(width, height))
     }
 
-    fn request_redraw(&self) -> wie_util::Result<()> {
+    fn request_redraw(&self) -> WieResult<()> {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
 
     fn paint(&self, image: &dyn Image) {
-        let data = image
-            .colors()
-            .iter()
-            .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
-            .collect::<Vec<_>>();
-
-        if let Err(error) = self.send_event(WindowInternalEvent::Paint(data)) {
+        if let Err(error) = self.send_event(WindowInternalEvent::Paint(Frame::from_image(image))) {
             tracing::warn!("Failed to send paint event: {error}");
         }
     }
 
     fn width(&self) -> u32 {
-        read_display_size(&self.display_size).0
+        self.display_size.read().unwrap().0
     }
 
     fn height(&self) -> u32 {
-        read_display_size(&self.display_size).1
+        self.display_size.read().unwrap().1
     }
 }
 
 pub struct WindowImpl {
     display_size: Arc<RwLock<(u32, u32)>>,
     event_loop: EventLoop<WindowInternalEvent>,
+    filter: FilterMode,
 }
 
 impl WindowImpl {
-    pub fn new(width: u32, height: u32) -> anyhow::Result<Self> {
+    pub fn new(width: u32, height: u32, filter: FilterMode) -> Result<Self> {
         if !is_valid_display_size(width, height) {
-            anyhow::bail!("Invalid display size: {width}x{height}");
+            bail!("Invalid display size: {width}x{height}");
         }
-
-        let event_loop = EventLoop::<WindowInternalEvent>::with_user_event().build()?;
-
         Ok(Self {
             display_size: Arc::new(RwLock::new((width, height))),
-            event_loop,
+            event_loop: EventLoop::<WindowInternalEvent>::with_user_event().build()?,
+            filter,
         })
     }
 
@@ -135,306 +118,226 @@ impl WindowImpl {
         }
     }
 
-    pub fn run<C>(self, callback: C) -> anyhow::Result<()>
+    pub fn run<C>(self, callback: C) -> Result<()>
     where
-        C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
+        C: FnMut(WindowCallbackEvent) -> WieResult<()> + 'static,
     {
         self.event_loop.set_control_flow(ControlFlow::Poll);
-
-        const DEFAULT_USER_SCALE_FACTOR: f64 = 1.0;
-        let (width, height) = read_display_size(&self.display_size);
-        let orig_size = LogicalSize::new(width, height);
+        let (width, height) = *self.display_size.read().unwrap();
         let mut handler = ApplicationHandlerImpl {
+            content_size: LogicalSize::new(width, height),
             native_scale_factor: 1.0,
-            user_scale_factor: DEFAULT_USER_SCALE_FACTOR,
-            content_size: orig_size,
-            scaled_size: orig_size.to_physical(1.0),
-            window_size: Default::default(),
-            scaler: Scaler::Native,
-            scaled_image_buf: Default::default(),
+            user_scale_factor: 1.0,
+            scaled_size: PhysicalSize::new(width, height),
             window: None,
+            instance: Instance::new(InstanceDescriptor::new_with_display_handle(Box::new(
+                self.event_loop.owned_display_handle(),
+            ))),
             context: None,
-            surface: None,
-            callback: Box::new(callback),
-            last_frame: vec![0u32; (width * height) as usize],
+            presenter: None,
+            target: None,
+            pending_frame: None,
+            filter: self.filter,
+            retry_used: false,
+            waiting_for_output: false,
+            proxy: self.event_loop.create_proxy(),
+            callback,
+            error: None,
         };
-
-        Ok(self.event_loop.run_app(&mut handler)?)
-    }
-}
-
-enum Scaler {
-    /// 1:1 native scaling.
-    Native,
-    /// Lanczos3 scaling
-    Lanczos3 { scale: f64, resizer: fast_image_resize::Resizer },
-}
-
-impl fmt::Display for Scaler {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Scaler::Native => f.write_str("Native")?,
-            Scaler::Lanczos3 { scale, resizer: _ } => f.write_fmt(format_args!("Lanczos3({scale})"))?,
-        }
-        Ok(())
-    }
-}
-
-impl Scaler {
-    fn new(scale: f64) -> Scaler {
-        match scale {
-            _ if (scale - 1.0).abs() < 1e-3 => Scaler::Native,
-            _ => Scaler::Lanczos3 {
-                scale,
-                resizer: fast_image_resize::Resizer::new(),
-            },
-        }
-    }
-
-    fn scale(&self) -> f64 {
-        match self {
-            Scaler::Native => 1.0,
-            Scaler::Lanczos3 { scale, resizer: _ } => *scale,
-        }
-    }
-
-    fn to_physical(&self, logical_size: LogicalSize<u32>) -> PhysicalSize<u32> {
-        match self {
-            Scaler::Native => PhysicalSize::new(logical_size.width, logical_size.height),
-            Scaler::Lanczos3 { scale, resizer: _ } => PhysicalSize::new(
-                (logical_size.width as f64 * *scale).floor() as u32,
-                (logical_size.height as f64 * *scale).floor() as u32,
-            ),
-        }
-    }
-
-    fn scale_image(&mut self, dst: &mut Vec<u32>, src: &[u32], dst_size: PhysicalSize<u32>, src_size: LogicalSize<u32>) {
-        match self {
-            Scaler::Native => dst.copy_from_slice(src),
-            Scaler::Lanczos3 { scale: _, resizer } => {
-                let (_, srcarr, _) = unsafe { src.align_to::<u8>() };
-                let srcimg = fast_image_resize::images::ImageRef::new(src_size.width, src_size.height, srcarr, PixelType::U8x4).unwrap();
-                let (_, dstarr, _) = unsafe { dst.as_mut_slice().align_to_mut::<u8>() };
-                let mut dstimg = fast_image_resize::images::Image::from_slice_u8(dst_size.width, dst_size.height, dstarr, PixelType::U8x4).unwrap();
-                resizer
-                    .resize(
-                        &srcimg,
-                        &mut dstimg,
-                        Some(&ResizeOptions {
-                            #[cfg(debug_assertions)]
-                            algorithm: ResizeAlg::Nearest,
-                            #[cfg(not(debug_assertions))]
-                            algorithm: ResizeAlg::Convolution(fast_image_resize::FilterType::Lanczos3),
-                            cropping: SrcCropping::None,
-                            mul_div_alpha: false,
-                        }),
-                    )
-                    .unwrap();
-            }
+        self.event_loop.run_app(&mut handler)?;
+        match handler.error {
+            Some(error) => Err(error),
+            None => Ok(()),
         }
     }
 }
 
-pub struct ApplicationHandlerImpl<C>
-where
-    C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
-{
-    /// Native scale factor of the emulator window.
-    native_scale_factor: f64,
-    /// User specified scale factor.
-    user_scale_factor: f64,
-    /// Scaler config.
-    /// Actual scaling factor = native_scale_factor + user_scale_factor
-    scaler: Scaler,
-    /// Temporary buffer for scaler.
-    scaled_image_buf: Vec<u32>,
-
-    /// content screen size.
+struct ApplicationHandlerImpl<C> {
     content_size: LogicalSize<u32>,
-    /// Scaled screen size.
-    /// Equals to orig_size * scale_factor.
+    native_scale_factor: f64,
+    user_scale_factor: f64,
     scaled_size: PhysicalSize<u32>,
-    /// Size of the OS window.
-    window_size: PhysicalSize<u32>,
-    /// Last content screen image data.
-    last_frame: Vec<u32>,
-
+    presenter: Option<Presenter<'static>>,
+    target: Option<RenderTarget>,
+    context: Option<GpuContext>,
+    instance: Instance,
     window: Option<Arc<WinitWindow>>,
-    context: Option<Context<Arc<WinitWindow>>>,
-    surface: Option<Surface<Arc<WinitWindow>, Arc<WinitWindow>>>,
-    callback: Box<C>,
+    pending_frame: Option<Frame>,
+    filter: FilterMode,
+    retry_used: bool,
+    waiting_for_output: bool,
+    proxy: EventLoopProxy<WindowInternalEvent>,
+    callback: C,
+    error: Option<Error>,
 }
 
 impl<C> ApplicationHandlerImpl<C>
 where
-    C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
+    C: FnMut(WindowCallbackEvent) -> WieResult<()> + 'static,
 {
-    fn callback(&mut self, event: WindowCallbackEvent, event_loop: &ActiveEventLoop) {
-        let result = (self.callback)(event);
-        if let Err(x) = result {
-            tracing::error!(target: "wie", "{x}");
+    fn fail(&mut self, error: Error, event_loop: &ActiveEventLoop) {
+        tracing::error!(target: "wie", "{error:#}");
+        self.error = Some(error);
+        event_loop.exit();
+    }
 
-            event_loop.exit();
+    fn callback(&mut self, event: WindowCallbackEvent, event_loop: &ActiveEventLoop) {
+        if let Err(error) = (self.callback)(event) {
+            self.fail(error.into(), event_loop);
         }
     }
 
-    /// Sets the native/user scale factor.
-    /// After calling this you'll need to call [`Self::on_resize`] to update the surface accordingly.
-    fn update_scale_factor(&mut self, native: Option<f64>, user: Option<f64>) {
-        if let Some(f) = native {
-            self.native_scale_factor = f
+    fn create_presenter(&mut self) -> Result<()> {
+        let window = self.window.as_ref().unwrap();
+        let surface = self.instance.create_surface(window.clone())?;
+        if self.context.is_none() {
+            let proxy = self.proxy.clone();
+            self.context = Some(block_on(GpuContext::new(&self.instance, &surface, move |error| {
+                let _ = proxy.send_event(WindowInternalEvent::Error(format!("{error:#}")));
+            }))?);
         }
-        if let Some(f) = user {
-            self.user_scale_factor = f
+        let context = self.context.as_ref().unwrap();
+        let mut presenter = Presenter::new(context, surface, self.filter)?;
+        let size = window.inner_size();
+        presenter.resize(context, size.width, size.height)?;
+        self.presenter = Some(presenter);
+        Ok(())
+    }
+
+    fn redraw(&mut self) -> Result<()> {
+        if self.waiting_for_output {
+            return Ok(());
+        }
+        let Some(context) = &self.context else { return Ok(()) };
+        let Some(presenter) = &mut self.presenter else { return Ok(()) };
+        if let Some(frame) = self.pending_frame.take() {
+            if self
+                .target
+                .as_ref()
+                .is_none_or(|target| (target.width, target.height) != (frame.width, frame.height))
+            {
+                self.target = Some(RenderTarget::new(context, frame.width, frame.height)?);
+            }
+            self.target.as_ref().unwrap().upload(context, &frame);
+        }
+        match presenter.present(context, self.target.as_ref())? {
+            Presentation::Presented => self.retry_used = false,
+            Presentation::WaitForOutput => self.waiting_for_output = true,
+            outcome @ (Presentation::Retry | Presentation::RecreateSurface) => {
+                if self.retry_used {
+                    bail!("GPU presentation failed after retry");
+                }
+                self.retry_used = true;
+                if matches!(outcome, Presentation::RecreateSurface) {
+                    self.presenter = None;
+                    self.create_presenter()?;
+                }
+                self.window.as_ref().unwrap().request_redraw();
+            }
+        }
+        Ok(())
+    }
+
+    fn resize_output(&mut self, size: PhysicalSize<u32>) -> Result<()> {
+        self.waiting_for_output = size.width == 0 || size.height == 0;
+        self.retry_used = false;
+        if !self.waiting_for_output && size != self.scaled_size {
+            let scale =
+                (f64::from(size.width) / f64::from(self.content_size.width)).min(f64::from(size.height) / f64::from(self.content_size.height));
+            self.update_scale_factor(None, Some(scale - self.native_scale_factor));
+        }
+        if let (Some(context), Some(presenter)) = (&self.context, &mut self.presenter) {
+            presenter.resize(context, size.width, size.height)?;
+        }
+        self.window.as_ref().unwrap().request_redraw();
+        Ok(())
+    }
+
+    fn update_scale_factor(&mut self, native: Option<f64>, user: Option<f64>) {
+        if let Some(scale) = native {
+            self.native_scale_factor = scale;
+        }
+        if let Some(scale) = user {
+            self.user_scale_factor = scale;
         }
         if self.native_scale_factor + self.user_scale_factor < 0.1 {
-            tracing::info!(
-                "scale factor too small(native {} + user {}), resetting user_scale_factor",
-                self.native_scale_factor,
-                self.user_scale_factor
-            );
             self.user_scale_factor = 0.0;
         }
-
-        self.scaler = Scaler::new(self.native_scale_factor + self.user_scale_factor);
-        self.scaled_size = self.scaler.to_physical(self.content_size);
-        self.scaled_image_buf = vec![0u32; self.scaled_size.width as usize * self.scaled_size.height as usize];
-    }
-
-    fn resize_content(&mut self, width: u32, height: u32) {
-        let content_size = LogicalSize::new(width, height);
-        if self.content_size == content_size {
-            return;
-        }
-
-        self.content_size = content_size;
-        self.last_frame = vec![0u32; width as usize * height as usize];
-        self.update_scale_factor(None, None);
-
-        if let Some(window) = &self.window {
-            if let Some(new_size) = window.request_inner_size(self.scaled_size) {
-                self.window_size = new_size;
-            }
-            self.on_resize();
-        }
-    }
-
-    /// Updates the scaled content image surface's size.
-    fn on_resize(&mut self) {
-        tracing::info!(
-            "on_resize scale=(native {}, actual {}), content={:?}, scaled={:?}, window={:?}",
-            self.native_scale_factor,
-            self.scaler.scale(),
-            self.content_size,
-            self.scaled_size,
-            self.window_size
+        let scale = self.native_scale_factor + self.user_scale_factor;
+        self.scaled_size = PhysicalSize::new(
+            (f64::from(self.content_size.width) * scale).floor() as u32,
+            (f64::from(self.content_size.height) * scale).floor() as u32,
         );
-        let surface = match self.surface.as_mut() {
-            None => {
-                self.surface = Some(Surface::new(self.context.as_ref().unwrap(), self.window.as_ref().unwrap().clone()).unwrap());
-                self.surface.as_mut().unwrap()
-            }
-            Some(surface) => {
-                let desired_len = self.scaled_size.width * self.scaled_size.height;
-                if surface.buffer_mut().unwrap().len() == desired_len as usize {
-                    // nothing to do
-                    return;
-                };
-                surface
-            }
-        };
-
-        surface
-            .resize(
-                NonZeroU32::new(self.scaled_size.width).unwrap(),
-                NonZeroU32::new(self.scaled_size.height).unwrap(),
-            )
-            .unwrap();
-        self.paint_last_frame();
-    }
-
-    /// Displays the last content frame to the window.
-    fn paint_last_frame(&mut self) -> Option<()> {
-        let data = &self.last_frame;
-        let data_to_blit = if self.scaled_image_buf.len() == data.len() {
-            data
-        } else {
-            self.scaler
-                .scale_image(&mut self.scaled_image_buf, data, self.scaled_size, self.content_size);
-            &self.scaled_image_buf
-        };
-
-        let mut win_buf = self.surface.as_mut().unwrap().buffer_mut().unwrap();
-        if win_buf.len() == data_to_blit.len() {
-            win_buf.copy_from_slice(data_to_blit);
-        } else {
-            tracing::warn!(
-                "buffer size mismatch, skipping paint: {}, {} (content {:?}, scaled {:?}, win {:?})",
-                win_buf.len(),
-                data_to_blit.len(),
-                self.content_size,
-                self.scaled_size,
-                self.window_size
-            );
-            return None;
-        }
-        win_buf.present().unwrap();
-        Some(())
     }
 }
 
 impl<C> ApplicationHandler<WindowInternalEvent> for ApplicationHandlerImpl<C>
 where
-    C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
+    C: FnMut(WindowCallbackEvent) -> WieResult<()> + 'static,
 {
     fn new_events(&mut self, event_loop: &ActiveEventLoop, _cause: StartCause) {
-        self.callback(WindowCallbackEvent::Update, event_loop)
+        if let Some(context) = &self.context
+            && let Err(error) = context.device.poll(PollType::Poll)
+        {
+            self.fail(error.into(), event_loop);
+            return;
+        }
+        self.callback(WindowCallbackEvent::Update, event_loop);
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Initialize the window.
-        let window_attributes = WinitWindow::default_attributes()
-            .with_inner_size(self.content_size.to_physical::<u32>(1.0))
-            .with_title("WIE");
-        let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-        let context = Context::new(window.clone()).unwrap();
-        self.window = Some(window.clone());
-        self.context = Some(context);
-        self.window_size = window.inner_size();
-
-        // After the window is initialized we resize the window again with the correct scale factor.
-        self.update_scale_factor(Some(window.scale_factor()), Some(1.0));
-        if let Some(new_size) = window.request_inner_size(self.scaled_size) {
-            self.window_size = new_size;
+        let result = (|| -> Result<()> {
+            if self.window.is_none() {
+                let attributes = WinitWindow::default_attributes().with_inner_size(self.content_size).with_title("WIE");
+                let window = Arc::new(event_loop.create_window(attributes)?);
+                self.update_scale_factor(Some(window.scale_factor()), None);
+                let _ = window.request_inner_size(self.scaled_size);
+                self.window = Some(window);
+            }
+            if self.presenter.is_none() {
+                self.create_presenter()?;
+            }
+            self.waiting_for_output = false;
+            self.retry_used = false;
+            self.window.as_ref().unwrap().request_redraw();
+            Ok(())
+        })();
+        if let Err(error) = result {
+            self.fail(error, event_loop);
         }
-        self.on_resize();
+    }
+
+    fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+        self.presenter = None;
+        self.waiting_for_output = true;
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: WindowInternalEvent) {
         match event {
             WindowInternalEvent::Resize(width, height) => {
-                self.resize_content(width, height);
-            }
-            WindowInternalEvent::RequestRedraw => {
-                self.callback(WindowCallbackEvent::Redraw, event_loop);
-            }
-            WindowInternalEvent::Paint(data) => {
-                let expected_len = self.content_size.width as usize * self.content_size.height as usize;
-                if data.len() != expected_len {
-                    tracing::warn!(
-                        "frame size mismatch, skipping paint: {}, expected {} for {:?}",
-                        data.len(),
-                        expected_len,
-                        self.content_size
-                    );
-                    return;
+                let size = LogicalSize::new(width, height);
+                if self.content_size != size {
+                    self.content_size = size;
+                    self.update_scale_factor(None, None);
+                    self.target = None;
+                    self.pending_frame = None;
+                    if let Some(window) = &self.window {
+                        let _ = window.request_inner_size(self.scaled_size);
+                        window.request_redraw();
+                    }
                 }
-                self.last_frame = data;
-                self.paint_last_frame();
             }
-            WindowInternalEvent::Quit => {
-                event_loop.exit();
+            WindowInternalEvent::RequestRedraw => self.callback(WindowCallbackEvent::Redraw, event_loop),
+            WindowInternalEvent::Paint(frame) => {
+                self.pending_frame = Some(frame);
+                if !self.waiting_for_output
+                    && let Some(window) = &self.window
+                {
+                    window.request_redraw();
+                }
             }
+            WindowInternalEvent::Error(error) => self.fail(anyhow!(error), event_loop),
+            WindowInternalEvent::Quit => event_loop.exit(),
         }
     }
 
@@ -450,38 +353,36 @@ where
                         ..
                     },
                 ..
-            } => match state {
-                ElementState::Pressed => {
-                    self.callback(WindowCallbackEvent::Keydown(physical_key), event_loop);
-                }
-                ElementState::Released => {
-                    self.callback(WindowCallbackEvent::Keyup(physical_key), event_loop);
-                }
-            },
+            } => self.callback(
+                match state {
+                    ElementState::Pressed => WindowCallbackEvent::Keydown(physical_key),
+                    ElementState::Released => WindowCallbackEvent::Keyup(physical_key),
+                },
+                event_loop,
+            ),
             WindowEvent::RedrawRequested => {
-                self.paint_last_frame();
-            }
-            WindowEvent::Resized(new_size) => {
-                tracing::debug!("WindowResized {new_size:?}");
-                self.window_size = new_size;
-                if self.window_size != self.scaled_size {
-                    // Determine the new scale factor.
-                    let wscale = self.window_size.width as f64 / self.content_size.width as f64;
-                    let hscale = self.window_size.height as f64 / self.content_size.height as f64;
-                    let new_scale = wscale.min(hscale);
-                    let new_user_scale = new_scale - self.native_scale_factor;
-                    self.update_scale_factor(None, Some(new_user_scale));
+                if let Err(error) = self.redraw() {
+                    self.fail(error, event_loop);
                 }
-                self.on_resize();
+            }
+            WindowEvent::Resized(size) => {
+                if let Err(error) = self.resize_output(size) {
+                    self.fail(error, event_loop);
+                }
             }
             WindowEvent::ScaleFactorChanged {
                 scale_factor,
                 mut inner_size_writer,
             } => {
-                tracing::info!("ScaleFactorChanged {scale_factor}");
                 self.update_scale_factor(Some(scale_factor), None);
                 let _ = inner_size_writer.request_inner_size(self.scaled_size);
-                // Will receive WindowEvent::Resized soon, so no need to call self.on_resize().
+            }
+            WindowEvent::Occluded(occluded) => {
+                self.waiting_for_output = occluded;
+                if !occluded {
+                    self.retry_used = false;
+                    self.window.as_ref().unwrap().request_redraw();
+                }
             }
             _ => {}
         }
@@ -496,11 +397,110 @@ mod tests {
     fn validates_display_size_bounds() {
         assert!(is_valid_display_size(176, 220));
         assert!(is_valid_display_size(2048, 2048));
-
         assert!(!is_valid_display_size(0, 220));
         assert!(!is_valid_display_size(176, 0));
         assert!(!is_valid_display_size(4097, 1));
         assert!(!is_valid_display_size(4096, 1025));
         assert!(!is_valid_display_size(u32::MAX, 2));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires an isolated X11 display and a graphics adapter"]
+    fn retains_frame_when_only_the_output_window_is_resized() -> anyhow::Result<()> {
+        use std::{
+            sync::Arc,
+            thread,
+            time::{Duration, Instant},
+        };
+
+        use anyhow::{Context, ensure};
+        use winit::{event_loop::EventLoop, platform::x11::EventLoopBuilderExtX11};
+        use x11rb::{
+            connection::Connection,
+            protocol::xproto::{AtomEnum, ConfigureWindowAux, ConnectionExt, ImageFormat, MapState},
+        };
+
+        use wie_backend::{
+            Screen,
+            canvas::{ArgbPixel, VecImageBuffer},
+        };
+
+        use super::{WindowCallbackEvent, WindowImpl, WindowInternalEvent};
+
+        let event_loop = EventLoop::with_user_event().with_x11().with_any_thread(true).build()?;
+        let window = WindowImpl {
+            display_size: Arc::new(std::sync::RwLock::new((240, 320))),
+            event_loop,
+            filter: wgpu::FilterMode::Nearest,
+        };
+        let handle = window.handle();
+        let proxy = handle.event_loop_proxy.clone();
+        let capture = thread::spawn(move || -> anyhow::Result<()> {
+            let result = (|| -> anyhow::Result<()> {
+                let (connection, screen) = x11rb::connect(None)?;
+                let root = connection.setup().roots[screen].root;
+                let started = Instant::now();
+                let id = loop {
+                    let mut found = None;
+                    for id in connection.query_tree(root)?.reply()?.children {
+                        let name = connection.get_property(false, id, AtomEnum::WM_NAME, AtomEnum::ANY, 0, 16)?.reply()?;
+                        if name.value == b"WIE" && connection.get_window_attributes(id)?.reply()?.map_state == MapState::VIEWABLE {
+                            found = Some(id);
+                            break;
+                        }
+                    }
+                    if let Some(id) = found {
+                        break id;
+                    }
+                    ensure!(started.elapsed() < Duration::from_secs(10), "CLI window did not become visible");
+                    thread::sleep(Duration::from_millis(10));
+                };
+                for (width, height) in [(480, 640), (640, 480)] {
+                    connection
+                        .configure_window(id, &ConfigureWindowAux::new().width(width).height(height))?
+                        .check()?;
+                    connection.flush()?;
+                    let started = Instant::now();
+                    loop {
+                        let geometry = connection.get_geometry(id)?.reply()?;
+                        if u32::from(geometry.width) == width && u32::from(geometry.height) == height {
+                            let image = connection
+                                .get_image(ImageFormat::Z_PIXMAP, id, 0, 0, geometry.width, geometry.height, u32::MAX)?
+                                .reply()?;
+                            ensure!(image.data.len() == width as usize * height as usize * 4, "Expected 32-bit X11 image");
+                            let center = (height as usize / 2 * width as usize + width as usize / 2) * 4;
+                            let border = (height as usize / 2 * width as usize + 1) * 4;
+                            let filled = image.data[center..center + 3] == [0xff, 0xff, 0xff];
+                            let letterboxed = width != 640 || image.data[border..border + 3] == [0, 0, 0];
+                            if filled && letterboxed {
+                                break;
+                            }
+                        }
+                        ensure!(
+                            started.elapsed() < Duration::from_secs(10),
+                            "CLI did not present the retained frame at {width}x{height}"
+                        );
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                }
+                Ok(())
+            })();
+            let _ = proxy.send_event(WindowInternalEvent::Quit);
+            result
+        });
+        let mut painted = false;
+        let result = window.run(move |event| {
+            if matches!(event, WindowCallbackEvent::Update) && !painted {
+                painted = true;
+                handle.paint(&VecImageBuffer::<ArgbPixel>::from_raw(240, 320, vec![0xffffffff; 240 * 320]));
+            }
+            Ok(())
+        });
+        capture
+            .join()
+            .map_err(|_| anyhow::anyhow!("CLI screenshot worker panicked"))?
+            .context("CLI retained-frame capture failed")?;
+        result
     }
 }

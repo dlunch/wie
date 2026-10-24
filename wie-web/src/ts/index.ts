@@ -27,11 +27,6 @@ const main = async () => {
   }
   if (backend.rendering === "canvas") {
     output.className = "canvas-wrapper";
-    const canvas = document.createElement("canvas");
-    canvas.id = "canvas";
-    canvas.width = 240;
-    canvas.height = 320;
-    output.prepend(canvas);
   } else {
     output.className = "native-preparation";
   }

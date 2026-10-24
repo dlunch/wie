@@ -10,6 +10,14 @@ use tauri::Manager;
 #[cfg_attr(target_os = "windows", path = "settings/windows.rs")]
 mod platform;
 
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScaleFilter {
+    #[default]
+    Linear,
+    Nearest,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -17,6 +25,8 @@ pub struct Settings {
     pub pcm_volume: f32,
     pub help_dismissed: bool,
     pub welcome_seen: bool,
+    #[serde(default)]
+    pub scale_filter: ScaleFilter,
 }
 
 impl Default for Settings {
@@ -26,6 +36,7 @@ impl Default for Settings {
             pcm_volume: 0.5,
             help_dismissed: false,
             welcome_seen: false,
+            scale_filter: ScaleFilter::Linear,
         }
     }
 }

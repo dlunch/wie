@@ -1,6 +1,5 @@
 use std::{
     cell::{Cell, RefCell},
-    num::NonZeroU32,
     rc::Rc,
 };
 
@@ -11,23 +10,22 @@ use jni::{
     sys::jint,
 };
 use ndk::native_window::NativeWindow;
-use raw_window_handle::DisplayHandle;
-use softbuffer::{Context, Surface};
+use raw_window_handle::{AndroidDisplayHandle, AndroidNdkWindowHandle, RawDisplayHandle, RawWindowHandle};
 use tauri::wry::prelude::find_class;
+use wgpu::{Instance, Surface, SurfaceTargetUnsafe};
 
-use super::{Frame, VIEW, report_error};
+use super::{VIEW, release_surface, report_error, request_redraw};
 
-pub(super) struct View {
+pub struct View {
     vm: JavaVM,
     helper: GlobalRef,
-    surface: RefCell<Option<Surface<DisplayHandle<'static>, NativeWindow>>>,
+    window: RefCell<Option<NativeWindow>>,
     size: Cell<(u32, u32)>,
-    frame: RefCell<Option<Frame>>,
     playing: Cell<bool>,
 }
 
 impl View {
-    pub(super) fn new(env: &mut JNIEnv<'_>, activity: &JObject<'_>, webview: &JObject<'_>) -> Result<Rc<Self>> {
+    pub fn new(env: &mut JNIEnv<'_>, activity: &JObject<'_>, webview: &JObject<'_>) -> Result<Rc<Self>> {
         let class = find_class(env, activity, "net/dlunch/wie/screen/NativeScreenView".into())?;
         let helper = env.new_object(
             class,
@@ -37,18 +35,18 @@ impl View {
         Ok(Rc::new(Self {
             vm: env.get_java_vm()?,
             helper: env.new_global_ref(helper)?,
-            surface: RefCell::new(None),
+            window: RefCell::new(None),
             size: Cell::new((0, 0)),
-            frame: RefCell::new(None),
             playing: Cell::new(false),
         }))
     }
 
-    pub(super) fn set_playing(&self, playing: bool) -> Result<()> {
+    pub fn set_playing(&self, playing: bool) -> Result<()> {
         self.playing.set(playing);
         if !playing {
-            self.surface.take();
-            self.frame.take();
+            release_surface();
+            self.window.take();
+            self.size.set((0, 0));
         }
         let mut env = self.vm.attach_current_thread()?;
         if let Err(error) = env.call_method(&self.helper, "setPlaying", "(Z)V", &[JValue::Bool(playing.into())]) {
@@ -58,46 +56,47 @@ impl View {
         Ok(())
     }
 
-    pub(super) fn present(&self, frame: Frame) -> Result<()> {
-        self.frame.replace(Some(frame));
-        self.resize()
-    }
-
-    pub(super) fn resize(&self) -> Result<()> {
-        let (width, height) = self.size.get();
-        let (Some(width), Some(height)) = (NonZeroU32::new(width), NonZeroU32::new(height)) else {
-            return Ok(());
-        };
-        let mut surface = self.surface.borrow_mut();
-        let Some(surface) = surface.as_mut() else { return Ok(()) };
-        surface.resize(width, height).map_err(|error| anyhow!(error.to_string()))?;
-        let mut buffer = surface.buffer_mut().map_err(|error| anyhow!(error.to_string()))?;
-        if let Some(frame) = self.frame.borrow().as_ref() {
-            frame.draw_into(&mut buffer, width.get(), height.get());
-        } else {
-            buffer.fill(0);
-        }
-        buffer.present().map_err(|error| anyhow!(error.to_string()))
+    pub fn resize(&self) -> Result<()> {
+        request_redraw();
+        Ok(())
     }
 
     fn surface_changed(&self, env: &JNIEnv<'_>, surface: &JObject<'_>, width: u32, height: u32) -> Result<()> {
-        self.surface.take();
+        release_surface();
+        self.window.take();
+        self.size.set((0, 0));
         if !self.playing.get() {
             return Ok(());
         }
         let window =
             unsafe { NativeWindow::from_surface(env.get_raw(), surface.as_raw()) }.ok_or_else(|| anyhow!("Android surface is unavailable"))?;
-        let context = Context::new(DisplayHandle::android()).map_err(|error| anyhow!(error.to_string()))?;
-        let surface = Surface::new(&context, window).map_err(|error| anyhow!(error.to_string()))?;
-        self.surface.replace(Some(surface));
+        self.window.replace(Some(window));
         self.size.set((width, height));
         self.resize()
     }
 
-    pub(super) fn close(&self) {
+    pub fn surface(&self, instance: &Instance) -> Result<Option<Surface<'static>>> {
+        let window = self.window.borrow();
+        let Some(window) = window.as_ref() else { return Ok(None) };
+        let raw_window = RawWindowHandle::AndroidNdk(AndroidNdkWindowHandle::new(window.ptr().cast()));
+        // Surface destruction releases the presenter before this UI-owned ANativeWindow.
+        Ok(Some(unsafe {
+            instance.create_surface_unsafe(SurfaceTargetUnsafe::RawHandle {
+                raw_display_handle: Some(RawDisplayHandle::Android(AndroidDisplayHandle::new())),
+                raw_window_handle: raw_window,
+            })
+        }?))
+    }
+
+    pub fn output_size(&self) -> Result<(u32, u32)> {
+        Ok(self.size.get())
+    }
+
+    pub fn close(&self) {
         self.playing.set(false);
-        self.surface.take();
-        self.frame.take();
+        release_surface();
+        self.window.take();
+        self.size.set((0, 0));
         let result = (|| -> Result<()> {
             let mut env = self.vm.attach_current_thread()?;
             if let Err(error) = env.call_method(&self.helper, "close", "()V", &[]) {
@@ -133,6 +132,8 @@ extern "system" fn Java_net_dlunch_wie_screen_NativeScreenView_nativeSurfaceDest
     // This callback must release every ANativeWindow reference before returning to Android.
     let view = VIEW.with_borrow(Clone::clone);
     if let Some(view) = view {
-        view.native.surface.take();
+        release_surface();
+        view.native.window.take();
+        view.native.size.set((0, 0));
     }
 }

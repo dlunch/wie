@@ -19,6 +19,7 @@ use clap::Parser;
 use directories::ProjectDirs;
 use midir::MidiOutput;
 use sentry::{Hub, protocol::Context};
+use wgpu::FilterMode;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie::{determine_file_type, extract_app_metadata, load_emulator};
@@ -119,6 +120,9 @@ struct Args {
     /// Select a MIDI output by zero-based index.
     #[arg(long, value_name = "INDEX")]
     midi_device: Option<usize>,
+    /// Filter used when scaling the display.
+    #[arg(long, default_value = "linear", value_parser = ["linear", "nearest"])]
+    scale_filter: String,
     /// List available MIDI output devices and exit.
     #[arg(long, conflicts_with_all = ["filename", "debug", "profile_out", "midi_device"])]
     list_midi_devices: bool,
@@ -154,7 +158,12 @@ pub fn run() -> anyhow::Result<()> {
     };
     let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;
 
-    start(filename, options, args.midi_device, directories.data_dir())
+    let filter = if args.scale_filter == "nearest" {
+        FilterMode::Nearest
+    } else {
+        FilterMode::Linear
+    };
+    start(filename, options, args.midi_device, directories.data_dir(), filter)
 }
 
 fn list_midi_devices() -> anyhow::Result<()> {
@@ -177,9 +186,9 @@ fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallba
     }))
 }
 
-fn start(filename: &str, options: Options, midi_device: Option<usize>, data_dir: &Path) -> anyhow::Result<()> {
+fn start(filename: &str, options: Options, midi_device: Option<usize>, data_dir: &Path, filter: FilterMode) -> anyhow::Result<()> {
     let _scope = Hub::current().push_scope();
-    let window = WindowImpl::new(240, 320)?;
+    let window = WindowImpl::new(240, 320, filter)?;
     let font = Font::try_from_static(include_bytes!("../assets/neodgm.ttf"))?;
     let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device, data_dir));
 
@@ -341,5 +350,9 @@ mod tests {
 
         assert_eq!(args.filename.as_deref(), Some("app.jar"));
         assert_eq!(args.midi_device, Some(1));
+        assert_eq!(args.scale_filter, "linear");
+        let nearest = Args::try_parse_from(["wie", "app.jar", "--scale-filter", "nearest"]).unwrap();
+        assert_eq!(nearest.scale_filter, "nearest");
+        assert!(Args::try_parse_from(["wie", "app.jar", "--scale-filter", "invalid"]).is_err());
     }
 }

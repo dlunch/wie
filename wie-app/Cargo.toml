@@ -37,13 +37,17 @@ tauri-plugin-log = "2.8.0"
 alsa = "0.11"
 glib = { version = "0.18", features = ["v2_66"] }
 gtk = "0.18"
+wayland-backend = { version = "0.3", features = ["client_system"] }
+wayland-client = "0.31"
 
 [target.'cfg(not(target_vendor = "apple"))'.dependencies]
 rodio = { version = "^0.22", features = ["playback"] }
 
-[target.'cfg(not(any(target_os = "linux", target_os = "ios")))'.dependencies]
-softbuffer = "0.4.8"
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+futures = { workspace = true, features = ["executor"] }
 raw-window-handle = "0.6"
+wgpu = { workspace = true }
+wie-renderer = { workspace = true }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 block2 = "0.6"

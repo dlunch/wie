@@ -6,7 +6,7 @@ use jni::{
 };
 use tauri::{AppHandle, Manager};
 
-use super::Settings;
+use super::{ScaleFilter, Settings};
 
 async fn helper(app: &AppHandle) -> Result<(JavaVM, GlobalRef)> {
     let (tx, rx) = oneshot::channel();
@@ -55,16 +55,21 @@ pub(super) async fn write(app: &AppHandle, settings: Settings) -> Result<()> {
     let (vm, helper) = helper(app).await?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut env = vm.attach_current_thread()?;
+        let filter = env.new_string(match settings.scale_filter {
+            ScaleFilter::Linear => "linear",
+            ScaleFilter::Nearest => "nearest",
+        })?;
         let result = env
             .call_method(
                 helper.as_obj(),
                 "write",
-                "(FFZZ)V",
+                "(FFZZLjava/lang/String;)V",
                 &[
                     JValue::Float(settings.midi_volume),
                     JValue::Float(settings.pcm_volume),
                     JValue::Bool(settings.help_dismissed.into()),
                     JValue::Bool(settings.welcome_seen.into()),
+                    JValue::Object(&filter),
                 ],
             )
             .map(|_| ())

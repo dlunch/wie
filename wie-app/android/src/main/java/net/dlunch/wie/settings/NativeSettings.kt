@@ -5,6 +5,7 @@ import androidx.annotation.Keep
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -16,6 +17,7 @@ private val midiVolumeKey = floatPreferencesKey("midiVolume")
 private val pcmVolumeKey = floatPreferencesKey("pcmVolume")
 private val helpDismissedKey = booleanPreferencesKey("helpDismissed")
 private val welcomeSeenKey = booleanPreferencesKey("welcomeSeen")
+private val scaleFilterKey = stringPreferencesKey("scaleFilter")
 
 @Keep
 class NativeSettings(context: Context) {
@@ -28,15 +30,17 @@ class NativeSettings(context: Context) {
             .put("pcmVolume", settings[pcmVolumeKey] ?: 0.5f)
             .put("helpDismissed", settings[helpDismissedKey] ?: false)
             .put("welcomeSeen", settings[welcomeSeenKey] ?: false)
+            .put("scaleFilter", settings[scaleFilterKey] ?: "linear")
             .toString()
     }
 
-    fun write(midiVolume: Float, pcmVolume: Float, helpDismissed: Boolean, welcomeSeen: Boolean): Unit = runBlocking(Dispatchers.IO) {
+    fun write(midiVolume: Float, pcmVolume: Float, helpDismissed: Boolean, welcomeSeen: Boolean, scaleFilter: String): Unit = runBlocking(Dispatchers.IO) {
         context.settingsDataStore.edit { settings ->
             settings[midiVolumeKey] = midiVolume
             settings[pcmVolumeKey] = pcmVolume
             settings[helpDismissedKey] = helpDismissed
             settings[welcomeSeenKey] = welcomeSeen
+            settings[scaleFilterKey] = scaleFilter
         }
         Unit
     }

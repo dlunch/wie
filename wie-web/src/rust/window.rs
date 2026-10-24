@@ -1,59 +1,44 @@
-use alloc::{sync::Arc, vec::Vec};
-use core::sync::atomic::{AtomicBool, Ordering};
-
-use wasm_bindgen::{Clamped, JsCast};
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
+use alloc::sync::Arc;
+use std::sync::Mutex;
 
 use wie_backend::{Screen, canvas::Image};
+use wie_renderer::Frame;
 use wie_util::Result;
 
-pub struct WindowImpl {
-    canvas: HtmlCanvasElement,
-    should_redraw: Arc<AtomicBool>,
+pub struct Pending {
+    pub width: u32,
+    pub height: u32,
+    pub redraw: bool,
+    pub frame: Option<Frame>,
 }
 
-unsafe impl Send for WindowImpl {} // XXX We're on wasm, so it's fine
-unsafe impl Sync for WindowImpl {}
-
-impl WindowImpl {
-    pub fn new(canvas: HtmlCanvasElement, should_redraw: Arc<AtomicBool>) -> Self {
-        Self { canvas, should_redraw }
-    }
+pub struct WindowImpl {
+    pub pending: Arc<Mutex<Pending>>,
 }
 
 impl Screen for WindowImpl {
     fn resize(&self, width: u32, height: u32) -> Result<()> {
-        self.canvas.set_width(width);
-        self.canvas.set_height(height);
-        self.request_redraw()
+        let mut pending = self.pending.lock().unwrap();
+        pending.width = width;
+        pending.height = height;
+        pending.redraw = true;
+        Ok(())
     }
 
     fn request_redraw(&self) -> Result<()> {
-        self.should_redraw.store(true, Ordering::SeqCst);
-
+        self.pending.lock().unwrap().redraw = true;
         Ok(())
     }
 
     fn paint(&self, image: &dyn Image) {
-        let context = self
-            .canvas
-            .get_context("2d")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<CanvasRenderingContext2d>()
-            .unwrap();
-
-        let image_data = image.colors().into_iter().flat_map(|x| [x.r, x.g, x.b, x.a]).collect::<Vec<_>>();
-        let data = ImageData::new_with_u8_clamped_array_and_sh(Clamped(&image_data), self.width(), self.height()).unwrap();
-
-        context.put_image_data(&data, 0.0, 0.0).unwrap();
+        self.pending.lock().unwrap().frame = Some(Frame::from_image(image));
     }
 
     fn width(&self) -> u32 {
-        self.canvas.width()
+        self.pending.lock().unwrap().width
     }
 
     fn height(&self) -> u32 {
-        self.canvas.height()
+        self.pending.lock().unwrap().height
     }
 }

@@ -1,6 +1,3 @@
-mod frame;
-pub use frame::Frame;
-
 #[cfg(target_os = "android")]
 mod android;
 #[cfg(target_vendor = "apple")]
@@ -29,14 +26,18 @@ use std::{
     },
 };
 
-use anyhow::Result;
+use anyhow::{Result, anyhow, bail};
 use spin::Mutex;
 #[cfg(desktop)]
 use tauri::{LogicalSize, PhysicalSize};
 use tauri::{WebviewWindow, WindowEvent};
+use wgpu::{Device, FilterMode, Instance, InstanceDescriptor, PollType};
 
 use wie_backend::{Screen, canvas::Image};
+use wie_renderer::{Frame, GpuContext, Presentation, Presenter, RenderTarget};
 use wie_util::{Result as WieResult, WieError};
+
+use crate::settings::ScaleFilter;
 
 #[cfg(desktop)]
 const APP_WIDTH: f64 = 360.0;
@@ -51,10 +52,28 @@ thread_local! {
 
 #[derive(Default)]
 struct Pending {
+    session: Option<u64>,
+    filter: ScaleFilter,
     playing: bool,
     frame: Option<Frame>,
+    redraw: bool,
+    output_changed: bool,
     scheduled: bool,
+    device: Option<Device>,
     error: Option<String>,
+}
+
+struct Output {
+    presenter: Option<Presenter<'static>>,
+    target: Option<RenderTarget>,
+    context: Option<GpuContext>,
+    instance: Instance,
+    frame: Option<Frame>,
+    filter: FilterMode,
+    size: (u32, u32),
+    retry_used: bool,
+    waiting: bool,
+    session: u64,
 }
 
 #[cfg(desktop)]
@@ -65,6 +84,7 @@ struct LibraryWindow {
 }
 
 struct UiView {
+    output: RefCell<Option<Output>>,
     native: Rc<platform::View>,
     pending: Arc<Mutex<Pending>>,
     #[cfg(desktop)]
@@ -77,6 +97,7 @@ struct UiView {
 impl UiView {
     fn set_playing(&self, playing: bool) -> Result<()> {
         if !playing {
+            self.output.take();
             self.native.set_playing(false)?;
         }
         let changed = self.playing.replace(playing) != playing;
@@ -109,7 +130,103 @@ impl UiView {
         #[cfg(mobile)]
         let _ = changed;
         if playing {
+            let (session, filter) = {
+                let pending = self.pending.lock();
+                (pending.session.unwrap(), pending.filter)
+            };
+            #[cfg(target_os = "linux")]
+            let descriptor = InstanceDescriptor::new_with_display_handle(Box::new(self.native.display_handle()?));
+            #[cfg(not(target_os = "linux"))]
+            let descriptor = InstanceDescriptor::new_without_display_handle();
+            self.output.replace(Some(Output {
+                presenter: None,
+                target: None,
+                context: None,
+                instance: Instance::new(descriptor),
+                frame: None,
+                filter: match filter {
+                    ScaleFilter::Linear => FilterMode::Linear,
+                    ScaleFilter::Nearest => FilterMode::Nearest,
+                },
+                size: (0, 0),
+                retry_used: false,
+                waiting: false,
+                session,
+            }));
             self.native.set_playing(true)?;
+            self.pending.lock().redraw = true;
+        }
+        Ok(())
+    }
+
+    fn draw(&self, frame: Option<Frame>, output_changed: bool) -> Result<()> {
+        let mut output = self.output.borrow_mut();
+        let Some(output) = output.as_mut() else { return Ok(()) };
+        if frame.is_some() {
+            output.frame = frame;
+        }
+        if output.waiting && output_changed {
+            output.waiting = false;
+            output.retry_used = false;
+        }
+        let size = self.native.output_size()?;
+        // Retain only the newest CPU frame while uploads cannot be submitted.
+        if size.0 == 0 || size.1 == 0 || output.waiting {
+            output.waiting = true;
+            return Ok(());
+        }
+        if output.presenter.is_none() {
+            let Some(surface) = self.native.surface(&output.instance)? else {
+                output.waiting = true;
+                return Ok(());
+            };
+            if output.context.is_none() {
+                let pending = self.pending.clone();
+                let session = output.session;
+                // Native wgpu requests complete without callbacks to the GTK/Tauri event loop.
+                let context = futures::executor::block_on(GpuContext::new(&output.instance, &surface, move |error| {
+                    report_gpu_error(&pending, session, error);
+                }))?;
+                {
+                    let mut pending = self.pending.lock();
+                    if pending.session == Some(session) {
+                        pending.device = Some(context.device.clone());
+                    }
+                }
+                output.context = Some(context);
+            }
+            output.presenter = Some(Presenter::new(output.context.as_ref().unwrap(), surface, output.filter)?);
+            output.size = (0, 0);
+        }
+        let context = output.context.as_ref().unwrap();
+        let presenter = output.presenter.as_mut().unwrap();
+        if output.size != size {
+            presenter.resize(context, size.0, size.1)?;
+            output.size = size;
+        }
+        if let Some(frame) = output.frame.take() {
+            if output
+                .target
+                .as_ref()
+                .is_none_or(|target| (target.width, target.height) != (frame.width, frame.height))
+            {
+                output.target = Some(RenderTarget::new(context, frame.width, frame.height)?);
+            }
+            output.target.as_ref().unwrap().upload(context, &frame);
+        }
+        match presenter.present(context, output.target.as_ref())? {
+            Presentation::Presented => output.retry_used = false,
+            Presentation::WaitForOutput => output.waiting = true,
+            result @ (Presentation::Retry | Presentation::RecreateSurface) => {
+                if output.retry_used {
+                    bail!("Native presentation failed after one retry");
+                }
+                output.retry_used = true;
+                if matches!(result, Presentation::RecreateSurface) {
+                    output.presenter.take();
+                }
+                self.pending.lock().redraw = true;
+            }
         }
         Ok(())
     }
@@ -135,6 +252,7 @@ impl NativeView {
                 VIEW.set(Some(Rc::new(UiView {
                     native,
                     pending: state,
+                    output: RefCell::new(None),
                     #[cfg(desktop)]
                     window: window_for_view,
                     playing: Cell::new(false),
@@ -175,10 +293,18 @@ impl NativeView {
                 }
             }
             WindowEvent::Destroyed => {
-                listener.pending.lock().playing = false;
+                {
+                    let mut pending = listener.pending.lock();
+                    pending.session = None;
+                    pending.playing = false;
+                    pending.device = None;
+                    pending.frame = None;
+                    pending.redraw = false;
+                }
                 if let Err(error) = listener.dispatch(|| {
                     let view = VIEW.take();
                     if let Some(view) = view {
+                        view.output.take();
                         view.native.close();
                     }
                 }) {
@@ -197,7 +323,13 @@ impl NativeView {
             let mut pending = self.pending.lock();
             pending.playing = false;
             if !playing {
+                pending.session = None;
                 pending.frame = None;
+                pending.redraw = false;
+                pending.output_changed = false;
+                pending.scheduled = false;
+                pending.device = None;
+                pending.error = None;
             }
         }
         let (sender, receiver) = mpsc::sync_channel(1);
@@ -206,7 +338,7 @@ impl NativeView {
             let view = VIEW.with_borrow(Clone::clone);
             let result = match view {
                 Some(view) => view.set_playing(playing),
-                None => Err(anyhow::anyhow!(
+                None => Err(anyhow!(
                     pending.lock().error.take().unwrap_or_else(|| "Native screen is unavailable".into())
                 )),
             };
@@ -227,35 +359,59 @@ impl NativeView {
         self.schedule()
     }
 
+    pub fn begin_session(&self, session: u64, filter: ScaleFilter) {
+        let mut pending = self.pending.lock();
+        pending.session = Some(session);
+        pending.filter = filter;
+    }
+
+    pub fn poll(&self) -> Result<()> {
+        let (session, device) = {
+            let pending = self.pending.lock();
+            (pending.session, pending.device.clone())
+        };
+        if let Some(session) = session
+            && let Some(device) = device
+            && let Err(error) = device.poll(PollType::Poll)
+        {
+            report_gpu_error(&self.pending, session, error.into());
+        }
+        self.schedule()
+    }
+
     /// The session loop consumes asynchronous native rendering failures here.
     pub fn take_error(&self) -> Option<String> {
         self.pending.lock().error.take()
     }
 
     fn schedule(&self) -> Result<()> {
-        {
+        let session = {
             let mut pending = self.pending.lock();
-            if !pending.playing || pending.scheduled {
+            if !pending.playing || pending.scheduled || pending.error.is_some() || (pending.frame.is_none() && !pending.redraw) {
                 return Ok(());
             }
             pending.scheduled = true;
-        }
+            pending.session.unwrap()
+        };
         let pending = self.pending.clone();
         let result = self.dispatch(move || {
-            let frame = {
+            let (frame, output_changed) = {
                 let mut pending = pending.lock();
+                if pending.session != Some(session) {
+                    return;
+                }
                 pending.scheduled = false;
                 if !pending.playing {
                     return;
                 }
-                pending.frame.take()
+                pending.redraw = false;
+                (pending.frame.take(), std::mem::take(&mut pending.output_changed))
             };
             let view = VIEW.with_borrow(Clone::clone);
             if let Some(view) = view
-                && let Some(frame) = frame
-                && let Err(error) = view.native.present(frame)
+                && let Err(error) = view.draw(frame, output_changed)
             {
-                report_error(error);
+                report_gpu_error(&pending, session, error);
             }
         });
         if result.is_err() {
@@ -280,6 +436,36 @@ fn report_error(error: anyhow::Error) {
     VIEW.with_borrow(|view| {
         if let Some(view) = view {
             view.pending.lock().error.get_or_insert_with(|| format!("{error:#}"));
+        }
+    });
+}
+
+fn report_gpu_error(pending: &Mutex<Pending>, session: u64, error: anyhow::Error) {
+    let mut pending = pending.lock();
+    if pending.session == Some(session) {
+        log::error!("Native GPU failed: {error:#}");
+        pending.error.get_or_insert_with(|| format!("{error:#}"));
+    }
+}
+
+fn request_redraw() {
+    VIEW.with_borrow(|view| {
+        if let Some(view) = view {
+            let mut pending = view.pending.lock();
+            pending.redraw = true;
+            pending.output_changed = true;
+        }
+    });
+}
+
+fn release_surface() {
+    VIEW.with_borrow(|view| {
+        if let Some(view) = view {
+            if let Some(output) = view.output.borrow_mut().as_mut() {
+                output.presenter.take();
+                output.waiting = true;
+            }
+            view.pending.lock().redraw = false;
         }
     });
 }
@@ -318,15 +504,7 @@ impl Screen for NativeScreen {
     }
 
     fn paint(&self, image: &dyn Image) {
-        let frame = Frame {
-            width: image.width(),
-            height: image.height(),
-            pixels: image
-                .colors()
-                .into_iter()
-                .map(|color| (u32::from(color.r) << 16) | (u32::from(color.g) << 8) | u32::from(color.b))
-                .collect(),
-        };
+        let frame = Frame::from_image(image);
         if let Err(error) = self.view.present(frame) {
             self.view.pending.lock().error.get_or_insert_with(|| error.to_string());
         }

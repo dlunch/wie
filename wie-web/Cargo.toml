@@ -35,10 +35,14 @@ time = { version = "^0.3", features = ["wasm-bindgen"] }
 tracing-web = { version = "^0.1" }
 wasm-bindgen = { version = "^0.2" }
 wasm-bindgen-futures = { version = "^0.4" }
-web-sys = { version = "^0.3", features = ["HtmlCanvasElement", "CanvasRenderingContext2d", "ImageData", "Window", "Navigator"] }
+web-sys = { version = "^0.3", features = ["AbortSignal", "HtmlCanvasElement", "Window", "Navigator"] }
 
 wie = { workspace = true }
 wie-core-arm-aot = { workspace = true }
 wie-backend = { workspace = true }
 wie-core-arm-wasm = { workspace = true }
 wie-util = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wgpu = { workspace = true, features = ["webgl"] }
+wie-renderer = { workspace = true }

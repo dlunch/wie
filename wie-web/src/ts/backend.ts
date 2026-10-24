@@ -8,11 +8,14 @@ export interface LibraryApp {
   addedAt: number;
 }
 
+export type ScaleFilter = "linear" | "nearest";
+
 export interface Settings {
   midiVolume: number;
   pcmVolume: number;
   helpDismissed: boolean;
   welcomeSeen: boolean;
+  scaleFilter: ScaleFilter;
 }
 
 export type SessionEvent =
@@ -35,7 +38,7 @@ export interface Wie {
   deleteApp(id: string): Promise<void>;
   readSettings(): Promise<Settings>;
   writeSettings(settings: Settings): Promise<void>;
-  startApp(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession | undefined>;
+  startApp(id: string, onEvent: (event: SessionEvent) => void, signal: AbortSignal): Promise<PlayerSession | undefined>;
 }
 
 export const initializeWie = async (): Promise<Wie> => {

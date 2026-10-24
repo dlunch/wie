@@ -1,9 +1,9 @@
 use std::{fs, path::Path};
 
-use anyhow::{Result, ensure};
+use anyhow::{Result, bail, ensure};
 use gtk::glib::{FileError, FileSetContentsFlags, KeyFile, KeyFileFlags, file_set_contents_full};
 
-use super::Settings;
+use super::{ScaleFilter, Settings};
 
 pub(super) fn read(root: &Path) -> Result<Settings> {
     let file = KeyFile::new();
@@ -30,6 +30,13 @@ pub(super) fn read(root: &Path) -> Result<Settings> {
                 *flag = file.boolean("Settings", key)?;
             }
         }
+        if file.has_key("Settings", "scaleFilter")? {
+            settings.scale_filter = match file.string("Settings", "scaleFilter")?.as_str() {
+                "linear" => ScaleFilter::Linear,
+                "nearest" => ScaleFilter::Nearest,
+                value => bail!("Invalid scale filter: {value}"),
+            };
+        }
     }
     Ok(settings)
 }
@@ -41,6 +48,14 @@ pub(super) fn write(root: &Path, settings: &Settings) -> Result<()> {
     file.set_double("Settings", "pcmVolume", settings.pcm_volume.into());
     file.set_boolean("Settings", "helpDismissed", settings.help_dismissed);
     file.set_boolean("Settings", "welcomeSeen", settings.welcome_seen);
+    file.set_string(
+        "Settings",
+        "scaleFilter",
+        match settings.scale_filter {
+            ScaleFilter::Linear => "linear",
+            ScaleFilter::Nearest => "nearest",
+        },
+    );
     fs::create_dir_all(root)?;
     file_set_contents_full(
         root.join("settings.ini"),
@@ -57,7 +72,7 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use super::{Settings, read, write};
+    use super::{ScaleFilter, Settings, read, write};
 
     #[test]
     fn settings_persist_and_failed_updates_preserve_previous_values() {
@@ -68,6 +83,7 @@ mod tests {
         assert_eq!(defaults.pcm_volume, 0.5);
         assert!(!defaults.help_dismissed);
         assert!(!defaults.welcome_seen);
+        assert!(matches!(defaults.scale_filter, ScaleFilter::Linear));
         assert!(!root.exists());
 
         let settings = Settings {
@@ -75,6 +91,7 @@ mod tests {
             pcm_volume: 0.75,
             help_dismissed: true,
             welcome_seen: true,
+            scale_filter: ScaleFilter::Nearest,
         };
         write(&root, &settings).unwrap();
         write(&root, &settings).unwrap();
@@ -85,6 +102,7 @@ mod tests {
                 "pcmVolume": 0.75,
                 "helpDismissed": true,
                 "welcomeSeen": true,
+                "scaleFilter": "nearest",
             })
         );
         let path = root.join("settings.ini");
@@ -111,6 +129,7 @@ mod tests {
             "[Settings]\npcmVolume=nan\n",
             "[Settings]\npcmVolume=1.00000001\n",
             "[Settings]\nhelpDismissed=invalid\n",
+            "[Settings]\nscaleFilter=invalid\n",
         ] {
             fs::write(&path, contents).unwrap();
             assert!(read(&root).is_err());
@@ -122,6 +141,7 @@ mod tests {
         assert_eq!(partial.pcm_volume, 0.5);
         assert!(!partial.help_dismissed);
         assert!(partial.welcome_seen);
+        assert!(matches!(partial.scale_filter, ScaleFilter::Linear));
 
         fs::remove_file(&path).unwrap();
         fs::create_dir(&path).unwrap();

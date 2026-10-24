@@ -48,6 +48,7 @@ export const initializeWie = async (): Promise<Wie> => {
         pcmVolume: configStore.get("pcmVolume"),
         helpDismissed: configStore.get("helpDismissed"),
         welcomeSeen: configStore.get("welcomeSeen"),
+        scaleFilter: configStore.get("scaleFilter"),
       };
     },
     async writeSettings(settings) {
@@ -55,23 +56,32 @@ export const initializeWie = async (): Promise<Wie> => {
       configStore.set("pcmVolume", settings.pcmVolume);
       configStore.set("helpDismissed", settings.helpDismissed);
       configStore.set("welcomeSeen", settings.welcomeSeen);
+      configStore.set("scaleFilter", settings.scaleFilter);
       setMasterVolume(settings.midiVolume);
       setPcmVolume(settings.pcmVolume);
     },
-    async startApp(id, onEvent) {
-      const [app, archive, settings, fontResponse] = await Promise.all([
-        store.getApp(id),
-        store.getArchive(id),
-        backend.readSettings(),
-        fetch(new URL("../../../../assets/neodgm.ttf", import.meta.url)),
-      ]);
-      if (!app || !archive) throw new Error(t("appFileMissing"));
-      if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
-      const fontData = new Uint8Array(await fontResponse.arrayBuffer());
-      await migrateSaves(app.filename, archive, app.id);
-      setMasterVolume(settings.midiVolume);
-      setPcmVolume(settings.pcmVolume);
-      return startWasmSession(app.filename, archive, fontData, onEvent);
+    async startApp(id, onEvent, signal) {
+      if (signal.aborted) return;
+      try {
+        const [app, archive, settings, fontResponse] = await Promise.all([
+          store.getApp(id),
+          store.getArchive(id),
+          backend.readSettings(),
+          fetch(new URL("../../../../assets/neodgm.ttf", import.meta.url)),
+        ]);
+        if (signal.aborted) return;
+        if (!app || !archive) throw new Error(t("appFileMissing"));
+        if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
+        const fontData = new Uint8Array(await fontResponse.arrayBuffer());
+        if (signal.aborted) return;
+        await migrateSaves(app.filename, archive, app.id);
+        if (signal.aborted) return;
+        setMasterVolume(settings.midiVolume);
+        setPcmVolume(settings.pcmVolume);
+        return await startWasmSession(app.filename, archive, fontData, onEvent, signal, settings.scaleFilter);
+      } catch (error) {
+        if (!signal.aborted) throw error;
+      }
     },
   };
   return backend;

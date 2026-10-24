@@ -165,6 +165,7 @@ impl SessionWorker {
             session_id,
             NativeSessionWorker {
                 session: self,
+                session_id,
                 view,
                 filename,
                 bytes,
@@ -175,6 +176,7 @@ impl SessionWorker {
 
 pub(super) struct NativeSessionWorker {
     session: SessionWorker,
+    session_id: u64,
     view: NativeView,
     filename: String,
     bytes: Vec<u8>,
@@ -194,9 +196,11 @@ impl NativeSessionWorker {
                     suspended,
                 },
             view,
+            session_id,
             filename,
             bytes,
         } = self;
+        view.begin_session(session_id, settings.scale_filter);
         let warnings = events.clone();
         let mut audio = Audio::new(&app, settings.midi_volume, settings.pcm_volume, move |message| {
             let _ = warnings.send(SessionEvent::Warning { message });
@@ -285,6 +289,7 @@ impl NativeSessionWorker {
                 if exited.load(Ordering::Acquire) {
                     break;
                 }
+                view.poll()?;
                 if let Some(error) = view.take_error() {
                     return Err(anyhow!(error));
                 }

@@ -1,3 +1,4 @@
+import type { ScaleFilter } from "./backend";
 import type { LanguagePreference } from "./i18n";
 
 const defaults = {
@@ -6,6 +7,7 @@ const defaults = {
   pcmVolume: 0.5,
   helpDismissed: false,
   welcomeSeen: false,
+  scaleFilter: "linear" as ScaleFilter,
 };
 
 type Config = typeof defaults;
@@ -15,6 +17,9 @@ export const configStore = {
     try {
       const value: unknown = JSON.parse(localStorage.getItem(`wie_config_${key}`) ?? "null");
       if (key === "language" && value !== "system" && value !== "ko" && value !== "en") {
+        return defaults[key];
+      }
+      if (key === "scaleFilter" && value !== "linear" && value !== "nearest") {
         return defaults[key];
       }
       if (typeof value === typeof defaults[key] && (typeof value !== "number" || (value >= 0 && value <= 1))) {
