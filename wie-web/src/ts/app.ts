@@ -50,6 +50,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   let suspended = false;
   let ending = false;
   let start: Promise<PlayerSession | undefined>;
+  let warningTimer: ReturnType<typeof setTimeout> | undefined;
 
   playerTitle.textContent = app.title;
   playerWarning.hidden = true;
@@ -64,6 +65,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   const finish = async (error?: unknown, failed = false) => {
     if (ending) return;
     ending = true;
+    clearTimeout(warningTimer);
     abortController.abort();
     inputs.clear();
     updateControls();
@@ -175,8 +177,10 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
         updateControls();
         break;
       case "warning":
+        clearTimeout(warningTimer);
         playerWarning.textContent = event.message;
         playerWarning.hidden = false;
+        warningTimer = setTimeout(() => { playerWarning.hidden = true; }, 5000);
         break;
       case "stopped":
         void finish(undefined, event.failed);

@@ -428,6 +428,7 @@ svg {
 }
 
 .player-view {
+  --toolbar-height: 52px;
   min-height: 100dvh;
   background: #ffffff;
 }
@@ -435,7 +436,7 @@ svg {
 .player-toolbar {
   display: grid;
   width: min(100%, 480px);
-  height: 52px;
+  height: var(--toolbar-height);
   margin: 0 auto;
   grid-template-columns: 40px minmax(0, 1fr) 40px;
   align-items: center;
@@ -454,6 +455,7 @@ svg {
 
 .player-main {
   display: flex;
+  height: calc(100dvh - var(--toolbar-height));
   flex-direction: column;
   align-items: center;
 }
@@ -461,6 +463,7 @@ svg {
 .canvas-wrapper {
   position: relative;
   width: min(100vw, 480px);
+  min-height: 0;
   aspect-ratio: 3 / 4;
   background: var(--card-bg);
 }
@@ -469,6 +472,7 @@ svg {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
   background: var(--card-bg);
 }
 
@@ -500,7 +504,7 @@ svg {
 
 .native-preparation .player-status {
   position: fixed;
-  inset: 44px 0 0;
+  inset: 0;
   z-index: 1;
 }
 
@@ -522,6 +526,7 @@ svg {
 .button-container {
   display: flex;
   width: min(100%, 480px);
+  flex-shrink: 0;
   flex-direction: column;
   align-items: center;
   gap: 4px;
@@ -542,7 +547,7 @@ svg {
 .button-container button {
   display: flex;
   width: min(28%, 96px);
-  height: 30px;
+  height: 26px;
   align-items: center;
   justify-content: center;
   margin: 0;
@@ -557,40 +562,29 @@ svg {
 }
 
 .native .player-toolbar {
-  height: 44px;
-  padding-block: 2px;
+  display: none;
 }
 
 .native .player-main {
-  height: calc(100dvh - 44px);
+  height: 100dvh;
 }
 
 .native .player-warning {
-  flex: none;
-  max-height: 32px;
-  padding: 2px 12px;
-  overflow: auto;
-  font-size: 0.7rem;
-  line-height: 14px;
-}
-
-.native .player-warning[role="alert"] {
-  max-height: none;
-  padding: 12px;
-  font-size: 0.875rem;
-  line-height: 1.5;
+  position: fixed;
+  top: 8px;
+  z-index: 3;
+  width: calc(100% - 24px);
+  pointer-events: none;
 }
 
 .native .button-container {
   display: grid;
   min-height: 0;
-  max-height: 212px;
   flex: 1;
-  grid-auto-flow: column;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   align-items: stretch;
-  gap: 4px 12px;
+  gap: 4px;
   padding: 6px 12px 8px;
 }
 
@@ -606,6 +600,17 @@ svg {
 .native .button-container button {
   width: 100%;
   height: 100%;
+}
+
+.native .button-container .icon-button {
+  position: relative;
+  z-index: 2;
+  width: 32px;
+  justify-self: start;
+}
+
+.native .button-container #app-settings {
+  justify-self: end;
 }
 
 .app-dialog {
@@ -816,6 +821,20 @@ kbd {
 }
 
 @media (max-width: 600px) {
+  .player-view {
+    --toolbar-height: 40px;
+  }
+
+  .player-toolbar {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    padding-block: 2px;
+  }
+
+  .player-toolbar .icon-button {
+    width: 36px;
+    height: 36px;
+  }
+
   .settings-fields label {
     grid-template-columns: 20px minmax(0, 1fr);
   }
