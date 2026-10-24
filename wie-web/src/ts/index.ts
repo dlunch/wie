@@ -34,6 +34,9 @@ const main = async () => {
     output.prepend(canvas);
   } else {
     output.className = "native-preparation";
+    const keypadTopRow = document.querySelector(".button-container p")!;
+    keypadTopRow.prepend(document.getElementById("back-to-library")!);
+    keypadTopRow.append(document.getElementById("app-settings")!);
   }
   if (!native) {
     if (process.env.NODE_ENV !== "production") {
@@ -60,6 +63,9 @@ const main = async () => {
     Sentry.setContext("emulated_app", { id: app.id, title: app.title, filename: app.filename });
     libraryView.hidden = true;
     playerView.hidden = false;
+    if (backend.rendering === "canvas" && window.matchMedia("(max-width: 600px)").matches) {
+      requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+    }
     try {
       failed = await runApp(backend, app, settings, !native);
       if (failed) window.alert(t("restartRequired"));
