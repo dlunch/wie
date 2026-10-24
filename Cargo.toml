@@ -143,6 +143,3 @@ winit = { version = "^0.30", features = ["x11", "wayland"], optional = true }
 wgpu = { workspace = true, optional = true }
 wie-core-arm-native = { workspace = true, optional = true }
 wie-renderer = { workspace = true, optional = true }
-
-[target.'cfg(target_os = "linux")'.dev-dependencies]
-x11rb = "^0.13"

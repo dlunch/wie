@@ -13,19 +13,3 @@ wie-backend = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wgpu = { workspace = true, features = ["webgl"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-futures = { workspace = true, features = ["executor"] }
-
-[target.'cfg(target_os = "linux")'.dev-dependencies]
-winit = { version = "^0.30", default-features = false, features = ["x11", "rwh_06"] }
-x11rb = { version = "^0.13" }
-
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen = { version = "^0.2" }
-wasm-bindgen-futures = { version = "^0.4" }
-web-sys = { version = "^0.3", features = ["HtmlCanvasElement"] }
-
-[[example]]
-name = "browser"
-crate-type = ["cdylib"]

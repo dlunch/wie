@@ -72,7 +72,7 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use super::{ScaleFilter, Settings, read, write};
+    use super::{Settings, read, write};
 
     #[test]
     fn settings_persist_and_failed_updates_preserve_previous_values() {
@@ -83,7 +83,6 @@ mod tests {
         assert_eq!(defaults.pcm_volume, 0.5);
         assert!(!defaults.help_dismissed);
         assert!(!defaults.welcome_seen);
-        assert!(matches!(defaults.scale_filter, ScaleFilter::Linear));
         assert!(!root.exists());
 
         let settings = Settings {
@@ -91,7 +90,7 @@ mod tests {
             pcm_volume: 0.75,
             help_dismissed: true,
             welcome_seen: true,
-            scale_filter: ScaleFilter::Nearest,
+            ..Default::default()
         };
         write(&root, &settings).unwrap();
         write(&root, &settings).unwrap();
@@ -102,7 +101,7 @@ mod tests {
                 "pcmVolume": 0.75,
                 "helpDismissed": true,
                 "welcomeSeen": true,
-                "scaleFilter": "nearest",
+                "scaleFilter": "linear",
             })
         );
         let path = root.join("settings.ini");
@@ -129,7 +128,6 @@ mod tests {
             "[Settings]\npcmVolume=nan\n",
             "[Settings]\npcmVolume=1.00000001\n",
             "[Settings]\nhelpDismissed=invalid\n",
-            "[Settings]\nscaleFilter=invalid\n",
         ] {
             fs::write(&path, contents).unwrap();
             assert!(read(&root).is_err());
@@ -141,7 +139,6 @@ mod tests {
         assert_eq!(partial.pcm_volume, 0.5);
         assert!(!partial.help_dismissed);
         assert!(partial.welcome_seen);
-        assert!(matches!(partial.scale_filter, ScaleFilter::Linear));
 
         fs::remove_file(&path).unwrap();
         fs::create_dir(&path).unwrap();

@@ -1,5 +1,0 @@
-Manifest-Version: 1.0
-MIDlet-1: Presentation Fixture, , PresentationMIDlet
-MIDlet-Name: Presentation Fixture
-MIDlet-Version: 1.0
-MIDlet-Vendor: wie

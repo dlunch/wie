@@ -7596,7 +7596,6 @@ dependencies = [
  "wie-skt",
  "wie-util",
  "winit",
- "x11rb",
 ]
 
 [[package]]
@@ -7862,14 +7861,8 @@ name = "wie-renderer"
 version = "0.2.13"
 dependencies = [
  "anyhow",
- "futures",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
  "wgpu",
  "wie-backend",
- "winit",
- "x11rb",
 ]
 
 [[package]]

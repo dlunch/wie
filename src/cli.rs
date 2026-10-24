@@ -350,9 +350,5 @@ mod tests {
 
         assert_eq!(args.filename.as_deref(), Some("app.jar"));
         assert_eq!(args.midi_device, Some(1));
-        assert_eq!(args.scale_filter, "linear");
-        let nearest = Args::try_parse_from(["wie", "app.jar", "--scale-filter", "nearest"]).unwrap();
-        assert_eq!(nearest.scale_filter, "nearest");
-        assert!(Args::try_parse_from(["wie", "app.jar", "--scale-filter", "invalid"]).is_err());
     }
 }

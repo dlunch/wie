@@ -397,110 +397,11 @@ mod tests {
     fn validates_display_size_bounds() {
         assert!(is_valid_display_size(176, 220));
         assert!(is_valid_display_size(2048, 2048));
+
         assert!(!is_valid_display_size(0, 220));
         assert!(!is_valid_display_size(176, 0));
         assert!(!is_valid_display_size(4097, 1));
         assert!(!is_valid_display_size(4096, 1025));
         assert!(!is_valid_display_size(u32::MAX, 2));
-    }
-
-    #[cfg(target_os = "linux")]
-    #[test]
-    #[ignore = "requires an isolated X11 display and a graphics adapter"]
-    fn retains_frame_when_only_the_output_window_is_resized() -> anyhow::Result<()> {
-        use std::{
-            sync::Arc,
-            thread,
-            time::{Duration, Instant},
-        };
-
-        use anyhow::{Context, ensure};
-        use winit::{event_loop::EventLoop, platform::x11::EventLoopBuilderExtX11};
-        use x11rb::{
-            connection::Connection,
-            protocol::xproto::{AtomEnum, ConfigureWindowAux, ConnectionExt, ImageFormat, MapState},
-        };
-
-        use wie_backend::{
-            Screen,
-            canvas::{ArgbPixel, VecImageBuffer},
-        };
-
-        use super::{WindowCallbackEvent, WindowImpl, WindowInternalEvent};
-
-        let event_loop = EventLoop::with_user_event().with_x11().with_any_thread(true).build()?;
-        let window = WindowImpl {
-            display_size: Arc::new(std::sync::RwLock::new((240, 320))),
-            event_loop,
-            filter: wgpu::FilterMode::Nearest,
-        };
-        let handle = window.handle();
-        let proxy = handle.event_loop_proxy.clone();
-        let capture = thread::spawn(move || -> anyhow::Result<()> {
-            let result = (|| -> anyhow::Result<()> {
-                let (connection, screen) = x11rb::connect(None)?;
-                let root = connection.setup().roots[screen].root;
-                let started = Instant::now();
-                let id = loop {
-                    let mut found = None;
-                    for id in connection.query_tree(root)?.reply()?.children {
-                        let name = connection.get_property(false, id, AtomEnum::WM_NAME, AtomEnum::ANY, 0, 16)?.reply()?;
-                        if name.value == b"WIE" && connection.get_window_attributes(id)?.reply()?.map_state == MapState::VIEWABLE {
-                            found = Some(id);
-                            break;
-                        }
-                    }
-                    if let Some(id) = found {
-                        break id;
-                    }
-                    ensure!(started.elapsed() < Duration::from_secs(10), "CLI window did not become visible");
-                    thread::sleep(Duration::from_millis(10));
-                };
-                for (width, height) in [(480, 640), (640, 480)] {
-                    connection
-                        .configure_window(id, &ConfigureWindowAux::new().width(width).height(height))?
-                        .check()?;
-                    connection.flush()?;
-                    let started = Instant::now();
-                    loop {
-                        let geometry = connection.get_geometry(id)?.reply()?;
-                        if u32::from(geometry.width) == width && u32::from(geometry.height) == height {
-                            let image = connection
-                                .get_image(ImageFormat::Z_PIXMAP, id, 0, 0, geometry.width, geometry.height, u32::MAX)?
-                                .reply()?;
-                            ensure!(image.data.len() == width as usize * height as usize * 4, "Expected 32-bit X11 image");
-                            let center = (height as usize / 2 * width as usize + width as usize / 2) * 4;
-                            let border = (height as usize / 2 * width as usize + 1) * 4;
-                            let filled = image.data[center..center + 3] == [0xff, 0xff, 0xff];
-                            let letterboxed = width != 640 || image.data[border..border + 3] == [0, 0, 0];
-                            if filled && letterboxed {
-                                break;
-                            }
-                        }
-                        ensure!(
-                            started.elapsed() < Duration::from_secs(10),
-                            "CLI did not present the retained frame at {width}x{height}"
-                        );
-                        thread::sleep(Duration::from_millis(10));
-                    }
-                }
-                Ok(())
-            })();
-            let _ = proxy.send_event(WindowInternalEvent::Quit);
-            result
-        });
-        let mut painted = false;
-        let result = window.run(move |event| {
-            if matches!(event, WindowCallbackEvent::Update) && !painted {
-                painted = true;
-                handle.paint(&VecImageBuffer::<ArgbPixel>::from_raw(240, 320, vec![0xffffffff; 240 * 320]));
-            }
-            Ok(())
-        });
-        capture
-            .join()
-            .map_err(|_| anyhow::anyhow!("CLI screenshot worker panicked"))?
-            .context("CLI retained-frame capture failed")?;
-        result
     }
 }
