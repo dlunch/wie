@@ -458,6 +458,7 @@ fn request_redraw() {
     });
 }
 
+#[cfg(any(target_os = "android", target_os = "linux", target_os = "windows"))]
 fn release_surface() {
     VIEW.with_borrow(|view| {
         if let Some(view) = view {
