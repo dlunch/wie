@@ -74,21 +74,21 @@ impl BucketAllocator {
         let header_address = base_address + region_offset(bucket_index) as u32;
         let header_len = header_length(bucket_index);
 
-        let mut header = vec![0u8; header_len];
-        core.read_bytes(header_address, &mut header)?;
+        let mut header = [0u8; 256];
+        for offset in (0..header_len).step_by(header.len()) {
+            core.read_bytes(header_address + offset as u32, &mut header)?;
+            for (i, item) in header.iter().enumerate() {
+                if *item == 0 {
+                    continue;
+                }
 
-        for (i, item) in header.iter_mut().enumerate() {
-            if *item == 0 {
-                continue;
+                let bit = item.trailing_zeros();
+                let index = (offset + i) as u32;
+                let address = header_address + header_len as u32 + (index * 8 + bit) * slot_size as u32;
+                core.write_bytes(header_address + index, &[item & !(1 << bit)])?;
+
+                return Ok(address);
             }
-
-            let bit = item.trailing_zeros();
-            *item &= !(1 << bit);
-            let address = header_address + header_len as u32 + (i as u32 * 8 + bit) * slot_size as u32;
-
-            core.write_bytes(header_address + i as u32, &[*item])?;
-
-            return Ok(address);
         }
 
         Err(WieError::AllocationFailure)
@@ -100,18 +100,17 @@ impl BucketAllocator {
         let header_address = base_address + region_offset(bucket_index) as u32;
         let header_len = header_length(bucket_index);
 
-        let mut header = vec![0u8; header_len];
-        core.read_bytes(header_address, &mut header)?;
-
         let offset = (address - header_address - header_len as u32) / slot_size as u32;
         let index = offset / 8;
         let bit = offset % 8;
 
-        debug_assert!(header[index as usize] & (1 << bit) == 0);
+        let mut header = [0u8; 1];
+        core.read_bytes(header_address + index, &mut header)?;
+        debug_assert!(header[0] & (1 << bit) == 0);
 
-        header[index as usize] |= 1 << bit;
+        header[0] |= 1 << bit;
 
-        core.write_bytes(header_address + index, &[header[index as usize]])?;
+        core.write_bytes(header_address + index, &header)?;
 
         Ok(())
     }
@@ -145,11 +144,13 @@ impl BucketAllocator {
 
 #[cfg(test)]
 mod tests {
-    use wie_util::Result;
+    use alloc::vec;
+
+    use wie_util::{ByteWrite, Result, WieError};
 
     use crate::ArmCore;
 
-    use super::BucketAllocator;
+    use super::{BUCKETS, BucketAllocator, header_length, region_offset};
 
     // Bucket 0 (4-byte): header_length = 0x100000 / 8 = 0x20000.
     //   First slot at base + 0x20000 = 0x40020000.
@@ -194,6 +195,25 @@ mod tests {
 
         let address8 = BucketAllocator::alloc(&mut core, 0x40000000, 8)?;
         assert_eq!(address8, 0x40430018);
+
+        for (bucket, &(slot_size, slot_count)) in BUCKETS.iter().enumerate() {
+            let header_address = 0x40000000 + region_offset(bucket) as u32;
+            let header_len = header_length(bucket);
+            core.write_bytes(header_address, &vec![0; header_len])?;
+            let slots = [2047, 2048, slot_count - 1];
+            for slot in slots {
+                let address = header_address + header_len as u32 + (slot * slot_size) as u32;
+                BucketAllocator::free(&mut core, 0x40000000, address, slot_size as u32)?;
+            }
+            for slot in slots {
+                let expected = header_address + header_len as u32 + (slot * slot_size) as u32;
+                assert_eq!(BucketAllocator::alloc(&mut core, 0x40000000, slot_size as u32)?, expected);
+            }
+            assert!(matches!(
+                BucketAllocator::alloc(&mut core, 0x40000000, slot_size as u32),
+                Err(WieError::AllocationFailure)
+            ));
+        }
 
         Ok(())
     }

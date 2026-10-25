@@ -118,10 +118,9 @@ impl WIPICContext for KtfWIPICContext {
             }
             None => None,
         };
-        match self.jvm.collect_garbage() {
-            Ok(_) => {}
-            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
-        }
+        self.jvm
+            .collect_garbage()
+            .map_err(|error| WieError::FatalError(alloc::format!("Garbage collection failed: {error}")))?;
 
         Ok(result)
     }
@@ -147,10 +146,9 @@ impl WIPICContext for KtfWIPICContext {
             }
         };
         drop(stream);
-        match self.jvm.collect_garbage() {
-            Ok(_) => {}
-            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
-        }
+        self.jvm
+            .collect_garbage()
+            .map_err(|error| WieError::FatalError(alloc::format!("Garbage collection failed: {error}")))?;
         Ok(data)
     }
 

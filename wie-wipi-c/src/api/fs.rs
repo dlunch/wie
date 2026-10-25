@@ -297,7 +297,7 @@ mod tests {
         assert_eq!(write(&mut context, fd, 0x2000, 2).await.unwrap(), 2);
         assert_eq!(available(&mut context).await.unwrap(), STORAGE_LIMIT as i32 - 8);
         assert_eq!(file_attribute(&mut context, 0x1000, 0x2200, 1).await.unwrap(), 0);
-        assert_eq!(read_generic::<[u32; 3], _>(&mut context, 0x2200).unwrap(), [0, 0, 8]);
+        assert_eq!(read_generic::<[u32; 3], _>(&context, 0x2200).unwrap(), [0, 0, 8]);
         assert_eq!(close(&mut context, fd).await.unwrap(), 0);
         assert_eq!(tell(&mut context, fd).await.unwrap(), -2);
 

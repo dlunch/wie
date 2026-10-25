@@ -1,8 +1,8 @@
 use alloc::{format, string::String, vec::Vec};
-use core::fmt::Display;
+use core::{fmt::Display, iter};
 
 use wie_core_arm::ArmCore;
-use wie_util::{read_generic, read_null_terminated_string_bytes};
+use wie_util::{ByteRead, WieError, read_generic, read_null_terminated_string_bytes};
 
 use super::Result;
 
@@ -30,6 +30,30 @@ impl JavaFullName {
         let name_offset = value.find('+').unwrap() + 1;
 
         Ok(Self { tag, value, name_offset })
+    }
+
+    pub fn matches(core: &ArmCore, ptr: u32, name: &str, descriptor: &str) -> Result<bool> {
+        let mut expected = descriptor.bytes().chain(iter::once(b'+')).chain(name.bytes()).chain(iter::once(0));
+        let mut remaining = descriptor.len() + name.len() + 2;
+        let mut cursor = ptr + 1;
+        let mut buffer = [0; 32];
+        while remaining != 0 {
+            let size = remaining.min(buffer.len());
+            let (size, read) = match core.read_bytes(cursor, &mut buffer[..size]) {
+                // A shorter non-matching name may end at the memory boundary.
+                Err(WieError::InvalidMemoryAccess(_)) => (1, core.read_bytes(cursor, &mut buffer[..1])?),
+                result => (size, result?),
+            };
+            if read != size {
+                return Err(WieError::FatalError(format!("Short read at {cursor:#x}: expected {size}, got {read}")));
+            }
+            if !expected.by_ref().take(size).eq(buffer[..size].iter().copied()) {
+                return Ok(false);
+            }
+            cursor = cursor.wrapping_add(size as u32);
+            remaining -= size;
+        }
+        Ok(true)
     }
 
     pub fn name(&self) -> &str {
@@ -91,11 +115,24 @@ mod tests {
             assert_eq!(parsed.name().as_ptr(), parsed.value[parsed.name_offset..].as_ptr());
             assert_eq!(format!("{parsed}"), format!("{name}{descriptor}@128"));
             assert!(parsed == JavaFullName::new(0, name, descriptor));
+            assert!(JavaFullName::matches(&core, 0x1000, name, descriptor)?);
+            assert!(!JavaFullName::matches(&core, 0x1000, "other", descriptor)?);
+            assert!(!JavaFullName::matches(&core, 0x1000, name, "J")?);
 
             core.write_bytes(0x1000, &JavaFullName::new(1, "updated", "J").as_bytes())?;
             let updated = JavaFullName::from_ptr(&core, 0x1000)?;
             assert_eq!((updated.tag, updated.name(), updated.descriptor()), (1, "updated", "J"));
             assert_eq!((parsed.name(), parsed.descriptor()), (name, descriptor));
+            assert!(!JavaFullName::matches(&core, 0x1000, name, descriptor)?);
+            assert!(JavaFullName::matches(&core, 0x1000, "updated", "J")?);
+        }
+        let long_name = "member".repeat(12);
+        for name in ["x", long_name.as_str()] {
+            let bytes = JavaFullName::new(0, name, "I").as_bytes();
+            let address = 0x10000 - bytes.len() as u32;
+            core.write_bytes(address, &bytes)?;
+            assert!(JavaFullName::matches(&core, address, name, "I")?);
+            assert!(!JavaFullName::matches(&core, address, &format!("{name}suffix"), "I")?);
         }
         Ok(())
     }

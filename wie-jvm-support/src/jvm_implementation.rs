@@ -5,11 +5,15 @@ use core::{
     pin::Pin,
 };
 
-use jvm::{ClassDefinition, Jvm, Result as JvmResult};
+use jvm::{ClassDefinition, ExternalRoots, Jvm, Result as JvmResult};
 use jvm_bytecode::{ArrayClassDefinitionImpl, ClassDefinitionImpl};
 use jvm_class_proto::JavaClassProto;
 
 pub trait JvmImplementation: Clone {
+    fn external_roots(&self) -> Option<Box<dyn ExternalRoots>> {
+        None
+    }
+
     #[allow(clippy::type_complexity)]
     fn define_class_rust<'a, C, Context>(
         &'a self,

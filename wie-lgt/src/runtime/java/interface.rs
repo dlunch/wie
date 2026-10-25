@@ -431,8 +431,8 @@ async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u
     let definition = JavaLangClass::to_rust_class(jvm, &class_object)
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
-    let instance = definition
-        .instantiate(jvm)
+    let instance = jvm
+        .instantiate_class(&definition.name())
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let ptr_instance = LgtJvmSupport::class_instance_raw(&*instance);

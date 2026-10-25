@@ -1,5 +1,5 @@
 use alloc::{format, string::String};
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 use jvm::Jvm;
 
 use wie_backend::System;
@@ -13,7 +13,10 @@ use crate::{
     emulator::IMAGE_BASE,
     runtime::{
         SVC_CATEGORY_INIT,
-        java::interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
+        java::{
+            interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
+            jvm_support::{KtfJvmSupportContext, SUPPORT_CONTEXT_BASE},
+        },
         svc_ids::InitSvcId,
         wipi_c::{interface::get_wipic_knl_interface, register_wipic_svc_handler},
         with_arm_context,
@@ -35,6 +38,7 @@ async fn handle_init_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result
         InitSvcId::JavaArrayNew => EmulatedFunction::call(&java_array_new, core, jvm).await?.write(core, lr),
         InitSvcId::JavaClassLoad => EmulatedFunction::call(&java_class_load, core, jvm).await?.write(core, lr),
         InitSvcId::Alloc => EmulatedFunction::call(&alloc, core, &mut ()).await?.write(core, lr),
+        InitSvcId::VisitGcRoot => Err(WieError::FatalError("Root callback outside garbage collection".into())),
     }
 }
 
@@ -57,11 +61,11 @@ pub async fn load_native(
 
     tracing::debug!("Loaded at {IMAGE_BASE:#x}, size {:#x}, bss {bss_size:#x}", data.len());
 
-    let wipi_exe = core
+    let ptr_wipi_exe = core
         .run_function(IMAGE_BASE + 1, &[bss_size])
         .await
         .map_err(|error| with_arm_context(core, error))?;
-    tracing::debug!("Got wipi_exe {wipi_exe:#x}");
+    tracing::debug!("Got wipi_exe {ptr_wipi_exe:#x}");
 
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
@@ -92,7 +96,7 @@ pub async fn load_native(
         fn_java_check_type: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaCheckType)?,
         fn_java_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaNew)?,
         fn_java_array_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaArrayNew)?,
-        fn_visit_gc_root: 0,
+        fn_visit_gc_root: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::VisitGcRoot)?,
         fn_java_class_load: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaClassLoad)?,
         unk7: 0,
         unk8: 0,
@@ -102,7 +106,7 @@ pub async fn load_native(
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
     write_generic(core, ptr_param_4, param_4)?;
 
-    let wipi_exe: WipiExe = read_generic(core, wipi_exe)?;
+    let wipi_exe: WipiExe = read_generic(core, ptr_wipi_exe)?;
     let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
     let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
@@ -127,6 +131,13 @@ pub async fn load_native(
     if result != 0 {
         return Err(WieError::FatalError(format!("wipi init failed with code {result:#x}")));
     }
+
+    // The enclosing JVM frame roots initialization objects until the native tables are ready.
+    write_generic(
+        core,
+        SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_visit_gc_root) as u32,
+        wipi_exe.fn_visit_gc_roots,
+    )?;
 
     Ok(exe_interface.ptr_functions)
 }

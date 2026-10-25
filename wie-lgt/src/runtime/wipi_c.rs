@@ -38,6 +38,7 @@ struct CMethodProxy {
 }
 
 async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
+    let _frame = jvm.push_native_frame(&[]);
     let wipic_context = LgtWIPICContext::new(core.clone(), system.clone(), jvm.clone());
     let (_, lr) = core.read_pc_lr()?;
     let method = match WIPICSvcId::try_from(id)? {
@@ -312,4 +313,57 @@ async fn unk16(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
     // misc
 
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{boxed::Box, sync::Arc};
+    use core::sync::atomic::{AtomicBool, Ordering};
+
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, Options, System};
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{Result, write_null_terminated_string_bytes};
+
+    use crate::runtime::{LgtJvmSupport, SVC_CATEGORY_WIPIC, svc_ids::WIPICSvcId};
+
+    use super::register_wipic_svc_handler;
+
+    #[test]
+    fn resource_calls_release_java_temporaries() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let task_system = system.clone();
+        let done = Arc::new(AtomicBool::new(false));
+        let task_done = done.clone();
+        system.spawn(async move || {
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })?;
+            Allocator::init(&mut core)?;
+            let mut registers = core.save_context();
+            registers.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
+            core.restore_context(&registers);
+            let jvm = LgtJvmSupport::init(&mut core, &task_system, None).await?;
+            register_wipic_svc_handler(&mut core, &task_system, &jvm)?;
+            let name = Allocator::alloc(&mut core, 8)?;
+            write_null_terminated_string_bytes(&mut core, name, b"missing")?;
+            let lookup = core.make_svc_stub(SVC_CATEGORY_WIPIC, WIPICSvcId::GetResourceId)?;
+            for _ in 0..8 {
+                let result: u32 = core.run_function(lookup, &[name, 0, 0, 0, 0, 0, 0, 0, 0]).await?;
+                assert_eq!(result as i32, -12);
+                assert!(
+                    jvm.collect_garbage().unwrap() >= 2,
+                    "Resource lookup strings must not accumulate in the guest frame"
+                );
+            }
+            task_done.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+        Ok(())
+    }
 }

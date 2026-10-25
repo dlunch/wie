@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::ToString, vec, vec::Vec};
 
 use jvm::{
     Jvm,
@@ -104,7 +104,7 @@ impl WIPICContext for LgtWIPICContext {
                 .unwrap();
             return Ok(Some(available as _));
         }
-        self.jvm.collect_garbage().unwrap();
+        self.jvm.collect_garbage().map_err(|error| WieError::FatalError(error.to_string()))?;
 
         Ok(self.system.filesystem().size(name).await)
     }
@@ -124,7 +124,7 @@ impl WIPICContext for LgtWIPICContext {
         let read = self.system.filesystem().read(name, 0, size, &mut data).await.unwrap_or(0);
         data.truncate(read);
 
-        self.jvm.collect_garbage().unwrap();
+        self.jvm.collect_garbage().map_err(|error| WieError::FatalError(error.to_string()))?;
 
         Ok(data)
     }

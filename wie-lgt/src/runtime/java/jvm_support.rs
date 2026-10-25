@@ -914,7 +914,7 @@ mod tests {
             write_generic(&mut core, descriptor.ptr_instance_reference_bitmap, 0b0000_1010u8)?;
             write_generic(&mut core, field_child_definition.raw()?.ptr_descriptor, descriptor)?;
             write_generic(&mut core, ptr_fields + 4 * size_of::<u32>() as u32, 5u32)?;
-            jvm.push_native_frame();
+            let frame = jvm.push_native_frame(&[]);
             let mut references = Vec::new();
             for _ in 0..3 {
                 let object: Box<dyn ClassInstance> = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
@@ -922,7 +922,7 @@ mod tests {
             }
             write_generic(&mut core, ptr_fields + 5 * size_of::<u32>() as u32, references[0])?;
             write_generic(&mut core, ptr_fields + 6 * size_of::<u32>() as u32, references[1])?;
-            jvm.pop_frame();
+            drop(frame);
 
             let runtime: Box<dyn ClassInstance> = jvm
                 .invoke_static("java/lang/Runtime", "getRuntime", "()Ljava/lang/Runtime;", ())

@@ -232,10 +232,13 @@ impl JavaMethod {
             return Err(WieError::JavaException(KtfJvmSupport::class_instance_raw(&exception)));
         }
 
-        let exception_handler: RawJavaExceptionHandler = read_generic(core, current_java_exception_handler)?;
-
-        let method = JavaMethod::from_raw(exception_handler.ptr_method, core);
+        let ptr_method = read_generic(core, current_java_exception_handler)?;
+        let method = JavaMethod::from_raw(ptr_method, core);
         let exception_table = method.exception_table()?;
+        if exception_table.is_empty() {
+            return Err(WieError::JavaException(KtfJvmSupport::class_instance_raw(&exception)));
+        }
+        let exception_handler: RawJavaExceptionHandler = read_generic(core, current_java_exception_handler)?;
 
         for entry in exception_table {
             if entry.from_pc <= exception_handler.current_pc

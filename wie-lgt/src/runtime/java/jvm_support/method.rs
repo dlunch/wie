@@ -407,6 +407,14 @@ mod tests {
             assert_eq!(*observed.lock(), Some((integer, floating_bits)));
             assert_eq!(((result.high as u64) << 32) | result.low as u64, (integer ^ floating_bits as i64) as u64);
 
+            let class = jvm.resolve_class("java/lang/String").await.unwrap();
+            let method = class.definition.method("valueOf", "(I)Ljava/lang/String;", true).unwrap();
+            let target = method.as_any().downcast_ref::<JavaMethod>().unwrap().target()?;
+            let result: u32 = core.run_function(target, &[123]).await?;
+            jvm.collect_garbage().unwrap();
+            let string = LgtJvmSupport::class_instance_from_raw(&core, result);
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &string).await.unwrap(), "123");
+
             done_clone.store(true, Ordering::Relaxed);
             Ok(())
         });
