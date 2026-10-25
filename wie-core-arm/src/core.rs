@@ -1,21 +1,22 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 
 use spin::Mutex;
 
 use wie_backend::{Options, ProfileCallback, ProfileSample, YieldFuture};
-use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::{
     EmulatedFunction, ResultWriter, ThreadId,
-    context::ArmCoreContext,
+    context::{ArmCoreContext, ArmRootSnapshot, SavedContextRecord},
     engine::{Arm32CpuEngine, ArmEngine, ArmRegister, DebugInner, DebuggedArm32CpuEngine, EngineStopReason, MemoryPermission},
     function::{RegisteredFunction, RegisteredFunctionHolder},
-    thread::ThreadState,
+    thread::{STACK_SIZE, ThreadControl, ThreadState},
     thread_wrapper::ArmCoreThreadWrapper,
 };
 
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
+pub const ACTIVE_THREAD: u32 = GLOBAL_DATA_BASE + 0x2000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 const FUNCTIONS_SIZE: usize = 0x10000;
 const SVC_STUB_SIZE: u32 = 16;
@@ -84,6 +85,7 @@ impl ArmCore {
 
         engine.mem_map(FUNCTIONS_BASE, FUNCTIONS_SIZE, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
+        engine.mem_write(ACTIVE_THREAD, &0u32.to_le_bytes())?;
 
         let profile = profile.map(|callback| ProfileState {
             samples: BTreeMap::new(),
@@ -181,17 +183,89 @@ impl ArmCore {
     }
 
     pub fn read_thread_context(&self, thread_id: ThreadId) -> Result<ArmCoreContext> {
-        let context = self.threads.lock().get(&thread_id).unwrap().context.clone();
-
-        Ok(context)
+        let threads = self.threads.lock();
+        let thread = threads.get(&thread_id).unwrap();
+        read_generic(thread, thread.control_address)
     }
 
     pub fn write_thread_context(&mut self, thread_id: ThreadId, context: &ArmCoreContext) {
-        self.threads.lock().get_mut(&thread_id).unwrap().context = context.clone();
+        let mut threads = self.threads.lock();
+        let thread = threads.get_mut(&thread_id).unwrap();
+        write_generic(thread, thread.control_address, *context).unwrap();
     }
 
     pub fn get_thread_ids(&self) -> Vec<ThreadId> {
         self.threads.lock().keys().cloned().collect()
+    }
+
+    pub fn set_thread_runtime_context(&mut self, address: u32) -> Result<()> {
+        let control_address: u32 = read_generic(self, ACTIVE_THREAD)?;
+        if control_address == 0 {
+            return Err(WieError::FatalError("Runtime context requires an entered ARM thread".into()));
+        }
+        write_generic(self, control_address + offset_of!(ThreadControl, runtime_context) as u32, address)
+    }
+
+    pub fn snapshot_roots(&self) -> Result<ArmRootSnapshot> {
+        let active: u32 = read_generic(self, ACTIVE_THREAD)?;
+        let controls: Vec<_> = self.threads.lock().values().map(|thread| thread.control_address).collect();
+        let mut result = ArmRootSnapshot {
+            words: Vec::new(),
+            runtime_contexts: Vec::new(),
+        };
+        for address in controls {
+            let control: ThreadControl = read_generic(self, address)?;
+            if control.runtime_context != 0 {
+                result.runtime_contexts.push(control.runtime_context);
+            }
+            let base = address + size_of::<ThreadControl>() as u32;
+            let top = base + STACK_SIZE;
+            let mut lowest_sp = top;
+            let mut context = if address == active { self.save_context() } else { control.context };
+            let mut saved = control.saved_contexts;
+            loop {
+                if context.sp < base || context.sp > top || !context.sp.is_multiple_of(4) {
+                    return Err(WieError::InvalidMemoryAccess(context.sp));
+                }
+                result.words.extend_from_slice(bytemuck::cast_slice(core::slice::from_ref(&context)));
+                lowest_sp = lowest_sp.min(context.sp);
+                if saved == 0 {
+                    break;
+                }
+                let record: SavedContextRecord = read_generic(self, saved)?;
+                context = record.context;
+                saved = record.next;
+            }
+            self.append_stack_words(lowest_sp, &mut result.words)?;
+        }
+        Ok(result)
+    }
+
+    /// Appends the live stack interval belonging to a current or saved guest SP.
+    pub fn append_stack_words(&self, sp: u32, words: &mut Vec<u32>) -> Result<()> {
+        let top = self
+            .threads
+            .lock()
+            .values()
+            .find_map(|thread| {
+                let base = thread.control_address + size_of::<ThreadControl>() as u32;
+                let top = base + STACK_SIZE;
+                (sp >= base && sp <= top && sp.is_multiple_of(4)).then_some(top)
+            })
+            .ok_or(WieError::InvalidMemoryAccess(sp))?;
+        let start = words.len();
+        words.resize(start + ((top - sp) / 4) as usize, 0);
+        let bytes = bytemuck::cast_slice_mut(&mut words[start..]);
+        if !bytes.is_empty() {
+            let read = self.read_bytes(sp, bytes)?;
+            if read != bytes.len() {
+                return Err(WieError::FatalError(format!(
+                    "Short stack read at {sp:#x}: expected {}, got {read}",
+                    bytes.len()
+                )));
+            }
+        }
+        Ok(())
     }
 
     fn sample_profile(&self) {
@@ -237,9 +311,9 @@ impl ArmCore {
         R: RunFunctionResult<R>,
     {
         // we don't need to save r0-r3, but to make it simple, we save all registers
-        let previous_context = self.save_context();
+        let previous_context = self.save_resumable_context()?;
         let result = self.run_function_inner(address, params).await?;
-        self.restore_context(&previous_context);
+        self.restore_context(&previous_context.read()?);
         Ok(result)
     }
 
@@ -670,8 +744,10 @@ pub struct ThreadContextGuard {
 
 impl ThreadContextGuard {
     pub fn new(mut core: ArmCore, thread_id: ThreadId) -> Self {
-        let context = core.threads.lock().get(&thread_id).unwrap().context.clone();
+        let context = core.read_thread_context(thread_id).unwrap();
         core.restore_context(&context);
+        let control_address = core.threads.lock().get(&thread_id).unwrap().control_address;
+        write_generic(&mut core, ACTIVE_THREAD, control_address).unwrap();
 
         if let Some(debug) = core.debug_inner() {
             debug.on_thread_entered(thread_id);
@@ -685,7 +761,8 @@ impl Drop for ThreadContextGuard {
     fn drop(&mut self) {
         let context = self.core.save_context();
 
-        self.core.threads.lock().get_mut(&self.thread_id).unwrap().context = context;
+        self.core.write_thread_context(self.thread_id, &context);
+        write_generic(&mut self.core, ACTIVE_THREAD, 0u32).unwrap();
 
         if let Some(debug) = self.core.debug_inner() {
             debug.on_thread_exited(self.thread_id);
@@ -708,6 +785,221 @@ mod tests {
     use super::*;
 
     #[test]
+    fn roots_follow_active_and_suspended_guest_state() -> Result<()> {
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })?;
+        crate::Allocator::init(&mut core)?;
+        let first = core.run_in_thread(|| async { Ok(()) })?;
+        let second = core.run_in_thread(|| async { Ok(()) })?;
+        let mut context = core.read_thread_context(1)?;
+        let top = context.sp;
+        context.sp -= 4;
+        context.r0 = 0x11111111;
+        core.write_thread_context(1, &context);
+        write_generic(&mut core, context.sp, 0x22222222u32)?;
+        write_generic(&mut core, context.sp - 4, 0x33333333u32)?;
+        {
+            let _entered = core.enter_thread_context(1);
+            core.set_thread_runtime_context(0x12340000)?;
+            core.write_return_value(&[0x44444444])?;
+            let roots = core.snapshot_roots()?;
+            assert!(roots.words.contains(&0x44444444));
+            assert!(roots.words.contains(&0x22222222));
+            assert!(!roots.words.contains(&0x11111111));
+            assert!(!roots.words.contains(&0x33333333));
+            assert_eq!(roots.runtime_contexts, [0x12340000]);
+        }
+        {
+            let _entered = core.enter_thread_context(2);
+            core.set_thread_runtime_context(0x56780000)?;
+            core.write_return_value(&[0x55555555])?;
+            let roots = core.snapshot_roots()?;
+            assert!(roots.words.contains(&0x44444444));
+            assert!(roots.words.contains(&0x55555555));
+            assert!(roots.words.contains(&0x22222222));
+            assert_eq!(roots.runtime_contexts, [0x12340000, 0x56780000]);
+        }
+        context.r0 = 0;
+        context.sp = top;
+        core.write_thread_context(1, &context);
+        let roots = core.snapshot_roots()?;
+        assert!(!roots.words.contains(&0x44444444));
+        assert!(!roots.words.contains(&0x22222222));
+        drop(first);
+        drop(second);
+        assert!(core.snapshot_roots()?.words.is_empty());
+        assert!(core.snapshot_roots()?.runtime_contexts.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn saved_guest_contexts_restore_and_unlink_by_address() -> Result<()> {
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })?;
+        assert!(core.save_resumable_context().is_err());
+        assert!(core.run_in_thread(|| async { Ok(()) }).is_err());
+        crate::Allocator::init(&mut core)?;
+        assert!(core.save_resumable_context().is_err());
+        assert!(matches!(
+            futures::executor::block_on(core.run_function::<()>(0x1001, &[42])),
+            Err(WieError::FatalError(_))
+        ));
+        let _thread = core.run_in_thread(|| async { Ok(()) })?;
+        let _entered = core.enter_thread_context(1);
+        let top = core.save_context().sp;
+        let mut context = core.save_context();
+        context.r0 = 0x11111111;
+        context.sp -= 8;
+        core.restore_context(&context);
+        write_generic(&mut core, context.sp, 0x22222222u32)?;
+        let outer = core.save_resumable_context()?;
+        core.write_return_value(&[0x33333333])?;
+        let inner = core.save_resumable_context()?;
+        context.r0 = 0x44444444;
+        context.sp = top;
+        core.restore_context(&context);
+        let roots = core.snapshot_roots()?;
+        for word in [0x11111111, 0x22222222, 0x33333333, 0x44444444] {
+            assert!(roots.words.contains(&word));
+        }
+        let control = core.threads.lock().get(&1).unwrap().control_address;
+        let head = control + offset_of!(ThreadControl, saved_contexts) as u32;
+        let inner_address: u32 = read_generic(&core, head)?;
+        let record: SavedContextRecord = read_generic(&core, inner_address)?;
+        let outer_address = record.next;
+        let record_size = size_of::<SavedContextRecord>() as u32;
+        assert!(crate::Allocator::is_allocated(&core, outer_address, record_size)?);
+        drop(outer);
+        assert!(!crate::Allocator::is_allocated(&core, outer_address, record_size)?);
+        assert!(!core.snapshot_roots()?.words.contains(&0x11111111));
+        assert!(core.snapshot_roots()?.words.contains(&0x33333333));
+        let mut record: SavedContextRecord = read_generic(&core, inner_address)?;
+        record.context.r0 = 0x55555555;
+        write_generic(&mut core, inner_address, record)?;
+        assert!(core.snapshot_roots()?.words.contains(&0x55555555));
+        core.restore_context(&inner.read()?);
+        assert_eq!(core.read_param(0)?, 0x55555555);
+        drop(inner);
+        assert_eq!(read_generic::<u32, _>(&core, head)?, 0);
+        assert!(!crate::Allocator::is_allocated(&core, inner_address, record_size)?);
+        assert_eq!(core.read_param(0)?, 0x55555555);
+        Ok(())
+    }
+
+    #[test]
+    fn root_scanning_rejects_invalid_actual_stack_pointers() -> Result<()> {
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })?;
+        crate::Allocator::init(&mut core)?;
+        let _thread = core.run_in_thread(|| async { Ok(()) })?;
+        let mut context = core.read_thread_context(1)?;
+        let top = context.sp;
+        for sp in [top + 4, top - 0x100000 - 4, top - 1, 0] {
+            context.sp = sp;
+            core.write_thread_context(1, &context);
+            assert!(core.snapshot_roots().is_err());
+            assert!(core.append_stack_words(sp, &mut Vec::new()).is_err());
+        }
+        context.sp = top;
+        core.write_thread_context(1, &context);
+        let _entered = core.enter_thread_context(1);
+        context.sp = 0;
+        core.restore_context(&context);
+        assert!(core.snapshot_roots().is_err());
+        let saved = core.save_resumable_context()?;
+        context.sp = top;
+        core.restore_context(&context);
+        assert!(core.snapshot_roots().is_err());
+        drop(saved);
+        assert!(core.snapshot_roots().is_ok());
+        drop(_entered);
+
+        context.sp = top - 4;
+        core.write_thread_context(1, &context);
+        let address = core.threads.lock().get(&1).unwrap().control_address;
+        let control: ThreadControl = read_generic(&core, address)?;
+        let mut unreadable_stack = Arm32CpuEngine::new();
+        unreadable_stack.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWrite);
+        unreadable_stack.mem_map(address, size_of::<ThreadControl>(), MemoryPermission::ReadWrite);
+        unreadable_stack.mem_write(address, bytemuck::bytes_of(&control))?;
+        let original = core::mem::replace(&mut core.inner.lock().engine, Box::new(unreadable_stack));
+        let result = core.snapshot_roots();
+        core.inner.lock().engine = original;
+        assert!(matches!(result, Err(WieError::InvalidMemoryAccess(sp)) if sp == context.sp));
+        Ok(())
+    }
+
+    #[test]
+    fn dropping_pending_nested_calls_reclaims_records_before_thread_storage() -> Result<()> {
+        struct PendingThreadStorage {
+            core: ArmCore,
+            address: u32,
+        }
+        impl Drop for PendingThreadStorage {
+            fn drop(&mut self) {
+                assert!(crate::Allocator::is_allocated(&self.core, self.address, size_of::<ThreadControl>() as u32 + STACK_SIZE).unwrap());
+            }
+        }
+        async fn nested(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+            core.run_function(0x2001, &[0x33333333]).await
+        }
+        async fn pending(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+            let _storage = PendingThreadStorage {
+                core: core.clone(),
+                address: read_generic(core, ACTIVE_THREAD)?,
+            };
+            core::future::pending().await
+        }
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })?;
+        crate::Allocator::init(&mut core)?;
+        core.register_svc_handler(1, nested, &())?;
+        core.register_svc_handler(2, pending, &())?;
+        core.load(&[1, 0xdf, 0x70, 0x47], 0x1000, 4)?;
+        core.load(&[2, 0xdf, 0x70, 0x47], 0x2000, 4)?;
+        let mut running = core.clone();
+        let mut task = Box::pin(core.run_in_thread(move || async move {
+            running.write_return_value(&[0x11111111])?;
+            running.run_function::<()>(0x1001, &[0x22222222]).await
+        })?);
+        assert!(task.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        let roots = core.snapshot_roots()?;
+        for word in [0x11111111, 0x22222222, 0x33333333] {
+            assert!(roots.words.contains(&word));
+        }
+        let control = core.threads.lock().get(&1).unwrap().control_address;
+        let state: ThreadControl = read_generic(&core, control)?;
+        let inner: SavedContextRecord = read_generic(&core, state.saved_contexts)?;
+        let context = core.read_thread_context(1)?;
+        drop(task);
+        for address in [state.saved_contexts, inner.next] {
+            assert!(!crate::Allocator::is_allocated(&core, address, size_of::<SavedContextRecord>() as u32)?);
+        }
+        assert!(!crate::Allocator::is_allocated(
+            &core,
+            control,
+            size_of::<ThreadControl>() as u32 + STACK_SIZE
+        )?);
+        assert!(core.get_thread_ids().is_empty());
+        assert!(core.snapshot_roots()?.words.is_empty());
+        assert_eq!(core.save_context().pc, context.pc);
+        assert_eq!(core.save_context().sp, context.sp);
+        Ok(())
+    }
+
+    #[test]
     fn interpreter_executes_without_preparation() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
@@ -715,6 +1007,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         assert!(!core.is_preparing());
         assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
@@ -770,6 +1065,7 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        core.inner.lock().engine = Box::new(DebuggedArm32CpuEngine::new());
         crate::Allocator::init(&mut core).unwrap();
         let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
         let mut context = core.read_thread_context(1).unwrap();
@@ -800,9 +1096,12 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
+        core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         core.inner.lock().instructions_remaining = 5;
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
-        debug.on_thread_entered(1);
         debug.resume(Vec::new(), Some(vec![2]));
 
         let observer = core.clone();
@@ -828,6 +1127,7 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
+        core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
         crate::Allocator::init(&mut core).unwrap();
         let calls = Arc::new(AtomicU32::new(0));
         let observed = calls.clone();
@@ -864,6 +1164,7 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
+        core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
         crate::Allocator::init(&mut core).unwrap();
         let calls = Arc::new(AtomicU32::new(0));
         let observed = calls.clone();
@@ -934,6 +1235,7 @@ mod tests {
             let engine = DebuggedArm32CpuEngine::new();
             let debug = engine.debug_inner();
             core.inner.lock().engine = Box::new(engine);
+            core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
             crate::Allocator::init(&mut core).unwrap();
             let result = Arc::new(AtomicU32::new(0));
             let calls = Arc::new(AtomicU32::new(0));
@@ -992,6 +1294,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         let calls = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
         let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
@@ -1019,6 +1324,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         let result = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, call_nested_arm, &result).unwrap();
         let mut outer = [0xc0, 0x46].repeat(5_000); // nop
@@ -1051,6 +1359,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         core.map(0x2000, 0x1000).unwrap();
         core.register_svc_handler(1, throwing_handler, &()).unwrap();
         let target = core.make_svc_stub(1, 0u32).unwrap();
@@ -1084,6 +1395,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         let completed = Arc::new(AtomicU32::new(0));
         let observed = completed.clone();
@@ -1209,6 +1523,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         // push {r4, lr}; mov r4, r3; blx r2; stmia r4, {r0, r1}; pop {r4, pc}
         let code = [0xe92d4010u32, 0xe1a04003, 0xe12fff32, 0xe8840003, 0xe8bd8010];
         core.load(bytemuck::cast_slice(&code), 0x1000, 0x1000).unwrap();

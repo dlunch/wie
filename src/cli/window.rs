@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use core::{fmt::Debug, fmt::Formatter, num::NonZeroU32};
-use std::{fmt, sync::RwLock, vec};
+use std::{fmt, sync::RwLock, time::Duration, vec};
 
 use fast_image_resize::ResizeAlg;
 use fast_image_resize::{PixelType, ResizeOptions, SrcCropping};
@@ -139,8 +139,6 @@ impl WindowImpl {
     where
         C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
     {
-        self.event_loop.set_control_flow(ControlFlow::Poll);
-
         const DEFAULT_USER_SCALE_FACTOR: f64 = 1.0;
         let (width, height) = read_display_size(&self.display_size);
         let orig_size = LogicalSize::new(width, height);
@@ -388,7 +386,8 @@ where
     C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
 {
     fn new_events(&mut self, event_loop: &ActiveEventLoop, _cause: StartCause) {
-        self.callback(WindowCallbackEvent::Update, event_loop)
+        self.callback(WindowCallbackEvent::Update, event_loop);
+        event_loop.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(1)));
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {

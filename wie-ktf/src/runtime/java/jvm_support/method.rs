@@ -14,9 +14,7 @@ use wipi_types::ktf::java::{
 };
 
 use alloc::sync::Arc;
-use wie_core_arm::{
-    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcId,
-};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, ResultWriter, SvcId};
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
@@ -129,7 +127,7 @@ impl JavaMethod {
         // mirrors the trampoline path in `interface.rs::map_jump_result`, but for the
         // outermost frame whose caller is the Rust JVM rather than another ARM trampoline.
         async fn run_with_unwind(core: &mut ArmCore, mut pc: u32, mut args: Vec<u32>) -> Result<JavaMethodRunResult> {
-            let caller_context = core.save_context();
+            let caller_context = core.save_resumable_context()?;
             loop {
                 match core.run_function::<JavaMethodRunResult>(pc, &args).await {
                     Ok(r) => return Ok(r),
@@ -139,14 +137,14 @@ impl JavaMethod {
                         next_pc,
                     }) => {
                         tracing::debug!("Resuming via exception restore: pc={next_pc:#x}, context_base={context_base:#x}, target={target:#x}");
-                        core.restore_context(&caller_context);
+                        core.restore_context(&caller_context.read()?);
                         pc = next_pc;
                         args = vec![context_base, target];
                     }
                     Err(e) => {
                         let error = match e {
                             error @ WieError::JavaException(_) => {
-                                core.restore_context(&caller_context);
+                                core.restore_context(&caller_context.read()?);
                                 error
                             }
                             error => with_arm_context(core, error),
@@ -232,10 +230,13 @@ impl JavaMethod {
             return Err(WieError::JavaException(KtfJvmSupport::class_instance_raw(&exception)));
         }
 
-        let exception_handler: RawJavaExceptionHandler = read_generic(core, current_java_exception_handler)?;
-
-        let method = JavaMethod::from_raw(exception_handler.ptr_method, core);
+        let ptr_method = read_generic(core, current_java_exception_handler)?;
+        let method = JavaMethod::from_raw(ptr_method, core);
         let exception_table = method.exception_table()?;
+        if exception_table.is_empty() {
+            return Err(WieError::JavaException(KtfJvmSupport::class_instance_raw(&exception)));
+        }
+        let exception_handler: RawJavaExceptionHandler = read_generic(core, current_java_exception_handler)?;
 
         for entry in exception_table {
             if entry.from_pc <= exception_handler.current_pc
@@ -298,7 +299,7 @@ impl JavaMethod {
             return_type: return_type.clone(),
         };
 
-        let proxy = Arc::new(Box::new(RegisteredFunctionHolder::new(proxy, &())) as Box<dyn RegisteredFunction>);
+        let proxy = Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>);
         java_functions.lock().insert(ptr_method, proxy.clone());
 
         // Entry-field addresses identify the ABI while sharing the method implementation.
@@ -372,12 +373,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<C, Context> EmulatedFunction<(), JavaMethodResult, ()> for JavaMethodProxy<C, Context>
+impl<C, Context> RegisteredFunction for JavaMethodProxy<C, Context>
 where
     C: ?Sized + Send,
     Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
 {
-    async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
+    async fn call(&self, core: &mut ArmCore) -> Result<()> {
         let param_count = method_argument_word_count(&self.parameter_types);
 
         let native_entry = self.ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
@@ -396,6 +397,7 @@ where
         let mut context = self.context.clone();
         let (_, lr) = core.read_pc_lr()?;
 
+        let _frame = self.jvm.push_native_frame(&args);
         let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await;
         if let Err(JavaError::JavaException(x)) = result {
             // if we executed this from rust code, we should propagate this down
@@ -403,7 +405,7 @@ where
                 let java_exception = KtfJvmSupport::class_instance_raw(&x);
                 return Err(WieError::JavaException(java_exception));
             }
-            return JavaMethod::handle_exception(core, &self.jvm, x).await;
+            return JavaMethod::handle_exception(core, &self.jvm, x).await?.write(core, lr);
         }
 
         let result = if matches!(self.return_type, JavaType::Double | JavaType::Long) {
@@ -413,7 +415,7 @@ where
             vec![codec.encode_word(&result.unwrap())]
         };
 
-        Ok(JavaMethodResult { result, next_pc: None })
+        JavaMethodResult { result, next_pc: None }.write(core, lr)
     }
 }
 

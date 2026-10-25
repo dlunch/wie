@@ -8,7 +8,7 @@ mod runtime;
 
 use alloc::{boxed::Box, format, string::ToString};
 
-use jvm::{JavaError, Jvm, runtime::JavaLangString};
+use jvm::{JavaError, JavaValue, Jvm, runtime::JavaLangString};
 use rustjava_runtime::Runtime;
 
 use wie_backend::System;
@@ -33,6 +33,7 @@ impl JvmSupport {
     where
         T: JvmImplementation + Sync + Send + 'static,
     {
+        let external_roots = implementation.external_roots();
         let runtime = JvmRuntime::new(system.clone(), implementation, protos);
 
         let class_path = if let Some(x) = jar_name {
@@ -58,6 +59,7 @@ impl JvmSupport {
             rustjava_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
             move || runtime.current_task_id(),
             properties,
+            external_roots,
         )
         .await
         .map_err(|x| WieError::FatalError(format!("Failed to create JVM: {x}")))?;
@@ -68,6 +70,7 @@ impl JvmSupport {
     pub async fn to_wie_err(jvm: &Jvm, err: JavaError) -> WieError {
         match err {
             JavaError::JavaException(x) => {
+                let _frame = jvm.push_native_frame(&[JavaValue::Object(Some(x.clone()))]);
                 let string_writer = jvm.new_class("java/io/StringWriter", "()V", ()).await.unwrap();
                 let print_writer = jvm
                     .new_class("java/io/PrintWriter", "(Ljava/io/Writer;)V", (string_writer.clone(),))

@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::ToString, vec, vec::Vec};
 
 use jvm::{
     Jvm,
@@ -104,7 +104,7 @@ impl WIPICContext for LgtWIPICContext {
                 .unwrap();
             return Ok(Some(available as _));
         }
-        self.jvm.collect_garbage().unwrap();
+        self.jvm.collect_garbage().map_err(|error| WieError::FatalError(error.to_string()))?;
 
         Ok(self.system.filesystem().size(name).await)
     }
@@ -124,7 +124,7 @@ impl WIPICContext for LgtWIPICContext {
         let read = self.system.filesystem().read(name, 0, size, &mut data).await.unwrap_or(0);
         data.truncate(read);
 
-        self.jvm.collect_garbage().unwrap();
+        self.jvm.collect_garbage().map_err(|error| WieError::FatalError(error.to_string()))?;
 
         Ok(data)
     }
@@ -184,10 +184,9 @@ mod tests {
                 profile: None,
             })?;
             Allocator::init(&mut core)?;
-            let mut caller = core.save_context();
-            caller.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
-            caller.cpsr = 0x10;
-            core.restore_context(&caller);
+            let _thread = core.run_in_thread(core::future::pending)?;
+            let _entered = core.enter_thread_context(1);
+            let caller = core.save_context();
             let jvm = LgtJvmSupport::init(&mut core, &system_task, None).await?;
             let queue = jvm.new_class("net/wie/EventQueue", "()V", ()).await.unwrap();
             let timer = Allocator::alloc(&mut core, size_of::<kernel::WIPICTimer>() as u32)?;

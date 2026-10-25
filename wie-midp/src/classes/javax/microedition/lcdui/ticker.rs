@@ -282,7 +282,7 @@ mod test {
             Box::new([get_protos().into(), [TickerMidlet::as_proto()].into()]),
             Box::new(TestPlatform::with_clock(clock.clone())),
             move |jvm, system| async move {
-                jvm.push_native_frame();
+                let frame = jvm.push_native_frame(&[]);
                 let midlet: ClassInstanceRef<MIDlet> = jvm.new_class("test/TickerMidlet", "()V", ()).await?.into();
                 let display = MIDlet::display(&jvm, &midlet).await?;
                 let text = JavaLangString::from_rust_string(&jvm, "News\r\nNext\nEnd\r!").await?;
@@ -338,15 +338,15 @@ mod test {
                         .await?,
                     step * 2
                 );
-                jvm.pop_frame();
-                jvm.collect_garbage()?;
+                drop(frame);
+                jvm.collect_garbage().unwrap();
                 drop(first_root);
                 assert!(
-                    jvm.collect_garbage()? > 0,
+                    jvm.collect_garbage().unwrap() > 0,
                     "the shared ticker and pending timers must release the old Form"
                 );
 
-                jvm.push_native_frame();
+                let _frame = jvm.push_native_frame(&[]);
                 let original = jvm.invoke_virtual(&ticker, TICKER, "getString", "()Ljava/lang/String;", ()).await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &original).await?, "News\r\nNext\nEnd\r!");
                 let normalized = JavaLangString::from_rust_string(&jvm, "News Next End !").await?;
@@ -446,7 +446,6 @@ mod test {
                     0
                 );
                 assert!(system.event_queue().pop().is_none(), "empty text must not keep a timer alive");
-                jvm.pop_frame();
                 drop((ticker_root, second_root));
                 Ok(())
             },

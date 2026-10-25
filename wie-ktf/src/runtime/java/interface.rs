@@ -25,6 +25,7 @@ pub fn register_java_interface_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Res
 }
 
 async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<JavaMethodResult> {
+    let _frame = jvm.push_native_frame(&[]);
     let (_, lr) = core.read_pc_lr()?;
 
     match JavaSvcId::try_from(id)? {
@@ -190,9 +191,9 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut (), arg1: u32, address: u32) ->
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    let caller = core.save_context();
+    let caller = core.save_resumable_context()?;
     let result = core.run_function::<u32>(address, &[arg1, 0, 0]).await;
-    map_jump_result(core, &caller, result)
+    map_jump_result(core, &caller.read()?, result)
 }
 
 async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
@@ -315,14 +316,14 @@ async fn call_native(core: &mut ArmCore, _: &mut (), address: u32, ptr_data: u32
     }
 
     // TODO correctly figure out parameter
-    let caller = core.save_context();
+    let caller = core.save_resumable_context()?;
     let result = match core.run_function::<u32>(address, &[ptr_data, ptr_data]).await {
         Ok(result) => result,
         Err(WieError::JavaExceptionUnwind {
             context_base,
             target,
             next_pc,
-        }) => return map_exception_unwind(core, &caller, context_base, target, next_pc),
+        }) => return map_exception_unwind(core, &caller.read()?, context_base, target, next_pc),
         Err(err) => return Err(err),
     };
 
@@ -339,9 +340,9 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut (), arg1: u32, arg2: u32, addre
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    let caller = core.save_context();
+    let caller = core.save_resumable_context()?;
     let result = core.run_function::<u32>(address, &[arg1, arg2, 0]).await;
-    map_jump_result(core, &caller, result)
+    map_jump_result(core, &caller.read()?, result)
 }
 
 async fn java_jump_3(core: &mut ArmCore, _: &mut (), arg1: u32, arg2: u32, arg3: u32, address: u32) -> Result<JavaMethodResult> {
@@ -351,9 +352,9 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut (), arg1: u32, arg2: u32, arg3:
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    let caller = core.save_context();
+    let caller = core.save_resumable_context()?;
     let result = core.run_function::<u32>(address, &[arg1, arg2, arg3]).await;
-    map_jump_result(core, &caller, result)
+    map_jump_result(core, &caller.read()?, result)
 }
 
 pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<u32> {

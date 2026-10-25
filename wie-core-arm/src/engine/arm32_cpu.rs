@@ -871,6 +871,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _entered = core.enter_thread_context(1);
         core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         let controller = core.clone();
         let mut execution: core::pin::Pin<Box<dyn Future<Output = Result<u32>> + Send>> = Box::pin(async move {

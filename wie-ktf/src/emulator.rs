@@ -26,11 +26,30 @@ struct KtfTaskRunner {
     core: ArmCore,
 }
 
+struct KtfTaskContext {
+    core: ArmCore,
+    address: Option<u32>,
+}
+
+impl Drop for KtfTaskContext {
+    fn drop(&mut self) {
+        if let Some(address) = self.address.take()
+            && let Err(error) = Allocator::free(&mut self.core, address, size_of::<KtfJvmThreadContext>() as u32)
+        {
+            tracing::error!("Failed to free KTF thread context: {error}");
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl TaskRunner for KtfTaskRunner {
     async fn run(&self, mut future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
         let mut core = self.core.clone();
         let ptr_thread_context = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
+        let mut thread_context = KtfTaskContext {
+            core: core.clone(),
+            address: Some(ptr_thread_context),
+        };
         write_generic(&mut core, ptr_thread_context, KtfJvmThreadContext::zeroed())?;
 
         let mut poll_core = self.core.clone();
@@ -38,6 +57,9 @@ impl TaskRunner for KtfTaskRunner {
             .core
             .run_in_thread(move || {
                 poll_fn(move |context| {
+                    if let Err(error) = poll_core.set_thread_runtime_context(ptr_thread_context) {
+                        return Poll::Ready(Err(error));
+                    }
                     // KTF's first native init argument points at this cell and dereferences it for each stack check and try block.
                     if let Err(error) = KtfJvmSupport::set_current_thread_context(&mut poll_core, ptr_thread_context) {
                         return Poll::Ready(Err(error));
@@ -47,9 +69,8 @@ impl TaskRunner for KtfTaskRunner {
                 })
             })?
             .await;
-
-        Allocator::free(&mut core, ptr_thread_context, size_of::<KtfJvmThreadContext>() as u32)?;
-
+        let address = thread_context.address.take().unwrap();
+        Allocator::free(&mut core, address, size_of::<KtfJvmThreadContext>() as u32)?;
         result
     }
 }
@@ -223,14 +244,18 @@ impl Emulator for KtfEmulator {
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, sync::Arc};
-    use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+    use core::{
+        mem::size_of,
+        sync::atomic::{AtomicU32, AtomicUsize, Ordering},
+        task::{Context, Waker},
+    };
 
     use test_utils::TestPlatform;
-    use wie_backend::{System, YieldFuture};
+    use wie_backend::{System, TaskRunner, YieldFuture};
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::{Result, WieError};
 
-    use super::{KtfJvmSupport, KtfTaskRunner};
+    use super::{KtfJvmSupport, KtfJvmThreadContext, KtfTaskRunner};
 
     #[test]
     fn clet_mode_is_selected_from_adf_mclass() {
@@ -258,6 +283,7 @@ mod tests {
             let completed = completed.clone();
             system.spawn(async move || {
                 let before = KtfJvmSupport::current_thread_context(&core)?;
+                assert!(core.snapshot_roots()?.runtime_contexts.contains(&before));
                 YieldFuture::new().await;
                 let after = KtfJvmSupport::current_thread_context(&core)?;
                 if before != after {
@@ -280,6 +306,25 @@ mod tests {
         assert_ne!(first, 0);
         assert_ne!(second, 0);
         assert_ne!(first, second);
+        assert!(core.snapshot_roots()?.runtime_contexts.is_empty());
+        for address in [first, second] {
+            assert!(!Allocator::is_allocated(&core, address, size_of::<KtfJvmThreadContext>() as u32)?);
+        }
+
+        let runner = KtfTaskRunner { core: core.clone() };
+        let pending_context = Arc::new(AtomicU32::new(0));
+        let observed = pending_context.clone();
+        let pending_core = core.clone();
+        let mut task = runner.run(Box::pin(async move {
+            observed.store(KtfJvmSupport::current_thread_context(&pending_core)?, Ordering::Relaxed);
+            core::future::pending().await
+        }));
+        assert!(task.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        let address = pending_context.load(Ordering::Relaxed);
+        assert_eq!(core.snapshot_roots()?.runtime_contexts, [address]);
+        drop(task);
+        assert!(core.snapshot_roots()?.runtime_contexts.is_empty());
+        assert!(!Allocator::is_allocated(&core, address, size_of::<KtfJvmThreadContext>() as u32)?);
 
         Ok(())
     }

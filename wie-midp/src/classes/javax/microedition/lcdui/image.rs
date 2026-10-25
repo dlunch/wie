@@ -346,12 +346,8 @@ where
 
         let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
 
-        let raw_bytes = colors
-            .iter()
-            .flat_map(|color| bytemuck::bytes_of(&T::from_color(*color)).to_vec())
-            .collect::<Vec<_>>();
-
-        self.raw_buffer.write(offset as _, &raw_bytes).unwrap();
+        let raw = colors.iter().copied().map(T::from_color).collect::<Vec<_>>();
+        self.raw_buffer.write(offset, bytemuck::cast_slice(&raw)).unwrap();
     }
 
     fn xor_pixel(&mut self, x: i32, y: i32, color: Color) {
@@ -473,6 +469,9 @@ mod tests {
         let actual = buffer.get_pixel(1, 0);
         let expected = T::to_color(pixels[1]);
         assert_eq!((actual.a, actual.r, actual.g, actual.b), (expected.a, expected.r, expected.g, expected.b));
+        let colors = [T::to_color(pixels[1]), T::to_color(pixels[0])];
+        buffer.put_pixels(0, 0, 2, &colors);
+        assert_eq!(&*buffer.raw(), bytemuck::cast_slice(&[pixels[1], pixels[0]]));
 
         let color = Color {
             a: 255,
@@ -481,7 +480,7 @@ mod tests {
             b: 31,
         };
         buffer.xor_pixel(1, 0, color);
-        let expected = [pixels[0], T::xor_color(pixels[1], color)];
+        let expected = [pixels[1], T::xor_color(pixels[0], color)];
         assert_eq!(&*buffer.raw(), bytemuck::cast_slice(&expected));
         Ok(())
     }

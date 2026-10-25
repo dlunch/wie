@@ -65,8 +65,9 @@ pub fn register_java_system_svc_handler(core: &mut ArmCore, jvm: &Jvm, ptr_jar_p
 }
 
 async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (Jvm, u32), id: SvcId) -> Result<JumpTo> {
-    let caller = core.save_context();
-    let lr = caller.lr;
+    let caller = core.save_resumable_context()?;
+    let lr = caller.read()?.lr;
+    let _frame = jvm.push_native_frame(&[]);
     let result: Result<()> = async {
         match JavaSystemSvcId::try_from(id)? {
             JavaSystemSvcId::InterfaceUnk0 => EmulatedFunction::call(&java_unk0, core, &mut ()).await?.write(core, lr),
@@ -125,7 +126,7 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
     match result {
         Ok(()) => Ok(JumpTo(lr)),
         Err(WieError::JavaException(ptr_exception)) => {
-            core.restore_context(&caller);
+            core.restore_context(&caller.read()?);
             match exception::unwind(core, ptr_exception)? {
                 Some(resume_address) => Ok(JumpTo(resume_address)),
                 None => Err(WieError::JavaException(ptr_exception)),
@@ -431,8 +432,8 @@ async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u
     let definition = JavaLangClass::to_rust_class(jvm, &class_object)
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
-    let instance = definition
-        .instantiate(jvm)
+    let instance = jvm
+        .instantiate_class(&definition.name())
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let ptr_instance = LgtJvmSupport::class_instance_raw(&*instance);
@@ -813,9 +814,10 @@ mod tests {
                 profile: None,
             })?;
             Allocator::init(&mut core)?;
+            let _thread = core.run_in_thread(core::future::pending)?;
+            let _entered = core.enter_thread_context(1);
             let mut context = core.save_context();
-            let stack = Allocator::alloc(&mut core, 0x100)?;
-            context.sp = stack + 0x80;
+            context.sp -= 0x80;
             core.restore_context(&context);
             let mut jvm = LgtJvmSupport::init(&mut core, &system_clone, None).await?;
             let class_name = "org/kwis/msp/lcdui/Font";

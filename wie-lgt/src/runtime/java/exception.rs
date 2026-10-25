@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
@@ -81,6 +82,19 @@ pub fn pending(core: &ArmCore) -> Result<u32> {
     let ptr_context: u32 = read_generic(core, SUPPORT_CONTEXT_BASE)?;
     let support_context: JavaSupportContext = read_generic(core, ptr_context)?;
     Ok(support_context.ptr_pending_exception)
+}
+
+pub fn root_words(core: &ArmCore, ptr_context: u32, words: &mut Vec<u32>) -> Result<()> {
+    let context: JavaSupportContext = read_generic(core, ptr_context)?;
+    words.push(context.ptr_pending_exception);
+    let mut ptr_frame = context.ptr_current_exception_frame;
+    while ptr_frame != 0 {
+        let frame: [u32; FRAME_WORDS as usize] = read_generic(core, ptr_frame)?;
+        words.extend_from_slice(&frame[1..]);
+        core.append_stack_words(frame[14], words)?;
+        ptr_frame = frame[0];
+    }
+    Ok(())
 }
 
 pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {

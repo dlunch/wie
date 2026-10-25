@@ -25,6 +25,7 @@ pub fn register_init_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
 }
 
 async fn handle_init_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<()> {
+    let _frame = jvm.push_native_frame(&[]);
     let (_, lr) = core.read_pc_lr()?;
 
     match InitSvcId::try_from(id)? {

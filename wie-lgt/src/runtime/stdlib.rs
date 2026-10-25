@@ -477,7 +477,7 @@ mod tests {
     use super::{STRTOK_STATE, memcpy, memset, rand, register_stdlib_svc_handler, srand, strcpy, strlen};
     use crate::runtime::SVC_CATEGORY_STDLIB;
 
-    fn stdlib_core() -> Result<ArmCore> {
+    fn stdlib_core() -> Result<(ArmCore, impl Future<Output = Result<()>>)> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
             aot: None,
@@ -485,17 +485,16 @@ mod tests {
         })?;
         Allocator::init(&mut core)?;
         core.map(0x10000, 0x10000)?;
-        let mut context = core.save_context();
-        context.sp = 0x18000;
-        core.restore_context(&context);
         let system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         register_stdlib_svc_handler(&mut core, &system)?;
-        Ok(core)
+        let thread = core.run_in_thread(core::future::pending)?;
+        Ok((core, thread))
     }
 
     #[test]
     fn allocation_imports_resize_guest_memory_and_preserve_failed_allocations() -> Result<()> {
-        let mut core = stdlib_core()?;
+        let (mut core, _thread) = stdlib_core()?;
+        let _entered = core.enter_thread_context(1);
         let allocate = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x426u32)?;
         let resize = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x427u32)?;
         let release = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x428u32)?;
@@ -545,7 +544,8 @@ mod tests {
 
     #[test]
     fn strtol_import_parses_guest_numbers_and_reports_the_end_pointer() -> Result<()> {
-        let mut core = stdlib_core()?;
+        let (mut core, _thread) = stdlib_core()?;
+        let _entered = core.enter_thread_context(1);
         let parse = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x3ffu32)?;
         for (input, base, expected, end) in [
             (b"ff80ab|".as_slice(), 16, 0xff80ab, 6),
@@ -585,7 +585,8 @@ mod tests {
 
     #[test]
     fn bounded_string_imports_use_guest_limits_and_arm_return_values() -> Result<()> {
-        let mut core = stdlib_core()?;
+        let (mut core, _thread) = stdlib_core()?;
+        let _entered = core.enter_thread_context(1);
         let append = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x408u32)?;
         let compare = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x40au32)?;
 
@@ -630,7 +631,8 @@ mod tests {
 
     #[test]
     fn tokenization_resumes_in_guest_memory_and_accepts_changing_delimiters() -> Result<()> {
-        let mut core = stdlib_core()?;
+        let (mut core, _thread) = stdlib_core()?;
+        let _entered = core.enter_thread_context(1);
         let tokenize = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x413u32)?;
         core.write_bytes(0x10000, b",one;;two:three,,\0")?;
         core.write_bytes(0x11000, b",;\0;:\0,\0\0")?;
@@ -655,7 +657,8 @@ mod tests {
 
     #[test]
     fn variadic_formatting_reads_only_consumed_guest_arguments() -> Result<()> {
-        let mut core = stdlib_core()?;
+        let (mut core, _thread) = stdlib_core()?;
+        let _entered = core.enter_thread_context(1);
         let format = core.make_svc_stub(SVC_CATEGORY_STDLIB, 0x3f9u32)?;
         core.write_bytes(0x11000, b"%u %u %u %u %u %u %u %u\0")?;
         for index in 0..8 {
@@ -689,7 +692,8 @@ mod tests {
 
     #[test]
     fn memory_and_string_imports_preserve_guest_bytes_across_chunks() -> Result<()> {
-        let mut core = stdlib_core()?;
+        let (mut core, _thread) = stdlib_core()?;
+        let _entered = core.enter_thread_context(1);
         core.map(0x20000, 0x10000)?;
         let mut source = (0..5000).map(|index| (index % 251 + 1) as u8).collect::<Vec<_>>();
         source.push(0);

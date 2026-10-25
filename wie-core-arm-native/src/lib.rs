@@ -173,20 +173,30 @@ impl CompiledExecutor for NativeExecutor {
         }
     }
 
-    fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit> {
+    fn execute(&mut self, mut handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit> {
         let modules = self.modules.lock();
-        let entry = modules
-            .compiled
-            .get(&handle.module)
-            .and_then(|module| module.entries.get(&handle.slot))
-            .ok_or_else(|| WieError::FatalError("Native ARM AOT region is unavailable".into()))?;
-        // Finalized code has this exact ABI; both borrows and the executable owner
-        // remain live throughout the synchronous call; generated code cannot reenter execution or remap pages.
-        let exit = unsafe { entry(frame, access.pages().as_mut_ptr()) };
-        match exit {
-            0 => Ok(CompiledExit::Dispatch),
-            6 => Ok(CompiledExit::GuestFault),
-            _ => Err(WieError::FatalError(format!("Native ARM AOT returned invalid exit {exit}"))),
+        loop {
+            let entry = modules
+                .compiled
+                .get(&handle.module)
+                .and_then(|module| module.entries.get(&handle.slot))
+                .ok_or_else(|| WieError::FatalError("Native ARM AOT region is unavailable".into()))?;
+            // Finalized code has this exact ABI; both borrows and the executable owner
+            // remain live throughout the synchronous call; generated code cannot reenter execution or remap pages.
+            let exit = unsafe { entry(frame, access.pages().as_mut_ptr()) };
+            match exit {
+                0 => {}
+                6 => return Ok(CompiledExit::GuestFault),
+                _ => return Err(WieError::FatalError(format!("Native ARM AOT returned invalid exit {exit}"))),
+            }
+            let pc = frame.regs[15];
+            if pc < 0x1000 || pc == frame.end {
+                return Ok(CompiledExit::Dispatch);
+            }
+            let Some(next) = access.resolve(pc, frame.cpsr) else {
+                return Ok(CompiledExit::Dispatch);
+            };
+            handle = next;
         }
     }
 }
@@ -353,7 +363,10 @@ mod tests {
     use spin::Mutex;
     use wie_core_arm_aot::{
         CodeImage, CompileRegion, CompileRequest, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, RegionKey, RunFrame,
-        ir::{AluOp, BasicBlock, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value},
+        ir::{
+            AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryAddress, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift,
+            ShiftAmount, Value, Width,
+        },
     };
     use wie_util::{Result, WieError};
 
@@ -394,15 +407,21 @@ mod tests {
         }
     }
 
-    struct Access(Box<[MemoryPage; 0x10000]>);
+    struct Access {
+        pages: Box<[MemoryPage; 0x10000]>,
+        entries: Vec<(RegionKey, CompiledHandle)>,
+    }
 
     impl ExecutionAccess for Access {
-        fn resolve(&self, _: u32, _: u32) -> Option<CompiledHandle> {
-            panic!("native execution must return to the engine for dispatch")
+        fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle> {
+            self.entries
+                .iter()
+                .find(|(key, _)| key.pc == pc && key.thumb == (cpsr & 0x20 != 0) && u32::from(key.cpu_mode) == cpsr & 0x0100_001f)
+                .map(|(_, handle)| *handle)
         }
 
         fn pages(&mut self) -> &mut [MemoryPage; 0x10000] {
-            &mut self.0
+            &mut self.pages
         }
 
         fn word_range(&mut self, _: u32, _: u32) -> Option<(&mut [u8], &mut [u8])> {
@@ -515,15 +534,16 @@ mod tests {
             assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x1000, 0x1004, 0x1008]);
             assert_eq!(artifact.regions[0].manifest.code_ranges.len(), 1);
             assert_eq!(artifact.regions[0].manifest.code_ranges[0], 0x1000..0x100c);
-            let mut access = Access(
-                (0..0x10000)
+            let mut access = Access {
+                pages: (0..0x10000)
                     .map(|_| MemoryPage::default())
                     .collect::<Vec<_>>()
                     .into_boxed_slice()
                     .try_into()
                     .ok()
                     .unwrap(),
-            );
+                entries: Vec::new(),
+            };
             let mut frame = RunFrame {
                 cpsr: 0x1f,
                 ..RunFrame::default()
@@ -611,15 +631,16 @@ mod tests {
             );
             let first = artifact.regions[0].handle;
             let second = artifact.regions[1].handle;
-            let mut access = Access(
-                (0..0x10000)
+            let mut access = Access {
+                pages: (0..0x10000)
                     .map(|_| MemoryPage::default())
                     .collect::<Vec<_>>()
                     .into_boxed_slice()
                     .try_into()
                     .ok()
                     .unwrap(),
-            );
+                entries: Vec::new(),
+            };
             let mut frame = RunFrame {
                 cpsr: 0x1f,
                 end: 0x1008,
@@ -669,6 +690,137 @@ mod tests {
             assert_eq!(calls[0].load(Ordering::Relaxed), 1);
             assert_eq!(calls[1].load(Ordering::Relaxed), 1);
         }
+    }
+
+    #[test]
+    fn dispatch_chains_regions_and_preserves_stops_and_faults() {
+        let mut executor = NativeExecutor::new(None);
+        let memory = |base| MemoryOperand {
+            base: Value::Immediate(base),
+            offset: Operand {
+                value: Value::Immediate(0),
+                shift: Shift::Lsl,
+                amount: ShiftAmount::Immediate(0),
+            },
+            subtract: false,
+            pre_index: true,
+            write_back: None,
+        };
+        let mut first = region(0x1000, &[&[(0x1000, 4), (0x1004, 4), (0x1008, 4), (0x100c, 4)]]);
+        for (instruction, operation) in first.ir.blocks[0].instructions.iter_mut().zip([
+            Operation::Store {
+                value: Value::Register(Reg::new(0)),
+                address: memory(0x10000),
+                width: Width::Word,
+            },
+            Operation::Branch {
+                target: BranchTarget::Register(Reg::new(1)),
+                link: None,
+                exchange: false,
+            },
+            Operation::Alu {
+                op: AluOp::Add,
+                destination: Some(Reg::new(0)),
+                left: Value::Register(Reg::new(0)),
+                right: Operand {
+                    value: Value::Immediate(1),
+                    shift: Shift::Lsl,
+                    amount: ShiftAmount::Immediate(0),
+                },
+                set_flags: false,
+            },
+            Operation::Branch {
+                target: BranchTarget::Register(Reg::new(2)),
+                link: None,
+                exchange: true,
+            },
+        ]) {
+            instruction.operation = operation;
+        }
+        let first = block_on(executor.prepare(request([Some(first)].into_iter()))).unwrap().regions.remove(0);
+        let mut second = region(0x2000, &[&[(0x2000, 2), (0x2002, 2), (0x2004, 2)]]);
+        second.ir.entry.thumb = true;
+        for (instruction, operation) in second.ir.blocks[0].instructions.iter_mut().zip([
+            Operation::Store {
+                value: Value::Register(Reg::new(0)),
+                address: memory(0x10004),
+                width: Width::Word,
+            },
+            Operation::Load {
+                destination: Reg::new(3),
+                address: MemoryOperand {
+                    base: Value::Register(Reg::new(4)),
+                    ..memory(0)
+                },
+                width: Width::Word,
+                signed: false,
+            },
+            Operation::Branch {
+                target: BranchTarget::Register(Reg::new(5)),
+                link: None,
+                exchange: false,
+            },
+        ]) {
+            instruction.operation = operation;
+        }
+        let second = block_on(executor.prepare(request([Some(second)].into_iter()))).unwrap().regions.remove(0);
+        assert_ne!(first.handle.module, second.handle.module);
+        let mut access = Access {
+            pages: (0..0x10000)
+                .map(|_| MemoryPage::default())
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+                .try_into()
+                .ok()
+                .unwrap(),
+            entries: first
+                .manifest
+                .instruction_pcs
+                .iter()
+                .map(|&pc| (RegionKey { pc, ..first.manifest.entry }, first.handle))
+                .chain(
+                    second
+                        .manifest
+                        .instruction_pcs
+                        .iter()
+                        .map(|&pc| (RegionKey { pc, ..second.manifest.entry }, second.handle)),
+                )
+                .collect(),
+        };
+        access.pages[1].bytes = Some(Box::new([0; 0x10000]));
+        for (target, load_address) in [(0x3000, 0x10000), (0x800, 0x10000), (0x4000, 0x10000), (0x4000, 0x20000)] {
+            let mut frame = RunFrame {
+                cpsr: 0x1f,
+                end: 0x3000,
+                ..RunFrame::default()
+            };
+            frame.regs[..6].copy_from_slice(&[41, 0x1008, 0x2001, 0, load_address, target]);
+            frame.regs[15] = 0x1000;
+            let exit = executor.execute(first.handle, &mut frame, &mut access).unwrap();
+            assert_eq!(frame.regs[0], 42);
+            assert_eq!(frame.cpsr, 0x3f);
+            assert_eq!(&access.pages[1].bytes.as_ref().unwrap()[..8], &[41, 0, 0, 0, 42, 0, 0, 0]);
+            if load_address == 0x20000 {
+                assert!(exit == CompiledExit::GuestFault);
+                assert_eq!(frame.regs[15], 0x2002);
+                assert_eq!(frame.fault_address, load_address);
+            } else {
+                assert!(exit == CompiledExit::Dispatch);
+                assert_eq!(frame.regs[15], target);
+                assert_eq!(frame.regs[3], 41);
+            }
+        }
+        executor.release(second.handle);
+        let mut frame = RunFrame {
+            cpsr: 0x1f,
+            ..RunFrame::default()
+        };
+        frame.regs[..3].copy_from_slice(&[41, 0x1008, 0x2001]);
+        frame.regs[15] = 0x1000;
+        assert!(executor.execute(first.handle, &mut frame, &mut access).is_err());
+        assert_eq!(frame.regs[0], 42);
+        assert_eq!(frame.regs[15], 0x2000);
+        assert_eq!(frame.cpsr, 0x3f);
     }
 
     #[test]

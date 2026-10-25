@@ -118,10 +118,9 @@ impl WIPICContext for KtfWIPICContext {
             }
             None => None,
         };
-        match self.jvm.collect_garbage() {
-            Ok(_) => {}
-            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
-        }
+        self.jvm
+            .collect_garbage()
+            .map_err(|error| WieError::FatalError(alloc::format!("Garbage collection failed: {error}")))?;
 
         Ok(result)
     }
@@ -147,10 +146,9 @@ impl WIPICContext for KtfWIPICContext {
             }
         };
         drop(stream);
-        match self.jvm.collect_garbage() {
-            Ok(_) => {}
-            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
-        }
+        self.jvm
+            .collect_garbage()
+            .map_err(|error| WieError::FatalError(alloc::format!("Garbage collection failed: {error}")))?;
         Ok(data)
     }
 
@@ -211,13 +209,13 @@ mod tests {
                 profile: None,
             })?;
             Allocator::init(&mut core)?;
-            let mut caller = core.save_context();
-            caller.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
-            caller.cpsr = 0x10;
-            core.restore_context(&caller);
+            let _thread = core.run_in_thread(|| async { Ok(()) })?;
+            let _entered = core.enter_thread_context(1);
+            let caller = core.save_context();
             let thread = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
             write_generic(&mut core, thread, KtfJvmThreadContext::zeroed())?;
             KtfJvmSupport::set_current_thread_context(&mut core, thread)?;
+            core.set_thread_runtime_context(thread)?;
             let (jvm, _) = KtfJvmSupport::init(&mut core, &mut system_task, None).await?;
             let queue = jvm.new_class("net/wie/EventQueue", "()V", ()).await.unwrap();
             let timer = Allocator::alloc(&mut core, size_of::<kernel::WIPICTimer>() as u32)?;

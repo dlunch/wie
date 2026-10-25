@@ -10,7 +10,7 @@ use crate::{ArmCore, ThreadId};
 pub struct ArmCoreThreadWrapper {
     core: ArmCore,
     thread_id: ThreadId,
-    future: Pin<Box<dyn Future<Output = Result<()>> + Send>>,
+    future: Option<Pin<Box<dyn Future<Output = Result<()>> + Send>>>,
 }
 
 impl ArmCoreThreadWrapper {
@@ -22,7 +22,7 @@ impl ArmCoreThreadWrapper {
         Ok(Self {
             core,
             thread_id,
-            future: Box::pin(entry()),
+            future: Some(Box::pin(entry())),
         })
     }
 }
@@ -40,7 +40,7 @@ impl Future for ArmCoreThreadWrapper {
             return Poll::Pending;
         }
 
-        self.future.as_mut().poll(cx)
+        self.future.as_mut().unwrap().as_mut().poll(cx)
     }
 }
 
@@ -48,6 +48,7 @@ impl Unpin for ArmCoreThreadWrapper {}
 
 impl Drop for ArmCoreThreadWrapper {
     fn drop(&mut self) {
+        drop(self.future.take());
         self.core.delete_thread_context(self.thread_id);
     }
 }

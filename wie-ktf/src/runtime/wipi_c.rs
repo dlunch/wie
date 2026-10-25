@@ -56,6 +56,7 @@ impl EmulatedFunction<(), WIPICMethodResult, ()> for CMethodProxy {
 }
 
 async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
+    let _frame = jvm.push_native_frame(&[]);
     let table_id = WIPICTableId::try_from(id.0 >> 16)?;
     let function_id = id.0 as u16;
     let (_, lr) = core.read_pc_lr()?;
@@ -111,9 +112,8 @@ mod tests {
             })
             .unwrap();
             Allocator::init(&mut core).unwrap();
-            let mut registers = core.save_context();
-            registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
-            core.restore_context(&registers);
+            let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+            let _entered = core.enter_thread_context(1);
             register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
             let get_interfaces = core
                 .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))
@@ -172,9 +172,8 @@ mod tests {
             })
             .unwrap();
             Allocator::init(&mut core).unwrap();
-            let mut registers = core.save_context();
-            registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
-            core.restore_context(&registers);
+            let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+            let _entered = core.enter_thread_context(1);
             register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
             let get_interfaces = core
                 .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))

@@ -1,4 +1,8 @@
-use alloc::{string::String as RustString, vec, vec::Vec};
+use alloc::{
+    string::{String as RustString, ToString},
+    vec,
+    vec::Vec,
+};
 
 use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
@@ -991,7 +995,9 @@ impl Display {
 
             screen.paint(&*image);
         }
-        jvm.collect_garbage()?;
+        if let Err(error) = jvm.collect_garbage() {
+            return Err(jvm.exception("net/wie/WieError", &error.to_string()).await);
+        }
 
         Ok(())
     }
