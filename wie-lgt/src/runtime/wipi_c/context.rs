@@ -184,9 +184,10 @@ mod tests {
                 profile: None,
             })?;
             Allocator::init(&mut core)?;
-            let _thread = core.run_in_thread(core::future::pending)?;
-            let _entered = core.enter_thread_context(1);
-            let caller = core.save_context();
+            let mut caller = core.save_context();
+            caller.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
+            caller.cpsr = 0x10;
+            core.restore_context(&caller);
             let jvm = LgtJvmSupport::init(&mut core, &system_task, None).await?;
             let queue = jvm.new_class("net/wie/EventQueue", "()V", ()).await.unwrap();
             let timer = Allocator::alloc(&mut core, size_of::<kernel::WIPICTimer>() as u32)?;

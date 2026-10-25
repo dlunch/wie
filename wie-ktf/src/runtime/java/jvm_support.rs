@@ -15,10 +15,8 @@ use core::mem::{offset_of, size_of};
 use jvm_implementation::KtfJvmImplementation;
 
 use bytemuck::{Pod, Zeroable};
-use futures::TryFutureExt;
 
-use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Field, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_types::FieldAccessFlags;
+use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 use rustjava_runtime::classes::java::util::{Enumeration, jar::JarEntry};
 
 use wie_backend::System;
@@ -27,7 +25,7 @@ use wie_jvm_support::JvmSupport;
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_table, write_generic};
 
-use wipi_types::ktf::{ExeInterfaceFunctions, InitParam2, java::JavaClass as RawJavaClass};
+use wipi_types::ktf::InitParam2;
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -55,12 +53,13 @@ pub struct KtfJvmThreadContext {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct KtfJvmSupportContext {
+pub struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
     ptr_current_jvm_thread_context: u32,
+    pub ptr_wipi_exe: u32,
 }
 
-const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
+pub const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
 
 pub struct KtfJvmSupport;
 
@@ -162,50 +161,6 @@ impl KtfJvmSupport {
         Ok((jvm, class_loader))
     }
 
-    // Native initialization must have linked the class catalog before registration.
-    pub(crate) async fn register_static_classes(
-        core: &mut ArmCore,
-        jvm: &Jvm,
-        class_loader: Box<dyn ClassInstance>,
-        main_class_name: &str,
-    ) -> Result<()> {
-        let ptr_functions: i32 = jvm
-            .get_field(&class_loader, "net/wie/KtfClassLoader", "nativeFunctions", "I")
-            .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
-            .await?;
-        let functions: ExeInterfaceFunctions = read_generic(core, ptr_functions as u32)?;
-        let predicate = functions.fn_is_native_class_address;
-        if predicate == 0 {
-            return Ok(());
-        }
-
-        let main_class = jvm
-            .resolve_class(main_class_name)
-            .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
-            .await?;
-        let mut ptr_class = Self::class_definition_raw(&*main_class.definition)?;
-        if core.run_function::<u32>(predicate, &[ptr_class]).await? == 0 {
-            return Ok(());
-        }
-
-        let class_size = size_of::<RawJavaClass>() as u32;
-        while core.run_function::<u32>(predicate, &[ptr_class - class_size]).await? != 0 {
-            ptr_class -= class_size;
-        }
-        while core.run_function::<u32>(predicate, &[ptr_class]).await? != 0 {
-            let class = JavaClassDefinition::from_raw(ptr_class, core);
-            let name = class.name()?;
-            if !jvm.has_class(&name) && class.fields()?.any(|field| field.access_flags().contains(FieldAccessFlags::STATIC)) {
-                jvm.register_class(Box::new(class), Some(class_loader.clone()))
-                    .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
-                    .await?;
-            }
-            ptr_class += class_size;
-        }
-
-        Ok(())
-    }
-
     pub(crate) async fn disable_midp_paint(jvm: &Jvm) -> JvmResult<()> {
         let midlet: ClassInstanceRef<MIDlet> = jvm
             .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
@@ -288,21 +243,16 @@ impl KtfJvmSupport {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec, vec::Vec};
+    use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::{
         mem::{offset_of, size_of},
-        sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
+        sync::atomic::{AtomicBool, Ordering},
     };
 
     use bytemuck::Zeroable;
-    use jvm::{
-        ClassInstance, ClassInstanceRef, JavaValue, Jvm,
-        runtime::{JavaLangClass, JavaLangString},
-    };
-    use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
+    use jvm::{ClassInstance, ClassInstanceRef, JavaValue, Jvm, runtime::JavaLangString};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use rustjava_runtime::classes::java::lang::Class;
-    use spin::Mutex;
     use wipi_types::ktf::{
         ExeInterfaceFunctions,
         java::{
@@ -312,8 +262,8 @@ mod test {
         },
     };
 
-    use wie_backend::{DefaultTaskRunner, System, YieldFuture};
-    use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_core_arm::{Allocator, ArmCore};
     use wie_jvm_support::native::encode_method_arguments;
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
@@ -327,7 +277,7 @@ mod test {
 
     use test_utils::{TestClock, TestPlatform};
 
-    async fn init_jvm(system: &mut System) -> Result<(Jvm, ArmCore, impl Send + use<>)> {
+    async fn init_jvm(system: &mut System) -> Result<(Jvm, ArmCore)> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
             aot: None,
@@ -335,110 +285,145 @@ mod test {
         })?;
         Allocator::init(&mut core)?;
 
-        let thread = core.run_in_thread(|| async { Ok(()) })?;
-        let entered = core.enter_thread_context(1);
+        let mut context = core.save_context();
+        let stack = Allocator::alloc(&mut core, 0x100)?;
+        context.sp = stack + 0x100;
+        core.restore_context(&context);
 
         let ptr_thread_context = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
         write_generic(&mut core, ptr_thread_context, KtfJvmThreadContext::zeroed())?;
         KtfJvmSupport::set_current_thread_context(&mut core, ptr_thread_context)?;
-        core.set_thread_runtime_context(ptr_thread_context)?;
 
         let (jvm, _) = KtfJvmSupport::init(&mut core, system, None).await?;
 
-        Ok((jvm, core, (entered, thread)))
+        Ok((jvm, core))
     }
 
     #[test]
-    fn native_roots_retain_graphs_and_interior_pointers_until_released() -> Result<()> {
+    fn test_native_gc_visitor_keeps_guest_references() -> Result<()> {
+        use bytemuck::{bytes_of, cast_slice};
+        use wipi_types::ktf::{ExeInterface, WipiExe};
+
+        use crate::runtime::{SVC_CATEGORY_JAVA_INTERFACE, init::load_native, svc_ids::JavaSvcId};
+
+        async fn collect_during_init(core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
+            let context: super::KtfJvmSupportContext = read_generic(core, super::SUPPORT_CONTEXT_BASE)?;
+            assert_eq!(context.ptr_wipi_exe, 0, "the visitor must not run against partially initialized tables");
+            jvm.collect_garbage().unwrap();
+            let string: u32 = read_generic(core, 0x100104)?;
+            assert!(Allocator::is_allocated(core, string, size_of::<RawJavaClassInstance>() as u32)?);
+            Ok(0)
+        }
+
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let done = Arc::new(AtomicBool::new(false));
-        let done_task = done.clone();
-        let mut system_task = system.clone();
+        let completed = done.clone();
+        let mut task_system = system.clone();
         system.spawn(async move || {
-            let (jvm, mut core, _thread) = init_jvm(&mut system_task).await?;
-            let header_size = size_of::<RawJavaClassInstance>() as u32;
-            let initial = core.save_context();
-            let frame = jvm.push_native_frame(&[]);
-            let mut array = jvm.instantiate_array("Ljava/lang/Object;", 1).await.unwrap();
-            let child = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
-            let child_address = KtfJvmSupport::class_instance_raw(&child);
-            jvm.store_array(&mut array, 0, vec![child]).await.unwrap();
-            let address = KtfJvmSupport::class_instance_raw(&array);
-            let raw: RawJavaClassInstance = read_generic(&core, address)?;
-            drop(frame);
-
-            let mut context = initial;
-            for pointer in [address, raw.ptr_fields + 9, raw.ptr_fields + 12] {
-                context.r4 = pointer;
-                core.restore_context(&context);
-                jvm.collect_garbage().unwrap();
-                assert!(Allocator::is_allocated(&core, address, header_size)?);
-                assert!(Allocator::is_allocated(&core, child_address, header_size)?);
-            }
+            let (jvm, mut core) = init_jvm(&mut task_system).await?;
+            core.register_svc_handler(5, collect_during_init, &jvm)?;
+            let gc = core.make_svc_stub(5, 0u32)?;
+            let register_string = core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterJavaString)?;
+            let mut image = vec![0; 0x1c0];
+            // Thumb entry returns WipiExe; init stores the fifth argument's root callback.
+            image[..8].copy_from_slice(&[0x00, 0x48, 0x70, 0x47, 0x80, 0x00, 0x10, 0x00]);
+            image[0x10..0x24].copy_from_slice(&[
+                0x00, 0x98, 0xc0, 0x69, 0x02, 0x49, 0x08, 0x60, 0x48, 0x60, 0x88, 0x60, 0x00, 0x20, 0x70, 0x47, 0x10, 0x01, 0x10, 0x00,
+            ]);
+            // ARM visitor reads three guest slots and calls the supplied callback with each value.
+            let visitor = [
+                0xe92d4070u32,
+                0xe59f401c,
+                0xe59f501c,
+                0xe3a06003,
+                0xe4940004,
+                0xe4953004,
+                0xe12fff33,
+                0xe2566001,
+                0x1afffffa,
+                0xe8bd8070,
+                0x00100100,
+                0x00100110,
+            ];
+            image[0x40..0x70].copy_from_slice(cast_slice(&visitor));
+            let mut executable = WipiExe::zeroed();
+            executable.ptr_exe_interface = 0x1000b0;
+            executable.fn_init = 0x100120;
+            executable.fn_visit_gc_roots = 0x100040;
+            image[0x80..0x80 + size_of::<WipiExe>()].copy_from_slice(bytes_of(&executable));
+            let mut interface = ExeInterface::zeroed();
+            interface.ptr_functions = 0x1000e0;
+            image[0xb0..0xb0 + size_of::<ExeInterface>()].copy_from_slice(bytes_of(&interface));
+            let mut functions = ExeInterfaceFunctions::zeroed();
+            functions.fn_init = 0x100011;
+            image[0xe0..0xe0 + size_of::<ExeInterfaceFunctions>()].copy_from_slice(bytes_of(&functions));
+            // Register a native literal, store it in the guest pool, then collect during initialization.
+            let init = [
+                0xe92d4010u32,
+                0xe59f0020,
+                0xe3a0100e,
+                0xe59f301c,
+                0xe12fff33,
+                0xe59f1018,
+                0xe5810000,
+                0xe59f3014,
+                0xe12fff33,
+                0xe3a00000,
+                0xe8bd8010,
+                0x00100180,
+                register_string,
+                0x00100104,
+                gc,
+            ];
+            image[0x120..0x15c].copy_from_slice(cast_slice(&init));
+            let literal = "native literal".encode_utf16().collect::<Vec<_>>();
+            image[0x180..0x19c].copy_from_slice(cast_slice(&literal));
+            let thread_context = KtfJvmSupport::current_thread_context(&core)?;
             {
-                let saved = core.save_resumable_context()?;
-                core.restore_context(&initial);
-                jvm.collect_garbage().unwrap();
-                assert!(Allocator::is_allocated(&core, child_address, header_size)?);
-                core.restore_context(&saved.read()?);
-            }
-            context = initial;
-            context.sp -= 4;
-            write_generic(&mut core, context.sp, address)?;
-            core.restore_context(&context);
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(&core, child_address, header_size)?);
-            write_generic(&mut core, context.sp, 0u32)?;
-            core.restore_context(&initial);
-
-            let _suspended = core.run_in_thread(|| async { Ok(()) })?;
-            let mut suspended = core.read_thread_context(2)?;
-            suspended.r4 = address;
-            core.write_thread_context(2, &suspended);
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(&core, child_address, header_size)?);
-            suspended.r4 = 0;
-            core.write_thread_context(2, &suspended);
-            jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, address, header_size)?);
-            assert!(!Allocator::is_allocated(&core, child_address, header_size)?);
-
-            for (descriptor, length, element_size) in [("B", 0, 1), ("B", 3, 1), ("J", 3, 8)] {
-                let frame = jvm.push_native_frame(&[]);
-                let array = jvm.instantiate_array(descriptor, length).await.unwrap();
-                let address = KtfJvmSupport::class_instance_raw(&array);
-                let raw: RawJavaClassInstance = read_generic(&core, address)?;
-                drop(frame);
-                context = initial;
-                context.r4 = raw.ptr_fields + 8 + length as u32 * element_size;
-                core.restore_context(&context);
-                jvm.collect_garbage().unwrap();
-                assert!(Allocator::is_allocated(&core, address, header_size)?);
-                core.restore_context(&initial);
-                jvm.collect_garbage().unwrap();
-                assert!(!Allocator::is_allocated(&core, address, header_size)?);
+                let _frame = jvm.push_native_frame(&[]);
+                load_native(&mut core, &mut task_system, &jvm, "client.bin0", &image, 0, thread_context).await?;
             }
 
-            let frame = jvm.push_native_frame(&[]);
-            let object = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
-            let address = KtfJvmSupport::class_instance_raw(&object);
-            let raw: RawJavaClassInstance = read_generic(&core, address)?;
-            drop(frame);
-            context = initial;
-            context.r4 = raw.ptr_fields + 2;
-            core.restore_context(&context);
+            let callback: u32 = read_generic(&core, 0x100110)?;
+            assert_ne!(callback, 0, "native initialization must receive a root callback");
+            let string: u32 = read_generic(&core, 0x100104)?;
+            let (array, child, garbage) = {
+                let _frame = jvm.push_native_frame(&[]);
+                let mut array = jvm.instantiate_array("Ljava/lang/Object;", 2).await.unwrap();
+                let child = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
+                let references = [array.clone(), child.clone()];
+                jvm.store_array(&mut array, 0, references).await.unwrap();
+                let garbage = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
+                (
+                    KtfJvmSupport::class_instance_raw(&array),
+                    KtfJvmSupport::class_instance_raw(&child),
+                    KtfJvmSupport::class_instance_raw(&garbage),
+                )
+            };
+            write_generic(&mut core, 0x100100, array)?;
+            let before = core.save_context();
             jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(&core, address, header_size)?);
-            context.r4 = 0;
-            context.sp = 0xffff_fffc;
-            core.restore_context(&context);
+            let after = core.save_context();
+            assert_eq!((after.pc, after.lr, after.sp, after.cpsr), (before.pc, before.lr, before.sp, before.cpsr));
+            let instance_size = size_of::<RawJavaClassInstance>() as u32;
+            for root in [array, child, string] {
+                assert!(Allocator::is_allocated(&core, root, instance_size)?);
+            }
+            assert!(!Allocator::is_allocated(&core, garbage, instance_size)?);
+
+            // An unexpected SVC must abort collection before any object is freed.
+            write_generic(&mut core, 0x100114, register_string)?;
             assert!(jvm.collect_garbage().is_err());
-            assert!(Allocator::is_allocated(&core, address, header_size)?);
-            core.restore_context(&initial);
+            for root in [array, child, string] {
+                assert!(Allocator::is_allocated(&core, root, instance_size)?);
+            }
+            write_generic(&mut core, 0x100114, callback)?;
+            write_generic(&mut core, 0x100100, [0u32; 3])?;
             jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, address, header_size)?);
-
-            done_task.store(true, Ordering::Relaxed);
+            for root in [array, child, string] {
+                assert!(!Allocator::is_allocated(&core, root, instance_size)?);
+            }
+            completed.store(true, Ordering::Relaxed);
             Ok(())
         });
         while !done.load(Ordering::Relaxed) {
@@ -448,23 +433,13 @@ mod test {
     }
 
     #[test]
-    fn test_register_static_classes_keeps_live_guest_roots_without_initializing() -> Result<()> {
-        async fn is_native_class(_core: &mut ArmCore, range: &mut core::ops::Range<u32>, address: u32) -> Result<u32> {
-            Ok(u32::from(range.contains(&address)))
-        }
-
-        async fn count_initialization(_jvm: &Jvm, count: &mut Arc<AtomicUsize>) -> jvm::Result<()> {
-            count.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        }
-
+    fn test_class_loader_before_native_initialization() -> Result<()> {
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let done = Arc::new(AtomicBool::new(false));
-        let done_clone = done.clone();
-        let mut system_clone = system.clone();
+        let completed = done.clone();
+        let mut task_system = system.clone();
         system.spawn(async move || {
-            let (jvm, mut core, _thread) = init_jvm(&mut system_clone).await?;
-            let frame = jvm.push_native_frame(&[]);
+            let (jvm, mut core) = init_jvm(&mut task_system).await?;
             let java_functions = JavaSvcFunctions::default();
             core.register_svc_handler(5, handle_java_svc, &java_functions)?;
             let loader_class = JavaClassDefinition::new(
@@ -473,9 +448,9 @@ mod test {
                 KtfClassLoader::as_proto(),
                 Box::new(ClassLoaderContext {
                     core: core.clone(),
-                    system: system_clone.clone(),
+                    system: task_system.clone(),
                 }),
-                java_functions.clone(),
+                java_functions,
             )
             .await?;
             for method in loader_class.methods()? {
@@ -486,175 +461,25 @@ mod test {
             jvm.register_class(Box::new(loader_class), None).await.unwrap();
             let mut loader = jvm.instantiate_class("net/wie/KtfClassLoader").await.unwrap();
             let ptr_functions = Allocator::alloc(&mut core, size_of::<ExeInterfaceFunctions>() as u32)?;
-            let mut functions = ExeInterfaceFunctions::zeroed();
-            write_generic(&mut core, ptr_functions, functions)?;
+            write_generic(&mut core, ptr_functions, ExeInterfaceFunctions::zeroed())?;
             jvm.put_field(&mut loader, "net/wie/KtfClassLoader", "nativeFunctions", "I", ptr_functions as i32)
                 .await
                 .unwrap();
-
-            let missing_name = JavaLangString::from_rust_string(&jvm, "test/Missing").await.unwrap();
+            let name = JavaLangString::from_rust_string(&jvm, "test/Missing").await.unwrap();
             let missing: ClassInstanceRef<Class> = jvm
                 .invoke_virtual(
                     &loader,
                     "net/wie/KtfClassLoader",
                     "findClass",
                     "(Ljava/lang/String;)Ljava/lang/Class;",
-                    (missing_name,),
+                    (name,),
                 )
                 .await
                 .unwrap();
             assert!(missing.is_null());
-
-            let class_size = size_of::<RawJavaClass>() as u32;
-            let begin = Allocator::alloc(&mut core, class_size * 4)?;
-            let end = begin + class_size * 4;
-            core.register_svc_handler(6, is_native_class, &(begin..end))?;
-            let predicate = core.make_svc_stub(6, 0u32)?;
-            let initialization_count = Arc::new(AtomicUsize::new(0));
-            let mut classes = Vec::new();
-            for (index, name) in ["test/Before", "test/Unused", "test/Main", "test/After"].into_iter().enumerate() {
-                let class = JavaClassDefinition::new(
-                    &mut core,
-                    &jvm,
-                    JavaClassProto {
-                        name,
-                        parent_class: Some("java/lang/Object"),
-                        interfaces: vec![],
-                        methods: if index == 0 {
-                            vec![JavaMethodProto::new("<clinit>", "()V", count_initialization, MethodAccessFlags::STATIC)]
-                        } else {
-                            vec![]
-                        },
-                        fields: vec![JavaFieldProto::new(
-                            "root",
-                            "Ljava/lang/Object;",
-                            if index == 1 {
-                                FieldAccessFlags::PUBLIC
-                            } else {
-                                FieldAccessFlags::STATIC
-                            },
-                        )],
-                        access_flags: ClassAccessFlags::PUBLIC,
-                    },
-                    Box::new(initialization_count.clone()),
-                    java_functions.clone(),
-                )
-                .await?;
-
-                // Relocate only the class headers into the native ABI's contiguous table.
-                let ptr_class = begin + index as u32 * class_size;
-                let mut raw: RawJavaClass = read_generic(&core, class.ptr_raw)?;
-                raw.ptr_next = ptr_class + 4;
-                write_generic(&mut core, ptr_class, raw)?;
-                for field in class.fields()? {
-                    let mut raw: RawJavaField = read_generic(&core, field.ptr_raw)?;
-                    raw.ptr_class = ptr_class;
-                    write_generic(&mut core, field.ptr_raw, raw)?;
-                }
-                for method in class.methods()? {
-                    let mut raw: RawJavaMethod = read_generic(&core, method.ptr_raw)?;
-                    raw.ptr_class = ptr_class;
-                    raw.fn_body = core.make_svc_stub(5, method.ptr_raw)?;
-                    write_generic(&mut core, method.ptr_raw, raw)?;
-                }
-                classes.push(JavaClassDefinition::from_raw(ptr_class, &core));
-            }
-            let seed = jvm
-                .register_class(Box::new(classes[2].clone()), Some(loader.clone()))
-                .await
-                .unwrap()
-                .unwrap();
-            let seed_identity = seed.identity();
-
-            KtfJvmSupport::register_static_classes(&mut core, &jvm, loader.clone(), "test/Main").await?;
-            assert!(!jvm.has_class("test/Before"));
-            assert!(!jvm.has_class("test/After"));
-            functions.fn_is_native_class_address = predicate;
-            write_generic(&mut core, ptr_functions, functions)?;
-            KtfJvmSupport::register_static_classes(&mut core, &jvm, loader.clone(), "java/lang/Object").await?;
-            assert!(!jvm.has_class("test/Before"));
-            assert!(!jvm.has_class("test/After"));
-
-            let mut identities = Vec::new();
-            for pass in 0..2 {
-                KtfJvmSupport::register_static_classes(&mut core, &jvm, loader.clone(), "test/Main").await?;
-                assert!(!jvm.has_class("test/Unused"));
-                for (index, name) in ["test/Before", "test/Main", "test/After"].into_iter().enumerate() {
-                    assert!(jvm.has_class(name));
-                    let class = jvm.resolve_class(name).await.unwrap().java_class();
-                    let registered_loader = JavaLangClass::class_loader(&jvm, &class).await.unwrap().unwrap();
-                    assert_eq!(registered_loader.identity(), loader.identity());
-                    if pass == 0 {
-                        identities.push(class.identity());
-                    } else {
-                        assert_eq!(class.identity(), identities[index]);
-                    }
-                }
-                assert_eq!(identities[1], seed_identity);
-                assert_eq!(initialization_count.load(Ordering::Relaxed), 0);
-            }
-            for class in &classes {
-                let raw: RawJavaClass = read_generic(&core, class.ptr_raw)?;
-                assert_eq!(raw.unk_flag, 8);
-            }
-
-            let before_root = classes[0].field("root", "Ljava/lang/Object;", true)?.unwrap();
-            let after_root = classes[3].field("root", "Ljava/lang/Object;", true)?.unwrap();
-            drop(frame);
-            jvm.collect_garbage().unwrap();
-            let frame = jvm.push_native_frame(&[]);
-            let mut objects = Vec::new();
-            for _ in 0..3 {
-                let object = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
-                objects.push(KtfJvmSupport::class_instance_raw(&object));
-            }
-            classes[0].write_static_field(&before_root, objects[0])?;
-            classes[3].write_static_field(&after_root, objects[1])?;
-            drop(frame);
-            jvm.collect_garbage().unwrap();
-            let instance_size = size_of::<RawJavaClassInstance>() as u32;
-            assert!(Allocator::is_allocated(&core, objects[0], instance_size)?);
-            assert!(Allocator::is_allocated(&core, objects[1], instance_size)?);
-            assert!(!Allocator::is_allocated(&core, objects[2], instance_size)?);
-
-            let frame = jvm.push_native_frame(&[]);
-            let replacement = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
-            let replacement = KtfJvmSupport::class_instance_raw(&replacement);
-            classes[0].write_static_field(&before_root, replacement)?;
-            drop(frame);
-            jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, objects[0], instance_size)?);
-            assert!(Allocator::is_allocated(&core, objects[1], instance_size)?);
-            assert!(Allocator::is_allocated(&core, replacement, instance_size)?);
-
-            classes[0].write_static_field(&before_root, 0)?;
-            classes[3].write_static_field(&after_root, 0)?;
-            jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, objects[1], instance_size)?);
-            assert!(!Allocator::is_allocated(&core, replacement, instance_size)?);
-
-            let frame = jvm.push_native_frame(&[]);
-            let mut array = jvm.instantiate_array("Ljava/lang/Object;", 2).await.unwrap();
-            let references = [array.clone(), array.clone()];
-            jvm.store_array(&mut array, 0, references).await.unwrap();
-            let ptr_array = KtfJvmSupport::class_instance_raw(&array);
-            classes[0].write_static_field(&before_root, ptr_array)?;
-            drop(frame);
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(&core, ptr_array, instance_size)?);
-            classes[0].write_static_field(&before_root, 0)?;
-            jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, ptr_array, instance_size)?);
-
-            assert_eq!(initialization_count.load(Ordering::Relaxed), 0);
-            let _frame = jvm.push_native_frame(&[]);
-            jvm.ensure_initialized(&jvm.resolve_class("test/Before").await.unwrap()).await.unwrap();
-            assert_eq!(initialization_count.load(Ordering::Relaxed), 1);
-
-            done_clone.store(true, Ordering::Relaxed);
+            completed.store(true, Ordering::Relaxed);
             Ok(())
         });
-
         while !done.load(Ordering::Relaxed) {
             system.tick()?;
         }
@@ -670,7 +495,7 @@ mod test {
         let done_clone = done.clone();
         let mut system_clone = system.clone();
         system.spawn(async move || {
-            let (jvm, mut core, _thread) = init_jvm(&mut system_clone).await?;
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
 
             let midlet: ClassInstanceRef<MIDlet> = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await.unwrap().into();
             let display: ClassInstanceRef<MidpDisplay> = MIDlet::display(&jvm, &midlet).await.unwrap();
@@ -762,7 +587,7 @@ mod test {
         let done_clone = done.clone();
         let mut system_clone = system.clone();
         system.spawn(async move || {
-            let (jvm, mut core, _thread) = init_jvm(&mut system_clone).await?;
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
             let object = jvm.resolve_class("java/lang/Object").await.unwrap();
             let ptr_object = KtfJvmSupport::class_definition_raw(&*object.definition)?;
             let name = JavaFullName::new(0, "value", "()I").as_bytes();
@@ -872,40 +697,12 @@ mod test {
 
     #[test]
     fn test_non_native_method_through_native_entry() -> Result<()> {
-        async fn host_call_across_yield(
-            jvm: &Jvm,
-            (core, temporary_address): &mut (ArmCore, Arc<AtomicU32>),
-            argument: ClassInstanceRef<()>,
-        ) -> jvm::Result<ClassInstanceRef<()>> {
-            let temporary = jvm.instantiate_array("B", 3).await?;
-            temporary_address.store(KtfJvmSupport::class_instance_raw(&temporary), Ordering::Relaxed);
-            YieldFuture::new().await;
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(core, argument.identity() as u32, size_of::<RawJavaClassInstance>() as u32).unwrap());
-            assert_eq!(jvm.load_array::<i8>(&temporary, 0, 3).await?, [0, 0, 0]);
-            Ok(argument)
-        }
-
-        async fn collect_native_object(core: &mut ArmCore, (jvm, last_object): &mut (Jvm, Arc<AtomicU32>)) -> Result<()> {
-            let register = core.save_context().r5;
-            if register != 0 {
-                last_object.store(register, Ordering::Relaxed);
-            }
-            jvm.collect_garbage().unwrap();
-            assert_eq!(
-                Allocator::is_allocated(core, last_object.load(Ordering::Relaxed), size_of::<RawJavaClassInstance>() as u32)?,
-                register != 0,
-                "Only the live guest register should retain a raw allocation"
-            );
-            Ok(())
-        }
-
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let done = Arc::new(AtomicBool::new(false));
         let done_clone = done.clone();
         let mut system_clone = system.clone();
         system.spawn(async move || {
-            let (jvm, mut core, _thread) = init_jvm(&mut system_clone).await?;
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
             let mut chars = jvm.instantiate_array("C", 4).await.unwrap();
             jvm.store_array(&mut chars, 0, vec![0x41u16, 0xd654, 0xc7a5, 0x42]).await.unwrap();
             let class = jvm.resolve_class("java/lang/String").await.unwrap();
@@ -931,13 +728,7 @@ mod test {
             // the host implementation's Java prototype is not marked native.
             let result: u32 = core.run_function(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await?;
             let result: Box<dyn jvm::ClassInstance> = Box::new(JavaClassInstance::from_raw(result, &core));
-            let result = jvm.new_global_ref(&ClassInstanceRef::<()>::from(result)).unwrap();
             jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(
-                &core,
-                KtfJvmSupport::class_instance_raw(&result),
-                size_of::<RawJavaClassInstance>() as u32
-            )?);
             assert_eq!(JavaLangString::to_rust_string(&jvm, &result).await.unwrap(), "화장");
 
             let caller = core.save_context();
@@ -951,106 +742,8 @@ mod test {
 
             write_generic(&mut core, ptr_args + 4, (-1i32) as u32)?;
             let result = core.run_function::<u32>(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await;
-            let Err(WieError::JavaException(exception)) = result else {
-                panic!("Expected a Java exception");
-            };
-            let _exception = jvm
-                .new_global_ref(&ClassInstanceRef::<()>::new(Some(Box::new(JavaClassInstance::from_raw(
-                    exception, &core,
-                )))))
-                .unwrap();
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(&core, exception, size_of::<RawJavaClassInstance>() as u32)?);
+            assert!(matches!(result, Err(WieError::JavaException(_))));
             Allocator::free(&mut core, ptr_args, words.len() as u32 * 4)?;
-
-            let buffer = jvm.new_class("java/lang/StringBuffer", "()V", ()).await.unwrap();
-            let class = jvm.resolve_class("java/lang/StringBuffer").await.unwrap();
-            let class = class.definition.as_any().downcast_ref::<JavaClassDefinition>().unwrap();
-            let append = class.method("append", "(I)Ljava/lang/StringBuffer;", false)?.unwrap();
-            let raw: RawJavaMethod = read_generic(&core, append.ptr_raw)?;
-            let ptr_buffer = KtfJvmSupport::class_instance_raw(&buffer);
-            let ptr_args = Allocator::alloc(&mut core, 8)?;
-            write_generic(&mut core, ptr_args, ptr_buffer)?;
-            write_generic(&mut core, ptr_args + 4, 123u32)?;
-            jvm.collect_garbage().unwrap();
-            for native_entry in [false, true] {
-                for _ in 0..8 {
-                    let result: u32 = if native_entry {
-                        core.run_function(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await?
-                    } else {
-                        core.run_function(raw.fn_body, &[0, ptr_buffer, 123]).await?
-                    };
-                    assert_eq!(result, ptr_buffer);
-                }
-                assert!(
-                    jvm.collect_garbage().unwrap() >= 16,
-                    "Temporary strings must not remain rooted in the guest caller"
-                );
-            }
-            let text = jvm
-                .invoke_virtual(&buffer, "java/lang/StringBuffer", "toString", "()Ljava/lang/String;", ())
-                .await
-                .unwrap();
-            jvm.collect_garbage().unwrap();
-            assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await.unwrap(), "123".repeat(16));
-            Allocator::free(&mut core, ptr_args, 8)?;
-
-            crate::runtime::init::register_init_svc_handler(&mut core, &jvm)?;
-            let allocate = core.make_svc_stub(crate::runtime::SVC_CATEGORY_INIT, crate::runtime::svc_ids::InitSvcId::JavaNew)?;
-            let last_object = Arc::new(AtomicU32::new(0));
-            core.register_svc_handler(5, collect_native_object, &(jvm.clone(), last_object.clone()))?;
-            let collect = core.make_svc_stub(5, 0u32)?;
-            let class = jvm.resolve_class("java/lang/Object").await.unwrap();
-            let ptr_class = KtfJvmSupport::class_definition_raw(&*class.definition)?;
-            let mut code = vec![0xb5f0u16, 0x4604, 0x460e, 0x4617]; // save registers; keep class and callbacks
-            for _ in 0..8 {
-                code.extend([0x4620, 0x47b0, 0x4605, 0x2000, 0x47b8, 0x2500, 0x47b8]); // allocate; collect with/without r5
-            }
-            code.push(0xbdf0); // restore registers and return
-            let code_size = code.len() as u32 * 2;
-            let entry = Allocator::alloc(&mut core, code_size)?;
-            core.write_bytes(entry, bytemuck::cast_slice(&code))?;
-            core.run_function::<()>(entry + 1, &[ptr_class, allocate, collect]).await?;
-            assert_ne!(last_object.load(Ordering::Relaxed), 0);
-            Allocator::free(&mut core, entry, code_size)?;
-
-            let java_functions = Arc::new(Mutex::new(BTreeMap::new()));
-            let temporary_address = Arc::new(AtomicU32::new(0));
-            let host_context = Box::new((core.clone(), temporary_address.clone()));
-            let method = JavaMethod::new(
-                &mut core,
-                &jvm,
-                ptr_class,
-                JavaMethodProto::new(
-                    "retainAcrossYield",
-                    "(Ljava/lang/Object;)Ljava/lang/Object;",
-                    host_call_across_yield,
-                    MethodAccessFlags::STATIC,
-                ),
-                host_context,
-                java_functions.clone(),
-            )?;
-            core.register_svc_handler(6, handle_java_svc, &java_functions)?;
-            let entry = core.make_svc_stub(6, method.ptr_raw + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32)?;
-            let ptr_args = Allocator::alloc(&mut core, 4)?;
-            let frame = jvm.push_native_frame(&[]);
-            let argument = jvm.instantiate_class("java/lang/Object").await.unwrap();
-            let argument_address = KtfJvmSupport::class_instance_raw(&argument);
-            drop(frame);
-            write_generic(&mut core, ptr_args, argument_address)?;
-            let caller = ArmCoreContext {
-                sp: core.save_context().sp,
-                cpsr: 0x10,
-                ..ArmCoreContext::zeroed()
-            };
-            core.restore_context(&caller);
-            let result: u32 = core.run_function(entry, &[0, ptr_args]).await?;
-            assert_eq!(result, argument_address);
-            jvm.collect_garbage().unwrap();
-            for address in [argument_address, temporary_address.load(Ordering::Relaxed)] {
-                assert!(!Allocator::is_allocated(&core, address, size_of::<RawJavaClassInstance>() as u32)?);
-            }
-            Allocator::free(&mut core, ptr_args, 4)?;
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())
@@ -1078,7 +771,7 @@ mod test {
         let done_clone = done.clone();
         let mut system_clone = system.clone();
         system.spawn(async move || {
-            let (jvm, mut core, _thread) = init_jvm(&mut system_clone).await?;
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
             let runtime = jvm.new_class("java/lang/Runtime", "()V", ()).await.unwrap();
             let mut source = jvm.instantiate_array("I", 4).await.unwrap();
             let mut destination = jvm.instantiate_array("I", 4).await.unwrap();
@@ -1174,9 +867,8 @@ mod test {
         let done_clone = done.clone();
         let mut system_clone = system.clone();
         system.spawn(async move || {
-            let (jvm, mut core, _thread) = init_jvm(&mut system_clone).await?;
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
 
-            let frame = jvm.push_native_frame(&[]);
             let exception = jvm.new_class("java/lang/NullPointerException", "()V", ()).await.unwrap();
             let null_pointer_class = jvm
                 .resolve_class("java/lang/NullPointerException")
@@ -1282,17 +974,9 @@ mod test {
             ));
             let caught: u32 = read_generic(&core, 0x10210)?;
             assert_eq!(caught, ptr_exception);
-            let saved_sp = core.save_context().sp;
-            write_generic(&mut core, 0x10218 + 9 * 4, saved_sp)?;
-            drop(frame);
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(&core, ptr_exception, size_of::<RawJavaClassInstance>() as u32)?);
-            let frame = jvm.push_native_frame(&[]);
-            let receiver = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
-            let receiver = KtfJvmSupport::class_instance_raw(&receiver);
             write_generic(&mut core, 0x10600, RawJavaMethod::zeroed())?;
             // A method without catches links only its header, with no saved context.
-            write_generic(&mut core, 0x1fff4, [0x10600u32, receiver, 0x10200])?;
+            write_generic(&mut core, 0x1fff4, [0x10600u32, 0, 0x10200])?;
             write_generic(
                 &mut core,
                 thread_context + offset_of!(KtfJvmThreadContext, current_java_exception_handler) as u32,
@@ -1301,24 +985,18 @@ mod test {
             let exception = Box::new(JavaClassInstance::from_raw(ptr_exception, &core));
             let result = JavaMethod::handle_exception(&mut core, &jvm, exception).await;
             assert!(matches!(result, Err(WieError::JavaException(ptr)) if ptr == ptr_exception));
-            drop(frame);
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(&core, receiver, size_of::<RawJavaClassInstance>() as u32)?);
-            assert!(Allocator::is_allocated(&core, ptr_exception, size_of::<RawJavaClassInstance>() as u32)?);
             write_generic(
                 &mut core,
                 thread_context + offset_of!(KtfJvmThreadContext, current_java_exception_handler) as u32,
                 0x10200u32,
             )?;
-            jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, receiver, size_of::<RawJavaClassInstance>() as u32)?);
             let caught = Box::new(JavaClassInstance::from_raw(caught, &core)) as Box<dyn ClassInstance>;
             let _: () = jvm
                 .invoke_virtual(&caught, "java/lang/Throwable", "printStackTrace", "()V", ())
                 .await
                 .unwrap();
 
-            core.register_svc_handler(5, throw_from_nested_call, &(jvm.clone(), ptr_exception))?;
+            core.register_svc_handler(5, throw_from_nested_call, &(jvm, ptr_exception))?;
             let throwing = core.make_svc_stub(5, 0u32)?;
             let ptr_interface = get_wipi_jb_interface(&mut core)?;
             let interface: WIPIJBInterface = read_generic(&core, ptr_interface)?;
@@ -1336,13 +1014,6 @@ mod test {
                 let result: u32 = core.run_function(entry, &args).await?;
                 assert_eq!(result, caller.r4);
             }
-            write_generic(
-                &mut core,
-                thread_context + offset_of!(KtfJvmThreadContext, current_java_exception_handler) as u32,
-                0u32,
-            )?;
-            jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, ptr_exception, size_of::<RawJavaClassInstance>() as u32)?);
 
             done_clone.store(true, Ordering::Relaxed);
 
@@ -1368,7 +1039,7 @@ mod test {
         let done_clone = done.clone();
         let mut system_clone = system.clone();
         system.spawn(async move || {
-            let (jvm, core, _thread) = init_jvm(&mut system_clone).await?;
+            let (jvm, core) = init_jvm(&mut system_clone).await?;
 
             let values = vec![i64::MIN, -1, 0x12345678_9abcdef0, i64::MAX];
 
@@ -1408,7 +1079,7 @@ mod test {
         let done_clone = done.clone();
         let mut system_clone = system.clone();
         system.spawn(async move || {
-            let (jvm, _core, _thread) = init_jvm(&mut system_clone).await?;
+            let (jvm, _core) = init_jvm(&mut system_clone).await?;
 
             let values = vec![f64::MIN_POSITIVE, -1.5, f64::MAX];
 

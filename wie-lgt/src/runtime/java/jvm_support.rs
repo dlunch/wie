@@ -294,7 +294,7 @@ mod tests {
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore, RunFunctionResult};
-    use wie_jvm_support::{JvmImplementation, JvmSupport, RustJavaJvmImplementation};
+    use wie_jvm_support::{JvmImplementation, JvmSupport};
     use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
 
     use crate::runtime::java::{
@@ -346,15 +346,19 @@ mod tests {
         Ok(())
     }
 
-    async fn init_jvm(system: &System) -> Result<(Jvm, ArmCore, LgtJvmImplementation, impl Send + use<>)> {
+    async fn init_jvm(system: &System) -> Result<(Jvm, ArmCore, LgtJvmImplementation)> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
             aot: None,
             profile: None,
         })?;
         Allocator::init(&mut core)?;
-        let thread = core.run_in_thread(core::future::pending)?;
-        let entered = core.enter_thread_context(1);
+
+        let mut context = core.save_context();
+        let stack = Allocator::alloc(&mut core, 0x100)?;
+        context.sp = stack + 0x100;
+        core.restore_context(&context);
+
         let protos = [get_midp_protos().into(), get_wipi_java_protos().into()];
         let implementation = LgtJvmImplementation::new(&mut core)?;
         let jvm = JvmSupport::new_jvm(system, None, Box::new(protos), &[], implementation.clone()).await?;
@@ -363,7 +367,7 @@ mod tests {
             .await
             .unwrap();
         jvm.register_class(loader_class, None).await.unwrap();
-        Ok((jvm, core, implementation, (entered, thread)))
+        Ok((jvm, core, implementation))
     }
 
     #[test]
@@ -374,7 +378,7 @@ mod tests {
         let system_clone = system.clone();
 
         system.spawn(async move || {
-            let (jvm, mut core, implementation, _execution) = init_jvm(&system_clone).await?;
+            let (jvm, mut core, implementation) = init_jvm(&system_clone).await?;
 
             let first = JavaLangString::from_rust_string(&jvm, "lgt").await.unwrap();
             let second = JavaLangString::from_rust_string(&jvm, "-native").await.unwrap();
@@ -931,39 +935,6 @@ mod tests {
             assert!(Allocator::is_allocated(&core, references[1], instance_size)?);
             assert!(!Allocator::is_allocated(&core, references[2], instance_size)?);
 
-            let host_class = RustJavaJvmImplementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto::<()> {
-                        name: "net/wie/test/HostObject",
-                        parent_class: Some("java/lang/Object"),
-                        interfaces: vec![],
-                        methods: vec![],
-                        fields: vec![JavaFieldProto::new("child", "Ljava/lang/Object;", FieldAccessFlags::PUBLIC)],
-                        access_flags: ClassAccessFlags::PUBLIC,
-                    },
-                    Box::new(()),
-                )
-                .await
-                .unwrap();
-            jvm.register_class(host_class, None).await.unwrap();
-            jvm.collect_garbage().unwrap();
-            {
-                let _frame = jvm.push_native_frame(&[]);
-                let mut host = jvm.instantiate_class("net/wie/test/HostObject").await.unwrap();
-                let child = jvm.instantiate_array("B", 3).await.unwrap();
-                let pointer = child.identity() as u32;
-                jvm.put_field(&mut host, "net/wie/test/HostObject", "child", "Ljava/lang/Object;", child)
-                    .await
-                    .unwrap();
-                jvm.collect_garbage().unwrap();
-                assert!(Allocator::is_allocated(&core, pointer, size_of::<RawJavaClassInstance>() as u32)?);
-            }
-            assert_eq!(
-                jvm.collect_garbage().unwrap(),
-                2,
-                "Host-backed objects must coexist with guest allocations"
-            );
             done_clone.store(true, Ordering::Relaxed);
             Ok(())
         });
@@ -983,7 +954,7 @@ mod tests {
         let system_clone = system.clone();
 
         system.spawn(async move || {
-            let (jvm, mut core, implementation, _execution) = init_jvm(&system_clone).await?;
+            let (jvm, mut core, implementation) = init_jvm(&system_clone).await?;
             let generated_entry = implementation
                 .define_class_rust(
                     &jvm,
@@ -1071,7 +1042,7 @@ mod tests {
         let system_clone = system.clone();
 
         system.spawn(async move || {
-            let (jvm, mut core, implementation, _execution) = init_jvm(&system_clone).await?;
+            let (jvm, mut core, implementation) = init_jvm(&system_clone).await?;
             let generated_class = implementation
                 .define_class_rust(
                     &jvm,

@@ -7454,7 +7454,6 @@ dependencies = [
 name = "wie-lgt"
 version = "0.2.15"
 dependencies = [
- "anyhow",
  "async-trait",
  "bytemuck",
  "chrono",

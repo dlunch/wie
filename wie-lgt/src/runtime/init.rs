@@ -209,8 +209,11 @@ mod tests {
                 profile: None,
             })?;
             Allocator::init(&mut core)?;
-            let _thread = core.run_in_thread(core::future::pending)?;
-            let _entered = core.enter_thread_context(1);
+            let mut context = core.save_context();
+            let stack = Allocator::alloc(&mut core, 0x100)?;
+            context.sp = stack + 0x100;
+            core.restore_context(&context);
+
             let jvm = LgtJvmSupport::init(&mut core, &system_clone, None).await?;
             register_init_svc_handler(&mut core, 0)?;
             register_java_system_svc_handler(&mut core, &jvm, 0)?;

@@ -13,15 +13,13 @@ use jvm_class_proto::JavaMethodProto;
 use jvm_types::MethodAccessFlags;
 use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunctionParam, RegisteredFunction, RunFunctionResult};
+use wie_core_arm::{
+    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult,
+};
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
-use crate::runtime::{
-    SVC_CATEGORY_JAVA,
-    java::{JavaSvcFunctions, exception},
-    with_arm_context,
-};
+use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions, with_arm_context};
 
 use super::value::JavaValueCodec;
 
@@ -138,6 +136,7 @@ impl JavaMethod {
             parameter_types,
             return_type: return_type.clone(),
         };
+        let proxy = RegisteredFunctionHolder::new(proxy, &());
         functions
             .lock()
             .insert(ptr_method, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
@@ -165,10 +164,7 @@ impl Method for JavaMethod {
         let codec = JavaValueCodec::new(&self.core);
         let raw_args = encode_method_arguments(&codec, &args);
         let mut core = self.core.clone();
-        let caller = match core.save_resumable_context() {
-            Ok(caller) => caller,
-            Err(error) => return Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
-        };
+        let caller = core.save_context();
         let result: Result<JavaMethodRunResult> = core.run_function(self.target().unwrap(), &raw_args).await;
         match result.map(|result| {
             if matches!(return_type, JavaType::Double | JavaType::Long) {
@@ -179,11 +175,7 @@ impl Method for JavaMethod {
         }) {
             Ok(value) => Ok(value),
             Err(WieError::JavaException(ptr_raw)) => {
-                let context = match caller.read() {
-                    Ok(context) => context,
-                    Err(error) => return Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
-                };
-                core.restore_context(&context);
+                core.restore_context(&caller);
                 Err(JavaError::JavaException(codec.object_from_raw(ptr_raw)))
             }
             Err(error) => {
@@ -217,13 +209,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<C, Context> RegisteredFunction for JavaMethodProxy<C, Context>
+impl<C, Context> EmulatedFunction<(), JavaMethodResult, ()> for JavaMethodProxy<C, Context>
 where
     C: ?Sized + Send,
     Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
 {
-    async fn call(&self, core: &mut ArmCore) -> Result<()> {
-        let (_, lr) = core.read_pc_lr()?;
+    async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
         let parameter_word_count = method_argument_word_count(&self.parameter_types);
         let raw_args = (0..parameter_word_count)
             .map(|index| <u32 as EmulatedFunctionParam<u32>>::get(core, index))
@@ -231,17 +222,10 @@ where
 
         let codec = JavaValueCodec::new(core);
         let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
-        let _frame = self.jvm.push_native_frame(&args);
         let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
         let result = match result {
             Ok(value) => value,
-            Err(JavaError::JavaException(instance)) => {
-                let pointer = codec.object_to_raw(&*instance);
-                return match exception::unwind(core, pointer)? {
-                    Some(_) => Ok(()),
-                    None => Err(WieError::JavaException(pointer)),
-                };
-            }
+            Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),
         };
 
         let result = if matches!(self.return_type, JavaType::Double | JavaType::Long) {
@@ -251,8 +235,7 @@ where
             vec![codec.encode_word(&result)]
         };
 
-        core.write_return_value(&result)?;
-        core.set_next_pc(lr)
+        Ok(JavaMethodResult { result })
     }
 }
 
@@ -270,25 +253,35 @@ impl RunFunctionResult<JavaMethodRunResult> for JavaMethodRunResult {
     }
 }
 
+struct JavaMethodResult {
+    result: Vec<u32>,
+}
+
+impl ResultWriter<JavaMethodResult> for JavaMethodResult {
+    fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
+        core.write_return_value(&self.result)?;
+        core.set_next_pc(next_pc)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
     use core::{
         mem::size_of,
-        sync::atomic::{AtomicBool, AtomicU32, Ordering},
+        sync::atomic::{AtomicBool, Ordering},
     };
 
-    use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
+    use jvm::{JavaError, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-    use rustjava_runtime::classes::java::lang::String;
     use spin::Mutex;
 
     use test_utils::TestPlatform;
-    use wie_backend::{DefaultTaskRunner, System, YieldFuture};
+    use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
     use wie_jvm_support::{JvmImplementation, JvmSupport};
-    use wie_util::{Result, WieError, write_generic, write_null_terminated_string_bytes};
+    use wie_util::{Result, write_generic, write_null_terminated_string_bytes};
 
     use super::{JavaMethod, JavaMethodRunResult, RawJavaMethod};
     use crate::runtime::java::{
@@ -301,25 +294,6 @@ mod tests {
     async fn rust_wide_bridge(_jvm: &Jvm, observed: &mut Arc<Mutex<Option<(i64, u64)>>>, integer: i64, floating: f64) -> JvmResult<i64> {
         *observed.lock() = Some((integer, floating.to_bits()));
         Ok(integer ^ floating.to_bits() as i64)
-    }
-
-    async fn rust_gc_bridge(jvm: &Jvm, core: &mut ArmCore, argument: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<String>> {
-        let temporary = JavaLangString::from_rust_string(jvm, "host-result").await?;
-        let mut registers = core.save_context();
-        registers.r0 = 0;
-        core.restore_context(&registers);
-        YieldFuture::new().await;
-        jvm.collect_garbage().unwrap();
-        assert_eq!(JavaLangString::to_rust_string(jvm, &argument).await?, "host-argument");
-        assert_eq!(JavaLangString::to_rust_string(jvm, &temporary).await?, "host-result");
-        Ok(temporary.into())
-    }
-
-    async fn collect_guest_result(core: &mut ArmCore, jvm: &mut Jvm) -> Result<()> {
-        let result = core.read_param(0)?;
-        jvm.collect_garbage().unwrap();
-        assert!(Allocator::is_allocated(core, result, 12)?);
-        Ok(())
     }
 
     #[test]
@@ -337,8 +311,11 @@ mod tests {
             })?;
             Allocator::init(&mut core)?;
 
-            let _thread = core.run_in_thread(core::future::pending)?;
-            let _entered = core.enter_thread_context(1);
+            let mut context = core.save_context();
+            let stack = Allocator::alloc(&mut core, 0x100)?;
+            context.sp = stack + 0x100;
+            core.restore_context(&context);
+
             let protos = [wie_midp::get_protos().into(), wie_wipi_java::get_protos().into()];
             let implementation = LgtJvmImplementation::new(&mut core)?;
             let jvm = JvmSupport::new_jvm(&system_clone, None, Box::new(protos), &[], implementation.clone()).await?;
@@ -430,92 +407,13 @@ mod tests {
             assert_eq!(*observed.lock(), Some((integer, floating_bits)));
             assert_eq!(((result.high as u64) << 32) | result.low as u64, (integer ^ floating_bits as i64) as u64);
 
-            let buffer = jvm.new_class("java/lang/StringBuffer", "()V", ()).await.unwrap();
-            let ptr_buffer = buffer.as_any().downcast_ref::<JavaClassInstance>().unwrap().ptr_raw;
-            let class = jvm.resolve_class("java/lang/StringBuffer").await.unwrap();
-            let append = class.definition.method("append", "(I)Ljava/lang/StringBuffer;", false).unwrap();
-            let target = append.as_any().downcast_ref::<JavaMethod>().unwrap().target()?;
-            jvm.collect_garbage().unwrap();
-            for _ in 0..8 {
-                assert_eq!(core.run_function::<u32>(target, &[ptr_buffer, 123]).await?, ptr_buffer);
-            }
-            assert!(
-                jvm.collect_garbage().unwrap() >= 16,
-                "Temporary strings must not remain rooted in the guest caller"
-            );
-            let text = jvm
-                .invoke_virtual(&buffer, "java/lang/StringBuffer", "toString", "()Ljava/lang/String;", ())
-                .await
-                .unwrap();
-            jvm.collect_garbage().unwrap();
-            assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await.unwrap(), "123".repeat(8));
-
-            let class = implementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto {
-                        name: "net/wie/test/CollectingBridge",
-                        parent_class: Some("java/lang/Object"),
-                        interfaces: vec![],
-                        methods: vec![JavaMethodProto::new(
-                            "retain",
-                            "(Ljava/lang/String;)Ljava/lang/String;",
-                            rust_gc_bridge,
-                            MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                        )],
-                        fields: vec![],
-                        access_flags: ClassAccessFlags::PUBLIC,
-                    },
-                    Box::new(core.clone()),
-                )
-                .await
-                .unwrap();
-            let method = class.method("retain", "(Ljava/lang/String;)Ljava/lang/String;", true).unwrap();
+            let class = jvm.resolve_class("java/lang/String").await.unwrap();
+            let method = class.definition.method("valueOf", "(I)Ljava/lang/String;", true).unwrap();
             let target = method.as_any().downcast_ref::<JavaMethod>().unwrap().target()?;
+            let result: u32 = core.run_function(target, &[123]).await?;
             jvm.collect_garbage().unwrap();
-            let argument = {
-                let _frame = jvm.push_native_frame(&[]);
-                JavaLangString::from_rust_string(&jvm, "host-argument").await.unwrap().identity() as u32
-            };
-            let result: u32 = core.run_function(target, &[argument]).await?;
-            let empty = core.save_context();
-            let mut live = empty;
-            live.r4 = result;
-            core.restore_context(&live);
-            assert_eq!(jvm.collect_garbage().unwrap(), 2, "Only the consumed argument should die");
-            {
-                let _frame = jvm.push_native_frame(&[]);
-                let result = LgtJvmSupport::class_instance_from_raw(&core, result);
-                assert_eq!(JavaLangString::to_rust_string(&jvm, &result).await.unwrap(), "host-result");
-            }
-            core.restore_context(&empty);
-            assert_eq!(
-                jvm.collect_garbage().unwrap(),
-                2,
-                "Guest-bound returns must not promote into the caller frame"
-            );
-
-            register_java_system_svc_handler(&mut core, &jvm, 0)?;
-            core.register_svc_handler(7, collect_guest_result, &jvm)?;
-            let collect = core.make_svc_stub(7, 0u32)?;
-            let wrapper = Allocator::alloc(&mut core, 24)?;
-            write_generic(&mut core, wrapper, [0xb510u16, 0x4c03, 0x47a0, 0x4c03, 0x47a0, 0xbd10, 0x46c0, 0x46c0])?;
-            write_generic(&mut core, wrapper + 20, collect)?;
-            for (name, import) in [("java/lang/Object", 0x0f), ("[J", 0x10)] {
-                let class = jvm.resolve_class(name).await.unwrap().java_class().identity() as u32;
-                let allocate = get_java_interface_method(&mut core, import)?;
-                write_generic(&mut core, wrapper + 16, allocate)?;
-                jvm.collect_garbage().unwrap();
-                for _ in 0..8 {
-                    let pointer: u32 = core.run_function(wrapper + 1, &[class, 2]).await?;
-                    assert!(Allocator::is_allocated(&core, pointer, 12)?);
-                    assert_eq!(
-                        jvm.collect_garbage().unwrap(),
-                        1,
-                        "Raw allocations must be reclaimable before the guest caller exits"
-                    );
-                }
-            }
+            let string = LgtJvmSupport::class_instance_from_raw(&core, result);
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &string).await.unwrap(), "123");
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())
@@ -542,9 +440,10 @@ mod tests {
                 profile: None,
             })?;
             Allocator::init(&mut core)?;
-            let _thread = core.run_in_thread(core::future::pending)?;
-            let _entered = core.enter_thread_context(1);
-            let context = core.save_context();
+            let stack = Allocator::alloc(&mut core, 0x1000)?;
+            let mut context = core.save_context();
+            context.sp = stack + 0x1000;
+            core.restore_context(&context);
 
             let implementation = LgtJvmImplementation::new(&mut core)?;
             let protos = [wie_midp::get_protos().into(), wie_wipi_java::get_protos().into()];
@@ -654,14 +553,6 @@ mod tests {
 
     #[test]
     fn abstract_method_target_throws_abstract_method_error() -> Result<()> {
-        async fn collect_before_writer_init(core: &mut ArmCore, (jvm, target, exception): &mut (Jvm, u32, Arc<AtomicU32>)) -> Result<()> {
-            let writer = core.read_param(0)?;
-            YieldFuture::new().await;
-            jvm.collect_garbage().unwrap();
-            assert!(Allocator::is_allocated(core, exception.load(Ordering::Relaxed), 12)?);
-            core.run_function(*target, &[writer]).await
-        }
-
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let done = Arc::new(AtomicBool::new(false));
         let done_clone = done.clone();
@@ -675,8 +566,11 @@ mod tests {
             })?;
             Allocator::init(&mut core)?;
 
-            let _thread = core.run_in_thread(core::future::pending)?;
-            let _entered = core.enter_thread_context(1);
+            let mut context = core.save_context();
+            let stack = Allocator::alloc(&mut core, 0x100)?;
+            context.sp = stack + 0x100;
+            core.restore_context(&context);
+
             let implementation = LgtJvmImplementation::new(&mut core)?;
             let jvm = JvmSupport::new_jvm(
                 &system_clone,
@@ -706,14 +600,6 @@ mod tests {
                 .await
                 .unwrap();
             let method = class.method("call", "()V", false).unwrap();
-            let writer_class = jvm.resolve_class("java/io/StringWriter").await.unwrap();
-            let constructor = writer_class.definition.method("<init>", "()V", false).unwrap();
-            let constructor = constructor.as_any().downcast_ref::<JavaMethod>().unwrap();
-            let mut raw = constructor.raw()?;
-            let exception_address = Arc::new(AtomicU32::new(0));
-            core.register_svc_handler(7, collect_before_writer_init, &(jvm.clone(), raw.ptr_method, exception_address.clone()))?;
-            raw.ptr_method = core.make_svc_stub(7, 0u32)?;
-            write_generic(&mut core, constructor.ptr_raw, raw)?;
             let caller = core.save_context();
             let result = method.run(&jvm, vec![JavaValue::Object(None)].into_boxed_slice()).await;
             let Err(JavaError::JavaException(exception)) = result else {
@@ -725,12 +611,6 @@ mod tests {
                 (restored.r0, restored.r1, restored.sp, restored.lr, restored.pc),
                 (caller.r0, caller.r1, caller.sp, caller.lr, caller.pc)
             );
-            let pointer = LgtJvmSupport::class_instance_raw(&*exception);
-            exception_address.store(pointer, Ordering::Relaxed);
-            let error = JvmSupport::to_wie_err(&jvm, JavaError::JavaException(exception)).await;
-            assert!(matches!(error, WieError::FatalError(message) if message.contains("java.lang.AbstractMethodError")));
-            jvm.collect_garbage().unwrap();
-            assert!(!Allocator::is_allocated(&core, pointer, 12)?);
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())

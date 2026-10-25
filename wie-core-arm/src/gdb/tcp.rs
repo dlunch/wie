@@ -142,7 +142,6 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
-        core.map(0x7fff0000, 0x4000).unwrap();
         Allocator::init(&mut core).unwrap();
         core.load(&[0x01, 0x30, 0xfd, 0xe7], 0x1000, 4).unwrap(); // add r0, #1; b 0x1000
         let _parked = core.run_in_thread(|| async { Ok(()) }).unwrap();
@@ -258,7 +257,6 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
-        core.map(0x7fff0000, 0x4000).unwrap();
         Allocator::init(&mut core).unwrap();
         let mut tasks = Vec::new();
         for address in [0x1000, 0x2000] {

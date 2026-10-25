@@ -342,8 +342,9 @@ mod tests {
                 profile: None,
             })?;
             Allocator::init(&mut core)?;
-            let _thread = core.run_in_thread(core::future::pending)?;
-            let _entered = core.enter_thread_context(1);
+            let mut registers = core.save_context();
+            registers.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
+            core.restore_context(&registers);
             let jvm = LgtJvmSupport::init(&mut core, &task_system, None).await?;
             register_wipic_svc_handler(&mut core, &task_system, &jvm)?;
             let name = Allocator::alloc(&mut core, 8)?;

@@ -112,8 +112,9 @@ mod tests {
             })
             .unwrap();
             Allocator::init(&mut core).unwrap();
-            let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-            let _entered = core.enter_thread_context(1);
+            let mut registers = core.save_context();
+            registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
+            core.restore_context(&registers);
             register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
             let get_interfaces = core
                 .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))
@@ -172,8 +173,9 @@ mod tests {
             })
             .unwrap();
             Allocator::init(&mut core).unwrap();
-            let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-            let _entered = core.enter_thread_context(1);
+            let mut registers = core.save_context();
+            registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
+            core.restore_context(&registers);
             register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
             let get_interfaces = core
                 .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))

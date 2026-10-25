@@ -1,22 +1,21 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
-use core::mem::{offset_of, size_of};
+use core::mem::size_of;
 
 use spin::Mutex;
 
 use wie_backend::{Options, ProfileCallback, ProfileSample, YieldFuture};
-use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{
     EmulatedFunction, ResultWriter, ThreadId,
-    context::{ArmCoreContext, ArmRootSnapshot, SavedContextRecord},
+    context::ArmCoreContext,
     engine::{Arm32CpuEngine, ArmEngine, ArmRegister, DebugInner, DebuggedArm32CpuEngine, EngineStopReason, MemoryPermission},
     function::{RegisteredFunction, RegisteredFunctionHolder},
-    thread::{STACK_SIZE, ThreadControl, ThreadState},
+    thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
 };
 
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
-pub const ACTIVE_THREAD: u32 = GLOBAL_DATA_BASE + 0x2000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 const FUNCTIONS_SIZE: usize = 0x10000;
 const SVC_STUB_SIZE: u32 = 16;
@@ -85,7 +84,6 @@ impl ArmCore {
 
         engine.mem_map(FUNCTIONS_BASE, FUNCTIONS_SIZE, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
-        engine.mem_write(ACTIVE_THREAD, &0u32.to_le_bytes())?;
 
         let profile = profile.map(|callback| ProfileState {
             samples: BTreeMap::new(),
@@ -183,89 +181,17 @@ impl ArmCore {
     }
 
     pub fn read_thread_context(&self, thread_id: ThreadId) -> Result<ArmCoreContext> {
-        let threads = self.threads.lock();
-        let thread = threads.get(&thread_id).unwrap();
-        read_generic(thread, thread.control_address)
+        let context = self.threads.lock().get(&thread_id).unwrap().context.clone();
+
+        Ok(context)
     }
 
     pub fn write_thread_context(&mut self, thread_id: ThreadId, context: &ArmCoreContext) {
-        let mut threads = self.threads.lock();
-        let thread = threads.get_mut(&thread_id).unwrap();
-        write_generic(thread, thread.control_address, *context).unwrap();
+        self.threads.lock().get_mut(&thread_id).unwrap().context = context.clone();
     }
 
     pub fn get_thread_ids(&self) -> Vec<ThreadId> {
         self.threads.lock().keys().cloned().collect()
-    }
-
-    pub fn set_thread_runtime_context(&mut self, address: u32) -> Result<()> {
-        let control_address: u32 = read_generic(self, ACTIVE_THREAD)?;
-        if control_address == 0 {
-            return Err(WieError::FatalError("Runtime context requires an entered ARM thread".into()));
-        }
-        write_generic(self, control_address + offset_of!(ThreadControl, runtime_context) as u32, address)
-    }
-
-    pub fn snapshot_roots(&self) -> Result<ArmRootSnapshot> {
-        let active: u32 = read_generic(self, ACTIVE_THREAD)?;
-        let controls: Vec<_> = self.threads.lock().values().map(|thread| thread.control_address).collect();
-        let mut result = ArmRootSnapshot {
-            words: Vec::new(),
-            runtime_contexts: Vec::new(),
-        };
-        for address in controls {
-            let control: ThreadControl = read_generic(self, address)?;
-            if control.runtime_context != 0 {
-                result.runtime_contexts.push(control.runtime_context);
-            }
-            let base = address + size_of::<ThreadControl>() as u32;
-            let top = base + STACK_SIZE;
-            let mut lowest_sp = top;
-            let mut context = if address == active { self.save_context() } else { control.context };
-            let mut saved = control.saved_contexts;
-            loop {
-                if context.sp < base || context.sp > top || !context.sp.is_multiple_of(4) {
-                    return Err(WieError::InvalidMemoryAccess(context.sp));
-                }
-                result.words.extend_from_slice(bytemuck::cast_slice(core::slice::from_ref(&context)));
-                lowest_sp = lowest_sp.min(context.sp);
-                if saved == 0 {
-                    break;
-                }
-                let record: SavedContextRecord = read_generic(self, saved)?;
-                context = record.context;
-                saved = record.next;
-            }
-            self.append_stack_words(lowest_sp, &mut result.words)?;
-        }
-        Ok(result)
-    }
-
-    /// Appends the live stack interval belonging to a current or saved guest SP.
-    pub fn append_stack_words(&self, sp: u32, words: &mut Vec<u32>) -> Result<()> {
-        let top = self
-            .threads
-            .lock()
-            .values()
-            .find_map(|thread| {
-                let base = thread.control_address + size_of::<ThreadControl>() as u32;
-                let top = base + STACK_SIZE;
-                (sp >= base && sp <= top && sp.is_multiple_of(4)).then_some(top)
-            })
-            .ok_or(WieError::InvalidMemoryAccess(sp))?;
-        let start = words.len();
-        words.resize(start + ((top - sp) / 4) as usize, 0);
-        let bytes = bytemuck::cast_slice_mut(&mut words[start..]);
-        if !bytes.is_empty() {
-            let read = self.read_bytes(sp, bytes)?;
-            if read != bytes.len() {
-                return Err(WieError::FatalError(format!(
-                    "Short stack read at {sp:#x}: expected {}, got {read}",
-                    bytes.len()
-                )));
-            }
-        }
-        Ok(())
     }
 
     fn sample_profile(&self) {
@@ -311,47 +237,94 @@ impl ArmCore {
         R: RunFunctionResult<R>,
     {
         // we don't need to save r0-r3, but to make it simple, we save all registers
-        let previous_context = self.save_resumable_context()?;
+        let previous_context = self.save_context();
         let result = self.run_function_inner(address, params).await?;
-        self.restore_context(&previous_context.read()?);
+        self.restore_context(&previous_context);
         Ok(result)
+    }
+
+    /// Runs without yielding to application tasks or dispatching registered async handlers.
+    /// The SVC callback owns result/return-PC writes using `ResultWriter`.
+    /// CPU context is restored on success and error; guest memory writes are retained.
+    pub fn run_function_sync<R>(&mut self, address: u32, params: &[u32], mut svc: impl FnMut(&mut ArmCore, u32) -> Result<()>) -> Result<R>
+    where
+        R: RunFunctionResult<R>,
+    {
+        let previous_context = self.save_context();
+        let result = (|| {
+            self.prepare_function_call(address, params)?;
+            loop {
+                let result = self.inner.lock().engine.run(RUN_FUNCTION_LR, INSTRUCTIONS_PER_YIELD)?;
+                match result.stop_reason {
+                    EngineStopReason::End => break,
+                    EngineStopReason::Yield if result.budget_consumed == INSTRUCTIONS_PER_YIELD => continue,
+                    EngineStopReason::Yield => {
+                        return Err(WieError::FatalError(
+                            "Debugger requested a thread switch during synchronous ARM execution".into(),
+                        ));
+                    }
+                    EngineStopReason::Svc { category, lr, spsr } => {
+                        {
+                            let mut inner = self.inner.lock();
+                            inner.engine.reg_write(ArmRegister::Cpsr, spsr);
+                            inner.engine.reg_write(ArmRegister::PC, lr);
+                        }
+                        let svc_step = self
+                            .debug_inner()
+                            .and_then(|debug| debug.begin_svc_step().map(|thread_id| (debug, thread_id)));
+                        let result = svc(self, category);
+                        if let Some((debug, thread_id)) = svc_step {
+                            debug.end_svc_step(thread_id, result.is_ok());
+                        }
+                        result?;
+                    }
+                }
+            }
+            Ok(R::get(self))
+        })();
+        self.restore_context(&previous_context);
+        result
+    }
+
+    fn prepare_function_call(&mut self, address: u32, params: &[u32]) -> Result<()> {
+        let mut inner = self.inner.lock();
+
+        if !params.is_empty() {
+            inner.engine.reg_write(ArmRegister::R0, params[0]);
+        }
+        if params.len() > 1 {
+            inner.engine.reg_write(ArmRegister::R1, params[1]);
+        }
+        if params.len() > 2 {
+            inner.engine.reg_write(ArmRegister::R2, params[2]);
+        }
+        if params.len() > 3 {
+            inner.engine.reg_write(ArmRegister::R3, params[3]);
+        }
+        if params.len() > 4 {
+            for param in params[4..].iter().rev() {
+                let sp: u32 = inner.engine.reg_read(ArmRegister::SP) - 4;
+
+                inner.engine.mem_write(sp, &param.to_le_bytes())?;
+                inner.engine.reg_write(ArmRegister::SP, sp);
+            }
+        }
+
+        inner.engine.reg_write(ArmRegister::PC, address);
+        inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
+
+        let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
+        let new_cpsr = (cpsr & !0x3f) | 0x1f | ((address & 1) << 5);
+        inner.engine.reg_write(ArmRegister::Cpsr, new_cpsr);
+
+        Ok(())
     }
 
     async fn run_function_inner<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
     where
         R: RunFunctionResult<R>,
     {
-        {
-            let mut inner = self.inner.lock();
-
-            if !params.is_empty() {
-                inner.engine.reg_write(ArmRegister::R0, params[0]);
-            }
-            if params.len() > 1 {
-                inner.engine.reg_write(ArmRegister::R1, params[1]);
-            }
-            if params.len() > 2 {
-                inner.engine.reg_write(ArmRegister::R2, params[2]);
-            }
-            if params.len() > 3 {
-                inner.engine.reg_write(ArmRegister::R3, params[3]);
-            }
-            if params.len() > 4 {
-                for param in params[4..].iter().rev() {
-                    let sp: u32 = inner.engine.reg_read(ArmRegister::SP) - 4;
-
-                    inner.engine.mem_write(sp, &param.to_le_bytes())?;
-                    inner.engine.reg_write(ArmRegister::SP, sp);
-                }
-            }
-
-            inner.engine.reg_write(ArmRegister::PC, address);
-            inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
-
-            let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
-            let new_cpsr = (cpsr & !0x3f) | 0x1f | ((address & 1) << 5);
-            inner.engine.reg_write(ArmRegister::Cpsr, new_cpsr);
-        }
+        self.prepare_function_call(address, params)?;
 
         loop {
             let (result, should_yield) = {
@@ -744,10 +717,8 @@ pub struct ThreadContextGuard {
 
 impl ThreadContextGuard {
     pub fn new(mut core: ArmCore, thread_id: ThreadId) -> Self {
-        let context = core.read_thread_context(thread_id).unwrap();
+        let context = core.threads.lock().get(&thread_id).unwrap().context.clone();
         core.restore_context(&context);
-        let control_address = core.threads.lock().get(&thread_id).unwrap().control_address;
-        write_generic(&mut core, ACTIVE_THREAD, control_address).unwrap();
 
         if let Some(debug) = core.debug_inner() {
             debug.on_thread_entered(thread_id);
@@ -761,8 +732,7 @@ impl Drop for ThreadContextGuard {
     fn drop(&mut self) {
         let context = self.core.save_context();
 
-        self.core.write_thread_context(self.thread_id, &context);
-        write_generic(&mut self.core, ACTIVE_THREAD, 0u32).unwrap();
+        self.core.threads.lock().get_mut(&self.thread_id).unwrap().context = context;
 
         if let Some(debug) = self.core.debug_inner() {
             debug.on_thread_exited(self.thread_id);
@@ -779,224 +749,173 @@ mod tests {
         task::{Context, Poll, Waker},
     };
 
-    use crate::function::JumpTo;
+    use crate::{EmulatedFunctionParam, SvcId, function::JumpTo};
     use wie_util::read_null_terminated_string_bytes;
 
     use super::*;
 
-    #[test]
-    fn roots_follow_active_and_suspended_guest_state() -> Result<()> {
-        let mut core = ArmCore::new(Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
-        crate::Allocator::init(&mut core)?;
-        let first = core.run_in_thread(|| async { Ok(()) })?;
-        let second = core.run_in_thread(|| async { Ok(()) })?;
-        let mut context = core.read_thread_context(1)?;
-        let top = context.sp;
-        context.sp -= 4;
-        context.r0 = 0x11111111;
-        core.write_thread_context(1, &context);
-        write_generic(&mut core, context.sp, 0x22222222u32)?;
-        write_generic(&mut core, context.sp - 4, 0x33333333u32)?;
-        {
-            let _entered = core.enter_thread_context(1);
-            core.set_thread_runtime_context(0x12340000)?;
-            core.write_return_value(&[0x44444444])?;
-            let roots = core.snapshot_roots()?;
-            assert!(roots.words.contains(&0x44444444));
-            assert!(roots.words.contains(&0x22222222));
-            assert!(!roots.words.contains(&0x11111111));
-            assert!(!roots.words.contains(&0x33333333));
-            assert_eq!(roots.runtime_contexts, [0x12340000]);
-        }
-        {
-            let _entered = core.enter_thread_context(2);
-            core.set_thread_runtime_context(0x56780000)?;
-            core.write_return_value(&[0x55555555])?;
-            let roots = core.snapshot_roots()?;
-            assert!(roots.words.contains(&0x44444444));
-            assert!(roots.words.contains(&0x55555555));
-            assert!(roots.words.contains(&0x22222222));
-            assert_eq!(roots.runtime_contexts, [0x12340000, 0x56780000]);
-        }
-        context.r0 = 0;
-        context.sp = top;
-        core.write_thread_context(1, &context);
-        let roots = core.snapshot_roots()?;
-        assert!(!roots.words.contains(&0x44444444));
-        assert!(!roots.words.contains(&0x22222222));
-        drop(first);
-        drop(second);
-        assert!(core.snapshot_roots()?.words.is_empty());
-        assert!(core.snapshot_roots()?.runtime_contexts.is_empty());
-        Ok(())
+    fn context_registers(context: &ArmCoreContext) -> [u32; 17] {
+        [
+            context.r0,
+            context.r1,
+            context.r2,
+            context.r3,
+            context.r4,
+            context.r5,
+            context.r6,
+            context.r7,
+            context.r8,
+            context.sb,
+            context.sl,
+            context.fp,
+            context.ip,
+            context.sp,
+            context.lr,
+            context.pc,
+            context.cpsr,
+        ]
     }
 
     #[test]
-    fn saved_guest_contexts_restore_and_unlink_by_address() -> Result<()> {
+    fn synchronous_calls_restore_context_without_consuming_the_outer_budget() {
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: Some(Box::new(|_| panic!("synchronous calls must not sample the profiler"))),
+        })
+        .unwrap();
+        let mut code = vec![0xe2800001u32; 10_001]; // add r0, r0, #1
+        code.push(0xe12fff1e); // bx lr
+        core.load(bytemuck::cast_slice(&code), 0x1000, code.len() * 4).unwrap();
+        core.map(0x10000, 0x10000).unwrap();
+        let context = ArmCoreContext {
+            r0: 10,
+            r1: 11,
+            r2: 12,
+            r3: 13,
+            r4: 14,
+            r5: 15,
+            r6: 16,
+            r7: 17,
+            r8: 18,
+            sb: 19,
+            sl: 20,
+            fp: 21,
+            ip: 22,
+            sp: 0x20000,
+            lr: 0x3001,
+            pc: 0x4000,
+            cpsr: 0xa000003f,
+        };
+        core.restore_context(&context);
+        core.inner.lock().instructions_remaining = 5;
+        let value = core.run_function_sync::<u32>(0x1000, &[0], |_, _| panic!("unexpected SVC")).unwrap();
+        assert_eq!(value, 10_001);
+        assert_eq!(context_registers(&core.save_context()), context_registers(&context));
+
+        let async_calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, count_inline_svc, &async_calls).unwrap();
+        let target = core.make_svc_stub(1, 42u32).unwrap();
+        let mut arguments = Vec::new();
+        let value = core
+            .run_function_sync::<u32>(target, &[1, 2, 3, 4, 5, 6], |core, category| {
+                assert_eq!(category, 1);
+                let id = SvcId::get(core, 0);
+                assert_eq!(id.0, 42);
+                assert_eq!(core.save_context().cpsr & 0x3f, 0x3f);
+                for index in 0..6 {
+                    arguments.push(core.read_param(index)?);
+                }
+                core.write_bytes(0x10000, &123u32.to_le_bytes())?;
+                let (_, lr) = core.read_pc_lr()?;
+                99u32.write(core, lr)
+            })
+            .unwrap();
+        assert_eq!(value, 99);
+        assert_eq!(arguments, [1, 2, 3, 4, 5, 6]);
+        assert_eq!(read_generic::<u32, _>(&core, 0x10000).unwrap(), 123);
+        assert_eq!(async_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(context_registers(&core.save_context()), context_registers(&context));
+        let inner = core.inner.lock();
+        assert_eq!(inner.instructions_remaining, 5);
+        let profile = inner.profile.as_ref().unwrap();
+        assert_eq!(profile.counter, 0);
+        assert!(profile.samples.is_empty());
+    }
+
+    #[test]
+    fn synchronous_call_errors_restore_context_including_partial_argument_setup() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
             aot: None,
             profile: None,
-        })?;
-        assert!(core.save_resumable_context().is_err());
-        assert!(core.run_in_thread(|| async { Ok(()) }).is_err());
-        crate::Allocator::init(&mut core)?;
-        assert!(core.save_resumable_context().is_err());
-        assert!(matches!(
-            futures::executor::block_on(core.run_function::<()>(0x1001, &[42])),
-            Err(WieError::FatalError(_))
-        ));
-        let _thread = core.run_in_thread(|| async { Ok(()) })?;
-        let _entered = core.enter_thread_context(1);
-        let top = core.save_context().sp;
+        })
+        .unwrap();
+        core.map(0x10000, 0x10000).unwrap();
+        let async_calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, count_inline_svc, &async_calls).unwrap();
+        let target = core.make_svc_stub(1, 0u32).unwrap();
         let mut context = core.save_context();
-        context.r0 = 0x11111111;
-        context.sp -= 8;
+        context.r0 = 42;
+        context.r1 = 43;
+        context.sp = 0x20000;
+        context.lr = 0x4001;
+        context.cpsr = 0x6000001f;
         core.restore_context(&context);
-        write_generic(&mut core, context.sp, 0x22222222u32)?;
-        let outer = core.save_resumable_context()?;
-        core.write_return_value(&[0x33333333])?;
-        let inner = core.save_resumable_context()?;
-        context.r0 = 0x44444444;
-        context.sp = top;
+        core.inner.lock().instructions_remaining = 5;
+
+        let result = core.run_function_sync::<()>(target, &[1, 2, 3, 4, 5, 6], |core, category| {
+            core.write_return_value(&[99, 98])?;
+            Err(WieError::FatalError(format!("Unexpected synchronous SVC: {category}")))
+        });
+        assert!(matches!(result, Err(WieError::FatalError(message)) if message == "Unexpected synchronous SVC: 1"));
+        assert_eq!(async_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(context_registers(&core.save_context()), context_registers(&context));
+
+        let result = core.run_function_sync::<()>(0x20001, &[1, 2, 3, 4, 5, 6], |_, _| panic!("unexpected SVC"));
+        assert!(matches!(result, Err(WieError::InvalidMemoryAccess(0x20000))));
+        assert_eq!(context_registers(&core.save_context()), context_registers(&context));
+
+        context.sp = 0x10004;
         core.restore_context(&context);
-        let roots = core.snapshot_roots()?;
-        for word in [0x11111111, 0x22222222, 0x33333333, 0x44444444] {
-            assert!(roots.words.contains(&word));
-        }
-        let control = core.threads.lock().get(&1).unwrap().control_address;
-        let head = control + offset_of!(ThreadControl, saved_contexts) as u32;
-        let inner_address: u32 = read_generic(&core, head)?;
-        let record: SavedContextRecord = read_generic(&core, inner_address)?;
-        let outer_address = record.next;
-        let record_size = size_of::<SavedContextRecord>() as u32;
-        assert!(crate::Allocator::is_allocated(&core, outer_address, record_size)?);
-        drop(outer);
-        assert!(!crate::Allocator::is_allocated(&core, outer_address, record_size)?);
-        assert!(!core.snapshot_roots()?.words.contains(&0x11111111));
-        assert!(core.snapshot_roots()?.words.contains(&0x33333333));
-        let mut record: SavedContextRecord = read_generic(&core, inner_address)?;
-        record.context.r0 = 0x55555555;
-        write_generic(&mut core, inner_address, record)?;
-        assert!(core.snapshot_roots()?.words.contains(&0x55555555));
-        core.restore_context(&inner.read()?);
-        assert_eq!(core.read_param(0)?, 0x55555555);
-        drop(inner);
-        assert_eq!(read_generic::<u32, _>(&core, head)?, 0);
-        assert!(!crate::Allocator::is_allocated(&core, inner_address, record_size)?);
-        assert_eq!(core.read_param(0)?, 0x55555555);
-        Ok(())
+        let result = core.run_function_sync::<()>(target, &[1, 2, 3, 4, 5, 6], |_, _| panic!("argument setup must fail"));
+        assert!(matches!(result, Err(WieError::InvalidMemoryAccess(0xfffc))));
+        assert_eq!(read_generic::<u32, _>(&core, 0x10000).unwrap(), 6);
+        assert_eq!(context_registers(&core.save_context()), context_registers(&context));
+        assert_eq!(core.inner.lock().instructions_remaining, 5);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn root_scanning_rejects_invalid_actual_stack_pointers() -> Result<()> {
+    fn synchronous_call_rejects_debugger_thread_switching() {
+        extern crate std;
+
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
             aot: None,
             profile: None,
-        })?;
-        crate::Allocator::init(&mut core)?;
-        let _thread = core.run_in_thread(|| async { Ok(()) })?;
-        let mut context = core.read_thread_context(1)?;
-        let top = context.sp;
-        for sp in [top + 4, top - 0x100000 - 4, top - 1, 0] {
-            context.sp = sp;
-            core.write_thread_context(1, &context);
-            assert!(core.snapshot_roots().is_err());
-            assert!(core.append_stack_words(sp, &mut Vec::new()).is_err());
-        }
-        context.sp = top;
-        core.write_thread_context(1, &context);
-        let _entered = core.enter_thread_context(1);
-        context.sp = 0;
-        core.restore_context(&context);
-        assert!(core.snapshot_roots().is_err());
-        let saved = core.save_resumable_context()?;
-        context.sp = top;
-        core.restore_context(&context);
-        assert!(core.snapshot_roots().is_err());
-        drop(saved);
-        assert!(core.snapshot_roots().is_ok());
-        drop(_entered);
-
-        context.sp = top - 4;
-        core.write_thread_context(1, &context);
-        let address = core.threads.lock().get(&1).unwrap().control_address;
-        let control: ThreadControl = read_generic(&core, address)?;
-        let mut unreadable_stack = Arm32CpuEngine::new();
-        unreadable_stack.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWrite);
-        unreadable_stack.mem_map(address, size_of::<ThreadControl>(), MemoryPermission::ReadWrite);
-        unreadable_stack.mem_write(address, bytemuck::bytes_of(&control))?;
-        let original = core::mem::replace(&mut core.inner.lock().engine, Box::new(unreadable_stack));
-        let result = core.snapshot_roots();
-        core.inner.lock().engine = original;
-        assert!(matches!(result, Err(WieError::InvalidMemoryAccess(sp)) if sp == context.sp));
-        Ok(())
-    }
-
-    #[test]
-    fn dropping_pending_nested_calls_reclaims_records_before_thread_storage() -> Result<()> {
-        struct PendingThreadStorage {
-            core: ArmCore,
-            address: u32,
-        }
-        impl Drop for PendingThreadStorage {
-            fn drop(&mut self) {
-                assert!(crate::Allocator::is_allocated(&self.core, self.address, size_of::<ThreadControl>() as u32 + STACK_SIZE).unwrap());
-            }
-        }
-        async fn nested(core: &mut ArmCore, _: &mut ()) -> Result<()> {
-            core.run_function(0x2001, &[0x33333333]).await
-        }
-        async fn pending(core: &mut ArmCore, _: &mut ()) -> Result<()> {
-            let _storage = PendingThreadStorage {
-                core: core.clone(),
-                address: read_generic(core, ACTIVE_THREAD)?,
-            };
-            core::future::pending().await
-        }
-        let mut core = ArmCore::new(Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
-        crate::Allocator::init(&mut core)?;
-        core.register_svc_handler(1, nested, &())?;
-        core.register_svc_handler(2, pending, &())?;
-        core.load(&[1, 0xdf, 0x70, 0x47], 0x1000, 4)?;
-        core.load(&[2, 0xdf, 0x70, 0x47], 0x2000, 4)?;
-        let mut running = core.clone();
-        let mut task = Box::pin(core.run_in_thread(move || async move {
-            running.write_return_value(&[0x11111111])?;
-            running.run_function::<()>(0x1001, &[0x22222222]).await
-        })?);
-        assert!(task.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
-        let roots = core.snapshot_roots()?;
-        for word in [0x11111111, 0x22222222, 0x33333333] {
-            assert!(roots.words.contains(&word));
-        }
-        let control = core.threads.lock().get(&1).unwrap().control_address;
-        let state: ThreadControl = read_generic(&core, control)?;
-        let inner: SavedContextRecord = read_generic(&core, state.saved_contexts)?;
-        let context = core.read_thread_context(1)?;
-        drop(task);
-        for address in [state.saved_contexts, inner.next] {
-            assert!(!crate::Allocator::is_allocated(&core, address, size_of::<SavedContextRecord>() as u32)?);
-        }
-        assert!(!crate::Allocator::is_allocated(
-            &core,
-            control,
-            size_of::<ThreadControl>() as u32 + STACK_SIZE
-        )?);
-        assert!(core.get_thread_ids().is_empty());
-        assert!(core.snapshot_roots()?.words.is_empty());
-        assert_eq!(core.save_context().pc, context.pc);
-        assert_eq!(core.save_context().sp, context.sp);
-        Ok(())
+        })
+        .unwrap();
+        let engine = DebuggedArm32CpuEngine::new();
+        let debug = engine.debug_inner();
+        core.inner.lock().engine = Box::new(engine);
+        core.inner.lock().instructions_remaining = 5;
+        core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
+        let context = core.save_context();
+        debug.on_thread_entered(1);
+        debug.resume(Vec::new(), Some(vec![2]));
+        let (tx, rx) = crossbeam::channel::bounded(1);
+        let runner = std::thread::spawn(move || {
+            let result = core.run_function_sync::<()>(0x1001, &[1], |_, _| panic!("unexpected SVC"));
+            tx.send((result, core)).unwrap();
+        });
+        let finished = rx.recv_timeout(std::time::Duration::from_secs(1));
+        debug.resume(Vec::new(), None);
+        runner.join().unwrap();
+        let (result, core) = finished.unwrap();
+        assert!(matches!(result, Err(WieError::FatalError(message)) if message.contains("thread switch")));
+        assert_eq!(context_registers(&core.save_context()), context_registers(&context));
+        assert_eq!(core.inner.lock().instructions_remaining, 5);
     }
 
     #[test]
@@ -1007,9 +926,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _entered = core.enter_thread_context(1);
         core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         assert!(!core.is_preparing());
         assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
@@ -1065,7 +981,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        core.inner.lock().engine = Box::new(DebuggedArm32CpuEngine::new());
         crate::Allocator::init(&mut core).unwrap();
         let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
         let mut context = core.read_thread_context(1).unwrap();
@@ -1096,12 +1011,9 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
-        core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _entered = core.enter_thread_context(1);
         core.inner.lock().instructions_remaining = 5;
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
+        debug.on_thread_entered(1);
         debug.resume(Vec::new(), Some(vec![2]));
 
         let observer = core.clone();
@@ -1127,7 +1039,6 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
-        core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
         crate::Allocator::init(&mut core).unwrap();
         let calls = Arc::new(AtomicU32::new(0));
         let observed = calls.clone();
@@ -1164,7 +1075,6 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
-        core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
         crate::Allocator::init(&mut core).unwrap();
         let calls = Arc::new(AtomicU32::new(0));
         let observed = calls.clone();
@@ -1225,7 +1135,18 @@ mod tests {
 
         use crate::engine::{DebugBreakpointKind, DebugStopReason};
 
-        for breakpoint in [false, true] {
+        async fn call_nested_sync(core: &mut ArmCore, context: &mut (Arc<AtomicU32>, Arc<AtomicU32>)) -> Result<JumpTo> {
+            let pc = core.read_pc_lr()?.0;
+            let value = core.run_function_sync::<u32>(0x10001, &[0], |core, category| {
+                assert_eq!(category, 2);
+                context.1.fetch_add(1, Ordering::Relaxed);
+                JumpTo(core.read_pc_lr()?.0 | 1).write(core, 0)
+            })?;
+            context.0.store(value, Ordering::Relaxed);
+            Ok(JumpTo(pc | 1))
+        }
+
+        for (synchronous, breakpoint) in [(false, false), (false, true), (true, false), (true, true)] {
             let mut core = ArmCore::new(Options {
                 enable_gdbserver: false,
                 aot: None,
@@ -1235,11 +1156,14 @@ mod tests {
             let engine = DebuggedArm32CpuEngine::new();
             let debug = engine.debug_inner();
             core.inner.lock().engine = Box::new(engine);
-            core.map(GLOBAL_DATA_BASE, 0x4000).unwrap();
             crate::Allocator::init(&mut core).unwrap();
             let result = Arc::new(AtomicU32::new(0));
             let calls = Arc::new(AtomicU32::new(0));
-            core.register_svc_handler(1, call_nested_arm, &result).unwrap();
+            if synchronous {
+                core.register_svc_handler(1, call_nested_sync, &(result.clone(), calls.clone())).unwrap();
+            } else {
+                core.register_svc_handler(1, call_nested_arm, &result).unwrap();
+            }
             core.register_svc_handler(2, count_inline_svc, &calls).unwrap();
             core.load(&[0x01, 0xdf, 0x01, 0x30, 0x70, 0x47], 0x1000, 6).unwrap(); // svc #1; add r0, #1; bx lr
             core.load(&[0x02, 0xdf, 0x01, 0x30, 0x70, 0x47], 0x10000, 6).unwrap(); // svc #2; add r0, #1; bx lr
@@ -1294,9 +1218,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _entered = core.enter_thread_context(1);
         let calls = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
         let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
@@ -1324,9 +1245,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _entered = core.enter_thread_context(1);
         let result = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, call_nested_arm, &result).unwrap();
         let mut outer = [0xc0, 0x46].repeat(5_000); // nop
@@ -1359,9 +1277,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _entered = core.enter_thread_context(1);
         core.map(0x2000, 0x1000).unwrap();
         core.register_svc_handler(1, throwing_handler, &()).unwrap();
         let target = core.make_svc_stub(1, 0u32).unwrap();
@@ -1395,9 +1310,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _entered = core.enter_thread_context(1);
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         let completed = Arc::new(AtomicU32::new(0));
         let observed = completed.clone();
@@ -1523,9 +1435,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _entered = core.enter_thread_context(1);
         // push {r4, lr}; mov r4, r3; blx r2; stmia r4, {r0, r1}; pop {r4, pc}
         let code = [0xe92d4010u32, 0xe1a04003, 0xe12fff32, 0xe8840003, 0xe8bd8010];
         core.load(bytemuck::cast_slice(&code), 0x1000, 0x1000).unwrap();

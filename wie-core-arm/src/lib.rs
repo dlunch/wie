@@ -15,7 +15,7 @@ pub type ThreadId = usize;
 
 pub use self::{
     allocator::Allocator,
-    context::{ArmCoreContext, ArmRootSnapshot, SavedArmContext},
+    context::ArmCoreContext,
     core::{ArmCore, RUN_FUNCTION_LR, RunFunctionResult},
     function::{EmulatedFunction, EmulatedFunctionParam, JumpTo, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcId},
 };

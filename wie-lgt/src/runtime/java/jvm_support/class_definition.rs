@@ -11,7 +11,7 @@ use wipi_types::lgt::java::{
     LgtJavaInterfaceReferences as RawJavaInterfaceReferences,
 };
 
-use wie_core_arm::{Allocator, ArmCore, RegisteredFunction, ResultWriter};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
 use wie_jvm_support::native::NativeJavaValueCodec;
 use wie_util::{
     ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
@@ -22,7 +22,6 @@ use crate::runtime::{
     java::{
         JavaSvcFunctions,
         abi::{CLASS_INITIALIZATION_STATE_FIELD, CLASS_NATIVE_NAME_FIELD, JAVA_ABI, WORD_FIELD_DESCRIPTOR},
-        exception,
     },
 };
 
@@ -704,11 +703,14 @@ impl JavaClassDefinition {
         let get_class_id = self.raw()?.ptr_descriptor + offset_of!(RawJavaClassDescriptor, fn_get_class) as u32;
 
         for (id, initialize) in [(get_initialized_class_id, true), (get_class_id, false)] {
-            let proxy = JavaClassGetterProxy {
-                jvm: jvm.clone(),
-                class: self.clone(),
-                initialize,
-            };
+            let proxy = RegisteredFunctionHolder::new(
+                JavaClassGetterProxy {
+                    jvm: jvm.clone(),
+                    class: self.clone(),
+                    initialize,
+                },
+                &(),
+            );
             functions.lock().insert(id, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
             let target = core.make_svc_stub(SVC_CATEGORY_JAVA, id)?;
             if initialize {
@@ -751,47 +753,34 @@ struct JavaClassGetterProxy {
 }
 
 #[async_trait::async_trait]
-impl RegisteredFunction for JavaClassGetterProxy {
-    async fn call(&self, core: &mut ArmCore) -> Result<()> {
-        let (_, lr) = core.read_pc_lr()?;
-        let _frame = self.jvm.push_native_frame(&[]);
-        let result: Result<u32> = async {
-            let class_name = ClassDefinition::name(&self.class);
-            let class = self.jvm.resolve_class(&class_name).await.map_err(|error| match error {
+impl EmulatedFunction<(), u32, ()> for JavaClassGetterProxy {
+    async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<u32> {
+        let class_name = ClassDefinition::name(&self.class);
+        let class = self.jvm.resolve_class(&class_name).await.map_err(|error| match error {
+            JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
+        })?;
+        let mut java_class = class.java_class();
+        self.class.bind_class_object_storage(&self.jvm, &mut java_class).await?;
+
+        if self.initialize {
+            self.jvm.ensure_initialized(&class).await.map_err(|error| match error {
                 JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
             })?;
-            let mut java_class = class.java_class();
-            self.class.bind_class_object_storage(&self.jvm, &mut java_class).await?;
-
-            if self.initialize {
-                self.jvm.ensure_initialized(&class).await.map_err(|error| match error {
+            self.jvm
+                .put_field(
+                    &mut java_class,
+                    "java/lang/Class",
+                    CLASS_INITIALIZATION_STATE_FIELD,
+                    WORD_FIELD_DESCRIPTOR,
+                    5i32,
+                )
+                .await
+                .map_err(|error| match error {
                     JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
                 })?;
-                self.jvm
-                    .put_field(
-                        &mut java_class,
-                        "java/lang/Class",
-                        CLASS_INITIALIZATION_STATE_FIELD,
-                        WORD_FIELD_DESCRIPTOR,
-                        5i32,
-                    )
-                    .await
-                    .map_err(|error| match error {
-                        JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
-                    })?;
-            }
+        }
 
-            Ok(JavaValueCodec::new(core).object_to_raw(&*java_class))
-        }
-        .await;
-        match result {
-            Ok(pointer) => pointer.write(core, lr),
-            Err(WieError::JavaException(pointer)) => match exception::unwind(core, pointer)? {
-                Some(_) => Ok(()),
-                None => Err(WieError::JavaException(pointer)),
-            },
-            Err(error) => Err(error),
-        }
+        Ok(JavaValueCodec::new(core).object_to_raw(&*java_class))
     }
 }
 

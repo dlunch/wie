@@ -27,46 +27,24 @@ struct LgtTaskRunner {
     core: ArmCore,
 }
 
-struct JavaSupportContextGuard {
-    core: ArmCore,
-    address: Option<u32>,
-}
-
-impl Drop for JavaSupportContextGuard {
-    fn drop(&mut self) {
-        if let Some(address) = self.address
-            && let Err(error) = exception::destroy(&mut self.core, address)
-        {
-            tracing::error!("Failed to free LGT support context: {error}");
-        }
-    }
-}
-
 #[async_trait::async_trait]
 impl TaskRunner for LgtTaskRunner {
     async fn run(&self, mut future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
         let mut core = self.core.clone();
         let ptr_context = exception::init(&mut core)?;
-        // Declared before the wrapper so its guest context outlives thread teardown.
-        let mut support_context = JavaSupportContextGuard {
-            core: core.clone(),
-            address: Some(ptr_context),
-        };
         let mut poll_core = core.clone();
         let result = core
             .run_in_thread(move || {
                 poll_fn(move |context| {
-                    if let Err(error) = poll_core
-                        .set_thread_runtime_context(ptr_context)
-                        .and_then(|()| write_generic(&mut poll_core, SUPPORT_CONTEXT_BASE, ptr_context))
-                    {
+                    if let Err(error) = write_generic(&mut poll_core, SUPPORT_CONTEXT_BASE, ptr_context) {
                         return Poll::Ready(Err(error));
                     }
                     future.as_mut().poll(context)
                 })
             })?
             .await;
-        exception::destroy(&mut core, support_context.address.take().unwrap())?;
+
+        exception::destroy(&mut core, ptr_context)?;
         result
     }
 }
@@ -259,182 +237,13 @@ mod tests {
     use alloc::boxed::Box;
     use core::task::{Context, Poll, Waker};
 
-    use test_utils::TestPlatform;
-    use wie_backend::{DefaultTaskRunner, System, TaskRunner, YieldFuture};
+    use wie_backend::{TaskRunner, YieldFuture};
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{Result, write_generic};
+    use wie_util::Result;
 
     use crate::runtime::exception::{pending, pop, push, unwind};
 
     use super::{LgtAppInfo, LgtTaskRunner};
-
-    #[test]
-    fn native_roots_preserve_and_release_guest_allocations() -> Result<()> {
-        use crate::runtime::LgtJvmSupport;
-        use alloc::sync::Arc;
-        use core::sync::atomic::{AtomicBool, Ordering};
-        use jvm::runtime::JavaLangString;
-
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
-        Allocator::init(&mut core)?;
-        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
-        let system_task = system.clone();
-        let done = Arc::new(AtomicBool::new(false));
-        let done_task = done.clone();
-        system.spawn(async move || {
-            let runner = LgtTaskRunner { core: core.clone() };
-            runner
-                .run(Box::pin(async move {
-                    let jvm = LgtJvmSupport::init(&mut core, &system_task, None).await?;
-                    for element in ["B", "J", "D"] {
-                        jvm.resolve_class(&alloc::format!("[{element}")).await.unwrap();
-                    }
-                    jvm.collect_garbage().unwrap();
-                    let empty = core.save_context();
-                    for (element, length, offset) in [("B", 3, 0), ("B", 3, 5), ("B", 3, 11), ("J", 2, 9), ("D", 2, 24), ("J", 0, 8)] {
-                        let (header, storage) = {
-                            let _frame = jvm.push_native_frame(&[]);
-                            let array = jvm.instantiate_array(element, length).await.unwrap();
-                            let header = array.identity() as u32;
-                            let storage = wie_util::read_generic::<u32, _>(&core, header + 8)?;
-                            (header, storage)
-                        };
-                        let mut live = empty;
-                        live.r4 = if offset == 0 { header } else { storage + offset };
-                        core.restore_context(&live);
-                        assert_eq!(jvm.collect_garbage().unwrap(), 0, "{element}/{length}/{offset}");
-                        core.restore_context(&empty);
-                        assert_eq!(jvm.collect_garbage().unwrap(), 1);
-                    }
-
-                    // The String's character array must be traced from a guest-only root.
-                    let reference = {
-                        let _frame = jvm.push_native_frame(&[]);
-                        JavaLangString::from_rust_string(&jvm, "native-only").await.unwrap().identity() as u32
-                    };
-                    let mut live = empty;
-                    live.r4 = reference;
-                    core.restore_context(&live);
-                    let outer = core.save_resumable_context()?;
-                    core.restore_context(&empty);
-                    let inner = core.save_resumable_context()?;
-                    jvm.collect_garbage().unwrap();
-                    {
-                        let _frame = jvm.push_native_frame(&[]);
-                        let string = LgtJvmSupport::class_instance_from_raw(&core, reference);
-                        assert_eq!(JavaLangString::to_rust_string(&jvm, &string).await.unwrap(), "native-only");
-                    }
-                    drop(outer);
-                    drop(inner);
-                    assert!(jvm.collect_garbage().unwrap() >= 2);
-
-                    for one_past in [false, true] {
-                        let (reference, fields, size) = {
-                            let _frame = jvm.push_native_frame(&[]);
-                            let string = JavaLangString::from_rust_string(&jvm, "field-storage").await.unwrap();
-                            let reference = string.identity() as u32;
-                            let header: wipi_types::lgt::java::LgtJavaClassInstance = wie_util::read_generic(&core, reference)?;
-                            let class = LgtJvmSupport::class_from_raw(&core, wie_util::read_generic(&core, header.ptr_dispatch_table)?);
-                            (reference, header.ptr_fields, class.instance_field_word_count()? as u32 * 4)
-                        };
-                        live = empty;
-                        live.r4 = fields + if one_past { size } else { 1 };
-                        core.restore_context(&live);
-                        jvm.collect_garbage().unwrap();
-                        {
-                            let _frame = jvm.push_native_frame(&[]);
-                            let string = LgtJvmSupport::class_instance_from_raw(&core, reference);
-                            assert_eq!(JavaLangString::to_rust_string(&jvm, &string).await.unwrap(), "field-storage");
-                        }
-                        core.restore_context(&empty);
-                        assert_eq!(jvm.collect_garbage().unwrap(), 2);
-                    }
-
-                    let array = {
-                        let _frame = jvm.push_native_frame(&[]);
-                        jvm.instantiate_array("B", 7).await.unwrap().identity() as u32
-                    };
-                    live = empty;
-                    live.sp -= 4;
-                    write_generic(&mut core, live.sp, array)?;
-                    core.restore_context(&live);
-                    assert_eq!(jvm.collect_garbage().unwrap(), 0);
-                    let dead = {
-                        let _frame = jvm.push_native_frame(&[]);
-                        jvm.instantiate_array("B", 1).await.unwrap().identity() as u32
-                    };
-                    let mut invalid = live;
-                    invalid.sp = 0;
-                    core.restore_context(&invalid);
-                    assert!(jvm.collect_garbage().is_err());
-                    assert!(Allocator::is_allocated(&core, dead, 12)?);
-                    core.restore_context(&live);
-                    assert_eq!(jvm.collect_garbage().unwrap(), 1);
-                    core.restore_context(&empty);
-                    assert_eq!(jvm.collect_garbage().unwrap(), 1);
-
-                    for source in ["register", "stack", "catch register", "catch stack", "pending exception", "saved caller"] {
-                        let reference = {
-                            let _frame = jvm.push_native_frame(&[]);
-                            jvm.instantiate_array("B", 3).await.unwrap().identity() as u32
-                        };
-                        let mut owner_core = core.clone();
-                        let owner_runner = LgtTaskRunner { core: core.clone() };
-                        let mut owner = owner_runner.run(Box::pin(async move {
-                            let empty = owner_core.save_context();
-                            let mut state = empty;
-                            state.lr = 0x4001;
-                            match source {
-                                "register" | "catch register" | "saved caller" => state.r5 = reference,
-                                "stack" | "catch stack" => {
-                                    state.sp -= 4;
-                                    write_generic(&mut owner_core, state.sp, reference)?;
-                                }
-                                _ => (),
-                            }
-                            owner_core.restore_context(&state);
-                            let _saved = if source == "saved caller" {
-                                let saved = owner_core.save_resumable_context()?;
-                                owner_core.restore_context(&empty);
-                                Some(saved)
-                            } else {
-                                if source.starts_with("catch") || source == "pending exception" {
-                                    push(&mut owner_core)?;
-                                    if source == "pending exception" {
-                                        assert_eq!(unwind(&mut owner_core, reference)?, Some(0x4001));
-                                    }
-                                    owner_core.restore_context(&empty);
-                                }
-                                None
-                            };
-                            YieldFuture::new().await;
-                            Ok(())
-                        }));
-                        let mut context = Context::from_waker(Waker::noop());
-                        assert!(owner.as_mut().poll(&mut context).is_pending());
-                        core.restore_context(&empty);
-                        let runtime_contexts = core.snapshot_roots()?.runtime_contexts;
-                        let support = *runtime_contexts.last().unwrap();
-                        assert_eq!(jvm.collect_garbage().unwrap(), 0, "{source}");
-                        drop(owner);
-                        assert!(!Allocator::is_allocated(&core, support, 8)?);
-                        core.restore_context(&empty);
-                        assert_eq!(jvm.collect_garbage().unwrap(), 1, "{source}");
-                    }
-                    done_task.store(true, Ordering::Relaxed);
-                    Ok(())
-                }))
-                .await
-        });
-        while !done.load(Ordering::Relaxed) {
-            system.tick()?;
-        }
-        Ok(())
-    }
 
     #[test]
     fn exception_frames_are_restored_per_thread() -> Result<()> {
@@ -484,17 +293,6 @@ mod tests {
         for thread in &mut threads {
             assert!(matches!(thread.as_mut().poll(&mut context), Poll::Ready(Ok(()))));
         }
-
-        let mut damaged_core = core.clone();
-        let mut damaged_task = runner.run(Box::pin(async move {
-            let support: u32 = wie_util::read_generic(&damaged_core, crate::runtime::SUPPORT_CONTEXT_BASE)?;
-            write_generic(&mut damaged_core, support, 0xffff_ffffu32)?;
-            Ok(())
-        }));
-        assert!(
-            matches!(damaged_task.as_mut().poll(&mut context), Poll::Ready(Err(_))),
-            "Normal context destruction errors must reach the task runner"
-        );
 
         Ok(())
     }
