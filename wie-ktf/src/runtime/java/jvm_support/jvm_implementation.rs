@@ -11,7 +11,6 @@ use spin::Mutex;
 use wie_core_arm::{ArmCore, EmulatedFunctionParam, ResultWriter, SvcId};
 use wie_jvm_support::JvmImplementation;
 use wie_util::{WieError, read_generic};
-use wipi_types::ktf::WipiExe;
 
 use crate::runtime::{
     SVC_CATEGORY_INIT,
@@ -80,16 +79,12 @@ impl ExternalRoots for KtfJvmImplementation {
         let mut core = self.core.clone();
         let context: KtfJvmSupportContext = read_generic(&core, SUPPORT_CONTEXT_BASE)?;
         let mut roots = Vec::new();
-        if context.ptr_wipi_exe == 0 {
-            return Ok(roots);
-        }
-        let executable: WipiExe = read_generic(&core, context.ptr_wipi_exe)?;
-        if executable.fn_visit_gc_roots == 0 {
+        if context.ptr_visit_gc_root == 0 {
             return Ok(roots);
         }
 
         tracing::debug!("ktf.visit_gc_roots()");
-        core.run_function_sync::<()>(executable.fn_visit_gc_roots, &[], |core, category| {
+        core.run_function_sync::<()>(context.ptr_visit_gc_root, &[], |core, category| {
             let id = SvcId::get(core, 0);
             if category != SVC_CATEGORY_INIT || id.0 != InitSvcId::VisitGcRoot as u32 {
                 return Err(WieError::FatalError(format!(

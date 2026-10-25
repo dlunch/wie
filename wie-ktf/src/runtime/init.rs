@@ -135,8 +135,8 @@ pub async fn load_native(
     // The enclosing JVM frame roots initialization objects until the native tables are ready.
     write_generic(
         core,
-        SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_wipi_exe) as u32,
-        ptr_wipi_exe,
+        SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_visit_gc_root) as u32,
+        wipi_exe.fn_visit_gc_roots,
     )?;
 
     Ok(exe_interface.ptr_functions)

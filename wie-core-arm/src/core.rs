@@ -250,40 +250,41 @@ impl ArmCore {
     where
         R: RunFunctionResult<R>,
     {
-        let previous_context = self.save_context();
-        let result = (|| {
-            self.prepare_function_call(address, params)?;
-            loop {
-                let result = self.inner.lock().engine.run(RUN_FUNCTION_LR, INSTRUCTIONS_PER_YIELD)?;
-                match result.stop_reason {
-                    EngineStopReason::End => break,
-                    EngineStopReason::Yield if result.budget_consumed == INSTRUCTIONS_PER_YIELD => continue,
-                    EngineStopReason::Yield => {
-                        return Err(WieError::FatalError(
-                            "Debugger requested a thread switch during synchronous ARM execution".into(),
-                        ));
+        let _context_guard = ContextGuard {
+            core: self.clone(),
+            context: self.save_context(),
+        };
+        self.prepare_function_call(address, params)?;
+
+        loop {
+            let result = self.inner.lock().engine.run(RUN_FUNCTION_LR, INSTRUCTIONS_PER_YIELD)?;
+            match result.stop_reason {
+                EngineStopReason::End => break,
+                EngineStopReason::Yield if result.budget_consumed == INSTRUCTIONS_PER_YIELD => continue,
+                EngineStopReason::Yield => {
+                    return Err(WieError::FatalError(
+                        "Debugger requested a thread switch during synchronous ARM execution".into(),
+                    ));
+                }
+                EngineStopReason::Svc { category, lr, spsr } => {
+                    {
+                        let mut inner = self.inner.lock();
+                        inner.engine.reg_write(ArmRegister::Cpsr, spsr);
+                        inner.engine.reg_write(ArmRegister::PC, lr);
                     }
-                    EngineStopReason::Svc { category, lr, spsr } => {
-                        {
-                            let mut inner = self.inner.lock();
-                            inner.engine.reg_write(ArmRegister::Cpsr, spsr);
-                            inner.engine.reg_write(ArmRegister::PC, lr);
-                        }
-                        let svc_step = self
-                            .debug_inner()
-                            .and_then(|debug| debug.begin_svc_step().map(|thread_id| (debug, thread_id)));
-                        let result = svc(self, category);
-                        if let Some((debug, thread_id)) = svc_step {
-                            debug.end_svc_step(thread_id, result.is_ok());
-                        }
-                        result?;
+                    let svc_step = self
+                        .debug_inner()
+                        .and_then(|debug| debug.begin_svc_step().map(|thread_id| (debug, thread_id)));
+                    let result = svc(self, category);
+                    if let Some((debug, thread_id)) = svc_step {
+                        debug.end_svc_step(thread_id, result.is_ok());
                     }
+                    result?;
                 }
             }
-            Ok(R::get(self))
-        })();
-        self.restore_context(&previous_context);
-        result
+        }
+
+        Ok(R::get(self))
     }
 
     fn prepare_function_call(&mut self, address: u32, params: &[u32]) -> Result<()> {
@@ -708,6 +709,17 @@ impl RunFunctionResult<u32> for u32 {
 
 impl RunFunctionResult<()> for () {
     fn get(_: &ArmCore) {}
+}
+
+struct ContextGuard {
+    core: ArmCore,
+    context: ArmCoreContext,
+}
+
+impl Drop for ContextGuard {
+    fn drop(&mut self) {
+        self.core.restore_context(&self.context);
+    }
 }
 
 pub struct ThreadContextGuard {

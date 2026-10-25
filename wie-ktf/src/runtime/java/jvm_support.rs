@@ -56,7 +56,7 @@ pub struct KtfJvmThreadContext {
 pub struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
     ptr_current_jvm_thread_context: u32,
-    pub ptr_wipi_exe: u32,
+    pub ptr_visit_gc_root: u32,
 }
 
 pub const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
@@ -308,7 +308,10 @@ mod test {
 
         async fn collect_during_init(core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
             let context: super::KtfJvmSupportContext = read_generic(core, super::SUPPORT_CONTEXT_BASE)?;
-            assert_eq!(context.ptr_wipi_exe, 0, "the visitor must not run against partially initialized tables");
+            assert_eq!(
+                context.ptr_visit_gc_root, 0,
+                "the visitor must not run against partially initialized tables"
+            );
             jvm.collect_garbage().unwrap();
             let string: u32 = read_generic(core, 0x100104)?;
             assert!(Allocator::is_allocated(core, string, size_of::<RawJavaClassInstance>() as u32)?);
