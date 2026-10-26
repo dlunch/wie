@@ -4,7 +4,7 @@ use core::mem::size_of;
 use spin::Mutex;
 
 use wie_backend::{Options, ProfileCallback, ProfileSample, YieldFuture};
-use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::{
     EmulatedFunction, ResultWriter, ThreadId,
@@ -181,17 +181,41 @@ impl ArmCore {
     }
 
     pub fn read_thread_context(&self, thread_id: ThreadId) -> Result<ArmCoreContext> {
-        let context = self.threads.lock().get(&thread_id).unwrap().context.clone();
+        let context = self.threads.lock().get(&thread_id).unwrap().context;
 
         Ok(context)
     }
 
     pub fn write_thread_context(&mut self, thread_id: ThreadId, context: &ArmCoreContext) {
-        self.threads.lock().get_mut(&thread_id).unwrap().context = context.clone();
+        self.threads.lock().get_mut(&thread_id).unwrap().context = *context;
     }
 
     pub fn get_thread_ids(&self) -> Vec<ThreadId> {
         self.threads.lock().keys().cloned().collect()
+    }
+
+    /// Reads registers and live stack words from the current and suspended ARM threads.
+    pub fn stack_words(&self) -> Result<Vec<u32>> {
+        let current = self.save_context();
+        let mut words = bytemuck::cast_slice::<ArmCoreContext, u32>(core::slice::from_ref(&current)).to_vec();
+        for thread in self.threads.lock().values() {
+            let end = (thread.stack_base + thread.stack_size) as u32;
+            let context = if (thread.stack_base as u32..=end).contains(&current.sp) {
+                &current
+            } else {
+                words.extend_from_slice(bytemuck::cast_slice::<ArmCoreContext, u32>(core::slice::from_ref(&thread.context)));
+                &thread.context
+            };
+            if !(thread.stack_base as u32..=end).contains(&context.sp) {
+                return Err(WieError::InvalidMemoryAccess(context.sp));
+            }
+            if context.sp < end {
+                let mut stack = vec![0; (end - context.sp) as usize];
+                self.read_bytes(context.sp, &mut stack)?;
+                words.extend(stack.chunks_exact(4).map(|word| u32::from_le_bytes(word.try_into().unwrap())));
+            }
+        }
+        Ok(words)
     }
 
     fn sample_profile(&self) {
@@ -236,9 +260,16 @@ impl ArmCore {
     where
         R: RunFunctionResult<R>,
     {
-        // we don't need to save r0-r3, but to make it simple, we save all registers
-        let previous_context = self.save_context();
+        // Keep suspended registers on the guest stack so native roots remain visible during nested calls.
+        let saved_context = {
+            let context = self.save_context();
+            let address = context.sp.wrapping_sub(size_of::<ArmCoreContext>() as u32) & !7;
+            write_generic(self, address, context)?;
+            self.inner.lock().engine.reg_write(ArmRegister::SP, address);
+            address
+        };
         let result = self.run_function_inner(address, params).await?;
+        let previous_context = read_generic(self, saved_context)?;
         self.restore_context(&previous_context);
         Ok(result)
     }
@@ -729,7 +760,7 @@ pub struct ThreadContextGuard {
 
 impl ThreadContextGuard {
     pub fn new(mut core: ArmCore, thread_id: ThreadId) -> Self {
-        let context = core.threads.lock().get(&thread_id).unwrap().context.clone();
+        let context = core.threads.lock().get(&thread_id).unwrap().context;
         core.restore_context(&context);
 
         if let Some(debug) = core.debug_inner() {
@@ -761,7 +792,7 @@ mod tests {
         task::{Context, Poll, Waker},
     };
 
-    use crate::{EmulatedFunctionParam, SvcId, function::JumpTo};
+    use crate::{Allocator, EmulatedFunctionParam, SvcId, function::JumpTo};
     use wie_util::read_null_terminated_string_bytes;
 
     use super::*;
@@ -938,6 +969,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _context = core.enter_thread_context(1);
         core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         assert!(!core.is_preparing());
         assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
@@ -1023,6 +1057,9 @@ mod tests {
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
+        Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _context = core.enter_thread_context(1);
         core.inner.lock().instructions_remaining = 5;
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         debug.on_thread_entered(1);
@@ -1230,6 +1267,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _context = core.enter_thread_context(1);
         let calls = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
         let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
@@ -1250,13 +1290,22 @@ mod tests {
     }
 
     #[test]
-    fn nested_arm_calls_share_the_instruction_budget() {
+    fn nested_arm_calls_share_the_budget_and_keep_suspended_roots_visible() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
             aot: None,
             profile: None,
         })
         .unwrap();
+        Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _context = core.enter_thread_context(1);
+        let suspended = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let mut suspended_context = core.read_thread_context(2).unwrap();
+        suspended_context.r4 = 0x12345678;
+        suspended_context.sp -= 4;
+        write_generic(&mut core, suspended_context.sp, 0xabcdef01u32).unwrap();
+        core.write_thread_context(2, &suspended_context);
         let result = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, call_nested_arm, &result).unwrap();
         let mut outer = [0xc0, 0x46].repeat(5_000); // nop
@@ -1272,8 +1321,17 @@ mod tests {
         assert!(run.as_mut().poll(&mut cx).is_pending());
         assert_eq!(observer.read_param(0).unwrap(), 4_999);
         assert_eq!(result.load(Ordering::Relaxed), 0);
+        let words = observer.stack_words().unwrap();
+        assert!(words.contains(&17), "the caller's suspended R0 must remain visible");
+        assert!(words.contains(&0x12345678));
+        assert!(words.contains(&0xabcdef01));
         assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(17))));
         assert_eq!(result.load(Ordering::Relaxed), 5_000);
+        drop(suspended);
+        let words = observer.stack_words().unwrap();
+        assert!(!words.contains(&17));
+        assert!(!words.contains(&0x12345678));
+        assert!(!words.contains(&0xabcdef01));
     }
 
     #[test]
@@ -1297,19 +1355,20 @@ mod tests {
         context.r1 = 43;
         context.sp = 0x3000;
         context.lr = 0x4001;
+        let expected_sp = ((context.sp - size_of::<ArmCoreContext>() as u32) & !7) - 4;
         core.restore_context(&context);
         let result = futures::executor::block_on(core.run_function::<()>(target, &[1, 2, 3, 4, 5]));
         assert!(matches!(result, Err(WieError::FatalError(_))));
         let fault = core.save_context();
         assert_eq!((fault.r0, fault.r1), (99, 98));
-        assert_eq!(fault.sp, context.sp - 4);
+        assert_eq!(fault.sp, expected_sp);
 
         core.restore_context(&context);
         let result = futures::executor::block_on(core.run_function::<()>(0x20001, &[1, 2, 3, 4, 5]));
         assert!(matches!(result, Err(WieError::InvalidMemoryAccess(0x20000))));
         let fault = core.save_context();
         assert_eq!((fault.r0, fault.r1), (1, 2));
-        assert_eq!(fault.sp, context.sp - 4);
+        assert_eq!(fault.sp, expected_sp);
         assert_eq!(fault.pc, 0x20002);
         assert_eq!(fault.cpsr & 0x3f, 0x3f);
     }
@@ -1322,6 +1381,9 @@ mod tests {
             profile: None,
         })
         .unwrap();
+        Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let _context = core.enter_thread_context(1);
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         let completed = Arc::new(AtomicU32::new(0));
         let observed = completed.clone();

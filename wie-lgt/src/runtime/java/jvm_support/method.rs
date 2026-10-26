@@ -279,7 +279,7 @@ mod tests {
 
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
-    use wie_core_arm::{Allocator, ArmCore};
+    use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
     use wie_jvm_support::{JvmImplementation, JvmSupport};
     use wie_util::{Result, write_generic, write_null_terminated_string_bytes};
 
@@ -481,7 +481,7 @@ mod tests {
 
             // The guest catch resumes with the wrapper's saved LR still on the stack.
             let mut catch_context = core.save_context();
-            catch_context.sp -= 4;
+            catch_context.sp = ((catch_context.sp - size_of::<ArmCoreContext>() as u32) & !7) - 4;
             catch_context.lr = wrapper + 11;
             catch_context.cpsr = 0x3f;
             core.restore_context(&catch_context);

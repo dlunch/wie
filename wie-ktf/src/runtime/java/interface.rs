@@ -15,7 +15,8 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use crate::runtime::java::jvm_support::{
-    JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaVtable, KtfJvmSupport, KtfJvmWord,
+    JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaVtable, KtfJvmSupport, KtfJvmSupportContext, KtfJvmWord,
+    SUPPORT_CONTEXT_BASE,
 };
 use crate::runtime::{SVC_CATEGORY_JAVA_INTERFACE, svc_ids::JavaSvcId};
 
@@ -24,6 +25,8 @@ pub fn register_java_interface_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Res
 }
 
 async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<JavaMethodResult> {
+    let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let _frame = (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]));
     let (_, lr) = core.read_pc_lr()?;
 
     match JavaSvcId::try_from(id)? {
