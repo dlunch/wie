@@ -1,5 +1,12 @@
-use alloc::{boxed::Box, collections::BTreeMap, format, sync::Arc, vec::Vec};
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    format,
+    sync::Arc,
+    vec::Vec,
+};
 use core::{
+    mem::size_of,
     ops::{Deref, DerefMut},
     pin::Pin,
 };
@@ -7,6 +14,7 @@ use core::{
 use jvm::{ClassDefinition, ClassInstance, ExternalRoots, Jvm, Result as JvmResult};
 use jvm_class_proto::JavaClassProto;
 use spin::Mutex;
+use wipi_types::ktf::java::JavaClassInstance as RawJavaClassInstance;
 
 use wie_core_arm::{ArmCore, EmulatedFunctionParam, ResultWriter, SvcId};
 use wie_jvm_support::JvmImplementation;
@@ -75,7 +83,7 @@ impl JvmImplementation for KtfJvmImplementation {
 }
 
 impl ExternalRoots for KtfJvmImplementation {
-    fn roots(&self, _objects: &[&dyn ClassInstance]) -> anyhow::Result<Vec<usize>> {
+    fn roots(&self, objects: &[&dyn ClassInstance]) -> anyhow::Result<Vec<usize>> {
         let mut core = self.core.clone();
         let context: KtfJvmSupportContext = read_generic(&core, SUPPORT_CONTEXT_BASE)?;
         let mut roots = Vec::new();
@@ -100,6 +108,24 @@ impl ExternalRoots for KtfJvmImplementation {
             let (_, lr) = core.read_pc_lr()?;
             ().write(core, lr)
         })?;
+        let words = core.stack_words()?.into_iter().collect::<BTreeSet<_>>();
+        for object in objects {
+            let identity = object.identity() as u32;
+            let raw: RawJavaClassInstance = read_generic(&core, identity)?;
+            let field_size = if let Some(array) = object.as_array_instance() {
+                JavaArrayClassDefinition::from_raw(raw.ptr_class, &core).element_size()? * array.length() + 4
+            } else {
+                JavaClassDefinition::from_raw(raw.ptr_class, &core).field_size()?
+            };
+            if words
+                .range(identity..identity + size_of::<RawJavaClassInstance>() as u32)
+                .next()
+                .is_some()
+                || words.range(raw.ptr_fields..raw.ptr_fields + field_size as u32 + 4).next().is_some()
+            {
+                roots.push(object.identity());
+            }
+        }
         Ok(roots)
     }
 }

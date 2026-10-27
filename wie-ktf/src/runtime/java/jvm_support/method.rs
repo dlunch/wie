@@ -22,7 +22,9 @@ use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions, java::jvm_support::JavaClassDefinition, with_arm_context};
 
-use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueCodec};
+use super::{
+    KtfJvmSupport, KtfJvmSupportContext, SUPPORT_CONTEXT_BASE, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueCodec,
+};
 
 pub struct JavaMethod {
     pub ptr_raw: u32,
@@ -395,6 +397,8 @@ where
 
         let codec = JavaValueCodec::new(core);
         let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
+        let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+        let _frame = (support.ptr_visit_gc_root != 0).then(|| self.jvm.push_native_frame(&args));
 
         let mut context = self.context.clone();
         let (_, lr) = core.read_pc_lr()?;

@@ -1,6 +1,9 @@
 use core::clone::Clone;
 
-#[derive(Clone)]
+use bytemuck::{Pod, Zeroable};
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct ArmCoreContext {
     pub r0: u32,
     pub r1: u32,
