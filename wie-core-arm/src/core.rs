@@ -212,7 +212,7 @@ impl ArmCore {
             if context.sp < end {
                 let mut stack = vec![0; (end - context.sp) as usize];
                 self.read_bytes(context.sp, &mut stack)?;
-                words.extend(stack.chunks_exact(4).map(|word| u32::from_le_bytes(word.try_into().unwrap())));
+                words.extend(stack.as_chunks::<4>().0.iter().map(|word| u32::from_le_bytes(*word)));
             }
         }
         Ok(words)
