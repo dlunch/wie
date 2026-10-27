@@ -143,7 +143,7 @@ mod tests {
     fn hosted_frontend_ipc_is_limited_to_the_main_webview_and_origin() {
         let app = mock_builder()
             .invoke_handler(tauri::generate_handler![runtime::runtime_kind])
-            .build(tauri::generate_context!())
+            .build(tauri::generate_context!(test = true))
             .unwrap();
 
         for label in ["main", "other"] {
