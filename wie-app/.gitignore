@@ -11,4 +11,5 @@
 /platform/android/.tauri/
 /platform/android/.gradle/
 /platform/android/build/
-/platform/ios/.build/
+/platform/ios/*.xcodeproj/project.xcworkspace/
+/platform/ios/*.xcodeproj/xcuserdata/

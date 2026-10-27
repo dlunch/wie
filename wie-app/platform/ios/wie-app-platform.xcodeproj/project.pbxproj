@@ -1,0 +1,234 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A0E2115A2BF552D2003BCF4D /* PlatformPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E211592BF552D2003BCF4D /* PlatformPlugin.swift */; };
+		A0E211622BF55305003BCF4D /* Tauri in Frameworks */ = {isa = PBXBuildFile; productRef = A0E211612BF55305003BCF4D /* Tauri */; };
+		A0E211642BF55305003BCF4D /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = A0E211632BF55305003BCF4D /* GoogleMobileAds */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A0E211562BF552D2003BCF4D /* libwie-app-platform.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libwie-app-platform.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0E211592BF552D2003BCF4D /* PlatformPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformPlugin.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A0E211532BF552D2003BCF4D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0E211622BF55305003BCF4D /* Tauri in Frameworks */,
+				A0E211642BF55305003BCF4D /* GoogleMobileAds in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A0E2114D2BF552D2003BCF4D = {
+			isa = PBXGroup;
+			children = (
+				A0E211582BF552D2003BCF4D /* wie-app-platform */,
+				A0E211572BF552D2003BCF4D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A0E211572BF552D2003BCF4D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A0E211562BF552D2003BCF4D /* libwie-app-platform.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A0E211582BF552D2003BCF4D /* wie-app-platform */ = {
+			isa = PBXGroup;
+			children = (
+				A0E211592BF552D2003BCF4D /* PlatformPlugin.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A0E211552BF552D2003BCF4D /* wie-app-platform */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A0E2115D2BF552D2003BCF4D /* Build configuration list for PBXNativeTarget "wie-app-platform" */;
+			buildPhases = (
+				A0E211522BF552D2003BCF4D /* Sources */,
+				A0E211532BF552D2003BCF4D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "wie-app-platform";
+			packageProductDependencies = (
+				A0E211612BF55305003BCF4D /* Tauri */,
+				A0E211632BF55305003BCF4D /* GoogleMobileAds */,
+			);
+			productName = "wie-app-platform";
+			productReference = A0E211562BF552D2003BCF4D /* libwie-app-platform.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A0E2114E2BF552D2003BCF4D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					A0E211552BF552D2003BCF4D = {
+						CreatedOnToolsVersion = 15.4;
+					};
+				};
+			};
+			buildConfigurationList = A0E211512BF552D2003BCF4D /* Build configuration list for PBXProject "wie-app-platform" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A0E2114D2BF552D2003BCF4D;
+			packageReferences = (
+				A0E211602BF55305003BCF4D /* XCLocalSwiftPackageReference "../.tauri/tauri-api" */,
+				A0E211652BF55305003BCF4D /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+			);
+			productRefGroup = A0E211572BF552D2003BCF4D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A0E211552BF552D2003BCF4D /* wie-app-platform */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A0E211522BF552D2003BCF4D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0E2115A2BF552D2003BCF4D /* PlatformPlugin.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A0E2115B2BF552D2003BCF4D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A0E2115C2BF552D2003BCF4D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		A0E2115E2BF552D2003BCF4D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A0E2115F2BF552D2003BCF4D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A0E211512BF552D2003BCF4D /* Build configuration list for PBXProject "wie-app-platform" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0E2115B2BF552D2003BCF4D /* Debug */,
+				A0E2115C2BF552D2003BCF4D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A0E2115D2BF552D2003BCF4D /* Build configuration list for PBXNativeTarget "wie-app-platform" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0E2115E2BF552D2003BCF4D /* Debug */,
+				A0E2115F2BF552D2003BCF4D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A0E211602BF55305003BCF4D /* XCLocalSwiftPackageReference "../.tauri/tauri-api" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../.tauri/tauri-api";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A0E211652BF55305003BCF4D /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 13.11.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A0E211612BF55305003BCF4D /* Tauri */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Tauri;
+		};
+		A0E211632BF55305003BCF4D /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A0E211652BF55305003BCF4D /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A0E2114E2BF552D2003BCF4D /* Project object */;
+}
