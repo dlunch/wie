@@ -1,6 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
-use core::mem::size_of;
+use core::{mem::size_of, slice::from_ref};
 
+use bytemuck::cast_slice;
 use spin::Mutex;
 
 use wie_backend::{Options, ProfileCallback, ProfileSample, YieldFuture};
@@ -197,13 +198,13 @@ impl ArmCore {
     /// Reads registers and live stack words from the current and suspended ARM threads.
     pub fn stack_words(&self) -> Result<Vec<u32>> {
         let current = self.save_context();
-        let mut words = bytemuck::cast_slice::<ArmCoreContext, u32>(core::slice::from_ref(&current)).to_vec();
+        let mut words = cast_slice::<ArmCoreContext, u32>(from_ref(&current)).to_vec();
         for thread in self.threads.lock().values() {
             let end = (thread.stack_base + thread.stack_size) as u32;
             let context = if (thread.stack_base as u32..=end).contains(&current.sp) {
                 &current
             } else {
-                words.extend_from_slice(bytemuck::cast_slice::<ArmCoreContext, u32>(core::slice::from_ref(&thread.context)));
+                words.extend_from_slice(cast_slice::<ArmCoreContext, u32>(from_ref(&thread.context)));
                 &thread.context
             };
             if !(thread.stack_base as u32..=end).contains(&context.sp) {
@@ -829,7 +830,7 @@ mod tests {
         .unwrap();
         let mut code = vec![0xe2800001u32; 10_001]; // add r0, r0, #1
         code.push(0xe12fff1e); // bx lr
-        core.load(bytemuck::cast_slice(&code), 0x1000, code.len() * 4).unwrap();
+        core.load(cast_slice(&code), 0x1000, code.len() * 4).unwrap();
         core.map(0x10000, 0x10000).unwrap();
         let context = ArmCoreContext {
             r0: 10,
@@ -1511,7 +1512,7 @@ mod tests {
         .unwrap();
         // push {r4, lr}; mov r4, r3; blx r2; stmia r4, {r0, r1}; pop {r4, pc}
         let code = [0xe92d4010u32, 0xe1a04003, 0xe12fff32, 0xe8840003, 0xe8bd8010];
-        core.load(bytemuck::cast_slice(&code), 0x1000, 0x1000).unwrap();
+        core.load(cast_slice(&code), 0x1000, 0x1000).unwrap();
         let mut context = core.save_context();
         context.sp = 0x2000;
         core.restore_context(&context);

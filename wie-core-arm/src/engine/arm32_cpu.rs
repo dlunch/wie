@@ -554,7 +554,10 @@ mod tests {
     use test_utils::TestNativeExecutor;
     use wie_core_arm_aot::{CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion};
 
-    use crate::engine::{ArmEngine, ArmRegister, EngineStopReason, MemoryPermission};
+    use crate::{
+        Allocator,
+        engine::{ArmEngine, ArmRegister, EngineStopReason, MemoryPermission},
+    };
 
     use super::*;
 
@@ -871,7 +874,7 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        crate::Allocator::init(&mut core).unwrap();
+        Allocator::init(&mut core).unwrap();
         let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
         let _thread_context = core.enter_thread_context(1);
         core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();

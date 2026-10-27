@@ -25,17 +25,9 @@ pub fn register_java_interface_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Res
 }
 
 async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<JavaMethodResult> {
-    let id = JavaSvcId::try_from(id)?;
-    let _frame = match id {
-        JavaSvcId::RegisterClass | JavaSvcId::RegisterJavaString => {
-            let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
-            (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]))
-        }
-        _ => None,
-    };
     let (_, lr) = core.read_pc_lr()?;
 
-    match id {
+    match JavaSvcId::try_from(id)? {
         JavaSvcId::JavaJump1 => return EmulatedFunction::call(&java_jump_1, core, &mut ()).await,
         JavaSvcId::JavaJump2 => return EmulatedFunction::call(&java_jump_2, core, &mut ()).await,
         JavaSvcId::JavaJump3 => return EmulatedFunction::call(&java_jump_3, core, &mut ()).await,
@@ -81,6 +73,7 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32,
 
     let name_bytes = read_null_terminated_string_bytes(core, ptr_name)?;
     let name = String::from_utf8_lossy(&name_bytes).to_string();
+    let _frame = jvm.push_native_frame(&[]);
     let class = jvm.resolve_class(&name).await;
 
     if let Ok(x) = class {
@@ -101,6 +94,8 @@ pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord
     let error_bytes = read_null_terminated_string_bytes(core, ptr_error)?;
     let error = String::from_utf8_lossy(&error_bytes).to_string();
 
+    let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let _frame = (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]));
     let exception = match jvm.new_class(&error, "()V", ()).await {
         Ok(x) => x,
         Err(x) => return Err(JvmSupport::to_wie_err(jvm, x).await),
@@ -208,6 +203,7 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
 
     let class: JavaClassDefinition = KtfJvmSupport::class_from_raw(core, ptr_class);
     let class_name = class.name()?;
+    let _frame = jvm.push_native_frame(&[]);
     if !jvm.has_class(&class_name) {
         let ktf_class_loader = jvm
             .get_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;")
@@ -245,6 +241,8 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
 
     let rust_string = String::from_utf16_lossy(&bytes_u16);
 
+    let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let _frame = (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]));
     let instance = JavaLangString::from_rust_string(jvm, &rust_string).await.unwrap();
 
     Ok(KtfJvmSupport::class_instance_raw(&instance) as _)
@@ -355,6 +353,8 @@ pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Resu
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let class_name = class.name()?;
 
+    let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let _frame = (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]));
     let result = jvm.instantiate_class(&class_name).await;
     if let Err(x) = result {
         return Err(JvmSupport::to_wie_err(jvm, x).await);
@@ -375,6 +375,8 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
     } else {
         (element_type as u8 as char).to_string()
     };
+    let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+    let _frame = (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]));
     let result = jvm.instantiate_array(&element_type_name, count as _).await;
     if let Err(x) = result {
         return Err(JvmSupport::to_wie_err(jvm, x).await);
