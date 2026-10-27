@@ -25,11 +25,17 @@ pub fn register_java_interface_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Res
 }
 
 async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<JavaMethodResult> {
-    let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
-    let _frame = (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]));
+    let id = JavaSvcId::try_from(id)?;
+    let _frame = match id {
+        JavaSvcId::RegisterClass | JavaSvcId::RegisterJavaString => {
+            let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+            (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]))
+        }
+        _ => None,
+    };
     let (_, lr) = core.read_pc_lr()?;
 
-    match JavaSvcId::try_from(id)? {
+    match id {
         JavaSvcId::JavaJump1 => return EmulatedFunction::call(&java_jump_1, core, &mut ()).await,
         JavaSvcId::JavaJump2 => return EmulatedFunction::call(&java_jump_2, core, &mut ()).await,
         JavaSvcId::JavaJump3 => return EmulatedFunction::call(&java_jump_3, core, &mut ()).await,
