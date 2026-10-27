@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import * as Sentry from "@sentry/browser";
 import { wasmIntegration } from "@sentry/wasm";
 
@@ -21,10 +21,6 @@ const main = async () => {
   const backend = await initializeWie();
   document.documentElement.classList.add(backend.rendering === "native" ? "native" : "browser");
   const output = document.getElementById("player-output") as HTMLDivElement;
-  const browserScripts = document.getElementById("browser-scripts") as HTMLTemplateElement;
-  if (native) {
-    document.querySelector(".library-ad")!.remove();
-  }
   if (backend.rendering === "canvas") {
     output.className = "canvas-wrapper";
     const canvas = document.createElement("canvas");
@@ -38,13 +34,45 @@ const main = async () => {
     keypadTopRow.prepend(document.getElementById("back-to-library")!);
     keypadTopRow.append(document.getElementById("app-settings")!);
   }
-  if (!native) {
-    if (process.env.NODE_ENV !== "production") {
+  const advertising = native
+    ? await invoke<"adsense" | "adsense-test" | "sponsor">("initialize_advertising")
+    : "adsense";
+  const advertisingScripts = document.getElementById("advertising-scripts") as HTMLTemplateElement;
+  if (advertising === "sponsor") {
+    const area = document.querySelector<HTMLElement>(".library-ad")!;
+    area.dataset.i18nAriaLabel = "sponsorship";
+    area.setAttribute("aria-label", t("sponsorship"));
+    const link = document.createElement("a");
+    link.className = "library-sponsor";
+    link.href = "https://github.com/sponsors/dlunch";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.dataset.externalLink = "";
+    link.dataset.i18nText = "supportDevelopment";
+    link.textContent = t("supportDevelopment");
+    area.replaceChildren(link);
+  } else {
+    if (advertising === "adsense-test" || process.env.NODE_ENV !== "production") {
       document.querySelector<HTMLElement>(".adsbygoogle")!.dataset.adtest = "on";
     }
-    document.head.append(document.importNode(browserScripts.content, true));
+    document.head.append(document.importNode(advertisingScripts.content, true));
   }
-  browserScripts.remove();
+  advertisingScripts.remove();
+
+  const analyticsScripts = document.getElementById("analytics-scripts") as HTMLTemplateElement;
+  if (!native) {
+    document.head.append(document.importNode(analyticsScripts.content, true));
+  } else {
+    for (const link of document.querySelectorAll<HTMLAnchorElement>("a[data-external-link]")) {
+      link.addEventListener("click", event => {
+        event.preventDefault();
+        void invoke("plugin:opener|open_url", { url: link.href }).catch(error => {
+          window.alert(t("linkOpenFailed", { error: String(error) }));
+        });
+      });
+    }
+  }
+  analyticsScripts.remove();
 
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;

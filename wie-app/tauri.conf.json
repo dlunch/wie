@@ -3,10 +3,9 @@
   "productName": "wie",
   "identifier": "net.dlunch.wie",
   "build": {
-    "frontendDist": "../wie-web/dist",
+    "frontendDist": "https://wie.dlunch.net/",
     "devUrl": "http://localhost:8080",
-    "beforeDevCommand": "npm start",
-    "beforeBuildCommand": "npm run build:prod"
+    "beforeDevCommand": "npm start"
   },
   "app": {
     "windows": [
@@ -23,9 +22,21 @@
       "capabilities": [
         {
           "identifier": "default",
-          "description": "enables the default permissions",
-          "windows": ["main"],
-          "permissions": ["core:default"]
+          "description": "Native library access for the hosted frontend and local development",
+          "webviews": ["main"],
+          "remote": { "urls": ["https://wie.dlunch.net/*"] },
+          "permissions": [
+            "core:default",
+            "allow-runtime",
+            {
+              "identifier": "opener:allow-open-url",
+              "allow": [
+                { "url": "https://github.com/sponsors/dlunch" },
+                { "url": "https://github.com/dlunch/wie" },
+                { "url": "https://wie-site.dlunch.net/" }
+              ]
+            }
+          ]
         }
       ],
       "csp": null

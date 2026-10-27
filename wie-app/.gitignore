@@ -7,6 +7,8 @@
 !/gen/apple/Sources/
 /gen/apple/Sources/*
 !/gen/apple/Sources/PrivacyInfo.xcprivacy
-/android/.tauri/
-/android/.gradle/
-/android/build/
+/platform/.tauri/
+/platform/android/.tauri/
+/platform/android/.gradle/
+/platform/android/build/
+/platform/ios/.build/

@@ -20,13 +20,19 @@
     <link rel="icon" type="image/png" href="../assets/favicon.png" />
     <link rel="stylesheet" href="@css/style.css" />
     <script src="@ts/index.ts" defer="defer"></script>
-    <template id="browser-scripts">
+    <template id="advertising-scripts">
       <!-- webpackIgnore: true -->
       <script
         async
         src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7838202724819744"
         crossorigin="anonymous"
       ></script>
+      <!-- webpackIgnore: true -->
+      <script>
+        (adsbygoogle = window.adsbygoogle || []).push({});
+      </script>
+    </template>
+    <template id="analytics-scripts">
       <!-- webpackIgnore: true -->
       <script async src="https://www.googletagmanager.com/gtag/js?id=G-G6TBDLLPWK"></script>
       <!-- webpackIgnore: true -->
@@ -37,7 +43,6 @@
         }
         gtag("js", new Date());
         gtag("config", "G-G6TBDLLPWK");
-        (adsbygoogle = window.adsbygoogle || []).push({});
       </script>
     </template>
   </head>
@@ -77,11 +82,11 @@
               <i data-lucide="circle-help"></i>
               <span data-i18n-text="help">조작 도움말</span>
             </button>
-            <a href="https://github.com/dlunch/wie" target="_blank" rel="noopener noreferrer" role="menuitem">
+            <a href="https://github.com/dlunch/wie" target="_blank" rel="noopener noreferrer" role="menuitem" data-external-link>
               <img src="https://cdn.simpleicons.org/github/0f172a" alt="" width="18" height="18" />
               <span>GitHub</span>
             </a>
-            <a href="https://wie-site.dlunch.net/" target="_blank" rel="noopener noreferrer" role="menuitem">
+            <a href="https://wie-site.dlunch.net/" target="_blank" rel="noopener noreferrer" role="menuitem" data-external-link>
               <i data-lucide="globe-2"></i>
               <span data-i18n-text="projectWebsite">프로젝트 웹사이트</span>
             </a>

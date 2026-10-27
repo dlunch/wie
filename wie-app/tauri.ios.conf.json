@@ -1,6 +1,7 @@
 {
   "bundle": {
     "iOS": {
+      "template": "platform/ios/project.yml",
       "frameworks": ["AVFAudio"]
     },
     "resources": {

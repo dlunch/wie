@@ -11,10 +11,21 @@ mod screen;
 mod settings;
 mod store;
 
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tracing_subscriber::layer::SubscriberExt;
 
 use runtime::AppState;
+
+#[tauri::command]
+async fn initialize_advertising(_app: AppHandle) -> Result<&'static str, String> {
+    #[cfg(mobile)]
+    {
+        wie_app_platform::initialize_advertising(&_app).await.map_err(|error| error.to_string())?;
+        Ok(if cfg!(debug_assertions) { "adsense-test" } else { "adsense" })
+    }
+    #[cfg(desktop)]
+    Ok("sponsor")
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -27,7 +38,13 @@ pub fn run() {
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(sentry::integrations::tracing::layer()))
         .expect("error while installing tracing subscriber");
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build());
+    #[cfg(mobile)]
+    let builder = builder.plugin(wie_app_platform::init());
+    #[cfg(target_os = "android")]
+    let builder = builder.invoke_system(include_str!("android_ipc.js"));
+
+    builder
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle()
@@ -50,6 +67,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            initialize_advertising,
             runtime::runtime_kind,
             runtime::list_apps,
             runtime::import_app,
@@ -108,4 +126,55 @@ pub fn run() {
                 });
             }
         });
+}
+
+#[cfg(all(test, desktop))]
+mod tests {
+    use tauri::{
+        WebviewUrl, WebviewWindowBuilder,
+        ipc::{CallbackFn, InvokeBody},
+        test::{INVOKE_KEY, get_ipc_response, mock_builder},
+        webview::InvokeRequest,
+    };
+
+    use crate::runtime;
+
+    #[test]
+    fn hosted_frontend_ipc_is_limited_to_the_main_webview_and_origin() {
+        let app = mock_builder()
+            .invoke_handler(tauri::generate_handler![runtime::runtime_kind])
+            .build(tauri::generate_context!())
+            .unwrap();
+
+        for label in ["main", "other"] {
+            let webview = WebviewWindowBuilder::new(&app, label, WebviewUrl::External("https://wie.dlunch.net/".parse().unwrap()))
+                .build()
+                .unwrap();
+            for origin in [
+                "https://wie.dlunch.net/",
+                "https://wie.dlunch.net/library",
+                "http://wie.dlunch.net/",
+                "https://wie.dlunch.net.example.com/",
+                "https://pagead2.googlesyndication.com/",
+            ] {
+                let response = get_ipc_response(
+                    &webview,
+                    InvokeRequest {
+                        cmd: "runtime_kind".into(),
+                        callback: CallbackFn(0),
+                        error: CallbackFn(1),
+                        url: origin.parse().unwrap(),
+                        body: InvokeBody::default(),
+                        headers: Default::default(),
+                        invoke_key: INVOKE_KEY.to_string(),
+                    },
+                );
+                if label == "main" && origin.starts_with("https://wie.dlunch.net/") {
+                    assert_eq!(response.unwrap().deserialize::<String>().unwrap(), "native");
+                } else {
+                    assert!(response.unwrap_err().as_str().unwrap().contains("not allowed"), "{label}: {origin}");
+                }
+            }
+        }
+    }
 }

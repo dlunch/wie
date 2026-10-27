@@ -1,0 +1,19 @@
+[[permission]]
+identifier = "allow-runtime"
+description = "Access the app library, settings, emulator session, and advertising integration."
+commands.allow = [
+    "initialize_advertising",
+    "runtime_kind",
+    "list_apps",
+    "import_app",
+    "delete_app",
+    "read_settings",
+    "write_settings",
+    "start_app",
+    "key_event",
+    "release_keys",
+    "guest_storage",
+    "guest_audio",
+    "guest_vibrate",
+    "stop_app",
+]
