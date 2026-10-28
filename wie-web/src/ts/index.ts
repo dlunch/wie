@@ -11,12 +11,14 @@ import { rustPanic } from "./panic";
 import { initializeSettings } from "./settings";
 
 const main = async () => {
-  Sentry.init({
-    dsn: "https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928",
-    environment: process.env.ENVIRONMENT,
-    release: process.env.SENTRY_RELEASE,
-    integrations: [wasmIntegration()],
-  });
+  if (process.env.ENVIRONMENT === "production" || process.env.ENVIRONMENT === "nightly") {
+    Sentry.init({
+      dsn: "https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928",
+      environment: process.env.ENVIRONMENT,
+      release: process.env.SENTRY_RELEASE,
+      integrations: [wasmIntegration()],
+    });
+  }
   const native = isTauri();
   const backend = await initializeWie();
   document.documentElement.classList.add(backend.rendering === "native" ? "native" : "browser");
@@ -36,9 +38,9 @@ const main = async () => {
   }
 
   const analyticsScripts = document.getElementById("analytics-scripts") as HTMLTemplateElement;
-  if (!native) {
-    document.head.append(document.importNode(analyticsScripts.content, true));
-  } else {
+  document.head.append(document.importNode(analyticsScripts.content, true));
+  analyticsScripts.remove();
+  if (native) {
     document.addEventListener("click", event => {
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[data-external-link]") : null;
       if (!link) return;
@@ -48,19 +50,16 @@ const main = async () => {
       });
     });
   }
-  analyticsScripts.remove();
 
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;
   const settings = await initializeSettings(backend);
   let pageLeaving = false;
-  if (!native) {
-    window.addEventListener("pagehide", () => { pageLeaving = true; });
-    window.addEventListener("pageshow", () => {
-      pageLeaving = false;
-      if (!libraryView.hidden) recordPageView();
-    });
-  }
+  window.addEventListener("pagehide", () => { pageLeaving = true; });
+  window.addEventListener("pageshow", () => {
+    pageLeaving = false;
+    if (!libraryView.hidden) recordPageView();
+  });
 
   const routeToApp = async (app: LibraryApp) => {
     let failed = false;
@@ -71,28 +70,33 @@ const main = async () => {
       requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
     }
     try {
-      failed = await runApp(backend, app, settings, !native);
+      failed = await runApp(backend, app, settings);
       if (failed) window.alert(t("restartRequired"));
     } catch (error) {
       failed = true;
       const failure = rustPanic ?? error;
       const panicked = rustPanic !== undefined;
-      const eventId = Sentry.captureException(failure, {
-        mechanism: { type: "wie", handled: !panicked },
-        captureContext: { tags: { error_kind: panicked ? "panic" : "handled" } },
-      });
-      Sentry.showReportDialog({
-        eventId,
-        lang: getLocale(),
-        onError: () => {
-          window.alert(native ? t("restartRequired") : String(failure));
-          if (panicked && !native) window.location.reload();
-        },
-        ...(native ? { subtitle: t("restartRequired") } : panicked ? {
-          subtitle: t("emulatorStopped"),
-          onClose: () => window.location.reload(),
-        } : {}),
-      });
+      const showError = () => {
+        window.alert(native ? t("restartRequired") : String(failure));
+        if (panicked && !native) window.location.reload();
+      };
+      if (Sentry.isEnabled()) {
+        const eventId = Sentry.captureException(failure, {
+          mechanism: { type: "wie", handled: !panicked },
+          captureContext: { tags: { error_kind: panicked ? "panic" : "handled" } },
+        });
+        Sentry.showReportDialog({
+          eventId,
+          lang: getLocale(),
+          onError: showError,
+          ...(native ? { subtitle: t("restartRequired") } : panicked ? {
+            subtitle: t("emulatorStopped"),
+            onClose: () => window.location.reload(),
+          } : {}),
+        });
+      } else {
+        showError();
+      }
     } finally {
       Sentry.setContext("emulated_app", null);
       if (native && failed) {
@@ -104,7 +108,7 @@ const main = async () => {
       } else if (!rustPanic) {
         playerView.hidden = true;
         libraryView.hidden = false;
-        if (!native && !pageLeaving) recordPageView();
+        if (!pageLeaving) recordPageView();
       }
     }
   };
@@ -117,19 +121,10 @@ const main = async () => {
       ? await invoke<"adsense" | "adsense-test" | "sponsor">("initialize_advertising")
       : "adsense";
     if (advertising === "sponsor") {
-      const area = document.querySelector<HTMLElement>(".library-ad")!;
-      area.dataset.i18nAriaLabel = "sponsorship";
-      area.setAttribute("aria-label", t("sponsorship"));
-      const link = document.createElement("a");
-      link.className = "library-sponsor";
-      link.href = "https://github.com/sponsors/dlunch";
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.dataset.externalLink = "";
-      link.dataset.i18nText = "supportDevelopment";
-      link.textContent = t("supportDevelopment");
-      area.replaceChildren(link);
+      document.querySelector(".adsbygoogle")!.remove();
+      document.querySelector<HTMLElement>(".library-sponsor")!.hidden = false;
     } else {
+      document.querySelector(".library-sponsor")!.remove();
       if (advertising === "adsense-test" || process.env.NODE_ENV !== "production") {
         document.querySelector<HTMLElement>(".adsbygoogle")!.dataset.adtest = "on";
       }
