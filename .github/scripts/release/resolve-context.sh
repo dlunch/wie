@@ -7,6 +7,7 @@ previous_tag=
 
 if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
   channel=nightly
+  frontend_url=https://wie-dev.dlunch.net/
   release_tag="nightly-${target_sha:0:12}"
   base_version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "wie-app") | .version')
   # MSI prerelease identifiers must be numeric and at most 65535; epoch days keep nightly versions monotonic.
@@ -21,6 +22,7 @@ if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
   fi
 elif [[ "$GITHUB_REF" =~ ^refs/tags/(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
   channel=stable
+  frontend_url=https://wie.dlunch.net/
   tag=${BASH_REMATCH[1]}
   release_tag=$tag
   app_version=${tag#v}
@@ -38,12 +40,18 @@ else
   exit 1
 fi
 
+tauri_config=$(jq -c --arg version "$app_version" --arg url "$frontend_url" '
+  {version: $version, build: {frontendDist: $url}, app: {security: {capabilities: .app.security.capabilities}}}
+  | .app.security.capabilities[0].remote.urls = [$url + "*"]
+' wie-app/tauri.conf.json)
+
 {
   echo "asset_identity=$asset_identity"
   echo "channel=$channel"
   echo "run_number=$GITHUB_RUN_NUMBER"
   echo "should_build=$should_build"
   echo "target_sha=$target_sha"
+  echo "tauri_config=$tauri_config"
   echo "app_version=$app_version"
   echo "previous_tag=$previous_tag"
   echo "release_tag=$release_tag"

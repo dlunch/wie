@@ -131,6 +131,7 @@ mod tests {
         WebviewUrl, WebviewWindowBuilder,
         ipc::{CallbackFn, InvokeBody},
         test::{INVOKE_KEY, get_ipc_response, mock_builder},
+        utils::config::FrontendDist,
         webview::InvokeRequest,
     };
 
@@ -142,16 +143,23 @@ mod tests {
             .invoke_handler(tauri::generate_handler![runtime::runtime_kind])
             .build(tauri::generate_context!(test = true))
             .unwrap();
+        let Some(FrontendDist::Url(frontend_url)) = &app.config().build.frontend_dist else {
+            panic!("Expected a hosted frontend URL");
+        };
 
         for label in ["main", "other"] {
-            let webview = WebviewWindowBuilder::new(&app, label, WebviewUrl::External("https://wie.dlunch.net/".parse().unwrap()))
+            let webview = WebviewWindowBuilder::new(&app, label, WebviewUrl::External(frontend_url.clone()))
                 .build()
                 .unwrap();
             for origin in [
                 "https://wie.dlunch.net/",
                 "https://wie.dlunch.net/library",
+                "https://wie-dev.dlunch.net/",
+                "https://wie-dev.dlunch.net/library",
                 "http://wie.dlunch.net/",
+                "http://wie-dev.dlunch.net/",
                 "https://wie.dlunch.net.example.com/",
+                "https://wie-dev.dlunch.net.example.com/",
                 "https://pagead2.googlesyndication.com/",
             ] {
                 let response = get_ipc_response(
@@ -166,7 +174,7 @@ mod tests {
                         invoke_key: INVOKE_KEY.to_string(),
                     },
                 );
-                if label == "main" && origin.starts_with("https://wie.dlunch.net/") {
+                if label == "main" && origin.starts_with(frontend_url.as_str()) {
                     assert_eq!(response.unwrap().deserialize::<String>().unwrap(), "native");
                 } else {
                     assert!(response.unwrap_err().as_str().unwrap().contains("not allowed"), "{label}: {origin}");

@@ -25,6 +25,7 @@ jobs:
       run_number: ${{ steps.context.outputs.run_number }}
       should_build: ${{ steps.context.outputs.should_build }}
       target_sha: ${{ steps.context.outputs.target_sha }}
+      tauri_config: ${{ steps.context.outputs.tauri_config }}
       app_version: ${{ steps.context.outputs.app_version }}
       previous_tag: ${{ steps.context.outputs.previous_tag }}
       release_tag: ${{ steps.context.outputs.release_tag }}
@@ -173,7 +174,7 @@ jobs:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+            --config '${{ needs.context.outputs.tauri_config }}'
             --ci --target ${{ matrix.target }} --bundles msi,nsis --no-sign
 
       - name: Upload native debug information
@@ -246,7 +247,7 @@ jobs:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+            --config '${{ needs.context.outputs.tauri_config }}'
             --ci --target ${{ matrix.target }} --no-bundle
 
       - name: Upload native debug information
@@ -264,7 +265,7 @@ jobs:
         working-directory: wie-app
         run: >-
           cargo tauri bundle
-          --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+          --config '${{ needs.context.outputs.tauri_config }}'
           --ci --target ${{ matrix.target }} --bundles appimage,deb --no-sign
 
       - name: Package bundles
@@ -311,7 +312,7 @@ jobs:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+            --config '${{ needs.context.outputs.tauri_config }}'
             --ci --target ${{ matrix.target }} --no-bundle
 
       - name: Upload native debug information
@@ -369,7 +370,7 @@ jobs:
         working-directory: wie-app
         run: >-
           cargo tauri bundle
-          --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+          --config '${{ needs.context.outputs.tauri_config }}'
           --ci --target universal-apple-darwin --bundles app,dmg --no-sign
 
       - name: Package bundles
@@ -426,7 +427,7 @@ jobs:
 
       - name: Initialize Android project
         working-directory: wie-app
-        run: cargo tauri android init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
+        run: cargo tauri android init --config '${{ needs.context.outputs.tauri_config }}' --ci
 
       - name: Generate Android icons
         working-directory: wie-app
@@ -449,7 +450,7 @@ jobs:
           mobile: android
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+            --config '${{ needs.context.outputs.tauri_config }}'
             --target aarch64 --apk --aab --ci
 
       - name: Upload native debug information
@@ -503,7 +504,7 @@ jobs:
 
       - name: Initialize iOS project
         working-directory: wie-app
-        run: cargo tauri ios init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
+        run: cargo tauri ios init --config '${{ needs.context.outputs.tauri_config }}' --ci
 
       - name: Generate iOS icons
         working-directory: wie-app
@@ -517,7 +518,7 @@ jobs:
           projectPath: wie-app
           mobile: ios
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
+            --config '${{ needs.context.outputs.tauri_config }}'
             --target aarch64 --no-sign --archive-only
             --build-number ${{ needs.context.outputs.run_number }} --ci
 
