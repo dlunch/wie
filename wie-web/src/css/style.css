@@ -218,7 +218,7 @@ svg {
   display: flex;
   width: min(100%, 800px);
   min-height: 0;
-  flex: 1;
+  flex: 0 1 auto;
   flex-direction: column;
   margin: 0 auto;
   padding: 12px 28px 0;
@@ -273,7 +273,7 @@ svg {
   min-width: 0;
   flex: 0 0 100%;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, max-content);
   align-content: start;
   gap: 26px 18px;
   padding: 12px 4px 28px;
@@ -316,9 +316,9 @@ svg {
 
 .app-icon {
   display: flex;
-  height: 100%;
+  height: 100cqw;
   max-width: 100%;
-  max-height: min(100%, 100cqw);
+  max-height: 100%;
   aspect-ratio: 1;
   align-self: start;
   justify-self: center;
@@ -895,7 +895,6 @@ kbd {
 
   .library-page {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(4, minmax(0, 1fr));
     gap: 22px 12px;
     padding-top: 10px;
   }
