@@ -6,15 +6,22 @@ on:
     types:
       - opened
       - synchronize
+      - reopened
+      - closed
 
 name: Web CI
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Let an upload finish before a closed PR's cleanup starts.
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 jobs:
   web_ci:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -24,6 +31,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: "recursive"
+          persist-credentials: false
 
       - name: Restore cache cargo
         uses: actions/cache/restore@v6
@@ -60,11 +68,26 @@ jobs:
         with:
           node-version: latest
 
+      - name: Test preview cleanup
+        run: node --test .github/scripts/delete-preview-deployments.test.mjs
+
       - name: npm install
         run: npm ci
 
       - name: Build
-        run: npm run build:dev
+        env:
+          ENVIRONMENT: ${{ github.event_name == 'pull_request' && 'preview' || 'development' }}
+        run: npm run build:${{ github.event_name == 'pull_request' && 'prod' || 'dev' }}
+
+      - name: Upload preview
+        if: >-
+          github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-preview
+          path: wie-web/dist
+          if-no-files-found: error
 
       - name: Save cache cargo
         uses: actions/cache/save@v6
@@ -86,3 +109,56 @@ jobs:
         with:
           path: ~/.npm
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+
+  deploy_preview:
+    name: Deploy PR preview
+    needs: web_ci
+    permissions:
+      contents: read
+      pull-requests: write
+    if: >-
+      github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-preview
+          path: wie-web/dist
+
+      - name: Publish preview to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./wie-web/dist --project-name=wie-dev --branch=pr-${{ github.event.pull_request.number }} --commit-hash=${{ github.sha }}
+
+      - name: Link preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PREVIEW_URL: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
+        run: |
+          printf '[Open PR preview](%s)\n' "$PREVIEW_URL" > "$RUNNER_TEMP/preview-comment.md"
+          cat "$RUNNER_TEMP/preview-comment.md" >> "$GITHUB_STEP_SUMMARY"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --body-file "$RUNNER_TEMP/preview-comment.md" --edit-last --create-if-none
+
+  delete_preview:
+    name: Delete PR preview
+    if: >-
+      github.event.action == 'closed' && github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Delete all deployments for this PR
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/delete-preview-deployments.mjs

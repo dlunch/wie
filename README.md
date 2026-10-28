@@ -21,6 +21,13 @@ npm run build:prod  # production web build
 npm start           # web development server
 ```
 
+Web CI deploys pull requests from this repository to the `wie-dev` Cloudflare Pages project,
+using a stable `pr-<number>` branch alias. The deployment job summary and a bot comment link
+to the preview; subsequent deployments update the content at the same URL when the PR changes
+or reopens. Closing or merging the PR deletes all its preview deployments.
+Fork and Dependabot-triggered runs build without deploying. Preview deployments
+reuse the release workflow's `CLOUDFLARE_API_TOKEN` secret and `CLOUDFLARE_ACCOUNT_ID` variable.
+
 ## Related projects
 
 - [RustJava](https://github.com/dlunch/RustJava)
