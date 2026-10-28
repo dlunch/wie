@@ -59,9 +59,6 @@ const main = async () => {
     Sentry.setContext("emulated_app", { id: app.id, title: app.title, filename: app.filename });
     libraryView.hidden = true;
     playerView.hidden = false;
-    if (backend.rendering === "canvas" && window.matchMedia("(max-width: 600px)").matches) {
-      requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
-    }
     try {
       failed = await runApp(backend, app, settings);
       if (failed) window.alert(t("restartRequired"));
