@@ -29,16 +29,12 @@ async fn initialize_advertising(_app: AppHandle) -> Result<&'static str, String>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let _guard = option_env!("ENVIRONMENT")
-        .filter(|environment| matches!(*environment, "production" | "nightly"))
-        .map(|environment| {
-            sentry::init(
-                sentry::ClientOptions::new()
-                    .dsn("https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928")
-                    .environment(environment)
-                    .release(option_env!("SENTRY_RELEASE").unwrap_or("local")),
-            )
-        });
+    let _guard = sentry::init((
+        option_env!("SENTRY_DSN"),
+        sentry::ClientOptions::new()
+            .environment(option_env!("ENVIRONMENT").unwrap_or("development"))
+            .release(option_env!("SENTRY_RELEASE").unwrap_or("local")),
+    ));
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(sentry::integrations::tracing::layer()))
         .expect("error while installing tracing subscriber");
 

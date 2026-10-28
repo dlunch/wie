@@ -11,14 +11,12 @@ import { rustPanic } from "./panic";
 import { initializeSettings } from "./settings";
 
 const main = async () => {
-  if (process.env.ENVIRONMENT === "production" || process.env.ENVIRONMENT === "nightly") {
-    Sentry.init({
-      dsn: "https://218d5a11f3e753fe4b60f92e5c1e64b0@o106536.ingest.us.sentry.io/4512049004412928",
-      environment: process.env.ENVIRONMENT,
-      release: process.env.SENTRY_RELEASE,
-      integrations: [wasmIntegration()],
-    });
-  }
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.ENVIRONMENT,
+    release: process.env.SENTRY_RELEASE,
+    integrations: [wasmIntegration()],
+  });
   const native = isTauri();
   const backend = await initializeWie();
   document.documentElement.classList.add(backend.rendering === "native" ? "native" : "browser");
