@@ -604,7 +604,9 @@ svg {
 }
 
 .native .button-container {
+  min-height: 0;
   flex: 1;
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   padding: 6px 12px 8px;
 }
 
