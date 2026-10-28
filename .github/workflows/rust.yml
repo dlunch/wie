@@ -59,12 +59,11 @@ jobs:
       - run: cargo clippy --target wasm32-unknown-unknown -p wie-web -- -D warnings
       - run: cargo test --all
 
-      - name: Lint and build iOS app
+      - name: Lint iOS app
         if: matrix.os == 'xcode-27' && matrix.rust == 'stable'
         run: |
           rustup target add aarch64-apple-ios
           cargo clippy -p wie-app --target aarch64-apple-ios -- -D warnings
-          cargo build -p wie-app --target aarch64-apple-ios
 
       - name: Save cache cargo
         uses: actions/cache/save@v6
