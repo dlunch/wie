@@ -37,17 +37,12 @@ const main = async () => {
     keypadTopRow.append(document.getElementById("app-settings")!);
   }
 
-  const analyticsScripts = document.getElementById("analytics-scripts") as HTMLTemplateElement;
-  document.head.append(document.importNode(analyticsScripts.content, true));
-  analyticsScripts.remove();
   if (native) {
     document.addEventListener("click", event => {
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[data-external-link]") : null;
       if (!link) return;
       event.preventDefault();
-      void invoke("plugin:opener|open_url", { url: link.href }).catch(error => {
-        window.alert(t("linkOpenFailed", { error: String(error) }));
-      });
+      void invoke("plugin:opener|open_url", { url: link.href }).catch(() => {});
     });
   }
 
