@@ -75,7 +75,7 @@
     "DEBUG_INFORMATION_FORMAT[config=Debug]": "dwarf",
     "DEBUG_INFORMATION_FORMAT[config=Release]": "dwarf-with-dsym",
     "ENABLE_TESTABILITY[config=Debug]": "YES",
-    "IPHONEOS_DEPLOYMENT_TARGET": "13.0",
+    "IPHONEOS_DEPLOYMENT_TARGET": "15.0",
     "ONLY_ACTIVE_ARCH[config=Debug]": "YES",
     "SDKROOT": "iphoneos",
     "SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug]": "DEBUG $(inherited)",

@@ -12,6 +12,7 @@ This project is dedicated to digital preservation and educational research. Our 
 ## Frontend
 
 The web and Android/iOS frontends are maintained in this repository under `wie-web` and `wie-app`.
+Building the iOS app requires Xcode 27 or later and targets iOS 15 or later.
 
 ```bash
 npm install
