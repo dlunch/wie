@@ -550,11 +550,11 @@ svg {
 }
 
 .button-container {
-  display: flex;
+  display: grid;
   width: min(100%, 480px);
-  flex-shrink: 0;
-  flex-direction: column;
-  align-items: center;
+  height: calc(8 * 26px + 7 * 4px + 22px);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(8, minmax(24px, 1fr));
   gap: 4px;
   padding: 8px 0 14px;
   touch-action: none;
@@ -573,7 +573,7 @@ svg {
 .button-container button {
   display: flex;
   width: min(28%, 96px);
-  height: 26px;
+  height: 100%;
   align-items: center;
   justify-content: center;
   margin: 0;
@@ -604,13 +604,7 @@ svg {
 }
 
 .native .button-container {
-  display: grid;
-  min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(8, minmax(0, 1fr));
-  align-items: stretch;
-  gap: 4px;
   padding: 6px 12px 8px;
 }
 
@@ -625,7 +619,6 @@ svg {
 
 .native .button-container button {
   width: 100%;
-  height: 100%;
 }
 
 .native .button-container .icon-button {
