@@ -1,0 +1,85 @@
+{
+  "id": "A0E2114E2BF552D2003BCF4D",
+  "default-configuration": "Release",
+  "configurations": ["Debug", "Release"],
+  "localizations": {
+    "development": "en",
+    "supported": ["en", "Base"]
+  },
+  "packages": [
+    {
+      "kind": "local",
+      "path": "../.tauri/tauri-api"
+    },
+    {
+      "kind": "remote",
+      "repository": "https://github.com/googleads/swift-package-manager-google-mobile-ads.git",
+      "version": { "up-to-next-major-version": "13.11.0" }
+    }
+  ],
+  "files": [
+    {
+      "kind": "group",
+      "path": "Sources",
+      "children": [
+        {
+          "path": "PlatformPlugin.swift",
+          "target-membership": ["wie-app-platform/compile-sources"]
+        }
+      ]
+    },
+    {
+      "kind": "group",
+      "name": "Products",
+      "children": [
+        {
+          "id": "A0E211562BF552D2003BCF4D",
+          "path": "<PRODUCTS>/libwie-app-platform.a",
+          "type": "archive.ar",
+          "index": false
+        }
+      ]
+    }
+  ],
+  "targets": [
+    {
+      "name": "wie-app-platform",
+      "id": "A0E211552BF552D2003BCF4D",
+      "product": "Products/libwie-app-platform.a",
+      "product-type": "library.static",
+      "build-phases": ["compile-sources", "frameworks"],
+      "package-product-members": [
+        {
+          "product-name": "Tauri",
+          "build-phase": { "build-phase": "frameworks" }
+        },
+        {
+          "package": "swift-package-manager-google-mobile-ads",
+          "product-name": "GoogleMobileAds",
+          "build-phase": { "build-phase": "frameworks" }
+        }
+      ],
+      "build-settings": {
+        "CODE_SIGN_STYLE": "Automatic",
+        "OTHER_LDFLAGS": "-ObjC",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SKIP_INSTALL": "YES",
+        "SWIFT_VERSION": "5.0",
+        "TARGETED_DEVICE_FAMILY": "1,2"
+      }
+    }
+  ],
+  "build-settings": {
+    "CLANG_ENABLE_MODULES": "YES",
+    "CLANG_ENABLE_OBJC_ARC": "YES",
+    "DEBUG_INFORMATION_FORMAT[config=Debug]": "dwarf",
+    "DEBUG_INFORMATION_FORMAT[config=Release]": "dwarf-with-dsym",
+    "ENABLE_TESTABILITY[config=Debug]": "YES",
+    "IPHONEOS_DEPLOYMENT_TARGET": "13.0",
+    "ONLY_ACTIVE_ARCH[config=Debug]": "YES",
+    "SDKROOT": "iphoneos",
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug]": "DEBUG $(inherited)",
+    "SWIFT_COMPILATION_MODE[config=Release]": "wholemodule",
+    "SWIFT_OPTIMIZATION_LEVEL[config=Debug]": "-Onone"
+  }
+}

@@ -479,7 +479,7 @@ jobs:
     needs:
       - context
       - web
-    runs-on: macos-latest
+    runs-on: xcode-27
     steps:
       - name: Checkout target
         uses: actions/checkout@v7

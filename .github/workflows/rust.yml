@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [xcode-27, ubuntu-latest, windows-latest]
         rust: [stable, beta]
 
     steps:
@@ -60,7 +60,7 @@ jobs:
       - run: cargo test --all
 
       - name: Lint iOS app
-        if: matrix.os == 'macos-latest' && matrix.rust == 'stable'
+        if: matrix.os == 'xcode-27' && matrix.rust == 'stable'
         run: |
           rustup target add aarch64-apple-ios
           cargo clippy -p wie-app --target aarch64-apple-ios -- -D warnings
