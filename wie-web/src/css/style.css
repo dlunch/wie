@@ -273,7 +273,7 @@ svg {
   min-width: 0;
   flex: 0 0 100%;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: minmax(0, max-content);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   align-content: start;
   gap: 26px 18px;
   padding: 12px 4px 28px;
@@ -895,6 +895,7 @@ kbd {
 
   .library-page {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
     gap: 22px 12px;
     padding-top: 10px;
   }
