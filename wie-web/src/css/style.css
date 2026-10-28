@@ -866,7 +866,7 @@ kbd {
   }
 
   .library-header {
-    padding: 20px 18px 10px;
+    padding: 4px 18px;
   }
 
   .brand-block {
@@ -890,14 +890,19 @@ kbd {
   }
 
   .library-main {
-    padding: 10px 18px 0;
+    padding: 4px 18px 0;
   }
 
   .library-page {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 22px 12px;
-    padding-top: 10px;
+    gap: 8px 12px;
+    padding-block: 4px;
+  }
+
+  .app-launch,
+  .add-app {
+    gap: 6px;
   }
 
   .app-icon {
