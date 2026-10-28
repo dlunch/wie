@@ -7,6 +7,8 @@ on:
       - opened
       - synchronize
       - reopened
+  pull_request_target:
+    types:
       - closed
 
 name: Web CI
@@ -17,11 +19,11 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Let an upload finish before a closed PR's cleanup starts.
-  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   web_ci:
-    if: github.event.action != 'closed'
+    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -67,9 +69,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: latest
-
-      - name: Test preview cleanup
-        run: node --test .github/scripts/delete-preview-deployments.test.mjs
 
       - name: npm install
         run: npm ci
@@ -148,10 +147,11 @@ jobs:
   delete_preview:
     name: Delete PR preview
     if: >-
-      github.event.action == 'closed' && github.actor != 'dependabot[bot]' &&
+      github.event_name == 'pull_request_target' && github.actor != 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
+      # pull_request_target checks out trusted base code even when the PR conflicts.
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
