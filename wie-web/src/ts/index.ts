@@ -34,43 +34,19 @@ const main = async () => {
     keypadTopRow.prepend(document.getElementById("back-to-library")!);
     keypadTopRow.append(document.getElementById("app-settings")!);
   }
-  const advertising = native
-    ? await invoke<"adsense" | "adsense-test" | "sponsor">("initialize_advertising")
-    : "adsense";
-  const advertisingScripts = document.getElementById("advertising-scripts") as HTMLTemplateElement;
-  if (advertising === "sponsor") {
-    const area = document.querySelector<HTMLElement>(".library-ad")!;
-    area.dataset.i18nAriaLabel = "sponsorship";
-    area.setAttribute("aria-label", t("sponsorship"));
-    const link = document.createElement("a");
-    link.className = "library-sponsor";
-    link.href = "https://github.com/sponsors/dlunch";
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.dataset.externalLink = "";
-    link.dataset.i18nText = "supportDevelopment";
-    link.textContent = t("supportDevelopment");
-    area.replaceChildren(link);
-  } else {
-    if (advertising === "adsense-test" || process.env.NODE_ENV !== "production") {
-      document.querySelector<HTMLElement>(".adsbygoogle")!.dataset.adtest = "on";
-    }
-    document.head.append(document.importNode(advertisingScripts.content, true));
-  }
-  advertisingScripts.remove();
 
   const analyticsScripts = document.getElementById("analytics-scripts") as HTMLTemplateElement;
   if (!native) {
     document.head.append(document.importNode(analyticsScripts.content, true));
   } else {
-    for (const link of document.querySelectorAll<HTMLAnchorElement>("a[data-external-link]")) {
-      link.addEventListener("click", event => {
-        event.preventDefault();
-        void invoke("plugin:opener|open_url", { url: link.href }).catch(error => {
-          window.alert(t("linkOpenFailed", { error: String(error) }));
-        });
+    document.addEventListener("click", event => {
+      const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[data-external-link]") : null;
+      if (!link) return;
+      event.preventDefault();
+      void invoke("plugin:opener|open_url", { url: link.href }).catch(error => {
+        window.alert(t("linkOpenFailed", { error: String(error) }));
       });
-    }
+    });
   }
   analyticsScripts.remove();
 
@@ -134,6 +110,38 @@ const main = async () => {
   };
 
   await initializeLibrary(backend, routeToApp, settings);
+
+  const advertisingScripts = document.getElementById("advertising-scripts") as HTMLTemplateElement;
+  try {
+    const advertising = native
+      ? await invoke<"adsense" | "adsense-test" | "sponsor">("initialize_advertising")
+      : "adsense";
+    if (advertising === "sponsor") {
+      const area = document.querySelector<HTMLElement>(".library-ad")!;
+      area.dataset.i18nAriaLabel = "sponsorship";
+      area.setAttribute("aria-label", t("sponsorship"));
+      const link = document.createElement("a");
+      link.className = "library-sponsor";
+      link.href = "https://github.com/sponsors/dlunch";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.dataset.externalLink = "";
+      link.dataset.i18nText = "supportDevelopment";
+      link.textContent = t("supportDevelopment");
+      area.replaceChildren(link);
+    } else {
+      if (advertising === "adsense-test" || process.env.NODE_ENV !== "production") {
+        document.querySelector<HTMLElement>(".adsbygoogle")!.dataset.adtest = "on";
+      }
+      document.head.append(document.importNode(advertisingScripts.content, true));
+    }
+  } catch (error) {
+    Sentry.captureException(error);
+    console.error("Advertising initialization failed", error);
+    document.querySelector(".library-ad")!.remove();
+  } finally {
+    advertisingScripts.remove();
+  }
 };
 
 const start = () => {
