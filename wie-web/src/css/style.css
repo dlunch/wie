@@ -32,8 +32,9 @@
 html,
 body {
   min-width: 320px;
-  min-height: 100%;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -96,7 +97,7 @@ svg {
 
 .library-view {
   display: flex;
-  min-height: 100dvh;
+  height: 100dvh;
   flex-direction: column;
 }
 
@@ -110,6 +111,7 @@ svg {
   justify-content: space-between;
   gap: 8px;
   padding: 24px 28px 12px;
+  flex-shrink: 0;
 }
 
 .brand-block {
@@ -213,7 +215,11 @@ svg {
 }
 
 .library-main {
+  display: flex;
   width: min(100%, 800px);
+  min-height: 0;
+  flex: 0 1 auto;
+  flex-direction: column;
   margin: 0 auto;
   padding: 12px 28px 0;
 }
@@ -221,7 +227,8 @@ svg {
 .library-pages {
   display: flex;
   width: 100%;
-  min-height: 560px;
+  min-height: 0;
+  flex: 1;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-behavior: smooth;
@@ -266,6 +273,7 @@ svg {
   min-width: 0;
   flex: 0 0 100%;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   align-content: start;
   gap: 26px 18px;
   padding: 12px 4px 28px;
@@ -275,8 +283,10 @@ svg {
 
 .app-entry {
   position: relative;
+  container-type: inline-size;
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex-direction: column;
   align-items: stretch;
   padding: 0;
@@ -285,10 +295,13 @@ svg {
   border: 0;
 }
 
-.app-launch {
-  display: flex;
+.app-launch,
+.add-app {
+  display: grid;
   min-width: 0;
-  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 9px;
   align-items: stretch;
   padding: 0;
@@ -303,8 +316,12 @@ svg {
 
 .app-icon {
   display: flex;
-  width: 100%;
+  height: 100cqw;
+  max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 1;
+  align-self: start;
+  justify-self: center;
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -342,10 +359,6 @@ svg {
   text-align: center;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.add-app {
-  gap: 9px;
 }
 
 .add-app-icon {
@@ -400,6 +413,7 @@ svg {
 .page-indicators {
   display: flex;
   min-height: 24px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -423,6 +437,7 @@ svg {
 .library-ad {
   width: min(100%, 800px);
   min-height: 90px;
+  flex-shrink: 0;
   margin: auto auto 0;
   padding: 12px 28px 20px;
 }
@@ -440,7 +455,7 @@ svg {
 
 .player-view {
   --toolbar-height: 52px;
-  min-height: 100dvh;
+  height: 100dvh;
   background: #ffffff;
 }
 
@@ -535,13 +550,13 @@ svg {
 }
 
 .button-container {
-  display: flex;
+  display: grid;
   width: min(100%, 480px);
-  flex-shrink: 0;
-  flex-direction: column;
-  align-items: center;
+  height: calc(8 * 26px + 7 * 4px + 8px);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(8, minmax(24px, 1fr));
   gap: 4px;
-  padding: 8px 0 14px;
+  padding: 8px 0 0;
   touch-action: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -558,7 +573,7 @@ svg {
 .button-container button {
   display: flex;
   width: min(28%, 96px);
-  height: 26px;
+  height: 100%;
   align-items: center;
   justify-content: center;
   margin: 0;
@@ -589,14 +604,10 @@ svg {
 }
 
 .native .button-container {
-  display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: repeat(8, minmax(0, 1fr));
-  align-items: stretch;
-  gap: 4px;
-  padding: 6px 12px 8px;
+  padding: 6px 12px 0;
 }
 
 .native .button-container p {
@@ -610,7 +621,6 @@ svg {
 
 .native .button-container button {
   width: 100%;
-  height: 100%;
 }
 
 .native .button-container .icon-button {
@@ -856,7 +866,7 @@ kbd {
   }
 
   .library-header {
-    padding: 20px 18px 10px;
+    padding: 4px 18px;
   }
 
   .brand-block {
@@ -880,17 +890,19 @@ kbd {
   }
 
   .library-main {
-    padding: 10px 18px 0;
-  }
-
-  .library-pages {
-    min-height: 570px;
+    padding: 4px 18px 0;
   }
 
   .library-page {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 22px 12px;
-    padding-top: 10px;
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 8px 12px;
+    padding-block: 4px;
+  }
+
+  .app-launch,
+  .add-app {
+    gap: 6px;
   }
 
   .app-icon {

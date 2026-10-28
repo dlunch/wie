@@ -3,5 +3,9 @@
     <application
         android:allowBackup="true"
         android:fullBackupContent="@xml/wie_backup_rules"
-        android:dataExtractionRules="@xml/wie_data_extraction_rules" />
+        android:dataExtractionRules="@xml/wie_data_extraction_rules">
+        <activity
+            android:name="net.dlunch.wie.MainActivity"
+            android:screenOrientation="portrait" />
+    </application>
 </manifest>
