@@ -13,6 +13,7 @@ permissions:
 
 env:
   ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'nightly' }}
+  SENTRY_DSN: ${{ vars.SENTRY_DSN }}
 
 jobs:
   context:
@@ -166,19 +167,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Download web frontend
-        uses: actions/download-artifact@v8
-        with:
-          name: web-frontend
-          path: wie-web/dist
-
       - name: Build unsigned installers
         uses: tauri-apps/tauri-action@v1
         with:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
             --ci --target ${{ matrix.target }} --bundles msi,nsis --no-sign
 
       - name: Upload native debug information
@@ -239,12 +234,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Download web frontend
-        uses: actions/download-artifact@v8
-        with:
-          name: web-frontend
-          path: wie-web/dist
-
       - name: Install Tauri CLI
         uses: taiki-e/install-action@v2
         with:
@@ -257,7 +246,7 @@ jobs:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
             --ci --target ${{ matrix.target }} --no-bundle
 
       - name: Upload native debug information
@@ -316,19 +305,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Download web frontend
-        uses: actions/download-artifact@v8
-        with:
-          name: web-frontend
-          path: wie-web/dist
-
       - name: Build macOS executable
         uses: tauri-apps/tauri-action@v1
         with:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
             --ci --target ${{ matrix.target }} --no-bundle
 
       - name: Upload native debug information
@@ -436,12 +419,6 @@ jobs:
         with:
           targets: aarch64-linux-android
 
-      - name: Download web frontend
-        uses: actions/download-artifact@v8
-        with:
-          name: web-frontend
-          path: wie-web/dist
-
       - name: Install Tauri CLI
         uses: taiki-e/install-action@v2
         with:
@@ -472,7 +449,7 @@ jobs:
           mobile: android
           retryAttempts: 2
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
             --target aarch64 --apk --aab --ci
 
       - name: Upload native debug information
@@ -502,7 +479,7 @@ jobs:
     needs:
       - context
       - web
-    runs-on: macos-latest
+    runs-on: xcode-27
     steps:
       - name: Checkout target
         uses: actions/checkout@v7
@@ -515,12 +492,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios
-
-      - name: Download web frontend
-        uses: actions/download-artifact@v8
-        with:
-          name: web-frontend
-          path: wie-web/dist
 
       - name: Install iOS build dependencies
         run: arch -arm64 brew reinstall xcodegen libimobiledevice
@@ -546,7 +517,7 @@ jobs:
           projectPath: wie-app
           mobile: ios
           args: >-
-            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --config '{"version":"${{ needs.context.outputs.app_version }}"}'
             --target aarch64 --no-sign --archive-only
             --build-number ${{ needs.context.outputs.run_number }} --ci
 

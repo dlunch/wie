@@ -116,6 +116,7 @@ const commonConfig: webpack.Configuration = {
   plugins: [
     new webpack.EnvironmentPlugin({
       ENVIRONMENT: "development",
+      SENTRY_DSN: "",
       SENTRY_RELEASE: "local",
     }),
     new WasmPackPlugin(import.meta.dirname),

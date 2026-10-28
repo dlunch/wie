@@ -26,6 +26,8 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":tauri-android"))
+    implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.6.0")
     implementation("androidx.annotation:annotation:1.8.1")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
 }

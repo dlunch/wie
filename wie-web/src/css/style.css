@@ -427,6 +427,17 @@ svg {
   padding: 12px 28px 20px;
 }
 
+.library-sponsor {
+  display: block;
+  padding: 18px;
+  color: var(--fg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+  text-underline-offset: 4px;
+}
+
 .player-view {
   --toolbar-height: 52px;
   min-height: 100dvh;

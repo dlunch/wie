@@ -1,6 +1,8 @@
 {
   "bundle": {
     "iOS": {
+      "minimumSystemVersion": "15.0",
+      "template": "platform/ios/project.yml",
       "frameworks": ["AVFAudio"]
     },
     "resources": {

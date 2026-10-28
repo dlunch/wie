@@ -20,7 +20,7 @@
     <link rel="icon" type="image/png" href="../assets/favicon.png" />
     <link rel="stylesheet" href="@css/style.css" />
     <script src="@ts/index.ts" defer="defer"></script>
-    <template id="browser-scripts">
+    <template id="advertising-scripts">
       <!-- webpackIgnore: true -->
       <script
         async
@@ -28,18 +28,21 @@
         crossorigin="anonymous"
       ></script>
       <!-- webpackIgnore: true -->
-      <script async src="https://www.googletagmanager.com/gtag/js?id=G-G6TBDLLPWK"></script>
-      <!-- webpackIgnore: true -->
       <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag() {
-          dataLayer.push(arguments);
-        }
-        gtag("js", new Date());
-        gtag("config", "G-G6TBDLLPWK");
         (adsbygoogle = window.adsbygoogle || []).push({});
       </script>
     </template>
+    <!-- webpackIgnore: true -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-G6TBDLLPWK"></script>
+    <!-- webpackIgnore: true -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-G6TBDLLPWK");
+    </script>
   </head>
   <body>
     <div id="library-view" class="library-view">
@@ -77,13 +80,14 @@
               <i data-lucide="circle-help"></i>
               <span data-i18n-text="help">조작 도움말</span>
             </button>
-            <a href="https://github.com/dlunch/wie" target="_blank" rel="noopener noreferrer" role="menuitem">
+            <a href="https://github.com/dlunch/wie" target="_blank" rel="noopener noreferrer" role="menuitem" data-external-link>
+              <!-- webpackIgnore: true -->
               <img src="https://cdn.simpleicons.org/github/0f172a" alt="" width="18" height="18" />
               <span>GitHub</span>
             </a>
-            <a href="https://wie-site.dlunch.net/" target="_blank" rel="noopener noreferrer" role="menuitem">
+            <a href="https://wie-site.dlunch.net/" target="_blank" rel="noopener noreferrer" role="menuitem" data-external-link>
               <i data-lucide="globe-2"></i>
-              <span data-i18n-text="projectWebsite">프로젝트 웹사이트</span>
+              <span data-i18n-text="projectWebsite">웹사이트</span>
             </a>
           </div>
         </div>
@@ -96,15 +100,26 @@
         <div id="page-indicators" class="page-indicators" aria-label="라이브러리 페이지" data-i18n-aria-label="libraryPages"></div>
       </main>
 
-      <div class="library-ad" aria-label="광고" data-i18n-aria-label="advertisement">
+      <div class="library-ad">
         <ins
           class="adsbygoogle"
+          aria-label="광고"
+          data-i18n-aria-label="advertisement"
           style="display:block;width:100%;height:100%"
           data-ad-client="ca-pub-7838202724819744"
           data-ad-slot="8335895407"
           data-ad-format="auto"
           data-full-width-responsive="true"
         ></ins>
+        <a
+          class="library-sponsor"
+          href="https://github.com/sponsors/dlunch"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-external-link
+          data-i18n-text="supportDevelopment"
+          hidden
+        >개발을 후원해 주세요</a>
       </div>
     </div>
 
