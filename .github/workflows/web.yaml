@@ -146,6 +146,9 @@ jobs:
 
   delete_preview:
     name: Delete PR preview
+    permissions:
+      contents: read
+      pull-requests: write
     if: >-
       github.event_name == 'pull_request_target' && github.actor != 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -162,3 +165,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: node .github/scripts/delete-preview-deployments.mjs
+
+      - name: Mark preview as removed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          comment_id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("[Open PR preview]("))) | .id')
+          if [[ -n "$comment_id" ]]; then
+            printf 'PR preview has been removed.\n' > "$RUNNER_TEMP/preview-comment.md"
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" \
+              --field "body=@$RUNNER_TEMP/preview-comment.md" --silent
+          fi
