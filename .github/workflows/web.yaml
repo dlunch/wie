@@ -19,7 +19,7 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Let an upload finish before a closed PR's cleanup starts.
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request_target' }}
 
 jobs:
   web_ci:
