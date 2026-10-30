@@ -13,7 +13,7 @@
     "@sentry/browser": "^11.7.0",
     "@sentry/wasm": "^11.9.0",
     "@tauri-apps/api": "^2.12.4",
-    "lucide": "^1.61.0",
+    "lucide": "^1.62.0",
     "spessasynth_lib": "^4.3.14",
     "ts-loader": "^9.6.2",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
