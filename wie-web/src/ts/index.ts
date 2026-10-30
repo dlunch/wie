@@ -131,7 +131,26 @@ const main = async () => {
 
 const start = () => {
   initializeLocalization();
-  void main().catch(error => {
+  const reloadKey = "wie:asset-reload";
+  void main().then(() => {
+    try {
+      sessionStorage.removeItem(reloadKey);
+    } catch {
+      // Disabled session storage must not prevent startup.
+    }
+  }).catch(error => {
+    if (error instanceof Error && (error.name === "ChunkLoadError" ||
+      error instanceof WebAssembly.CompileError && /magic|\\0asm/.test(error.message))) {
+      try {
+        if (!sessionStorage.getItem(reloadKey)) {
+          sessionStorage.setItem(reloadKey, "1");
+          window.location.reload();
+          return;
+        }
+      } catch {
+        // Preserve the original error if a reload cannot be guarded.
+      }
+    }
     Sentry.captureException(error);
     window.alert(isTauri() ? t("restartRequired") : t("libraryOpenFailed", { error: String(error) }));
     console.error(t("libraryOpenFailed", { error: String(error) }), error);

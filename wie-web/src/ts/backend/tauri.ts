@@ -8,6 +8,7 @@ type NativeApp = Omit<LibraryApp, "icon"> & { icon: number[] | null };
 
 export const initializeWie = async (): Promise<Wie> => {
   const runtime = await invoke<"wasm" | "native">("runtime_kind");
+  const wasm = runtime === "wasm" ? await import("./wasm") : undefined;
   return {
     rendering: runtime === "wasm" ? "canvas" : "native",
     async listApps() {
@@ -30,7 +31,7 @@ export const initializeWie = async (): Promise<Wie> => {
       return invoke("write_settings", { settings });
     },
     async startApp(id, onEvent) {
-      if (runtime === "wasm") {
+      if (wasm) {
         let host: TauriHost | undefined;
         let session: WasmSession | undefined;
         let lifecycle: HostLifecycle | undefined;
@@ -70,15 +71,12 @@ export const initializeWie = async (): Promise<Wie> => {
           if (ended) return;
           if (startupError !== undefined) throw startupError;
           host.lifecycle(lifecycle!);
-          const [{ startWasmSession }, fontResponse] = await Promise.all([
-            import("./wasm"),
-            fetch(new URL("../../../../assets/neodgm.ttf", import.meta.url)),
-          ]);
+          const fontResponse = await fetch(new URL("../../../../assets/neodgm.ttf", import.meta.url));
           if (!fontResponse.ok) throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
           const font = new Uint8Array(await fontResponse.arrayBuffer());
           if (ended) return;
           if (startupError !== undefined) throw startupError;
-          const startedSession = startWasmSession(started.filename, new Uint8Array(started.bytes), font, report, host, lifecycle!.suspended);
+          const startedSession = wasm.startWasmSession(started.filename, new Uint8Array(started.bytes), font, report, host, lifecycle!.suspended);
           session = startedSession;
           let stopping: Promise<void> | undefined;
           return {
