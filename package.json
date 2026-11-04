@@ -10,7 +10,7 @@
   },
   "author": "",
   "dependencies": {
-    "@sentry/browser": "^11.7.0",
+    "@sentry/browser": "^11.10.0",
     "@sentry/wasm": "^11.9.0",
     "@tauri-apps/api": "^2.12.4",
     "lucide": "^1.66.0",
