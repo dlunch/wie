@@ -7573,6 +7573,7 @@ dependencies = [
  "clap",
  "directories",
  "fast_image_resize",
+ "futures-test",
  "midir",
  "rodio",
  "sentry",

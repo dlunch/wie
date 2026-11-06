@@ -15,6 +15,9 @@ pub trait Database: Send {
 
 #[async_trait::async_trait]
 pub trait DatabaseRepository {
+    /// Create an empty store if it does not already exist.
+    async fn create(&self, name: &str, app_id: &str);
+    /// Access records without creating the store.
     async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database>;
     async fn exists(&self, name: &str, app_id: &str) -> bool;
     async fn delete(&self, name: &str, app_id: &str) -> bool;

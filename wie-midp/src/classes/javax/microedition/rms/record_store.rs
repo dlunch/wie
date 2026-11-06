@@ -247,12 +247,14 @@ impl RecordStore {
         let db_name = JavaLangString::to_rust_string(jvm, &name).await?;
         let system = context.system();
         let pid = system.pid().to_owned();
-        if !create && !system.platform().database_repository().exists(&db_name, &pid).await {
+        let repository = system.platform().database_repository();
+        if create {
+            repository.create(&db_name, &pid).await;
+        } else if !repository.exists(&db_name, &pid).await {
             return Err(jvm
                 .exception("javax/microedition/rms/RecordStoreNotFoundException", "Record store not found")
                 .await);
         }
-        let _database = system.platform().database_repository().open(&db_name, &pid).await;
 
         let store = jvm
             .new_class("javax/microedition/rms/RecordStore", "(Ljava/lang/String;)V", (name,))

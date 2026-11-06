@@ -121,20 +121,20 @@ async fn dispatch_storage(request: StorageRequest, store: &Store) -> Value {
             filesystem.truncate(&pid, &path, length).await;
             Value::Null
         }
-        StorageRequest::DbOpen { pid, name } => {
-            repository.open(&name, &pid).await;
+        StorageRequest::DbCreate { pid, name } => {
+            repository.create(&name, &pid).await;
             Value::Null
         }
         StorageRequest::DbExists { pid, name } => json!(repository.exists(&name, &pid).await),
         StorageRequest::DbDelete { pid, name } => json!(repository.delete(&name, &pid).await),
         StorageRequest::FileRemove { pid, path } => json!(filesystem.remove(&pid, &path).await),
         StorageRequest::FileUsage { pid } => json!(filesystem.usage(&pid).await),
-        StorageRequest::RecordNextId { pid, name } => json!(repository.database(&name, &pid).next_id().await),
-        StorageRequest::RecordIds { pid, name } => json!(repository.database(&name, &pid).get_record_ids().await),
-        StorageRequest::RecordGet { pid, name, id } => json!(repository.database(&name, &pid).get(id).await),
-        StorageRequest::RecordDelete { pid, name, id } => json!(repository.database(&name, &pid).delete(id).await),
-        StorageRequest::RecordAdd { pid, name, data } => json!(repository.database(&name, &pid).add(&data).await),
-        StorageRequest::RecordSet { pid, name, id, data } => json!(repository.database(&name, &pid).set(id, &data).await),
+        StorageRequest::RecordNextId { pid, name } => json!(repository.open(&name, &pid).await.next_id().await),
+        StorageRequest::RecordIds { pid, name } => json!(repository.open(&name, &pid).await.get_record_ids().await),
+        StorageRequest::RecordGet { pid, name, id } => json!(repository.open(&name, &pid).await.get(id).await),
+        StorageRequest::RecordDelete { pid, name, id } => json!(repository.open(&name, &pid).await.delete(id).await),
+        StorageRequest::RecordAdd { pid, name, data } => json!(repository.open(&name, &pid).await.add(&data).await),
+        StorageRequest::RecordSet { pid, name, id, data } => json!(repository.open(&name, &pid).await.set(id, &data).await),
     }
 }
 
@@ -339,7 +339,7 @@ mod tests {
                 (json!({"op":"fileTruncate","pid":"pid","path":"save","length":0}), Value::Null),
                 (json!({"op":"fileRead","pid":"pid","path":"save","offset":0,"count":8}), json!([])),
                 (json!({"op":"fileExists","pid":"other","path":"save"}), json!(false)),
-                (json!({"op":"dbOpen","pid":"pid","name":"save"}), Value::Null),
+                (json!({"op":"dbCreate","pid":"pid","name":"save"}), Value::Null),
                 (json!({"op":"recordAdd","pid":"pid","name":"save","data":[]}), json!(1)),
                 (json!({"op":"recordGet","pid":"pid","name":"save","id":1}), json!([])),
                 (json!({"op":"recordGet","pid":"other","name":"save","id":1}), Value::Null),

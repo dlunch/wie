@@ -8,27 +8,23 @@ pub(crate) struct DatabaseRepository {
     pub(crate) store: Store,
 }
 
-impl DatabaseRepository {
-    // Access an existing store without recreating it during reads or deletes.
-    pub(crate) fn database(&self, name: &str, app_id: &str) -> Box<dyn Database> {
+#[async_trait::async_trait]
+impl BackendDatabaseRepository for DatabaseRepository {
+    async fn create(&self, name: &str, app_id: &str) {
+        if let Err(error) = self.store.lock().unwrap().execute(
+            "INSERT INTO record_stores (pid, name) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
+            params![app_id, name],
+        ) {
+            tracing::warn!(app_id, name, %error, "Failed to create database");
+        }
+    }
+
+    async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database> {
         Box::new(SqliteDatabase {
             store: self.store.clone(),
             pid: app_id.to_owned(),
             name: name.to_owned(),
         })
-    }
-}
-
-#[async_trait::async_trait]
-impl BackendDatabaseRepository for DatabaseRepository {
-    async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database> {
-        if let Err(error) = self.store.lock().unwrap().execute(
-            "INSERT INTO record_stores (pid, name) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
-            params![app_id, name],
-        ) {
-            tracing::warn!(app_id, name, %error, "Failed to open database");
-        }
-        self.database(name, app_id)
     }
 
     async fn exists(&self, name: &str, app_id: &str) -> bool {

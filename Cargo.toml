@@ -139,3 +139,6 @@ softbuffer = { version = "^0.4", optional = true }
 tempfile = { version = "3", optional = true }
 winit = { version = "^0.30", features = ["x11", "wayland"], optional = true }
 wie-core-arm-native = { workspace = true, optional = true }
+
+[dev-dependencies]
+futures-test = { workspace = true }

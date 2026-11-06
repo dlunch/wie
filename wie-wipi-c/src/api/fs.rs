@@ -274,6 +274,7 @@ mod tests {
         context.write_bytes(0x1000, b"save\0").unwrap();
         context.write_bytes(0x2000, &[1, 2, 3, 4]).unwrap();
 
+        context.system().platform().database_repository().create("save", "test-pid").await;
         let mut database = context.system().platform().database_repository().open("save", "test-pid").await;
         assert!(database.set(1, &[9, 8]).await);
         assert_eq!(open(&mut context, 0x1000, 1, 1).await.unwrap(), -12);
