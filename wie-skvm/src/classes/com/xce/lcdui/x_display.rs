@@ -15,11 +15,6 @@ use wie_midp::classes::javax::microedition::{
 pub struct XDisplay;
 
 impl XDisplay {
-    const IMG_COPY: i32 = 0;
-    const IMG_AND: i32 = 1;
-    const IMG_OR: i32 = 2;
-    const IMG_XOR: i32 = 3;
-
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
             name: "com/xce/lcdui/XDisplay",
@@ -73,14 +68,10 @@ impl XDisplay {
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.XDisplay::<clinit>()");
 
-        for (name, value) in [
-            ("IMG_COPY", Self::IMG_COPY),
-            ("IMG_AND", Self::IMG_AND),
-            ("IMG_OR", Self::IMG_OR),
-            ("IMG_XOR", Self::IMG_XOR),
-        ] {
-            jvm.put_static_field("com/xce/lcdui/XDisplay", name, "I", value).await?;
-        }
+        jvm.put_static_field("com/xce/lcdui/XDisplay", "IMG_COPY", "I", 0).await?;
+        jvm.put_static_field("com/xce/lcdui/XDisplay", "IMG_AND", "I", 1).await?;
+        jvm.put_static_field("com/xce/lcdui/XDisplay", "IMG_OR", "I", 2).await?;
+        jvm.put_static_field("com/xce/lcdui/XDisplay", "IMG_XOR", "I", 3).await?;
 
         // TODO: temp
         jvm.put_static_field("com/xce/lcdui/XDisplay", "width", "I", 240).await?;
@@ -135,7 +126,11 @@ impl XDisplay {
         if graphics.is_null() || source.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "graphics or source is null").await);
         }
-        if !(Self::IMG_COPY..=Self::IMG_XOR).contains(&mode) {
+        let copy: i32 = jvm.get_static_field("com/xce/lcdui/XDisplay", "IMG_COPY", "I").await?;
+        let and: i32 = jvm.get_static_field("com/xce/lcdui/XDisplay", "IMG_AND", "I").await?;
+        let or: i32 = jvm.get_static_field("com/xce/lcdui/XDisplay", "IMG_OR", "I").await?;
+        let xor: i32 = jvm.get_static_field("com/xce/lcdui/XDisplay", "IMG_XOR", "I").await?;
+        if ![copy, and, or, xor].contains(&mode) {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "invalid image mode").await);
         }
         if width <= 0 || height <= 0 {
@@ -154,8 +149,8 @@ impl XDisplay {
         };
         let source = Image::image(jvm, &source).await?;
         let mut canvas = Image::canvas(jvm, &destination).await?;
-        if mode == Self::IMG_COPY || mode == Self::IMG_XOR {
-            canvas.set_xor_mode(mode == Self::IMG_XOR);
+        if mode == copy || mode == xor {
+            canvas.set_xor_mode(mode == xor);
             canvas.draw(tx, ty, width as _, height as _, &*source, sx, sy, clip);
             return Ok(());
         }
@@ -183,7 +178,7 @@ impl XDisplay {
                 let dx = (i64::from(tx) + x) as i32;
                 let dy = (i64::from(ty) + y) as i32;
                 let destination = canvas.image().get_pixel(dx, dy);
-                let color = if mode == Self::IMG_AND {
+                let color = if mode == and {
                     Color {
                         a: 255,
                         r: destination.r & source.r,

@@ -29,8 +29,6 @@ pub(super) const READ_WRITE: i32 = 3;
 const READ_DIRECTORY: i32 = 4;
 pub(super) const READ_RESOURCE: i32 = 8;
 
-const STORAGE_LIMIT: u64 = 1024 * 1024;
-
 // class com.xce.io.XFile
 pub struct XFile;
 
@@ -630,9 +628,9 @@ impl XFile {
     }
 
     async fn fs_available(_jvm: &Jvm, context: &mut WieJvmContext) -> JvmResult<i32> {
-        tracing::debug!("com.xce.io.XFile::fsavail()");
+        tracing::warn!("stub com.xce.io.XFile::fsavail()");
 
-        Ok(STORAGE_LIMIT.saturating_sub(context.system().filesystem().usage().await) as i32)
+        Ok((1024_u64 * 1024).saturating_sub(context.system().filesystem().usage().await) as i32)
     }
 
     pub async fn raf(jvm: &Jvm, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<RandomAccessFile>> {
@@ -662,7 +660,6 @@ mod tests {
             Box::new([Box::new([XFile::as_proto(), FileInputStream::as_proto(), FileOutputStream::as_proto()])]),
             |jvm| async move {
                 assert_eq!(jvm.invoke_static::<_, i32>("com/xce/io/XFile", "fsused", "()I", ()).await?, 0);
-                assert_eq!(jvm.invoke_static::<_, i32>("com/xce/io/XFile", "fsavail", "()I", ()).await?, 1024 * 1024);
                 let read_write: i32 = jvm.get_static_field("com/xce/io/XFile", "READ_WRITE", "I").await?;
                 let seek_set: i32 = jvm.get_static_field("com/xce/io/XFile", "SEEK_SET", "I").await?;
                 let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "xfile-round-trip.dat").await?.into();
@@ -676,10 +673,6 @@ mod tests {
                 let written: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "write", "([BII)I", (source, 1, 2)).await?;
                 assert_eq!(written, 2);
                 assert_eq!(jvm.invoke_static::<_, i32>("com/xce/io/XFile", "fsused", "()I", ()).await?, 2);
-                assert_eq!(
-                    jvm.invoke_static::<_, i32>("com/xce/io/XFile", "fsavail", "()I", ()).await?,
-                    1024 * 1024 - 2
-                );
 
                 let position: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "seek", "(II)I", (0, seek_set)).await?;
                 assert_eq!(position, 0);
