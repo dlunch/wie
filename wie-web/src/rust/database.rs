@@ -22,6 +22,7 @@ impl wie_backend::DatabaseRepository for DatabaseRepository {
     async fn open(&self, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
         let db_name = format!("wie_{app_id}");
         let store = Store::open(&db_name, &db_name).await;
+        store.set(StoreKey::Pair(name.to_string(), String::new()), &[]).await;
         Box::new(Database {
             store,
             key_prefix: name.to_string(),
@@ -31,11 +32,10 @@ impl wie_backend::DatabaseRepository for DatabaseRepository {
     async fn exists(&self, name: &str, app_id: &str) -> bool {
         let db_name = format!("wie_{app_id}");
         let store = Store::open(&db_name, &db_name).await;
-        store
-            .get_all_keys()
-            .await
-            .iter()
-            .any(|key| matches!(key, StoreKey::String(key) if key.starts_with(name)))
+        store.get_all_keys().await.iter().any(|key| match key {
+            StoreKey::String(key) => key.strip_prefix(name).is_some_and(|id| id.parse::<RecordId>().is_ok()),
+            StoreKey::Pair(key, suffix) => key == name && suffix.is_empty(),
+        })
     }
 
     async fn delete(&self, _name: &str, _app_id: &str) -> bool {

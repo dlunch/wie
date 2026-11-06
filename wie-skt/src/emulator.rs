@@ -112,7 +112,7 @@ impl SktEmulator {
             ("m.MIN", "00000000"),
             ("m.COLOR", "7"),
             ("m.VENDER", "vender"),
-            ("m.MODEL", ""),
+            ("m.MODEL", "0"), // Stub model identifier.
             ("m.CARRIER", "SKT"),
             ("m.SK_VM", "10"),
             ("com.xce.wipi.version", ""),

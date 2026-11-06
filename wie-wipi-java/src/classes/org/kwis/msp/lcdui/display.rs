@@ -5,7 +5,8 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::{Object, Runnable, String};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_backend::Event;
+use wie_jvm_support::{JvmSupport, WieJavaClassProto, WieJvmContext};
 
 use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
 
@@ -380,13 +381,39 @@ impl Display {
     }
 
     async fn call_serially_with_timeout(
-        _: &Jvm,
-        _: &mut WieJvmContext,
+        jvm: &Jvm,
+        context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         runnable: ClassInstanceRef<Runnable>,
         timeout: i32,
     ) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Display::callSerially({this:?}, {runnable:?}, {timeout})");
+        tracing::debug!("org.kwis.msp.lcdui.Display::callSerially({this:?}, {runnable:?}, {timeout})");
+
+        let Some(runnable) = jvm.new_global_ref(&runnable) else {
+            return Err(jvm.exception("java/lang/NullPointerException", "Runnable is null").await);
+        };
+        let due = context.system().platform().now() + timeout.max(0) as u64;
+        let jvm = jvm.clone();
+        context.system().event_queue().push(Event::timer(due, move || async move {
+            let result: JvmResult<()> = async {
+                let queue = jvm
+                    .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                    .await?;
+                jvm.invoke_virtual(
+                    &queue,
+                    "net/wie/EventQueue",
+                    "callSerially",
+                    "(Ljava/lang/Runnable;)V",
+                    ((*runnable).clone(),),
+                )
+                .await
+            }
+            .await;
+            match result {
+                Ok(()) => Ok(()),
+                Err(error) => Err(JvmSupport::to_wie_err(&jvm, error).await),
+            }
+        }));
 
         Ok(())
     }
@@ -514,12 +541,114 @@ impl Display {
 
 #[cfg(test)]
 mod test {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, vec};
 
-    use test_utils::run_jvm_test;
+    use jvm::{Array, ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
+    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+
+    use test_utils::{TestClock, TestPlatform, run_jvm_test, run_jvm_test_with_system};
+    use wie_backend::{Event, KeyCode};
+    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_util::Result;
 
     use crate::get_protos;
+
+    struct DelayedCallback;
+
+    impl DelayedCallback {
+        async fn run(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+            let id: i32 = jvm.get_field(&this, "test/DelayedCallback", "id", "I").await?;
+            let calls: i32 = jvm.get_static_field("test/DelayedCallback", "calls", "I").await?;
+            jvm.put_static_field("test/DelayedCallback", "calls", "I", calls * 10 + id).await
+        }
+    }
+
+    #[test]
+    fn delayed_callbacks_follow_deadlines_and_survive_gc() -> Result<()> {
+        let callback_proto = WieJavaClassProto {
+            name: "test/DelayedCallback",
+            parent_class: Some("java/lang/Object"),
+            interfaces: vec!["java/lang/Runnable"],
+            methods: vec![JavaMethodProto::new("run", "()V", DelayedCallback::run, MethodAccessFlags::PUBLIC)],
+            fields: vec![
+                JavaFieldProto::new("id", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("calls", "I", FieldAccessFlags::STATIC),
+            ],
+            access_flags: ClassAccessFlags::PUBLIC,
+        };
+        let jlet_proto = WieJavaClassProto {
+            name: "test/DelayedJlet",
+            parent_class: Some("org/kwis/msp/lcdui/Jlet"),
+            interfaces: vec![],
+            methods: vec![],
+            fields: vec![],
+            access_flags: ClassAccessFlags::PUBLIC,
+        };
+        let clock = TestClock::new();
+        run_jvm_test_with_system(
+            Box::new([wie_midp::get_protos().into(), get_protos().into(), Box::new([callback_proto, jlet_proto])]),
+            Box::new(TestPlatform::with_clock(clock.clone())),
+            move |jvm, system| async move {
+                let _midlet = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await?;
+                let jlet = jvm.instantiate_class("test/DelayedJlet").await?;
+                let _: () = jvm.invoke_special(&jlet, "org/kwis/msp/lcdui/Jlet", "<init>", "()V", ()).await?;
+                let display = jvm
+                    .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", ())
+                    .await?;
+                let queue = jvm
+                    .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                    .await?;
+                let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
+                for (id, timeout) in [(1, 80), (2, 20), (3, -1)] {
+                    let frame = jvm.push_native_frame(&[]);
+                    let mut callback: ClassInstanceRef<DelayedCallback> = jvm.instantiate_class("test/DelayedCallback").await?.into();
+                    jvm.put_field(&mut callback, "test/DelayedCallback", "id", "I", id).await?;
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &display,
+                            "org/kwis/msp/lcdui/Display",
+                            "callSerially",
+                            "(Ljava/lang/Runnable;I)V",
+                            (callback, timeout),
+                        )
+                        .await?;
+                    drop(frame);
+                }
+                jvm.collect_garbage().unwrap();
+                assert_eq!(jvm.get_static_field::<i32>("test/DelayedCallback", "calls", "I").await?, 0);
+                for (time, expected) in [(0, 3), (19, 3), (20, 32), (79, 32), (80, 321), (100, 321)] {
+                    clock.set(time);
+                    system.event_queue().push(Event::Keydown(KeyCode::NUM1));
+                    system.event_queue().push(Event::Redraw);
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    assert_eq!(jvm.load_array::<i32>(&event, 0, 1).await?, [1], "input must precede due callbacks");
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    assert_eq!(jvm.get_static_field::<i32>("test/DelayedCallback", "calls", "I").await?, expected);
+                }
+                let error = jvm
+                    .invoke_virtual::<_, ()>(
+                        &display,
+                        "org/kwis/msp/lcdui/Display",
+                        "callSerially",
+                        "(Ljava/lang/Runnable;I)V",
+                        (None, 1),
+                    )
+                    .await
+                    .unwrap_err();
+                let JavaError::JavaException(exception) = error;
+                assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
+                Ok(())
+            },
+        )
+    }
 
     #[test]
     fn test_get_key_code() -> Result<()> {

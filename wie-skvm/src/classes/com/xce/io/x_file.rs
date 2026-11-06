@@ -1,6 +1,9 @@
 use alloc::vec;
 
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm::{
+    Array, ClassInstanceRef, Jvm, Result as JvmResult,
+    runtime::{JavaLangClassLoader, JavaLangString},
+};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::{
@@ -263,21 +266,11 @@ impl XFile {
         jvm.put_field(&mut this, "com/xce/io/XFile", "offset", "I", 0).await?;
 
         if mode == READ_RESOURCE {
-            let class = jvm
-                .invoke_virtual(&this, "com/xce/io/XFile", "getClass", "()Ljava/lang/Class;", ())
-                .await?;
-            let resource_stream: ClassInstanceRef<InputStream> = jvm
-                .invoke_virtual(
-                    &class,
-                    "java/lang/Class",
-                    "getResourceAsStream",
-                    "(Ljava/lang/String;)Ljava/io/InputStream;",
-                    (name,),
-                )
-                .await?;
-            if resource_stream.is_null() {
+            let resource_name = JavaLangString::to_rust_string(jvm, &name).await?;
+            let class_loader = JavaLangClassLoader::get_system_class_loader(jvm).await?;
+            let Some(resource_stream) = JavaLangClassLoader::get_resource_as_stream(jvm, &class_loader, &resource_name).await? else {
                 return Err(jvm.exception("java/io/IOException", "Resource not found").await);
-            }
+            };
 
             jvm.put_field(&mut this, "com/xce/io/XFile", "is", "Ljava/io/InputStream;", resource_stream)
                 .await?;
@@ -649,9 +642,10 @@ mod tests {
 
     use jvm::{Array, ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
     use rustjava_runtime::classes::java::lang::String;
-    use test_utils::run_jvm_test;
+    use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
+    use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 
-    use super::{FILE_JAR, READ_RESOURCE, XFile};
+    use super::{READ_RESOURCE, XFile};
     use crate::classes::com::xce::io::{file_input_stream::FileInputStream, file_output_stream::FileOutputStream};
 
     #[test]
@@ -912,77 +906,84 @@ mod tests {
 
     #[test]
     fn stream_constructors_validate_mode_and_resource_reset_restores_offset() {
-        let result = run_jvm_test(
-            Box::new([Box::new([XFile::as_proto(), FileInputStream::as_proto(), FileOutputStream::as_proto()])]),
-            |jvm| async move {
-                let write: i32 = jvm.get_static_field("com/xce/io/XFile", "WRITE", "I").await?;
-                let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "write-only.dat").await?.into();
-                let write_only: ClassInstanceRef<XFile> = jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, write)).await?.into();
-                let available_result: JvmResult<i32> = jvm.invoke_virtual(&write_only, "com/xce/io/XFile", "available", "()I", ()).await;
-                let Err(JavaError::JavaException(exception)) = available_result else {
-                    panic!("write-only XFile reported readable bytes");
-                };
-                assert!(jvm.is_instance(&*exception, "java/io/IOException"));
+        let result = run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |_jvm, system| async move {
+            system.filesystem().add_virtual(
+                "resource.jar",
+                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/resource.jar")).to_vec(),
+            );
+            let jvm = JvmSupport::new_jvm(
+                &system,
+                Some("resource.jar"),
+                Box::new([Box::new([XFile::as_proto(), FileInputStream::as_proto(), FileOutputStream::as_proto()])]),
+                &[],
+                RustJavaJvmImplementation,
+            )
+            .await
+            .unwrap();
+            let write: i32 = jvm.get_static_field("com/xce/io/XFile", "WRITE", "I").await?;
+            let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "write-only.dat").await?.into();
+            let write_only: ClassInstanceRef<XFile> = jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, write)).await?.into();
+            let available_result: JvmResult<i32> = jvm.invoke_virtual(&write_only, "com/xce/io/XFile", "available", "()I", ()).await;
+            let Err(JavaError::JavaException(exception)) = available_result else {
+                panic!("write-only XFile reported readable bytes");
+            };
+            assert!(jvm.is_instance(&*exception, "java/io/IOException"));
 
-                let input_result: JvmResult<ClassInstanceRef<FileInputStream>> = jvm
-                    .new_class("com/xce/io/FileInputStream", "(Lcom/xce/io/XFile;)V", (write_only.clone(),))
-                    .await
-                    .map(Into::into);
-                let Err(JavaError::JavaException(exception)) = input_result else {
-                    panic!("FileInputStream accepted a write-only XFile");
-                };
-                assert!(jvm.is_instance(&*exception, "java/io/IOException"));
+            let input_result: JvmResult<ClassInstanceRef<FileInputStream>> = jvm
+                .new_class("com/xce/io/FileInputStream", "(Lcom/xce/io/XFile;)V", (write_only.clone(),))
+                .await
+                .map(Into::into);
+            let Err(JavaError::JavaException(exception)) = input_result else {
+                panic!("FileInputStream accepted a write-only XFile");
+            };
+            assert!(jvm.is_instance(&*exception, "java/io/IOException"));
 
-                let mut one_byte = jvm.instantiate_array("B", 1).await?;
-                jvm.store_array(&mut one_byte, 0, [1_i8]).await?;
-                let _: i32 = jvm
-                    .invoke_virtual(&write_only, "com/xce/io/XFile", "write", "([BII)I", (one_byte, 0, 1))
-                    .await?;
-                let _: () = jvm.invoke_virtual(&write_only, "com/xce/io/XFile", "close", "()V", ()).await?;
+            let mut one_byte = jvm.instantiate_array("B", 1).await?;
+            jvm.store_array(&mut one_byte, 0, [1_i8]).await?;
+            let _: i32 = jvm
+                .invoke_virtual(&write_only, "com/xce/io/XFile", "write", "([BII)I", (one_byte, 0, 1))
+                .await?;
+            let _: () = jvm.invoke_virtual(&write_only, "com/xce/io/XFile", "close", "()V", ()).await?;
 
-                let read: i32 = jvm.get_static_field("com/xce/io/XFile", "READ", "I").await?;
-                let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "write-only.dat").await?.into();
-                let read_only: ClassInstanceRef<XFile> = jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, read)).await?.into();
-                let output_result: JvmResult<ClassInstanceRef<FileOutputStream>> = jvm
-                    .new_class("com/xce/io/FileOutputStream", "(Lcom/xce/io/XFile;)V", (read_only,))
-                    .await
-                    .map(Into::into);
-                let Err(JavaError::JavaException(exception)) = output_result else {
-                    panic!("FileOutputStream accepted a read-only XFile");
-                };
-                assert!(jvm.is_instance(&*exception, "java/io/IOException"));
+            let read: i32 = jvm.get_static_field("com/xce/io/XFile", "READ", "I").await?;
+            let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "write-only.dat").await?.into();
+            let read_only: ClassInstanceRef<XFile> = jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, read)).await?.into();
+            let output_result: JvmResult<ClassInstanceRef<FileOutputStream>> = jvm
+                .new_class("com/xce/io/FileOutputStream", "(Lcom/xce/io/XFile;)V", (read_only,))
+                .await
+                .map(Into::into);
+            let Err(JavaError::JavaException(exception)) = output_result else {
+                panic!("FileOutputStream accepted a read-only XFile");
+            };
+            assert!(jvm.is_instance(&*exception, "java/io/IOException"));
 
-                let mut resource: ClassInstanceRef<XFile> = jvm.new_class("com/xce/io/XFile", "(I)V", (0,)).await?.into();
-                let mut bytes = jvm.instantiate_array("B", 2).await?;
-                jvm.store_array(&mut bytes, 0, [7_i8, 8]).await?;
-                let stream = jvm.new_class("java/io/ByteArrayInputStream", "([B)V", (bytes,)).await?;
-                jvm.put_field(&mut resource, "com/xce/io/XFile", "type", "I", FILE_JAR).await?;
-                jvm.put_field(&mut resource, "com/xce/io/XFile", "mode", "I", READ_RESOURCE).await?;
-                jvm.put_field(&mut resource, "com/xce/io/XFile", "is", "Ljava/io/InputStream;", stream)
-                    .await?;
+            let name = JavaLangString::from_rust_string(&jvm, "data.bin").await?;
+            let resource: ClassInstanceRef<XFile> = jvm
+                .new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, READ_RESOURCE))
+                .await?
+                .into();
 
-                let input: ClassInstanceRef<FileInputStream> = jvm
-                    .new_class("com/xce/io/FileInputStream", "(Lcom/xce/io/XFile;)V", (resource.clone(),))
-                    .await?
-                    .into();
-                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "mark", "(I)V", (2,)).await?;
-                assert_eq!(
-                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
-                        .await?,
-                    7
-                );
-                assert_eq!(jvm.get_field::<i32>(&resource, "com/xce/io/XFile", "offset", "I").await?, 1);
-                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "reset", "()V", ()).await?;
-                assert_eq!(jvm.get_field::<i32>(&resource, "com/xce/io/XFile", "offset", "I").await?, 0);
-                assert_eq!(
-                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
-                        .await?,
-                    7
-                );
+            let input: ClassInstanceRef<FileInputStream> = jvm
+                .new_class("com/xce/io/FileInputStream", "(Lcom/xce/io/XFile;)V", (resource.clone(),))
+                .await?
+                .into();
+            let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "mark", "(I)V", (2,)).await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                    .await?,
+                7
+            );
+            assert_eq!(jvm.get_field::<i32>(&resource, "com/xce/io/XFile", "offset", "I").await?, 1);
+            let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "reset", "()V", ()).await?;
+            assert_eq!(jvm.get_field::<i32>(&resource, "com/xce/io/XFile", "offset", "I").await?, 0);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                    .await?,
+                7
+            );
 
-                Ok(())
-            },
-        );
+            Ok(())
+        });
 
         assert!(result.is_ok(), "JVM test failed: {result:?}");
     }

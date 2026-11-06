@@ -6,6 +6,7 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
 // class com.skt.m.Device
 pub struct Device;
@@ -190,8 +191,19 @@ impl Device {
         Ok(())
     }
 
-    async fn invoke_wap_browser(_jvm: &Jvm, _context: &mut WieJvmContext, url: ClassInstanceRef<String>) -> JvmResult<()> {
+    async fn invoke_wap_browser(jvm: &Jvm, context: &mut WieJvmContext, url: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::invokeWapBrowser({url:?})");
+
+        if url.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "url is null").await);
+        }
+        let midlet: ClassInstanceRef<MIDlet> = jvm
+            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(&midlet, "javax/microedition/midlet/MIDlet", "destroyApp", "(Z)V", (true,))
+            .await?;
+        context.system().platform().exit();
 
         Ok(())
     }
@@ -241,40 +253,82 @@ impl Device {
 
 #[cfg(test)]
 mod tests {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, sync::Arc, vec};
+    use core::sync::atomic::{AtomicU32, Ordering};
 
-    use jvm::{Array, ClassInstanceRef, runtime::JavaLangString};
+    use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+    use jvm_class_proto::JavaMethodProto;
+    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
     use rustjava_runtime::classes::java::lang::String;
-    use test_utils::run_jvm_test;
+    use test_utils::{TestPlatform, TestPlatformEvent, run_jvm_test_with_system};
+    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
     use crate::classes::com::skt::m::Call;
 
     use super::Device;
 
+    async fn destroy_app(_: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<MIDlet>, unconditional: bool) -> JvmResult<()> {
+        assert!(unconditional);
+        context.system().platform().write_stdout(b"destroyed");
+        Ok(())
+    }
+
     #[test]
-    fn unsupported_call_and_device_install_operations_report_failure() {
-        run_jvm_test(Box::new([[Device::as_proto(), Call::as_proto()].into()]), |jvm| async move {
-            let phone_number: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "01012345678").await?.into();
-            let connected: bool = jvm
-                .invoke_static("com/skt/m/Call", "connect", "(Ljava/lang/String;)Z", (phone_number,))
-                .await?;
-            assert!(!connected);
+    fn device_operations_report_failures_and_browser_destroys_midlet_before_exit() {
+        let events = Arc::new(AtomicU32::new(0));
+        let recorded = events.clone();
+        let platform = TestPlatform::with_event_handler(move |event| match event {
+            TestPlatformEvent::Stdout(bytes) => {
+                assert_eq!(bytes, b"destroyed");
+                assert_eq!(recorded.fetch_add(1, Ordering::SeqCst), 0);
+            }
+            TestPlatformEvent::Exit => assert_eq!(recorded.fetch_add(1, Ordering::SeqCst), 1),
+        });
+        let midlet_proto = WieJavaClassProto {
+            name: "test/BrowserMidlet",
+            parent_class: Some("javax/microedition/midlet/MIDlet"),
+            interfaces: vec![],
+            methods: vec![JavaMethodProto::new("destroyApp", "(Z)V", destroy_app, MethodAccessFlags::PROTECTED)],
+            fields: vec![],
+            access_flags: ClassAccessFlags::PUBLIC,
+        };
+        run_jvm_test_with_system(
+            Box::new([wie_midp::get_protos().into(), [Device::as_proto(), Call::as_proto(), midlet_proto].into()]),
+            Box::new(platform),
+            move |jvm, _system| async move {
+                let phone_number: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "01012345678").await?.into();
+                let connected: bool = jvm
+                    .invoke_static("com/skt/m/Call", "connect", "(Ljava/lang/String;)Z", (phone_number,))
+                    .await?;
+                assert!(!connected);
 
-            let disconnected: bool = jvm.invoke_static("com/skt/m/Call", "disconnect", "()Z", ()).await?;
-            assert!(!disconnected);
+                let disconnected: bool = jvm.invoke_static("com/skt/m/Call", "disconnect", "()Z", ()).await?;
+                assert!(!disconnected);
 
-            let call_supported: bool = jvm.invoke_static("com/skt/m/Call", "isSupported", "()Z", ()).await?;
-            assert!(!call_supported);
+                let call_supported: bool = jvm.invoke_static("com/skt/m/Call", "isSupported", "()Z", ()).await?;
+                assert!(!call_supported);
 
-            let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "standby.sis").await?.into();
-            let data: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 3).await?.into();
-            let installed: bool = jvm
-                .invoke_static("com/skt/m/Device", "setSISImage", "(ILjava/lang/String;[B)Z", (0, name, data))
-                .await?;
-            assert!(!installed);
+                let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "standby.sis").await?.into();
+                let data: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 3).await?.into();
+                let installed: bool = jvm
+                    .invoke_static("com/skt/m/Device", "setSISImage", "(ILjava/lang/String;[B)Z", (0, name, data))
+                    .await?;
+                assert!(!installed);
 
-            Ok(())
-        })
+                let midlet = jvm.instantiate_class("test/BrowserMidlet").await?;
+                let _: () = jvm
+                    .invoke_special(&midlet, "javax/microedition/midlet/MIDlet", "<init>", "()V", ())
+                    .await?;
+                let url = JavaLangString::from_rust_string(&jvm, "http://example.invalid/").await?;
+                let _: () = jvm
+                    .invoke_static("com/skt/m/Device", "invokeWapBrowser", "(Ljava/lang/String;)V", (url,))
+                    .await?;
+                assert_eq!(events.load(Ordering::SeqCst), 2);
+
+                Ok(())
+            },
+        )
         .unwrap();
     }
 }

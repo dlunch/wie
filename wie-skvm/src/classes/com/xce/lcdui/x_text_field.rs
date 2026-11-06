@@ -301,10 +301,68 @@ mod tests {
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_midp::classes::javax::microedition::lcdui::{Canvas, Graphics, Image};
 
+    use crate::classes::com::xce::lcdui::{TextComponent, TextComponentHandler};
+
     use super::XTextField;
 
     struct TrackingCanvas;
     struct TrackingGraphics;
+    struct TrackingComponent;
+
+    impl TrackingComponent {
+        fn as_proto() -> WieJavaClassProto {
+            WieJavaClassProto {
+                name: "test/TrackingComponent",
+                parent_class: Some("com/xce/lcdui/XTextField"),
+                interfaces: vec!["com/xce/lcdui/TextComponent"],
+                methods: vec![
+                    JavaMethodProto::new("size", "()I", Self::size, MethodAccessFlags::PUBLIC),
+                    JavaMethodProto::new("getConstraints", "()I", Self::constraints, MethodAccessFlags::PUBLIC),
+                    JavaMethodProto::new("getMaxSize", "()I", Self::max_size, MethodAccessFlags::PUBLIC),
+                    JavaMethodProto::new("insert", "(C)V", Self::insert, MethodAccessFlags::PUBLIC),
+                    JavaMethodProto::new("delete", "()V", Self::delete, MethodAccessFlags::PUBLIC),
+                    JavaMethodProto::new("repaint", "()V", Self::repaint, MethodAccessFlags::PUBLIC),
+                ],
+                fields: vec![],
+                access_flags: ClassAccessFlags::PUBLIC,
+            }
+        }
+
+        async fn size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+            let text = jvm
+                .invoke_virtual(&this, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                .await?;
+            jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await
+        }
+
+        async fn constraints(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+            jvm.get_field(&this, "com/xce/lcdui/XTextField", "constraints", "I").await
+        }
+
+        async fn max_size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+            jvm.invoke_special(&this, "com/xce/lcdui/XTextField", "getMaxSize", "()I", ()).await
+        }
+
+        async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+            jvm.invoke_special(&this, "com/xce/lcdui/XTextField", "repaint", "()V", ()).await
+        }
+
+        async fn insert(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, value: JavaChar) -> JvmResult<()> {
+            jvm.invoke_virtual(&this, "com/xce/lcdui/XTextField", "inputChar", "(C)V", (value,)).await
+        }
+
+        async fn delete(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+            let text = jvm
+                .invoke_virtual(&this, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                .await?;
+            let size: i32 = jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await?;
+            let replacement: ClassInstanceRef<String> = jvm
+                .invoke_virtual(&text, "java/lang/String", "substring", "(II)Ljava/lang/String;", (0, size - 1))
+                .await?;
+            jvm.invoke_virtual(&this, "com/xce/lcdui/XTextField", "setText", "(Ljava/lang/String;)V", (replacement,))
+                .await
+        }
+    }
 
     impl TrackingCanvas {
         fn as_proto() -> WieJavaClassProto {
@@ -447,7 +505,16 @@ mod tests {
         let result = run_jvm_test(
             Box::new([
                 wie_midp::get_protos().into(),
-                [XTextField::as_proto(), TrackingCanvas::as_proto(), TrackingGraphics::as_proto()].into(),
+                [
+                    XTextField::as_proto(),
+                    TrackingCanvas::as_proto(),
+                    TrackingGraphics::as_proto(),
+                    TrackingComponent::as_proto(),
+                    TextComponent::as_proto(),
+                    TextComponentHandler::as_proto(),
+                    TextComponentHandler::implementation_proto(),
+                ]
+                .into(),
             ]),
             |jvm| async move {
                 let canvas: ClassInstanceRef<Canvas> = jvm.new_class("test/TrackingCanvas", "()V", ()).await?.into();
@@ -544,6 +611,58 @@ mod tests {
                     panic!("XTextField.setText accepted null");
                 };
                 assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
+
+                let mut component = jvm.instantiate_class("test/TrackingComponent").await?;
+                let empty = JavaLangString::from_rust_string(&jvm, "").await?;
+                let _: () = jvm
+                    .invoke_special(
+                        &component,
+                        "com/xce/lcdui/XTextField",
+                        "<init>",
+                        "(Ljava/lang/String;IILjavax/microedition/lcdui/Canvas;)V",
+                        (empty, 2, 2, canvas.clone()),
+                    )
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&component, "com/xce/lcdui/XTextField", "setBounds", "(IIII)V", (0, 0, 20, 10))
+                    .await?;
+                let handler = jvm
+                    .invoke_static(
+                        "com/xce/lcdui/TextComponentHandler",
+                        "getTextComponentHandler",
+                        "()Lcom/xce/lcdui/TextComponentHandler;",
+                        (),
+                    )
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &handler,
+                        "com/xce/lcdui/TextComponentHandler",
+                        "setTextComponent",
+                        "(Lcom/xce/lcdui/TextComponent;)V",
+                        (component.clone(),),
+                    )
+                    .await?;
+                for (key, expected) in [(49, "1"), (50, "12"), (51, "12"), (8, "1")] {
+                    assert!(
+                        jvm.invoke_virtual::<_, bool>(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (key,))
+                            .await?
+                    );
+                    let text = jvm
+                        .invoke_virtual(&component, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                        .await?;
+                    assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, expected);
+                }
+                jvm.put_field(&mut component, "com/xce/lcdui/XTextField", "constraints", "I", 0x20000)
+                    .await?;
+                let _: bool = jvm
+                    .invoke_virtual(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (57,))
+                    .await?;
+                let text = jvm
+                    .invoke_virtual(&component, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1");
+                assert_eq!(jvm.get_field::<i32>(&canvas, "test/TrackingCanvas", "repaintCount", "I").await?, 4);
 
                 Ok(())
             },

@@ -263,6 +263,7 @@ mod tests {
                 context.lr = resume;
                 thread_core.restore_context(&context);
                 push(&mut thread_core)?;
+                push(&mut thread_core)?;
                 YieldFuture::new().await;
 
                 let stack = context.sp;

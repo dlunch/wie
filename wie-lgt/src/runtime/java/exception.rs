@@ -97,8 +97,11 @@ pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
 
     let ptr_frame = support_context.ptr_current_exception_frame;
     let frame: [u32; FRAME_WORDS as usize] = read_generic(core, ptr_frame)?;
+    // Catch paths consume their delivered frame; explicit pops belong to enclosing tries.
+    support_context.ptr_current_exception_frame = frame[0];
     support_context.ptr_pending_exception = ptr_exception;
     write_generic(core, ptr_context, support_context)?;
+    Allocator::free(core, ptr_frame, FRAME_WORDS * size_of::<u32>() as u32)?;
 
     let context = ArmCoreContext {
         r0: frame[1],

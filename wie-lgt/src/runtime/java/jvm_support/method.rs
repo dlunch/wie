@@ -281,7 +281,7 @@ mod tests {
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
     use wie_jvm_support::{JvmImplementation, JvmSupport};
-    use wie_util::{Result, write_generic, write_null_terminated_string_bytes};
+    use wie_util::{Result, WieError, write_generic, write_null_terminated_string_bytes};
 
     use super::{JavaMethod, JavaMethodRunResult, RawJavaMethod};
     use crate::runtime::java::{
@@ -484,8 +484,12 @@ mod tests {
             catch_context.sp = ((catch_context.sp - size_of::<ArmCoreContext>() as u32) & !7) - 4;
             catch_context.lr = wrapper + 11;
             catch_context.cpsr = 0x3f;
-            core.restore_context(&catch_context);
+            let mut outer_catch_context = catch_context.clone();
+            outer_catch_context.lr = wrapper + 7;
+            core.restore_context(&outer_catch_context);
             exception::init(&mut core)?;
+            exception::push(&mut core)?;
+            core.restore_context(&catch_context);
             exception::push(&mut core)?;
             core.restore_context(&context);
 
@@ -496,10 +500,18 @@ mod tests {
             let pending = LgtJvmSupport::class_instance_from_raw(&core, exception::pending(&core)?);
             assert!(jvm.is_instance(&*pending, "org/kwis/msp/db/DataBaseRecordException"));
             assert_eq!(core.save_context().sp, context.sp);
-            exception::pop(&mut core)?;
-            assert_eq!(exception::pending(&core)?, 0);
+            let pending_raw = exception::pending(&core)?;
 
             register_java_system_svc_handler(&mut core, &jvm, 0)?;
+            let throw = get_java_interface_method(&mut core, 0x21)?;
+            write_generic(&mut core, wrapper + 16, throw)?;
+            let result: u32 = core.run_function(wrapper + 1, &[pending_raw]).await?;
+            assert_eq!(result, 1, "rethrow must continue at the outer handler");
+            assert_eq!(exception::pending(&core)?, pending_raw);
+            assert_eq!(core.save_context().sp, context.sp);
+            let result = core.run_function::<u32>(wrapper + 1, &[pending_raw]).await;
+            assert!(matches!(result, Err(WieError::JavaException(ptr_exception)) if ptr_exception == pending_raw));
+
             let initialize = get_java_interface_method(&mut core, 0x0d)?;
             write_generic(&mut core, wrapper + 16, initialize)?;
             let callback = Allocator::alloc(&mut core, 16)?;
@@ -525,6 +537,8 @@ mod tests {
             )
             .await
             .unwrap();
+            core.restore_context(&outer_catch_context);
+            exception::push(&mut core)?;
             core.restore_context(&catch_context);
             exception::push(&mut core)?;
             core.restore_context(&context);
@@ -539,7 +553,13 @@ mod tests {
                 pending.class_definition().name()
             );
             assert_eq!(core.save_context().sp, context.sp);
+            let pending_raw = exception::pending(&core)?;
+            // A handled inner catch returns without popping; the normal outer try still pops.
             exception::pop(&mut core)?;
+            assert_eq!(exception::pending(&core)?, 0);
+            write_generic(&mut core, wrapper + 16, throw)?;
+            let result = core.run_function::<u32>(wrapper + 1, &[pending_raw]).await;
+            assert!(matches!(result, Err(WieError::JavaException(ptr_exception)) if ptr_exception == pending_raw));
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())

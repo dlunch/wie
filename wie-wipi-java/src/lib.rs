@@ -6,7 +6,7 @@ pub mod classes;
 
 use wie_jvm_support::WieJavaClassProto;
 
-pub fn get_protos() -> [WieJavaClassProto; 48] {
+pub fn get_protos() -> [WieJavaClassProto; 49] {
     [
         crate::classes::org::kwis::msf::io::Network::as_proto(),
         crate::classes::org::kwis::msf::io::SchemeNotFoundException::as_proto(),
@@ -37,6 +37,7 @@ pub fn get_protos() -> [WieJavaClassProto; 48] {
         crate::classes::org::kwis::msp::lcdui::JletWrapper::as_proto(),
         crate::classes::org::kwis::msp::lwc::Component::as_proto(),
         crate::classes::org::kwis::msp::lwc::ContainerComponent::as_proto(),
+        crate::classes::org::kwis::msp::lwc::DialogComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::EventListener::as_proto(),
         crate::classes::org::kwis::msp::lwc::FormComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::GrabKeyListener::as_proto(),

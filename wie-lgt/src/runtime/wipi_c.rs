@@ -55,9 +55,8 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::Printk => kernel::printk.into_body(),
         WIPICSvcId::Sprintk => kernel::sprintk.into_body(),
         WIPICSvcId::Execute => kernel::execute.into_body(),
-        WIPICSvcId::Unk13 => unk13.into_body(),
-        WIPICSvcId::GetCurProgramId => kernel::get_cur_program_id.into_body(),
         WIPICSvcId::Exit => kernel::exit.into_body(),
+        WIPICSvcId::GetCurProgramId => kernel::get_cur_program_id.into_body(),
         WIPICSvcId::GetProgramName => kernel::get_program_name.into_body(),
         WIPICSvcId::Alloc => kernel::alloc.into_body(),
         WIPICSvcId::Calloc => kernel::calloc.into_body(),
@@ -289,14 +288,6 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     write_null_terminated_string_bytes(context, result, app_id.as_bytes())?;
 
     Ok(result)
-}
-
-async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk13({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    // kernel
-
-    Ok(0)
 }
 
 async fn unk14(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
