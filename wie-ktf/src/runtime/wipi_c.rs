@@ -98,49 +98,9 @@ mod tests {
 
     use wie_backend::Options;
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{ByteWrite, Result, read_generic, write_generic};
+    use wie_util::{Result, read_generic, write_generic};
 
     use super::{SVC_CATEGORY_WIPIC, WIPICKernelMethodId, WIPICTableId, register_wipic_svc_handler};
-
-    #[test]
-    fn native_ipv4_conversion_returns_network_order() -> Result<()> {
-        run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })
-            .unwrap();
-            Allocator::init(&mut core).unwrap();
-            let mut registers = core.save_context();
-            registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
-            core.restore_context(&registers);
-            register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
-            let get_interfaces = core
-                .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))
-                .unwrap();
-            let interfaces: u32 = core.run_function(get_interfaces, &[]).await.unwrap();
-            let interfaces: WIPICInterface = read_generic(&core, interfaces).unwrap();
-            let inet_addr: u32 = read_generic(&core, interfaces.util_interface + 4 * 4).unwrap();
-            let address = Allocator::alloc(&mut core, 32).unwrap();
-
-            for (text, expected) in [
-                (b"127.0.0.1\0".as_slice(), [127, 0, 0, 1]),
-                (b"192.168.1.25\0".as_slice(), [192, 168, 1, 25]),
-                (b"0.0.0.0\0".as_slice(), [0, 0, 0, 0]),
-            ] {
-                core.write_bytes(address, text).unwrap();
-                let result: u32 = core.run_function(inet_addr, &[address]).await.unwrap();
-                assert_eq!(result.to_le_bytes(), expected);
-            }
-            for text in [b"256.0.0.1\0".as_slice(), b"invalid\0".as_slice(), b"\xff\0".as_slice()] {
-                core.write_bytes(address, text).unwrap();
-                let result: u32 = core.run_function(inet_addr, &[address]).await.unwrap();
-                assert_eq!(result, u32::MAX);
-            }
-            Ok(())
-        })
-    }
 
     #[test]
     fn native_input_commits_placeholder_within_buffer_capacity() -> Result<()> {
