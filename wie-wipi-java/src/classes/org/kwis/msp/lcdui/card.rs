@@ -1161,7 +1161,7 @@ mod test {
                 let second_dirty = backend_image.get_pixel(5, 2);
                 let second_outside = backend_image.get_pixel(6, 2);
                 let below_dirty = backend_image.get_pixel(5, 4);
-                assert_eq!((outside.r, outside.g, outside.b), (0, 0, 0));
+                assert_eq!((outside.r, outside.g, outside.b), (0xff, 0xff, 0xff));
                 assert_eq!((first_outside.r, first_outside.g, first_outside.b), (0xff, 0, 0));
                 assert_eq!((first_dirty.r, first_dirty.g, first_dirty.b), (0xff, 0, 0));
                 assert_eq!((second_dirty.r, second_dirty.g, second_dirty.b), (0, 0xff, 0));

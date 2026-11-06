@@ -21,6 +21,12 @@ impl MIDlet {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
+                    "checkPermission",
+                    "(Ljava/lang/String;)I",
+                    Self::check_permission,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new(
                     "getAppProperty",
                     "(Ljava/lang/String;)Ljava/lang/String;",
                     Self::get_app_property,
@@ -77,6 +83,12 @@ impl MIDlet {
         .await?;
 
         Ok(())
+    }
+
+    async fn check_permission(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, permission: ClassInstanceRef<String>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.midlet.MIDlet::checkPermission({this:?}, {permission:?})");
+
+        Ok(1)
     }
 
     async fn get_app_property(

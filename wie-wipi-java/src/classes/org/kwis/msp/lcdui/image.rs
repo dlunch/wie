@@ -84,10 +84,11 @@ impl Image {
                 ),
                 JavaMethodProto::new("setTransparentColor", "(I)V", Self::set_transparent_color, MethodAccessFlags::PUBLIC),
             ],
-            fields: vec![
-                JavaFieldProto::new("midpImage", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("mutable", "Z", FieldAccessFlags::PRIVATE),
-            ],
+            fields: vec![JavaFieldProto::new(
+                "midpImage",
+                "Ljavax/microedition/lcdui/Image;",
+                FieldAccessFlags::PRIVATE,
+            )],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }
@@ -103,8 +104,7 @@ impl Image {
             "Ljavax/microedition/lcdui/Image;",
             None,
         )
-        .await?;
-        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Image", "mutable", "Z", false).await
+        .await
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Image>, image: ClassInstanceRef<MidpImage>) -> JvmResult<()> {
@@ -119,8 +119,6 @@ impl Image {
             image,
         )
         .await?;
-        jvm.put_field(&mut this, "org/kwis/msp/lcdui/Image", "mutable", "Z", false).await?;
-
         Ok(())
     }
 
@@ -147,12 +145,10 @@ impl Image {
             )
             .await?;
 
-        let mut instance: ClassInstanceRef<Image> = jvm
+        let instance: ClassInstanceRef<Image> = jvm
             .new_class("org/kwis/msp/lcdui/Image", "(Ljavax/microedition/lcdui/Image;)V", (midp_image,))
             .await?
             .into();
-        jvm.put_field(&mut instance, "org/kwis/msp/lcdui/Image", "mutable", "Z", true).await?;
-
         Ok(instance)
     }
 
@@ -225,6 +221,11 @@ impl Image {
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({this:?})");
 
+        let mutable: bool = jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Image", "isMutable", "()Z", ()).await?;
+        if !mutable {
+            return Ok(None.into());
+        }
+
         let midp_image: ClassInstanceRef<MidpImage> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
             .await?;
@@ -271,7 +272,11 @@ impl Image {
     async fn is_mutable(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Image::isMutable({this:?})");
 
-        jvm.get_field(&this, "org/kwis/msp/lcdui/Image", "mutable", "Z").await
+        let image = Self::midp_image(jvm, &this).await?;
+        if image.is_null() {
+            return Ok(false);
+        }
+        jvm.invoke_virtual(&image, "javax/microedition/lcdui/Image", "isMutable", "()Z", ()).await
     }
 
     async fn is_animated(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<bool> {
@@ -424,6 +429,10 @@ mod test {
                 !jvm.invoke_virtual::<_, bool>(&clone, "org/kwis/msp/lcdui/Image", "isMutable", "()Z", ())
                     .await?
             );
+            let immutable_graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(&clone, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
+                .await?;
+            assert!(immutable_graphics.is_null());
             assert!(
                 !jvm.invoke_virtual::<_, bool>(&source, "org/kwis/msp/lcdui/Image", "isAnimated", "()Z", ())
                     .await?
