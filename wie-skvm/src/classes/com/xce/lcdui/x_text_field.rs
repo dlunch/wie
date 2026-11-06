@@ -301,7 +301,10 @@ mod tests {
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_midp::classes::javax::microedition::lcdui::{Canvas, Graphics, Image};
 
-    use crate::classes::com::xce::lcdui::{TextComponent, TextComponentHandler};
+    use crate::classes::{
+        com::xce::lcdui::{TextComponent, TextComponentHandler},
+        net::wie::WieTextComponentHandler,
+    };
 
     use super::XTextField;
 
@@ -512,7 +515,7 @@ mod tests {
                     TrackingComponent::as_proto(),
                     TextComponent::as_proto(),
                     TextComponentHandler::as_proto(),
-                    TextComponentHandler::implementation_proto(),
+                    WieTextComponentHandler::as_proto(),
                 ]
                 .into(),
             ]),

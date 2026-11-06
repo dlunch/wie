@@ -36,7 +36,7 @@ pub fn get_protos() -> [WieJavaClassProto; 31] {
         classes::com::xce::lcdui::Toolkit::as_proto(),
         classes::com::xce::lcdui::XDisplay::as_proto(),
         classes::com::xce::lcdui::XTextField::as_proto(),
-        classes::com::xce::lcdui::TextComponentHandler::implementation_proto(),
         classes::net::wie::WieAudioClip::as_proto(),
+        classes::net::wie::WieTextComponentHandler::as_proto(),
     ]
 }

@@ -47,25 +47,9 @@ impl TextComponentHandler {
         }
     }
 
-    pub fn implementation_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/TextComponentHandler",
-            parent_class: Some("com/xce/lcdui/TextComponentHandler"),
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init_handler, MethodAccessFlags::PUBLIC)],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.TextComponentHandler::<init>({this:?})");
         jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await
-    }
-
-    async fn init_handler(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("net.wie.TextComponentHandler::<init>({this:?})");
-        jvm.invoke_special(&this, "com/xce/lcdui/TextComponentHandler", "<init>", "()V", ()).await
     }
 
     async fn get_handler(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
@@ -76,7 +60,7 @@ impl TextComponentHandler {
         if !instance.is_null() {
             return Ok(instance);
         }
-        let instance = jvm.new_class("net/wie/TextComponentHandler", "()V", ()).await?;
+        let instance = jvm.new_class("net/wie/WieTextComponentHandler", "()V", ()).await?;
         jvm.put_static_field(
             "com/xce/lcdui/TextComponentHandler",
             "instance",
