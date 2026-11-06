@@ -231,7 +231,7 @@ pub fn get_uic_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(12, "MC_uicSetCallback"),
         gen_stub(13, "MC_uicSetEventHandler"),
         gen_stub(14, "MC_uicSetFont"),
-        gen_stub(15, "MC_uicGetFont"),
+        uic::get_font.into_body(),
         gen_stub(16, "MC_uicSetFgColor"),
         gen_stub(17, "MC_uicSetBgColor"),
         gen_stub(18, "MC_uicSetLabel"),
@@ -371,7 +371,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
         WIPICTableId::Kernel => match WIPICKernelMethodId::try_from(function_id).ok()? {
             WIPICKernelMethodId::Printk => Some(kernel::printk.into_body()),
             WIPICKernelMethodId::Sprintk => Some(kernel::sprintk.into_body()),
-            WIPICKernelMethodId::GetExecNames => Some(gen_stub(2, "MC_knlGetExecNames")),
+            WIPICKernelMethodId::GetExecNames => Some(kernel::get_exec_names.into_body()),
             WIPICKernelMethodId::Execute => Some(kernel::execute.into_body()),
             WIPICKernelMethodId::Mexecute => Some(gen_stub(4, "MC_knlMExecute")),
             WIPICKernelMethodId::Load => Some(gen_stub(5, "MC_knlLoad")),

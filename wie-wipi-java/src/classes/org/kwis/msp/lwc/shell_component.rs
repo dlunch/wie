@@ -27,6 +27,7 @@ impl ShellComponent {
                 ),
                 JavaMethodProto::new("show", "()V", Self::show, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("hide", "()V", Self::hide, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("layout", "()V", Self::layout, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC,
@@ -78,6 +79,12 @@ impl ShellComponent {
 
     async fn hide(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.ShellComponent::hide({this:?})");
+
+        Ok(())
+    }
+
+    async fn layout(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.ShellComponent::layout({this:?})");
 
         Ok(())
     }

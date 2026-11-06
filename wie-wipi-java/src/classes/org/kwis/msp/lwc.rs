@@ -4,6 +4,7 @@ mod container_component;
 mod event_listener;
 mod form_component;
 mod grab_key_listener;
+mod label_component;
 mod shell_component;
 mod text_box_component;
 mod text_component;
@@ -11,6 +12,6 @@ mod text_field_component;
 
 pub use self::{
     annunciator_component::AnnunciatorComponent, component::Component, container_component::ContainerComponent, event_listener::EventListener,
-    form_component::FormComponent, grab_key_listener::GrabKeyListener, shell_component::ShellComponent, text_box_component::TextBoxComponent,
-    text_component::TextComponent, text_field_component::TextFieldComponent,
+    form_component::FormComponent, grab_key_listener::GrabKeyListener, label_component::LabelComponent, shell_component::ShellComponent,
+    text_box_component::TextBoxComponent, text_component::TextComponent, text_field_component::TextFieldComponent,
 };

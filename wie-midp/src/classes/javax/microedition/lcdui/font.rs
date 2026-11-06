@@ -23,6 +23,7 @@ impl Font {
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getBaselinePosition", "()I", Self::get_baseline_position, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "substringWidth",
@@ -129,6 +130,12 @@ impl Font {
         tracing::warn!("stub javax.microedition.lcdui.Font::getHeight");
 
         Ok(Self::HEIGHT) // TODO: hardcoded
+    }
+
+    async fn get_baseline_position(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::getBaselinePosition({this:?})");
+
+        Ok(10)
     }
 
     async fn get_default_font(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {

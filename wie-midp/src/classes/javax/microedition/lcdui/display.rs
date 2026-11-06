@@ -75,6 +75,8 @@ impl Display {
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::empty()),
                 JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("vibrate", "(I)Z", Self::vibrate, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isColor", "()Z", Self::is_color, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("flashBacklight", "(I)Z", Self::flash_backlight, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
@@ -762,6 +764,22 @@ impl Display {
         context.system().platform().vibrate(duration.max(0) as u64, 100);
 
         Ok(true)
+    }
+
+    async fn is_color(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::isColor({this:?})");
+
+        Ok(true)
+    }
+
+    async fn flash_backlight(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, duration: i32) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::flashBacklight({this:?}, {duration})");
+
+        if duration < 0 {
+            return Err(jvm.exception("java/lang/IllegalArgumentException", "duration is negative").await);
+        }
+
+        Ok(false)
     }
 
     async fn repaint(

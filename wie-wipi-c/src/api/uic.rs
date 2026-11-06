@@ -51,6 +51,12 @@ pub async fn set_fg_color(_context: &mut dyn WIPICContext, cc: u32, color: u32) 
     Ok(())
 }
 
+pub async fn get_font(_context: &mut dyn WIPICContext, cc: WIPICWord) -> Result<i32> {
+    tracing::warn!("stub MC_uicGetFont({cc:#x})");
+
+    Ok(0)
+}
+
 pub async fn set_bg_color(_context: &mut dyn WIPICContext, cc: u32, color: u32) -> Result<()> {
     tracing::warn!("stub MC_uicSetBgColor({cc:#x}, {color:#x})");
     Ok(())
