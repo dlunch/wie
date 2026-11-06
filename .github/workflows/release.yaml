@@ -588,6 +588,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     concurrency:
       group: release-publisher-${{ github.repository }}
       cancel-in-progress: false
@@ -610,6 +612,11 @@ jobs:
           pattern: release-*
           path: release-assets
           merge-multiple: true
+
+      - name: Attest release artifacts
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/*
 
       - name: Publish GitHub release
         run: bash .github/scripts/release/publish.sh
