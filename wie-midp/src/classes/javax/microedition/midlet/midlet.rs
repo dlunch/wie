@@ -33,6 +33,12 @@ impl MIDlet {
                     Self::notify_destroyed,
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
+                JavaMethodProto::new(
+                    "resumeRequest",
+                    "()V",
+                    Self::resume_request,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
             ],
             fields: vec![
                 JavaFieldProto::new(
@@ -91,6 +97,12 @@ impl MIDlet {
 
     async fn notify_destroyed(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyDestroyed({this:?})");
+
+        Ok(())
+    }
+
+    async fn resume_request(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.midlet.MIDlet::resumeRequest({this:?})");
 
         Ok(())
     }

@@ -24,6 +24,7 @@ impl Component {
                 JavaMethodProto::new("setFocus", "()V", Self::set_focus, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getX", "()I", Self::get_x, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("repaint", "()V", Self::repaint, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_area, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
@@ -80,6 +81,12 @@ impl Component {
 
     async fn get_width(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lwc.Component::getWidth({this:?})");
+
+        Ok(0)
+    }
+
+    async fn get_x(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::getX({this:?})");
 
         Ok(0)
     }

@@ -6,7 +6,7 @@ pub mod classes;
 
 use wie_jvm_support::WieJavaClassProto;
 
-pub fn get_protos() -> [WieJavaClassProto; 46] {
+pub fn get_protos() -> [WieJavaClassProto; 48] {
     [
         crate::classes::org::kwis::msf::io::Network::as_proto(),
         crate::classes::org::kwis::msf::io::SchemeNotFoundException::as_proto(),
@@ -40,6 +40,7 @@ pub fn get_protos() -> [WieJavaClassProto; 46] {
         crate::classes::org::kwis::msp::lwc::EventListener::as_proto(),
         crate::classes::org::kwis::msp::lwc::FormComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::GrabKeyListener::as_proto(),
+        crate::classes::org::kwis::msp::lwc::LabelComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::ShellComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::AnnunciatorComponent::as_proto(),
         crate::classes::org::kwis::msp::lwc::TextComponent::as_proto(),
@@ -47,6 +48,7 @@ pub fn get_protos() -> [WieJavaClassProto; 46] {
         crate::classes::org::kwis::msp::lwc::TextFieldComponent::as_proto(),
         crate::classes::org::kwis::msp::media::BaseClip::as_proto(),
         crate::classes::org::kwis::msp::media::Clip::as_proto(),
+        crate::classes::org::kwis::msp::media::MediaUnsupportedException::as_proto(),
         crate::classes::org::kwis::msp::media::Player::as_proto(),
         crate::classes::org::kwis::msp::media::PlayListener::as_proto(),
         crate::classes::org::kwis::msp::media::Vibrator::as_proto(),

@@ -37,6 +37,7 @@ impl Canvas {
                 JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new("setFullScreenMode", "(Z)V", Self::set_full_screen_mode, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("hasPointerEvents", "()Z", Self::has_pointer_events, MethodAccessFlags::PUBLIC),
                 // wie private methods
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
@@ -203,6 +204,12 @@ impl Canvas {
         tracing::warn!("stub javax.microedition.lcdui.Canvas::isDoubleBuffered({this:?})");
 
         Ok(true)
+    }
+
+    async fn has_pointer_events(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::hasPointerEvents({this:?})");
+
+        Ok(false)
     }
 
     async fn handle_key_event(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {

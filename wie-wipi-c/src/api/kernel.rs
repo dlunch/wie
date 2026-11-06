@@ -320,6 +320,19 @@ pub async fn execute(_context: &mut dyn WIPICContext, name: WIPICWord, parameter
     Ok(-9) // M_E_INVALID: the execution name does not identify an installed program.
 }
 
+pub async fn get_exec_names(
+    _context: &mut dyn WIPICContext,
+    program_name: WIPICWord,
+    version: WIPICWord,
+    vendor: WIPICWord,
+    buf: WIPICWord,
+    buf_size: i32,
+) -> Result<i32> {
+    tracing::warn!("stub MC_knlGetExecNames({program_name:#x}, {version:#x}, {vendor:#x}, {buf:#x}, {buf_size})");
+
+    Ok(0)
+}
+
 pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub MC_knlGetCurProgramID()");
 
