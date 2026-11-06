@@ -881,7 +881,7 @@ impl Graphics {
         jvm: &Jvm,
         _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Graphics>,
-        rgb_data: ClassInstanceRef<Array<i8>>,
+        rgb_data: ClassInstanceRef<Array<i32>>,
         offset: i32,
         scan_length: i32,
         x: i32,
@@ -894,8 +894,23 @@ impl Graphics {
             "javax.microedition.lcdui.Graphics::drawRGB({this:?}, {rgb_data:?}, {offset}, {scan_length}, {x}, {y}, {width}, {height}, {process_alpha})"
         );
 
-        // TODO proper scanlength support
-        let pixel_data: Vec<i32> = jvm.load_array(&rgb_data, offset as _, (width * height) as _).await?;
+        if rgb_data.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "rgbData is null").await);
+        }
+        if width <= 0 || height <= 0 {
+            return Ok(());
+        }
+        let first_row = i64::from(offset);
+        let last_row = first_row + i64::from(height - 1) * i64::from(scan_length);
+        let length = jvm.array_length(&rgb_data).await? as i64;
+        if first_row.min(last_row) < 0 || first_row.max(last_row) + i64::from(width) > length {
+            return Err(jvm.exception("java/lang/ArrayIndexOutOfBoundsException", "source is too small").await);
+        }
+        let mut pixel_data: Vec<i32> = Vec::new();
+        for row in 0..height {
+            let source = first_row + i64::from(row) * i64::from(scan_length);
+            pixel_data.extend(jvm.load_array::<i32>(&rgb_data, source as _, width as _).await?);
+        }
 
         let mut canvas = Self::canvas(jvm, &mut this).await?;
 
@@ -1150,7 +1165,7 @@ mod test {
             }
             for (x, y) in [(9, 9), (15, 15)] {
                 let color = backend_image.get_pixel(x, y);
-                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+                assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
             }
 
             Ok(())
@@ -1204,7 +1219,7 @@ mod test {
             assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00));
             for (x, y) in [(9, 9), (15, 15)] {
                 let color = backend_image.get_pixel(x, y);
-                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+                assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
             }
 
             Ok(())
@@ -1232,7 +1247,7 @@ mod test {
             let backend_image = Image::image(&jvm, &image).await?;
             for (x, y) in [(0, 0), (2, 2), (21, 21)] {
                 let color = backend_image.get_pixel(x, y);
-                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+                assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
             }
 
             Ok(())
@@ -1267,7 +1282,7 @@ mod test {
             let backend_image = Image::image(&jvm, &image).await?;
             for (x, y) in [(0, 0), (50, 50)] {
                 let color = backend_image.get_pixel(x, y);
-                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+                assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
             }
 
             Ok(())
@@ -1293,9 +1308,9 @@ mod test {
                 assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00), "y={y}");
             }
             let color = backend_image.get_pixel(2, 6);
-            assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
             let color = backend_image.get_pixel(3, 2);
-            assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
 
             Ok(())
         })
@@ -1326,7 +1341,53 @@ mod test {
             let color = backend_image.get_pixel(10, 10);
             assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00));
             let color = backend_image.get_pixel(0, 0);
-            assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
+
+            let mut data = jvm.instantiate_array("I", 7).await?;
+            jvm.store_array(&mut data, 0, [0i32, 0xff0000, 0x00ff00, 0, 0x0000ff, 0xffff00, 0])
+                .await?;
+            for (offset, stride, expected) in [
+                (1, 3, [0xff0000u32, 0x00ff00, 0x0000ff, 0xffff00]),
+                (4, -3, [0x0000ff, 0xffff00, 0xff0000, 0x00ff00]),
+                (1, 0, [0xff0000, 0x00ff00, 0xff0000, 0x00ff00]),
+            ] {
+                let _: () = jvm
+                    .invoke_virtual(
+                        &graphics,
+                        "javax/microedition/lcdui/Graphics",
+                        "drawRGB",
+                        "([IIIIIIIZ)V",
+                        (data.clone(), offset, stride, 0, 0, 2, 2, false),
+                    )
+                    .await?;
+                let output = jvm.instantiate_array("I", 4).await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &image,
+                        "javax/microedition/lcdui/Image",
+                        "getRGB",
+                        "([IIIIIII)V",
+                        (output.clone(), 0, 2, 10, 10, 2, 2),
+                    )
+                    .await?;
+                assert_eq!(
+                    jvm.load_array::<i32>(&output, 0, 4).await?,
+                    expected.map(|color| (color | 0xff000000) as i32)
+                );
+            }
+            let invalid = jvm
+                .invoke_virtual::<_, ()>(
+                    &graphics,
+                    "javax/microedition/lcdui/Graphics",
+                    "drawRGB",
+                    "([IIIIIIIZ)V",
+                    (data, 0, -3, 0, 0, 2, 2, false),
+                )
+                .await;
+            let Err(jvm::JavaError::JavaException(exception)) = invalid else {
+                panic!("invalid RGB draw succeeded")
+            };
+            assert!(jvm.is_instance(&*exception, "java/lang/ArrayIndexOutOfBoundsException"));
 
             Ok(())
         })

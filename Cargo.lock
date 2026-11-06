@@ -7872,6 +7872,7 @@ dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
  "dyn-clone",
+ "encoding_rs",
  "jvm",
  "jvm-bytecode",
  "jvm-class-proto",

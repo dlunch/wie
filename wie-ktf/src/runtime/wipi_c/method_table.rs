@@ -175,7 +175,7 @@ pub fn get_util_method_table() -> Vec<WIPICMethodBody> {
         util::htons.into_body(),
         gen_stub(2, "MC_utilNtohl"),
         gen_stub(3, "MC_utilNtohs"),
-        gen_stub(4, "MC_utilInetAddrInt"),
+        util::inet_addr.into_body(),
         gen_stub(5, "MC_utilInetAddrStr"),
         gen_stub(6, "OEMC_utilHashbySHA1"),
     ]

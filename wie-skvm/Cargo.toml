@@ -11,6 +11,7 @@ async-trait = { workspace = true }
 bitflags = { workspace = true }
 bytemuck = { workspace = true }
 dyn-clone = { workspace = true }
+encoding_rs = { workspace = true }
 tracing = { workspace = true }
 
 jvm = { workspace = true }

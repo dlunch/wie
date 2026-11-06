@@ -562,13 +562,13 @@ mod test {
 
                 let target_image = Image::image(&jvm, &target).await?;
                 let untouched = target_image.get_pixel(0, 0);
-                assert_eq!((untouched.r, untouched.g, untouched.b), (0, 0, 0));
+                assert_eq!((untouched.r, untouched.g, untouched.b), (0xff, 0xff, 0xff));
                 let xored = target_image.get_pixel(1, 0);
                 assert_eq!((xored.r, xored.g, xored.b), (0, 0, 0));
                 let copied = target_image.get_pixel(2, 0);
                 assert_eq!((copied.r, copied.g, copied.b), (0xab, 0xcd, 0xef));
                 let clipped = target_image.get_pixel(3, 0);
-                assert_eq!((clipped.r, clipped.g, clipped.b), (0, 0, 0));
+                assert_eq!((clipped.r, clipped.g, clipped.b), (0xff, 0xff, 0xff));
 
                 let _: () = jvm
                     .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "invertRect", "(IIII)V", (0, 0, 4, 1))
@@ -577,7 +577,7 @@ mod test {
                 let inverted = target_image.get_pixel(1, 0);
                 assert_eq!((inverted.r, inverted.g, inverted.b), (0xff, 0xff, 0xff));
                 let outside_clip = target_image.get_pixel(3, 0);
-                assert_eq!((outside_clip.r, outside_clip.g, outside_clip.b), (0, 0, 0));
+                assert_eq!((outside_clip.r, outside_clip.g, outside_clip.b), (0xff, 0xff, 0xff));
 
                 let _: () = jvm
                     .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "invertRect", "(IIII)V", (0, 0, 0, 1))
