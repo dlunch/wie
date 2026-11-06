@@ -5,7 +5,7 @@ set -euo pipefail
 target_sha=$(git rev-parse 'HEAD^{commit}')
 previous_tag=
 
-if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+if [[ "$GITHUB_REF" == "refs/heads/main" || "$GITHUB_REF" == "refs/heads/release-artifact-attestations" ]]; then
   channel=nightly
   frontend_url=https://wie-dev.dlunch.net/
   release_tag="nightly-${target_sha:0:12}"
