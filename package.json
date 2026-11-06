@@ -23,7 +23,7 @@
     "webpack-dev-server": "^6.1.0"
   },
   "devDependencies": {
-    "@sentry/webpack-plugin": "^11.10.0",
+    "@sentry/webpack-plugin": "^11.11.0",
     "@types/node": "^26.6.6",
     "@types/webpack": "^5.28.5",
     "copy-webpack-plugin": "^14.0.0",
