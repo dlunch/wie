@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use jvm::{
     Jvm,
@@ -37,6 +37,7 @@ impl WIPICContext for KtfWIPICContext {
         let ptr = Allocator::alloc(&mut self.core, size + 12)?; // all allocation has indirect pointer
         write_generic(&mut self.core, ptr, ptr + 4)?;
         write_generic(&mut self.core, ptr + 4, size)?;
+        self.core.write_bytes(ptr + 12, &vec![0; size as usize])?;
 
         Ok(WIPICIndirectPtr(ptr))
     }
@@ -185,15 +186,43 @@ mod tests {
 
     use bytemuck::Zeroable;
 
-    use test_utils::TestPlatform;
-    use wie_backend::{DefaultTaskRunner, System};
+    use test_utils::{TestPlatform, run_jvm_test_with_system};
+    use wie_backend::{DefaultTaskRunner, Options, System};
     use wie_core_arm::{Allocator, ArmCore};
     use wie_jvm_support::JvmSupport;
-    use wie_util::{Result, write_generic};
-    use wie_wipi_c::api::kernel;
+    use wie_util::{ByteRead, ByteWrite, Result, write_generic};
+    use wie_wipi_c::{WIPICContext, api::kernel};
 
     use super::KtfWIPICContext;
     use crate::runtime::{KtfJvmSupport, KtfJvmThreadContext};
+
+    #[test]
+    fn indirect_allocations_clear_reused_payloads() -> Result<()> {
+        run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                aot: None,
+                profile: None,
+            })
+            .unwrap();
+            Allocator::init(&mut core).unwrap();
+            let mut context = KtfWIPICContext::new(core, system, jvm);
+
+            for size in [84, 1024] {
+                let memory = kernel::alloc(&mut context, size).await.unwrap();
+                let address = context.data_ptr(memory).unwrap();
+                context.write_bytes(address, &alloc::vec![0xa5; size as usize]).unwrap();
+                kernel::free(&mut context, memory).await.unwrap();
+
+                let reused = kernel::alloc(&mut context, size).await.unwrap();
+                let mut bytes = alloc::vec![0xff; size as usize];
+                context.read_bytes(context.data_ptr(reused).unwrap(), &mut bytes).unwrap();
+                assert!(bytes.iter().all(|byte| *byte == 0));
+                kernel::free(&mut context, reused).await.unwrap();
+            }
+            Ok(())
+        })
+    }
 
     #[test]
     fn timer_fault_diagnostics_survive_java_exception_restoration() -> Result<()> {
