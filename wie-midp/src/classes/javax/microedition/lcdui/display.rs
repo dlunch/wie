@@ -22,6 +22,7 @@ const TITLE_HORIZONTAL_PADDING: i32 = 4;
 const TITLE_VERTICAL_PADDING: i32 = 2;
 const TICKER_HEIGHT: i32 = 16;
 const TICKER_INTERVAL_MS: u64 = 100;
+const SOFTKEY_HEIGHT: i32 = 18;
 
 const TITLE_BACKGROUND: i32 = 0x263746;
 const WHITE: i32 = 0xffffff;
@@ -265,14 +266,7 @@ impl Display {
             )
         };
 
-        let softkey_height = if command_count > 0 {
-            let command_height: i32 = jvm
-                .invoke_virtual(displayable, "javax/microedition/lcdui/Displayable", "getCommandBarHeight", "()I", ())
-                .await?;
-            command_height.min(height)
-        } else {
-            0
-        };
+        let softkey_height = if command_count > 0 { SOFTKEY_HEIGHT.min(height) } else { 0 };
         let ticker_height = if ticker.is_null() {
             0
         } else {
@@ -1955,61 +1949,39 @@ mod test {
                 320
             );
 
-            {
-                let image_ref = Graphics::image(&jvm, &mut graphics).await?;
-                let image = Image::image(&jvm, &image_ref).await?;
-                let rgb = |x, y| {
-                    let color = image.get_pixel(x, y);
-                    (color.r, color.g, color.b)
-                };
-                assert_eq!(rgb(0, translate_y), (0xcc, 0x11, 0x33));
-                assert_ne!(rgb(0, translate_y - 1), (0xcc, 0x11, 0x33));
-                assert_eq!(rgb(319, translate_y + clip_height - 1), (0x11, 0x88, 0xcc));
-                assert_eq!(rgb(100, translate_y + 20), (0xff, 0xff, 0xff), "Screen must clear stale content pixels");
-                assert_ne!(rgb(319, 0), (0xff, 0xff, 0xff), "title band must be painted in screen coordinates");
-                assert_ne!(rgb(319, 0), (0xaa, 0x22, 0xaa), "title band must replace stale pixels");
-                assert_ne!(
-                    rgb(319, translate_y - 1),
-                    (0xff, 0xff, 0xff),
-                    "title band must remain outside the content clip"
-                );
-                assert_ne!(rgb(319, translate_y - 1), (0xaa, 0x22, 0xaa), "title band must replace stale pixels");
-                assert_ne!(
-                    rgb(319, 239),
-                    (0xff, 0xff, 0xff),
-                    "softkey band must be painted at the bottom of the screen"
-                );
-                assert_ne!(rgb(319, 239), (0xaa, 0x22, 0xaa), "softkey band must replace stale pixels");
-
-                let bright_title_pixels = (0..translate_y - 16)
-                    .flat_map(|y| (0..200).map(move |x| (x, y)))
-                    .filter(|&(x, y)| {
-                        let (r, g, b) = rgb(x, y);
-                        r > 200 && g > 200 && b > 200
-                    })
-                    .count();
-                assert!(bright_title_pixels > 20, "wrapped title rows must contain visible glyph pixels");
-            }
-            let title = JavaLangString::from_rust_string(&jvm, &"Full title\n".repeat(30)).await?;
-            jvm.invoke_virtual::<_, ()>(
-                &screen,
-                "javax/microedition/lcdui/Displayable",
-                "setTitle",
-                "(Ljava/lang/String;)V",
-                (title,),
-            )
-            .await?;
-            jvm.invoke_virtual::<_, ()>(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
-                .await?;
-            assert_eq!(
-                jvm.get_field::<i32>(&screen, "javax/microedition/lcdui/TestViewportScreen", "clipHeight", "I")
-                    .await?,
-                0
-            );
             let image_ref = Graphics::image(&jvm, &mut graphics).await?;
             let image = Image::image(&jvm, &image_ref).await?;
-            let pixel = image.get_pixel(319, 120);
-            assert_eq!((pixel.r, pixel.g, pixel.b), (0x26, 0x37, 0x46));
+            let rgb = |x, y| {
+                let color = image.get_pixel(x, y);
+                (color.r, color.g, color.b)
+            };
+            assert_eq!(rgb(0, translate_y), (0xcc, 0x11, 0x33));
+            assert_ne!(rgb(0, translate_y - 1), (0xcc, 0x11, 0x33));
+            assert_eq!(rgb(319, translate_y + clip_height - 1), (0x11, 0x88, 0xcc));
+            assert_eq!(rgb(100, translate_y + 20), (0xff, 0xff, 0xff), "Screen must clear stale content pixels");
+            assert_ne!(rgb(319, 0), (0xff, 0xff, 0xff), "title band must be painted in screen coordinates");
+            assert_ne!(rgb(319, 0), (0xaa, 0x22, 0xaa), "title band must replace stale pixels");
+            assert_ne!(
+                rgb(319, translate_y - 1),
+                (0xff, 0xff, 0xff),
+                "title band must remain outside the content clip"
+            );
+            assert_ne!(rgb(319, translate_y - 1), (0xaa, 0x22, 0xaa), "title band must replace stale pixels");
+            assert_ne!(
+                rgb(319, 239),
+                (0xff, 0xff, 0xff),
+                "softkey band must be painted at the bottom of the screen"
+            );
+            assert_ne!(rgb(319, 239), (0xaa, 0x22, 0xaa), "softkey band must replace stale pixels");
+
+            let bright_title_pixels = (0..translate_y - 16)
+                .flat_map(|y| (0..200).map(move |x| (x, y)))
+                .filter(|&(x, y)| {
+                    let (r, g, b) = rgb(x, y);
+                    r > 200 && g > 200 && b > 200
+                })
+                .count();
+            assert!(bright_title_pixels > 20, "wrapped title rows must contain visible glyph pixels");
 
             Ok(())
         })

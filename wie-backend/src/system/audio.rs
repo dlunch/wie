@@ -36,9 +36,8 @@ impl Audio {
         Ok(audio_handle)
     }
 
-    pub fn play(&mut self, audio_handle: AudioHandle, repeat: bool) -> Result<u64, AudioError> {
+    pub fn play(&mut self, audio_handle: AudioHandle, repeat: bool) -> Result<(), AudioError> {
         let sequence = self.files.get(&audio_handle).cloned().ok_or(AudioError::InvalidHandle)?;
-        let duration = sequence.duration;
 
         self.stop(audio_handle);
         self.playing.insert(audio_handle);
@@ -48,7 +47,7 @@ impl Audio {
             repeat,
         });
 
-        Ok(duration)
+        Ok(())
     }
 
     pub fn stop(&mut self, audio_handle: AudioHandle) {

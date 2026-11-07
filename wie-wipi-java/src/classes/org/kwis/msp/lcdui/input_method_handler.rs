@@ -109,62 +109,38 @@ mod tests {
     #[test]
     fn input_modes_respect_constructor_constraints() -> Result<()> {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let handler = jvm.new_class("org/kwis/msp/lcdui/InputMethodHandler", "(I)V", (0,)).await?;
-            let initial: i32 = jvm
-                .invoke_virtual(&handler, "org/kwis/msp/lcdui/InputMethodHandler", "getCurrentMode", "()I", ())
-                .await?;
-            assert_eq!(initial, 0);
-            for mode in [2, 1, 3, 0] {
-                let accepted: bool = jvm
-                    .invoke_virtual(&handler, "org/kwis/msp/lcdui/InputMethodHandler", "setCurrentMode", "(I)Z", (mode,))
-                    .await?;
-                assert!(accepted);
-                let current: i32 = jvm
-                    .invoke_virtual(&handler, "org/kwis/msp/lcdui/InputMethodHandler", "getCurrentMode", "()I", ())
-                    .await?;
-                assert_eq!(current, mode);
+            let class = "org/kwis/msp/lcdui/InputMethodHandler";
+            for (constraint, initial, mode, accepted) in [
+                (0, 0, 2, true),
+                (1, 3, 0, false),
+                (2, 3, 0, false),
+                (5, 3, 0, false),
+                (3, 0, 2, false),
+                (4, 0, 2, false),
+                (3, 0, 1, true),
+                (4, 0, 3, true),
+            ] {
+                let handler = jvm.new_class(class, "(I)V", (constraint,)).await?;
+                assert_eq!(jvm.invoke_virtual::<_, i32>(&handler, class, "getCurrentMode", "()I", ()).await?, initial);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, bool>(&handler, class, "setCurrentMode", "(I)Z", (mode,)).await?,
+                    accepted
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&handler, class, "getCurrentMode", "()I", ()).await?,
+                    if accepted { mode } else { initial }
+                );
             }
+            let handler = jvm.new_class(class, "(I)V", (0,)).await?;
             for mode in [-1, 4] {
-                let result: JvmResult<bool> = jvm
-                    .invoke_virtual(&handler, "org/kwis/msp/lcdui/InputMethodHandler", "setCurrentMode", "(I)Z", (mode,))
-                    .await;
+                let result: JvmResult<bool> = jvm.invoke_virtual(&handler, class, "setCurrentMode", "(I)Z", (mode,)).await;
                 let Err(JavaError::JavaException(exception)) = result else {
                     panic!("unsupported input mode was accepted");
                 };
                 assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
-                let current: i32 = jvm
-                    .invoke_virtual(&handler, "org/kwis/msp/lcdui/InputMethodHandler", "getCurrentMode", "()I", ())
-                    .await?;
-                assert_eq!(current, 0);
+                assert_eq!(jvm.invoke_virtual::<_, i32>(&handler, class, "getCurrentMode", "()I", ()).await?, 0);
             }
-
-            for constraint in [1, 2, 5] {
-                let numeric = jvm.new_class("org/kwis/msp/lcdui/InputMethodHandler", "(I)V", (constraint,)).await?;
-                let current: i32 = jvm
-                    .invoke_virtual(&numeric, "org/kwis/msp/lcdui/InputMethodHandler", "getCurrentMode", "()I", ())
-                    .await?;
-                assert_eq!(current, 3);
-                let accepted: bool = jvm
-                    .invoke_virtual(&numeric, "org/kwis/msp/lcdui/InputMethodHandler", "setCurrentMode", "(I)Z", (0,))
-                    .await?;
-                assert!(!accepted);
-                let current: i32 = jvm
-                    .invoke_virtual(&numeric, "org/kwis/msp/lcdui/InputMethodHandler", "getCurrentMode", "()I", ())
-                    .await?;
-                assert_eq!(current, 3);
-            }
-            for constraint in [3, 4] {
-                let latin = jvm.new_class("org/kwis/msp/lcdui/InputMethodHandler", "(I)V", (constraint,)).await?;
-                let accepted: bool = jvm
-                    .invoke_virtual(&latin, "org/kwis/msp/lcdui/InputMethodHandler", "setCurrentMode", "(I)Z", (2,))
-                    .await?;
-                assert!(!accepted);
-                let accepted: bool = jvm
-                    .invoke_virtual(&latin, "org/kwis/msp/lcdui/InputMethodHandler", "setCurrentMode", "(I)Z", (1,))
-                    .await?;
-                assert!(accepted);
-            }
-            let result = jvm.new_class("org/kwis/msp/lcdui/InputMethodHandler", "(I)V", (6,)).await;
+            let result = jvm.new_class(class, "(I)V", (6,)).await;
             let Err(JavaError::JavaException(exception)) = result else {
                 panic!("unsupported input constraint was accepted");
             };
