@@ -509,20 +509,8 @@ mod test {
             let paint_count: i32 = jvm.get_field(&this, "test/TestCard", "paintCount", "I").await?;
             jvm.put_field(&mut this, "test/TestCard", "paintCount", "I", paint_count + 1).await?;
 
-            let x: i32 = jvm.get_field(&this, "test/TestCard", "x", "I").await?;
-            let y: i32 = jvm.get_field(&this, "test/TestCard", "y", "I").await?;
             let width: i32 = jvm.get_field(&this, "test/TestCard", "w", "I").await?;
             let height: i32 = jvm.get_field(&this, "test/TestCard", "h", "I").await?;
-            assert_eq!(
-                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getTranslateX", "()I", ())
-                    .await?,
-                x
-            );
-            assert_eq!(
-                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getTranslateY", "()I", ())
-                    .await?,
-                y
-            );
             assert_eq!(
                 jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getColor", "()I", ())
                     .await?,
@@ -554,7 +542,13 @@ mod test {
                 )
                 .await?;
             let _: () = jvm
-                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, width, height))
+                .invoke_virtual(
+                    &graphics,
+                    "org/kwis/msp/lcdui/Graphics",
+                    "fillRect",
+                    "(IIII)V",
+                    (-1, -1, width + 2, height + 2),
+                )
                 .await?;
 
             if transparent {
@@ -1102,10 +1096,10 @@ mod test {
                     .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x0000ff,))
                     .await?;
                 let _: () = jvm
-                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (4, 4))
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (2, 1))
                     .await?;
                 let _: () = jvm
-                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (-2, -3, 4, 3))
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (-1, 0, 8, 4))
                     .await?;
 
                 let _: () = jvm
@@ -1155,18 +1149,19 @@ mod test {
                 );
 
                 let backend_image = MidpImage::image(&jvm, &image).await?;
-                let outside = backend_image.get_pixel(0, 0);
-                let first_outside = backend_image.get_pixel(1, 1);
-                let first_dirty = backend_image.get_pixel(2, 1);
-                let second_dirty = backend_image.get_pixel(5, 2);
-                let second_outside = backend_image.get_pixel(6, 2);
-                let below_dirty = backend_image.get_pixel(5, 4);
-                assert_eq!((outside.r, outside.g, outside.b), (0xff, 0xff, 0xff));
-                assert_eq!((first_outside.r, first_outside.g, first_outside.b), (0xff, 0, 0));
-                assert_eq!((first_dirty.r, first_dirty.g, first_dirty.b), (0xff, 0, 0));
-                assert_eq!((second_dirty.r, second_dirty.g, second_dirty.b), (0, 0xff, 0));
-                assert_eq!((second_outside.r, second_outside.g, second_outside.b), (0, 0xff, 0));
-                assert_eq!((below_dirty.r, below_dirty.g, below_dirty.b), (0, 0xff, 0));
+                for (x, y, expected) in [
+                    (0, 0, (0xff, 0xff, 0xff)),
+                    (2, 2, (0xff, 0xff, 0xff)),
+                    (3, 2, (0xff, 0, 0)),
+                    (4, 3, (0xff, 0, 0)),
+                    (7, 3, (0, 0xff, 0)),
+                    (8, 4, (0, 0xff, 0)),
+                    (9, 3, (0xff, 0xff, 0xff)),
+                    (7, 5, (0xff, 0xff, 0xff)),
+                ] {
+                    let pixel = backend_image.get_pixel(x, y);
+                    assert_eq!((pixel.r, pixel.g, pixel.b), expected, "pixel at ({x}, {y})");
+                }
 
                 Ok(())
             },

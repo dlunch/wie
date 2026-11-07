@@ -28,6 +28,12 @@ impl Jlet {
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
+                    "getCurrentJlet",
+                    "()Lorg/kwis/msp/lcdui/Jlet;",
+                    Self::get_current_jlet,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
                     "getEventQueue",
                     "()Lorg/kwis/msp/lcdui/EventQueue;",
                     Self::get_event_queue,
@@ -113,13 +119,19 @@ impl Jlet {
     }
 
     async fn get_active_jlet(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Jlet>> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet()");
 
         let jlet = jvm
             .get_static_field("org/kwis/msp/lcdui/Jlet", "currentJlet", "Lorg/kwis/msp/lcdui/Jlet;")
             .await?;
 
         Ok(jlet)
+    }
+
+    async fn get_current_jlet(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Jlet>> {
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getCurrentJlet()");
+        jvm.get_static_field("org/kwis/msp/lcdui/Jlet", "currentJlet", "Lorg/kwis/msp/lcdui/Jlet;")
+            .await
     }
 
     async fn get_event_queue(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<EventQueue>> {

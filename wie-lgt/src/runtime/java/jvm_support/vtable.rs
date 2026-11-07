@@ -20,8 +20,9 @@ pub struct JavaVtableEntry {
 pub struct JavaVtable;
 
 impl JavaVtable {
-    pub fn allocate(core: &mut ArmCore, entry_count: usize) -> Result<u32> {
-        Allocator::alloc(core, ((entry_count + 1) * size_of::<u32>()) as u32)
+    pub fn allocate(core: &mut ArmCore, entry_count: usize, runtime_method_count: usize) -> Result<u32> {
+        let allocation = Allocator::alloc(core, ((runtime_method_count + entry_count + 1) * size_of::<u32>()) as u32)?;
+        Ok(allocation + (runtime_method_count * size_of::<u32>()) as u32)
     }
 
     pub fn read(core: &ArmCore, ptr_vtable: u32, entry_count: usize, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
@@ -47,7 +48,10 @@ impl JavaVtable {
             .collect()
     }
 
-    pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<()> {
+    pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, entries: &[JavaVtableEntry], runtime_methods: &[JavaMethod]) -> Result<()> {
+        for (index, method) in runtime_methods.iter().enumerate() {
+            write_generic(core, ptr_vtable - ((index + 1) * size_of::<u32>()) as u32, method.target()?)?;
+        }
         write_generic(core, ptr_vtable, ptr_class)?;
         for (index, entry) in entries.iter().enumerate() {
             let target = if entry.target == 0 {
@@ -59,6 +63,23 @@ impl JavaVtable {
         }
 
         Ok(())
+    }
+
+    pub fn extend_runtime_methods(methods: &mut Vec<JavaMethod>, declared_methods: &[JavaMethod]) {
+        for method in declared_methods {
+            if method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) || method.name().starts_with('<') {
+                continue;
+            }
+
+            if let Some(inherited) = methods
+                .iter_mut()
+                .find(|inherited| inherited.name() == method.name() && inherited.descriptor() == method.descriptor())
+            {
+                *inherited = method.clone();
+            } else {
+                methods.push(method.clone());
+            }
+        }
     }
 
     pub fn build_from_compiler_vtable(

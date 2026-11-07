@@ -1,8 +1,8 @@
 use alloc::vec;
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::Object;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -73,7 +73,7 @@ impl Component {
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_area, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("focused", "Z", FieldAccessFlags::PRIVATE)],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
@@ -92,10 +92,11 @@ impl Component {
         Ok(true)
     }
 
-    async fn focus_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, focus: bool) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::focusNotify({this:?}, {focus:?})");
+    async fn focus_notify(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, focus: bool) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lwc.Component::focusNotify({this:?}, {focus:?})");
 
-        Ok(())
+        jvm.put_field(&mut this, "org/kwis/msp/lwc/Component", "focused", "Z", focus).await?;
+        jvm.invoke_virtual(&this, "org/kwis/msp/lwc/Component", "repaint", "()V", ()).await
     }
 
     async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
@@ -177,10 +178,10 @@ impl Component {
         Ok(false)
     }
 
-    async fn has_focus(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::hasFocus({this:?})");
+    async fn has_focus(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.lwc.Component::hasFocus({this:?})");
 
-        Ok(false)
+        jvm.get_field(&this, "org/kwis/msp/lwc/Component", "focused", "Z").await
     }
 
     async fn is_shown(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {

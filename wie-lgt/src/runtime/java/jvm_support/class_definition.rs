@@ -150,6 +150,12 @@ impl JavaClassDefinition {
             .map(|class| class.instance_field_word_count())
             .transpose()?
             .unwrap_or(0);
+        let native_field_word_count = class_abi.and_then(|class| class.instance_field_word_count);
+        let mut runtime_field_word_count = parent_class
+            .as_ref()
+            .map(|class| class.runtime_field_word_count())
+            .transpose()?
+            .unwrap_or(0);
         let mut static_field_word_index = 0usize;
         for (index, field) in field_protos.iter().enumerate() {
             let is_static = field.access_flags.contains(FieldAccessFlags::STATIC);
@@ -161,12 +167,16 @@ impl JavaClassDefinition {
                 .find(|fixed| fixed.name == field.name && fixed.descriptor == field.descriptor)
             {
                 fixed.index as usize
+            } else if native_field_word_count.is_some() {
+                // Runtime implementation fields precede the native ABI layout.
+                runtime_field_word_count += word_count;
+                0u32.wrapping_sub(runtime_field_word_count as u32) as usize
             } else {
                 instance_field_word_index
             };
             if is_static {
                 static_field_word_index += word_count;
-            } else {
+            } else if (word_index as i32) >= 0 {
                 instance_field_word_index = instance_field_word_index.max(word_index + word_count);
             }
 
@@ -201,8 +211,14 @@ impl JavaClassDefinition {
         } else {
             JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &methods).await?
         };
-        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
+        let mut runtime_methods = if let Some(parent_class) = &parent_class {
+            parent_class.runtime_methods(jvm).await?
+        } else {
+            Vec::new()
+        };
+        JavaVtable::extend_runtime_methods(&mut runtime_methods, &methods);
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len(), runtime_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods, &runtime_methods)?;
 
         write_generic(
             core,
@@ -214,7 +230,7 @@ impl JavaClassDefinition {
                 ptr_vtable: 0,
                 ptr_super_class,
                 ptr_interface_references: 0,
-                instance_field_word_count: instance_field_word_index as u16,
+                instance_field_word_count: native_field_word_count.unwrap_or(instance_field_word_index) as u16,
                 link_state: 0,
                 unk7: 0,
                 ptr_instance_reference_bitmap: 0,
@@ -280,8 +296,9 @@ impl JavaClassDefinition {
         for (index, ptr_name) in interface_name_pointers.into_iter().enumerate() {
             write_generic(core, ptr_interface_names + ((index + 1) * size_of::<u32>()) as u32, ptr_name)?;
         }
-        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
+        let runtime_methods = parent_class.runtime_methods(jvm).await?;
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len(), runtime_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods, &runtime_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(
             core,
@@ -415,6 +432,26 @@ impl JavaClassDefinition {
 
     pub fn instance_field_word_count(&self) -> Result<usize> {
         Ok(self.descriptor()?.instance_field_word_count as usize)
+    }
+
+    pub fn runtime_field_word_count(&self) -> Result<usize> {
+        let mut class = self.clone();
+        let mut count = 0;
+        loop {
+            for field in class.fields()? {
+                if !field.access_flags().contains(FieldAccessFlags::STATIC) {
+                    let index = field.word_index()? as i32;
+                    if index < 0 {
+                        count = count.max(index.unsigned_abs() as usize);
+                    }
+                }
+            }
+            let parent = class.descriptor()?.ptr_super_class;
+            if parent == 0 {
+                return Ok(count);
+            }
+            class = Self::from_raw(parent, &self.core);
+        }
     }
 
     pub async fn prepare_generated(&mut self, core: &mut ArmCore, jvm: &Jvm, generated_classes: u32) -> Result<()> {
@@ -614,26 +651,20 @@ impl JavaClassDefinition {
         let ptr_class_fields = Allocator::alloc(core, class_fields_size as u32)?;
         core.write_bytes(ptr_class_fields, &vec![0; class_fields_size])?;
 
-        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, self.ptr_raw, &virtual_methods)?;
+        let mut runtime_methods = if let Some(parent_class) = &parent_class {
+            parent_class.runtime_methods(jvm).await?
+        } else {
+            Vec::new()
+        };
+        JavaVtable::extend_runtime_methods(&mut runtime_methods, &declared_methods);
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len(), runtime_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, self.ptr_raw, &virtual_methods, &runtime_methods)?;
         descriptor.ptr_class_fields = ptr_class_fields;
         descriptor.vtable_count = virtual_methods.len() as u16;
         write_generic(core, self.raw()?.ptr_descriptor, descriptor)?;
         let mut raw = self.raw()?;
         raw.unk1 = ptr_vtable;
         write_generic(core, self.ptr_raw, raw)
-    }
-
-    pub fn set_vtable_entries(&self, entries: &[JavaVtableEntry]) -> Result<()> {
-        let mut core = self.core.clone();
-        let ptr_vtable = JavaVtable::allocate(&mut core, entries.len())?;
-        JavaVtable::write(&mut core, ptr_vtable, self.ptr_raw, entries)?;
-        let mut descriptor = self.descriptor()?;
-        descriptor.vtable_count = entries.len() as u16;
-        write_generic(&mut core, self.raw()?.ptr_descriptor, descriptor)?;
-        let mut raw = self.raw()?;
-        raw.unk1 = ptr_vtable;
-        write_generic(&mut core, self.ptr_raw, raw)
     }
 
     pub fn set_link_state(&self, link_state: u16) -> Result<()> {
@@ -723,7 +754,7 @@ impl JavaClassDefinition {
         write_generic(core, self.raw()?.ptr_descriptor, descriptor)
     }
 
-    pub async fn vtable_entries(&self, jvm: &Jvm) -> Result<Vec<JavaVtableEntry>> {
+    async fn method_hierarchy(&self, jvm: &Jvm) -> Result<Vec<(String, Vec<JavaMethod>)>> {
         let mut hierarchy = vec![self.clone()];
         while let Some(parent_name) = ClassDefinition::super_class_name(hierarchy.last().unwrap()) {
             let parent_class = jvm
@@ -738,10 +769,22 @@ impl JavaClassDefinition {
             hierarchy.push(parent_class);
         }
 
-        let known_classes = hierarchy
+        hierarchy
             .into_iter()
             .map(|class| Ok((ClassDefinition::name(&class).into_owned(), class.methods()?)))
-            .collect::<Result<Vec<_>>>()?;
+            .collect()
+    }
+
+    pub async fn runtime_methods(&self, jvm: &Jvm) -> Result<Vec<JavaMethod>> {
+        let mut methods = Vec::new();
+        for (_, declared_methods) in self.method_hierarchy(jvm).await?.into_iter().rev() {
+            JavaVtable::extend_runtime_methods(&mut methods, &declared_methods);
+        }
+        Ok(methods)
+    }
+
+    pub async fn vtable_entries(&self, jvm: &Jvm) -> Result<Vec<JavaVtableEntry>> {
+        let known_classes = self.method_hierarchy(jvm).await?;
         JavaVtable::read(&self.core, self.ptr_vtable()?, self.descriptor()?.vtable_count as usize, &known_classes)
     }
 }

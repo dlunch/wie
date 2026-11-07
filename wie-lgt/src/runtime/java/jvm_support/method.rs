@@ -8,7 +8,7 @@ use alloc::{
 };
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
-use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm::{ClassInstance, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use jvm_class_proto::JavaMethodProto;
 use jvm_types::MethodAccessFlags;
 use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
@@ -221,8 +221,16 @@ where
             .collect::<Vec<_>>();
 
         let codec = JavaValueCodec::new(core);
-        let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
-        let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
+        let mut args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
+        let result = if self.proto.access_flags.contains(MethodAccessFlags::ABSTRACT) {
+            let receiver: Box<dyn ClassInstance> = args.remove(0).into();
+            let class_name = receiver.class_definition().name().into_owned();
+            self.jvm
+                .invoke_virtual(&receiver, &class_name, &self.proto.name, &self.proto.descriptor, args)
+                .await
+        } else {
+            self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await
+        };
         let result = match result {
             Ok(value) => value,
             Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),
@@ -484,7 +492,7 @@ mod tests {
             catch_context.sp = ((catch_context.sp - size_of::<ArmCoreContext>() as u32) & !7) - 4;
             catch_context.lr = wrapper + 11;
             catch_context.cpsr = 0x3f;
-            let mut outer_catch_context = catch_context.clone();
+            let mut outer_catch_context = catch_context;
             outer_catch_context.lr = wrapper + 7;
             core.restore_context(&outer_catch_context);
             exception::init(&mut core)?;
@@ -620,8 +628,10 @@ mod tests {
                 .await
                 .unwrap();
             let method = class.method("call", "()V", false).unwrap();
+            let receiver = class.instantiate(&jvm).await.unwrap();
+            jvm.register_class(class, None).await.unwrap();
             let caller = core.save_context();
-            let result = method.run(&jvm, vec![JavaValue::Object(None)].into_boxed_slice()).await;
+            let result = method.run(&jvm, vec![JavaValue::Object(Some(receiver))].into_boxed_slice()).await;
             let Err(JavaError::JavaException(exception)) = result else {
                 panic!("abstract method target must throw AbstractMethodError");
             };
