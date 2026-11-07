@@ -62,8 +62,11 @@ impl WasmHost {
 
 #[async_trait::async_trait]
 impl DatabaseRepository for WasmHost {
+    async fn create(&self, name: &str, app_id: &str) {
+        self.request::<()>(StorageRequest::DbCreate { pid: app_id, name }).await;
+    }
+
     async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database> {
-        self.request::<()>(StorageRequest::DbOpen { pid: app_id, name }).await;
         Box::new(HostDatabase {
             host: self.clone(),
             pid: app_id.to_string(),
@@ -232,11 +235,11 @@ mod tests {
                 json!({"op": "fileTruncate", "pid": "app", "path": "save", "length": 0}),
             ),
             (
-                StorageRequest::DbOpen {
+                StorageRequest::DbCreate {
                     pid: "owner",
                     name: "records",
                 },
-                json!({"op": "dbOpen", "pid": "owner", "name": "records"}),
+                json!({"op": "dbCreate", "pid": "owner", "name": "records"}),
             ),
             (
                 StorageRequest::DbExists {

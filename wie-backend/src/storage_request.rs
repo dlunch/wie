@@ -14,7 +14,7 @@ pub enum StorageRequest<S = String, B = Vec<u8>> {
     FileTruncate { pid: S, path: S, length: usize },
     FileRemove { pid: S, path: S },
     FileUsage { pid: S },
-    DbOpen { pid: S, name: S },
+    DbCreate { pid: S, name: S },
     DbExists { pid: S, name: S },
     DbDelete { pid: S, name: S },
     RecordNextId { pid: S, name: S },

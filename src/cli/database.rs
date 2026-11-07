@@ -43,10 +43,16 @@ impl DatabaseRepository {
 
 #[async_trait::async_trait]
 impl wie_backend::DatabaseRepository for DatabaseRepository {
-    async fn open(&self, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
+    async fn create(&self, name: &str, app_id: &str) {
         let path = self.get_path_for_database(name, app_id);
+        tracing::trace!("Creating database at {path:?}");
+        fs::create_dir_all(path).unwrap();
+    }
 
-        Box::new(Database::new(path).unwrap())
+    async fn open(&self, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
+        Box::new(Database {
+            base_path: self.get_path_for_database(name, app_id),
+        })
     }
 
     async fn exists(&self, name: &str, app_id: &str) -> bool {
@@ -76,14 +82,6 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(base_path: PathBuf) -> anyhow::Result<Self> {
-        tracing::trace!("Opening database at {base_path:?}");
-
-        fs::create_dir_all(&base_path)?;
-
-        Ok(Self { base_path })
-    }
-
     fn find_empty_record_id(&self) -> RecordId {
         let mut record_id = 1; // XXX midp requires first record to be 1
 
@@ -157,13 +155,28 @@ impl wie_backend::Database for Database {
 mod tests {
     use std::path::{Path, PathBuf};
 
+    use wie_backend::DatabaseRepository as _;
+
     use super::DatabaseRepository;
 
-    #[test]
-    fn database_path_includes_db_segment() {
-        let repo = DatabaseRepository::new(Path::new("/tmp/wie_test"));
+    #[futures_test::test]
+    async fn database_creation_is_explicit_and_preserves_records() {
+        let root = tempfile::tempdir().unwrap();
+        let repo = DatabaseRepository::new(root.path());
         let path = repo.get_path_for_database("records", "app123");
-        assert_eq!(path, PathBuf::from("/tmp/wie_test/app123/db/records"));
+        assert_eq!(path, root.path().join("app123/db/records"));
+        let mut database = repo.open("records", "app123").await;
+        assert_eq!(database.get(1).await, None);
+        assert!(!repo.exists("records", "app123").await);
+        repo.create("records", "app123").await;
+        assert!(repo.exists("records", "app123").await);
+        assert!(database.get_record_ids().await.is_empty());
+        assert!(database.set(1, &[7, 8]).await);
+        repo.create("records", "app123").await;
+        assert_eq!(database.get(1).await, Some(vec![7, 8]));
+        assert!(repo.delete("records", "app123").await);
+        assert_eq!(repo.open("records", "app123").await.get(1).await, None);
+        assert!(!repo.exists("records", "app123").await);
     }
 
     #[test]

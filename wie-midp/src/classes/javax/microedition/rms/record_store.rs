@@ -238,11 +238,23 @@ impl RecordStore {
 
     async fn open_record_store(
         jvm: &Jvm,
-        _context: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         name: ClassInstanceRef<String>,
         create: bool,
     ) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::debug!("javax.microedition.rms.RecordStore::openRecordStore({name:?}, {create:?})");
+
+        let db_name = JavaLangString::to_rust_string(jvm, &name).await?;
+        let system = context.system();
+        let pid = system.pid().to_owned();
+        let repository = system.platform().database_repository();
+        if create {
+            repository.create(&db_name, &pid).await;
+        } else if !repository.exists(&db_name, &pid).await {
+            return Err(jvm
+                .exception("javax/microedition/rms/RecordStoreNotFoundException", "Record store not found")
+                .await);
+        }
 
         let store = jvm
             .new_class("javax/microedition/rms/RecordStore", "(Ljava/lang/String;)V", (name,))
@@ -430,6 +442,18 @@ mod test {
             Box::new([get_protos().into(), Box::new([PositiveRecordOrder::as_proto()])]),
             |jvm| async move {
                 let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "enumeration").await?.into();
+                let missing: JvmResult<ClassInstanceRef<RecordStore>> = jvm
+                    .invoke_static(
+                        "javax/microedition/rms/RecordStore",
+                        "openRecordStore",
+                        "(Ljava/lang/String;Z)Ljavax/microedition/rms/RecordStore;",
+                        (name.clone(), false),
+                    )
+                    .await;
+                let Err(JavaError::JavaException(exception)) = missing else {
+                    panic!("opening an absent record store without creation succeeded");
+                };
+                assert!(jvm.is_instance(&*exception, "javax/microedition/rms/RecordStoreNotFoundException"));
                 let store: ClassInstanceRef<RecordStore> = jvm
                     .invoke_static(
                         "javax/microedition/rms/RecordStore",

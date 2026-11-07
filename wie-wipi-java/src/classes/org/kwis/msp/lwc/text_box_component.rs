@@ -16,12 +16,10 @@ impl TextBoxComponent {
             name: "org/kwis/msp/lwc/TextBoxComponent",
             parent_class: Some("org/kwis/msp/lwc/TextComponent"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "<init>",
-                "(Ljava/lang/String;I)V",
-                Self::init,
-                MethodAccessFlags::PUBLIC,
-            )],
+            methods: vec![
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_height, MethodAccessFlags::PUBLIC),
+            ],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC,
         }
@@ -37,6 +35,29 @@ impl TextBoxComponent {
         tracing::warn!("stub org.kwis.msp.lwc.TextBoxComponent::<init>({this:?}, {data:?}, {constraint:?})");
 
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/lwc/TextComponent", "<init>", "()V", ()).await?;
+
+        Ok(())
+    }
+
+    async fn init_with_height(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<TextBoxComponent>,
+        data: ClassInstanceRef<String>,
+        constraint: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.TextBoxComponent::<init>({this:?}, {data:?}, {constraint}, {height})");
+
+        let _: () = jvm
+            .invoke_special(
+                &this,
+                "org/kwis/msp/lwc/TextBoxComponent",
+                "<init>",
+                "(Ljava/lang/String;I)V",
+                (data, constraint),
+            )
+            .await?;
 
         Ok(())
     }

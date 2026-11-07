@@ -5,7 +5,7 @@ export type StorageRequest =
   | { op: "fileRead"; pid: string; path: string; offset: number; count: number }
   | { op: "fileWrite"; pid: string; path: string; offset: number; data: number[] }
   | { op: "fileTruncate"; pid: string; path: string; length: number }
-  | { op: "dbOpen" | "dbExists" | "dbDelete" | "recordNextId" | "recordIds"; pid: string; name: string }
+  | { op: "dbCreate" | "dbExists" | "dbDelete" | "recordNextId" | "recordIds"; pid: string; name: string }
   | { op: "fileUsage"; pid: string }
   | { op: "fileRemove"; pid: string; path: string }
   | { op: "recordGet" | "recordDelete"; pid: string; name: string; id: number }

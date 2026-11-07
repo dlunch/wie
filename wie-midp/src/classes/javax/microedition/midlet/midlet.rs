@@ -33,6 +33,7 @@ impl MIDlet {
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
                 JavaMethodProto::new_abstract("startApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("destroyApp", "(Z)V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
                 JavaMethodProto::new(
                     "notifyDestroyed",
                     "()V",

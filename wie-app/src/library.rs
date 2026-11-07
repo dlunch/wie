@@ -237,8 +237,15 @@ mod tests {
             assert!(filesystem.exists("migrated_aid_00000000", "legacy").await);
             assert_eq!(repository.open("legacy-records", &first.id).await.get(1).await.unwrap(), [0, 255]);
             for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
+                assert!(!repository.exists("save", id).await);
                 let mut database = repository.open("save", id).await;
+                assert_eq!(database.get(1).await, None);
+                assert!(!repository.exists("save", id).await);
+                repository.create("save", id).await;
+                assert!(repository.exists("save", id).await);
                 assert!(database.set(1, data).await);
+                repository.create("save", id).await;
+                assert_eq!(database.get(1).await.as_deref(), Some(data));
                 assert_eq!(database.next_id().await, 2);
                 assert_eq!(filesystem.write(id, "save", 2, data).await, data.len());
             }
@@ -268,7 +275,7 @@ mod tests {
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
             for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
-                assert_eq!(repository.database("save", id).get(1).await.as_deref(), Some(data));
+                assert_eq!(repository.open("save", id).await.get(1).await.as_deref(), Some(data));
                 assert_eq!(filesystem.size(id, "save").await, Some(data.len() + 2));
                 let mut bytes = vec![0; data.len() + 2];
                 assert_eq!(filesystem.read(id, "save", 0, bytes.len(), &mut bytes).await, Some(bytes.len()));
@@ -290,6 +297,7 @@ mod tests {
 
             for pid in ["pid/./app", "pid/app"] {
                 for name in ["save:1", "save_1"] {
+                    repository.create(name, pid).await;
                     assert_eq!(repository.open(name, pid).await.add(format!("{pid}:{name}").as_bytes()).await, 1);
                 }
             }
@@ -337,8 +345,9 @@ mod tests {
             assert_eq!(reopened.next_id().await, 0);
 
             assert!(repository.delete("save", &first.id).await);
-            assert_eq!(repository.database("save", &first.id).get(1).await, None);
+            assert_eq!(repository.open("save", &first.id).await.get(1).await, None);
             assert!(!repository.exists("save", &first.id).await);
+            repository.create("save", &first.id).await;
             let mut reset = repository.open("save", &first.id).await;
             assert!(reset.get_record_ids().await.is_empty());
             assert_eq!(reset.add(b"reset").await, 1);

@@ -176,12 +176,14 @@ struct MemoryDatabaseRepository {
 
 #[async_trait::async_trait]
 impl DatabaseRepository for MemoryDatabaseRepository {
+    async fn create(&self, name: &str, app_id: &str) {
+        self.store.lock().entry((app_id.to_string(), name.to_string())).or_default();
+    }
+
     async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database> {
-        let key = (app_id.to_string(), name.to_string());
-        self.store.lock().entry(key.clone()).or_default();
         Box::new(MemoryDatabase {
             store: self.store.clone(),
-            key,
+            key: (app_id.to_string(), name.to_string()),
         })
     }
 
