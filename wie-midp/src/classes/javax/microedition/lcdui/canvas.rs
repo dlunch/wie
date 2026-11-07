@@ -96,6 +96,9 @@ impl Canvas {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?}, {x}, {y}, {width}, {height})");
 
+        if width <= 0 || height <= 0 {
+            return Ok(());
+        }
         let display: ClassInstanceRef<Display> = jvm
             .invoke_virtual(
                 &this,
@@ -309,6 +312,8 @@ mod test {
                     JavaFieldProto::new("clipY", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("clipWidth", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("clipHeight", "I", FieldAccessFlags::PUBLIC),
+                    JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PUBLIC),
+                    JavaFieldProto::new("repaintDuringPaint", "Z", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("sizeChangedCount", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("lastWidth", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("lastHeight", "I", FieldAccessFlags::PUBLIC),
@@ -330,6 +335,11 @@ mod test {
             mut this: ClassInstanceRef<Self>,
             graphics: ClassInstanceRef<Graphics>,
         ) -> JvmResult<()> {
+            let count: i32 = jvm
+                .get_field(&this, "javax/microedition/lcdui/TestRecordingCanvas", "paintCount", "I")
+                .await?;
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "paintCount", "I", count + 1)
+                .await?;
             for (field, method) in [
                 ("translateX", "getTranslateX"),
                 ("translateY", "getTranslateY"),
@@ -342,6 +352,22 @@ mod test {
                     .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", method, "()I", ())
                     .await?;
                 jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", field, "I", value)
+                    .await?;
+            }
+
+            if jvm
+                .get_field::<bool>(&this, "javax/microedition/lcdui/TestRecordingCanvas", "repaintDuringPaint", "Z")
+                .await?
+            {
+                jvm.put_field(
+                    &mut this,
+                    "javax/microedition/lcdui/TestRecordingCanvas",
+                    "repaintDuringPaint",
+                    "Z",
+                    false,
+                )
+                .await?;
+                jvm.invoke_virtual::<_, ()>(&this, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (4, 5, 6, 7))
                     .await?;
             }
 
@@ -460,7 +486,7 @@ mod test {
                     ("javax/microedition/lcdui/TestRecordingCanvas", false),
                     ("javax/microedition/lcdui/TestRecordingGameCanvas", true),
                 ] {
-                    let canvas: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                    let mut canvas: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
                     for (action, expected_key) in [
                         (1, MIDPKeyCode::UP),
                         (6, MIDPKeyCode::DOWN),
@@ -602,6 +628,42 @@ mod test {
                         for (x, y) in [(0, 0), (319, 239)] {
                             let pixel = image.get_pixel(x, y);
                             assert_eq!((pixel.r, pixel.g, pixel.b) == (0x22, 0xaa, 0x44), fullscreen);
+                        }
+                        if !game_canvas && callback_count == 1 {
+                            for bounds in [(10, 20, 30, 40), (25, 5, 40, 25)] {
+                                jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", bounds)
+                                    .await?;
+                            }
+                            jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                                .await?;
+                            for (field, expected) in [("clipX", 10), ("clipY", 5), ("clipWidth", 55), ("clipHeight", 55)] {
+                                assert_eq!(jvm.get_field::<i32>(&canvas, class, field, "I").await?, expected);
+                            }
+
+                            jvm.put_field(&mut canvas, class, "repaintDuringPaint", "Z", true).await?;
+                            jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (-5, -6, 10, 12))
+                                .await?;
+                            for expected in [[0, 0, 5, 6], [4, 5, 6, 7]] {
+                                jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                                    .await?;
+                                for (field, value) in ["clipX", "clipY", "clipWidth", "clipHeight"].into_iter().zip(expected) {
+                                    assert_eq!(jvm.get_field::<i32>(&canvas, class, field, "I").await?, value);
+                                }
+                            }
+                            let count: i32 = jvm.get_field(&canvas, class, "paintCount", "I").await?;
+                            for bounds in [(0, 0, 0, 10), (0, 0, -1, -1), (400, 0, 10, 10)] {
+                                jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", bounds)
+                                    .await?;
+                            }
+                            jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                                .await?;
+                            assert_eq!(jvm.get_field::<i32>(&canvas, class, "paintCount", "I").await?, count);
+                            jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "repaint", "()V", ())
+                                .await?;
+                            jvm.invoke_virtual::<_, ()>(&canvas, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                                .await?;
+                            assert_eq!(jvm.get_field::<i32>(&canvas, class, "clipWidth", "I").await?, 320);
+                            assert_eq!(jvm.get_field::<i32>(&canvas, class, "clipHeight", "I").await?, height);
                         }
                         let _: () = jvm
                             .invoke_virtual(

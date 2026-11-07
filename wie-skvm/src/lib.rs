@@ -1,9 +1,24 @@
 #![no_std]
 extern crate alloc;
 
+use alloc::vec::Vec;
+
 use wie_jvm_support::WieJavaClassProto;
 
 pub mod classes;
+
+pub fn get_midp_protos() -> Vec<WieJavaClassProto> {
+    wie_midp::get_protos()
+        .into_iter()
+        .map(|proto| {
+            if proto.name == "javax/microedition/lcdui/Canvas" {
+                classes::javax::microedition::lcdui::Canvas::as_proto()
+            } else {
+                proto
+            }
+        })
+        .collect()
+}
 
 pub fn get_protos() -> [WieJavaClassProto; 31] {
     [

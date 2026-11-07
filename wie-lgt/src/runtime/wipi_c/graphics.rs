@@ -4,7 +4,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 use wipi_types::{
     lgt::wipic::{LgtFramebuffer, LgtGraphicsContext, LgtGraphicsView, LgtImage},
-    wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICIndirectPtr, WIPICWord},
+    wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICImage, WIPICIndirectPtr, WIPICWord},
 };
 
 use wie_backend::canvas::{ArgbPixel, Clip, Color, Image, PixelType, VecImageBuffer};
@@ -12,7 +12,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError, read_generic, write_generic};
 use wie_wipi_c::{
     WIPICContext,
-    api::graphics::{FrameBuffer, decode_image_framebuffer, primitives},
+    api::graphics::{FrameBuffer, create_wipi_image, image_buffer, primitives},
 };
 
 use crate::runtime::globals::{DISPLAY_PROPERTIES_ROOT, GRAPHICS_STATE_ROOT};
@@ -308,12 +308,12 @@ fn normalize_context(raw: LgtGraphicsContext, framebuffer: LgtFramebuffer, view:
     }
 }
 
-fn image_framebuffer(context: &dyn WIPICContext, ptr_image: WIPICIndirectPtr) -> Result<FrameBuffer> {
+fn read_image(context: &dyn WIPICContext, ptr_image: WIPICIndirectPtr) -> Result<WIPICImage> {
     let image: LgtImage = read_record(context, ptr_image)?;
     if image.ptr_image == 0 {
         return Err(WieError::FatalError("LGT image has no native backing".into()));
     }
-    Ok(FrameBuffer(read_record(context, WIPICIndirectPtr(image.ptr_image))?))
+    read_record(context, WIPICIndirectPtr(image.ptr_image))
 }
 
 pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, kind: WIPICWord) -> Result<WIPICIndirectPtr> {
@@ -680,10 +680,16 @@ pub async fn draw_image(
     source_y: i32,
     ptr_graphics: WIPICWord,
 ) -> Result<()> {
+    tracing::debug!(
+        "MC_grpDrawImage({:#x}, {x}, {y}, {width}, {height}, {:#x}, {source_x}, {source_y}, {ptr_graphics:#x})",
+        dst.0,
+        ptr_image.0
+    );
     if width <= 0 || height <= 0 {
         return Ok(());
     }
-    let source = image_framebuffer(context, ptr_image)?.image(context)?;
+    let image = read_image(context, ptr_image)?;
+    let source = image_buffer(context, &image)?;
     let resolved = resolve_framebuffer(context, dst)?;
     let graphics = resolve_context(context, &resolved, ptr_graphics)?;
     primitives::draw_image(
@@ -896,10 +902,11 @@ pub async fn create_image(
     offset: WIPICWord,
     length: WIPICWord,
 ) -> Result<WIPICWord> {
-    let backing = decode_image_framebuffer(context, encoded_data, offset, length)?;
-    let width = backing.0.width;
-    let height = backing.0.height;
-    let ptr_backing = alloc_record(context, backing.0)?;
+    tracing::debug!("MC_grpCreateImage({output:#x}, {:#x}, {offset}, {length})", encoded_data.0);
+    let backing = create_wipi_image(context, encoded_data, offset, length)?;
+    let width = backing.img.width;
+    let height = backing.img.height;
+    let ptr_backing = alloc_record(context, backing)?;
     let ptr_view = create_view(context, ptr_backing, 0, 0, width, height)?;
     let ptr_framebuffer = alloc_record(
         context,
@@ -924,6 +931,10 @@ pub async fn create_image(
 pub async fn destroy_image(context: &mut dyn WIPICContext, ptr_image: WIPICIndirectPtr) -> Result<()> {
     tracing::debug!("MC_grpDestroyImage({:#x})", ptr_image.0);
     let image: LgtImage = read_record(context, ptr_image)?;
+    let backing: WIPICImage = read_record(context, WIPICIndirectPtr(image.ptr_image))?;
+    if backing.mask.buf.0 != 0 {
+        context.free(backing.mask.buf)?;
+    }
     destroy_offscreen_framebuffer(context, WIPICIndirectPtr(image.ptr_framebuffer)).await?;
     context.free(ptr_image)
 }
@@ -933,10 +944,11 @@ pub async fn get_image_framebuffer(context: &mut dyn WIPICContext, ptr_image: WI
 }
 
 pub async fn get_image_property(context: &mut dyn WIPICContext, ptr_image: WIPICIndirectPtr, property: i32) -> Result<i32> {
-    let backing = image_framebuffer(context, ptr_image)?;
+    tracing::debug!("MC_grpGetImageProperty({:#x}, {property})", ptr_image.0);
+    let backing = read_image(context, ptr_image)?;
     Ok(match property {
-        4 => backing.0.width as i32,
-        5 => backing.0.height as i32,
+        4 => backing.img.width as i32,
+        5 => backing.img.height as i32,
         _ => 0,
     })
 }
@@ -950,13 +962,13 @@ mod tests {
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::{ByteWrite, Result, read_generic, write_generic};
     use wie_wipi_c::WIPICContext;
-    use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICIndirectPtr};
+    use wipi_types::wipic::{WIPICDisplayInfo, WIPICImage, WIPICIndirectPtr};
 
     use super::{
         DISPLAY_PROPERTIES_ROOT, GRAPHICS_STATE_ROOT, LgtDisplayProperties, LgtFramebuffer, LgtGraphicsContext, LgtGraphicsState, LgtGraphicsView,
-        LgtImage, create_image, destroy_image, get_context, get_display_info, get_framebuffer_bpl, get_framebuffer_height, get_framebuffer_pointer,
-        get_screen_framebuffer, init_context, init_process_state, normalize_context, presentation_image, set_context, set_display_property,
-        set_use_annunciator,
+        LgtImage, create_image, create_offscreen_framebuffer, destroy_image, draw_image, get_context, get_display_info, get_framebuffer_bpl,
+        get_framebuffer_height, get_framebuffer_pointer, get_image_framebuffer, get_screen_framebuffer, init_context, init_process_state,
+        normalize_context, presentation_image, set_context, set_display_property, set_use_annunciator,
     };
     use crate::runtime::wipi_c::context::LgtWIPICContext;
     use wie_backend::canvas::{ArgbPixel, Image, PixelType, VecImageBuffer};
@@ -971,14 +983,18 @@ mod tests {
             })
             .unwrap();
             Allocator::init(&mut core).unwrap();
+            init_process_state(&mut core, 240, 320).unwrap();
             let mut context = LgtWIPICContext::new(core.clone(), system, jvm);
-            let mut bmp = [0u8; 58];
+            let mut bmp = [0u8; 66];
             bmp[..2].copy_from_slice(b"BM");
-            for (offset, value) in [(2, 58u32), (10, 54), (14, 40), (18, 1), (22, 1), (34, 4)] {
+            for (offset, value) in [(2, 66u32), (10, 62), (14, 40), (18, 2), (22, 1), (34, 4), (46, 2), (50, 0x100)] {
                 bmp[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
             }
+            bmp[6] = 1;
             bmp[26] = 1;
-            bmp[28] = 24;
+            bmp[28] = 8;
+            bmp[54..62].copy_from_slice(&[255, 0, 255, 0, 0, 0, 255, 0]);
+            bmp[62..66].copy_from_slice(&[0, 1, 0, 0]);
             let encoded = context.alloc(bmp.len() as u32).unwrap();
             context.write_bytes(encoded.0, &bmp).unwrap();
             let output = context.alloc_raw(4).unwrap();
@@ -986,11 +1002,33 @@ mod tests {
             let image: WIPICIndirectPtr = read_generic(&context, output).unwrap();
             let public: LgtImage = read_generic(&context, image.0).unwrap();
             let framebuffer: LgtFramebuffer = read_generic(&context, public.ptr_framebuffer).unwrap();
-            let backing: WIPICFramebuffer = read_generic(&context, public.ptr_image).unwrap();
-            let allocations = [image.0, public.ptr_framebuffer, framebuffer.ptr_graphics, public.ptr_image, backing.buf.0]
-                .map(|address| (address - 4, read_generic::<u32, _>(&context, address - 4).unwrap() + 4));
+            let backing: WIPICImage = read_generic(&context, public.ptr_image).unwrap();
+            assert_eq!((backing.img.bpp, backing.img.bpl), (16, 4));
+            let native = get_image_framebuffer(&mut context, image).await.unwrap();
+            let pixels = get_framebuffer_pointer(&mut context, native).await.unwrap();
+            assert_eq!(read_generic::<[u16; 2], _>(&context, pixels).unwrap(), [0xf81f, 0xf800]);
+            let allocations = [
+                image.0,
+                public.ptr_framebuffer,
+                framebuffer.ptr_graphics,
+                public.ptr_image,
+                backing.img.buf.0,
+                backing.mask.buf.0,
+            ]
+            .map(|address| (address - 4, read_generic::<u32, _>(&context, address - 4).unwrap() + 4));
             for (address, size) in allocations {
                 assert!(Allocator::is_allocated(&core, address, size).unwrap());
+            }
+
+            let destination = create_offscreen_framebuffer(&mut context, 2, 1).await.unwrap();
+            let destination_pixels = get_framebuffer_pointer(&mut context, destination).await.unwrap();
+            let graphics = context.alloc_raw(size_of::<LgtGraphicsContext>() as u32).unwrap();
+            init_context(&mut context, graphics).await.unwrap();
+            for pixel in [0xf800u16, 0x001f] {
+                write_generic(&mut context, pixels + 2, pixel).unwrap();
+                write_generic(&mut context, destination_pixels, [0x07e0u16; 2]).unwrap();
+                draw_image(&mut context, destination, 0, 0, 2, 1, image, 0, 0, graphics).await.unwrap();
+                assert_eq!(read_generic::<[u16; 2], _>(&context, destination_pixels).unwrap(), [0x07e0, pixel]);
             }
 
             destroy_image(&mut context, image).await.unwrap();

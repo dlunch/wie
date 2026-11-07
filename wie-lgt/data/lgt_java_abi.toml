@@ -10,6 +10,8 @@ vtable = [
     { name = "equals", descriptor = "(Ljava/lang/Object;)Z", index = 3 },
     { name = "toString", descriptor = "()Ljava/lang/String;", index = 4 },
     { name = "notify", descriptor = "()V", index = 5 },
+    { name = "wait", descriptor = "(J)V", index = 7 },
+    { name = "wait", descriptor = "()V", index = 9 },
 ]
 
 [[class]]
@@ -27,8 +29,17 @@ vtable = [
     { name = "getResourceAsStream", descriptor = "(Ljava/lang/String;)Ljava/io/InputStream;", index = 16 },
 ]
 field = [
+    # Native static-field access tests word 0 as flags; keep Java references out of it.
+    { name = "nameBytes", descriptor = "[B", index = 1 },
     { name = "nativeClassName", descriptor = "I", index = 2 },
+    { name = "classLoader", descriptor = "Ljava/lang/ClassLoader;", index = 3 },
     { name = "initializationState", descriptor = "I", index = 4 },
+]
+
+[[class]]
+name = "java/lang/Integer"
+vtable = [
+    { name = "intValue", descriptor = "()I", index = 12 },
 ]
 
 [[class]]
@@ -77,6 +88,9 @@ vtable = [
 [[class]]
 name = "java/io/DataInputStream"
 vtable = [
+    { name = "readFully", descriptor = "([B)V", index = 19 },
+    { name = "readFully", descriptor = "([BII)V", index = 20 },
+    { name = "readBoolean", descriptor = "()Z", index = 22 },
     { name = "readByte", descriptor = "()B", index = 23 },
     { name = "readUnsignedByte", descriptor = "()I", index = 24 },
     { name = "readShort", descriptor = "()S", index = 25 },
@@ -89,8 +103,11 @@ vtable = [
     { name = "length", descriptor = "()I", index = 10 },
     { name = "charAt", descriptor = "(I)C", index = 11 },
     { name = "getBytes", descriptor = "()[B", index = 14 },
+    { name = "compareTo", descriptor = "(Ljava/lang/String;)I", index = 16 },
     { name = "startsWith", descriptor = "(Ljava/lang/String;)Z", index = 19 },
     { name = "indexOf", descriptor = "(I)I", index = 21 },
+    { name = "indexOf", descriptor = "(II)I", index = 22 },
+    { name = "lastIndexOf", descriptor = "(I)I", index = 23 },
     { name = "indexOf", descriptor = "(Ljava/lang/String;I)I", index = 26 },
     { name = "substring", descriptor = "(I)Ljava/lang/String;", index = 27 },
     { name = "substring", descriptor = "(II)Ljava/lang/String;", index = 28 },
@@ -117,8 +134,10 @@ vtable = [
 
 [[class]]
 name = "java/lang/Thread"
+instance_field_word_count = 4
 vtable = [
     { name = "start", descriptor = "()V", index = 10 },
+    { name = "run", descriptor = "()V", index = 11 },
     { name = "isAlive", descriptor = "()Z", index = 13 },
     { name = "setPriority", descriptor = "(I)V", index = 14 },
 ]
@@ -134,9 +153,15 @@ vtable = [
 name = "java/util/Vector"
 vtable = [
     { name = "size", descriptor = "()I", index = 15 },
+    { name = "isEmpty", descriptor = "()Z", index = 16 },
+    { name = "elements", descriptor = "()Ljava/util/Enumeration;", index = 17 },
+    { name = "indexOf", descriptor = "(Ljava/lang/Object;)I", index = 19 },
     { name = "elementAt", descriptor = "(I)Ljava/lang/Object;", index = 23 },
+    { name = "firstElement", descriptor = "()Ljava/lang/Object;", index = 24 },
     { name = "removeElementAt", descriptor = "(I)V", index = 27 },
     { name = "insertElementAt", descriptor = "(Ljava/lang/Object;I)V", index = 28 },
+    { name = "addElement", descriptor = "(Ljava/lang/Object;)V", index = 29 },
+    { name = "removeAllElements", descriptor = "()V", index = 31 },
 ]
 
 [[class]]
@@ -156,6 +181,7 @@ vtable = [
 [[class]]
 name = "java/util/Random"
 vtable = [
+    { name = "setSeed", descriptor = "(J)V", index = 10 },
     { name = "nextInt", descriptor = "()I", index = 12 },
 ]
 

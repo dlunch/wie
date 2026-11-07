@@ -552,7 +552,7 @@ mod test {
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_util::Result;
 
-    use crate::get_protos;
+    use crate::{classes::org::kwis::msp::lcdui::Jlet, get_protos};
 
     struct DelayedCallback;
 
@@ -593,6 +593,13 @@ mod test {
                 let _midlet = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await?;
                 let jlet = jvm.instantiate_class("test/DelayedJlet").await?;
                 let _: () = jvm.invoke_special(&jlet, "org/kwis/msp/lcdui/Jlet", "<init>", "()V", ()).await?;
+                let current: ClassInstanceRef<Jlet> = jvm
+                    .invoke_static("org/kwis/msp/lcdui/Jlet", "getCurrentJlet", "()Lorg/kwis/msp/lcdui/Jlet;", ())
+                    .await?;
+                let is_current: bool = jvm
+                    .invoke_virtual(&jlet, "java/lang/Object", "equals", "(Ljava/lang/Object;)Z", (current,))
+                    .await?;
+                assert!(is_current);
                 let display = jvm
                     .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", ())
                     .await?;

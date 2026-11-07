@@ -27,7 +27,7 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x06 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::DestroyRuntimeContext)?,
         0x07 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::CreateRuntimeContext)?,
         0x09 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StringLiteral)?,
-        0x0a => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetInterfaceDispatchTable)?,
+        0x0a | 0x64 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetInterfaceDispatchTable)?,
         0x0b => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RegisterClass)?,
         0x0c => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::ResolveClass)?,
         0x0d => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::InitializeClass)?,
@@ -912,12 +912,12 @@ mod tests {
                 0xb2b2_0000 | u32::from(static_word_index)
             );
 
-            let virtual_method_index: u16 = read_generic(&core, virtual_method_indices)?;
+            let virtual_method_index: i16 = read_generic(&core, virtual_method_indices)?;
             assert_eq!(read_generic::<u16, _>(&core, virtual_method_indices + 2)?, 0xc3c3);
             let class = jvm.get_class(class_name).unwrap();
             let ptr_class = LgtJvmSupport::class_definition_raw(&*class.definition);
             let raw_class: RawJavaClass = read_generic(&core, ptr_class)?;
-            let virtual_target: u32 = read_generic(&core, raw_class.unk1 + (u32::from(virtual_method_index) + 1) * size_of::<u32>() as u32)?;
+            let virtual_target: u32 = read_generic(&core, raw_class.unk1.wrapping_add_signed((i32::from(virtual_method_index) + 1) * 4))?;
             assert_eq!(
                 virtual_target,
                 LgtJvmSupport::non_virtual_method_target(&jvm, class_name, "getHeight", "()I")?

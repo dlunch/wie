@@ -4,7 +4,7 @@ mod image;
 pub mod primitives;
 
 pub use framebuffer::FrameBuffer;
-pub use image::decode_image_framebuffer;
+pub use image::{create_wipi_image, image_buffer};
 
 use core::mem::size_of;
 
@@ -18,7 +18,7 @@ use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICGraphicsContext
 
 use crate::{context::WIPICContext, globals::SCREEN_FRAMEBUFFER_PTR};
 
-use self::{grp_context::WIPICGraphicsContextIdx, image::create_wipi_image};
+use self::grp_context::WIPICGraphicsContextIdx;
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some apps require a 16bpp framebuffer
 
@@ -302,6 +302,11 @@ pub async fn encode_image(
 pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICIndirectPtr) -> Result<()> {
     tracing::debug!("MC_grpDestroyImage({:#x})", image.0);
 
+    let backing: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
+    context.free(backing.img.buf)?;
+    if backing.mask.buf.0 != 0 {
+        context.free(backing.mask.buf)?;
+    }
     context.free(image)?;
 
     Ok(())
@@ -330,7 +335,7 @@ pub async fn draw_image(
     let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, graphics_context)?;
 
-    let src_image = FrameBuffer(image.img).image(context)?;
+    let src_image = image_buffer(context, &image)?;
     let clip = if gctx.mask & 1 != 0 {
         let [left, top, right, bottom] = gctx.clip.map(|value| i32::from(value as i16));
         Clip {
@@ -784,6 +789,9 @@ mod tests {
             assert_eq!(read_generic::<[u8; 2], _>(&context, context.data_ptr(encoded)?)?, *b"BM");
             create_image(&mut context, output, encoded, 0, length).await?;
             let handle: WIPICIndirectPtr = read_generic(&context, output)?;
+            let native = get_image_framebuffer(&mut context, handle).await?;
+            assert_eq!(get_framebuffer_bpp(&mut context, native).await?, 16);
+            assert_eq!(get_framebuffer_bpl(&mut context, native).await?, width * 2);
             let image: WIPICImage = read_generic(&context, context.data_ptr(handle)?)?;
             let decoded = FrameBuffer(image.img).image(&mut context)?;
             assert_eq!((decoded.width(), decoded.height()), (width as u32, height as u32));
@@ -829,6 +837,12 @@ mod tests {
             let output = context.alloc_raw(4)?;
             create_image(&mut context, output, buffer, 0, bmp.len() as u32).await?;
             let image: WIPICIndirectPtr = read_generic(&context, output)?;
+            let native = get_image_framebuffer(&mut context, image).await?;
+            assert_eq!(get_framebuffer_bpp(&mut context, native).await?, 16);
+            assert_eq!(get_framebuffer_bpl(&mut context, native).await?, 6);
+            let pixels = WIPICIndirectPtr(get_framebuffer_pointer(&mut context, native).await?);
+            let pixels = context.data_ptr(pixels)?;
+            assert_eq!(read_generic::<[u16; 3], _>(&context, pixels)?, [0xf81f, 0xf81f, 0]);
             let destination = create_offscreen_framebuffer(&mut context, 4, 1).await?;
             let framebuffer = FrameBuffer(read_generic(&context, context.data_ptr(destination)?)?);
             let graphics_context = context.alloc_raw(size_of::<WIPICGraphicsContext>() as u32)?;
@@ -854,6 +868,46 @@ mod tests {
                     assert_eq!([color.r, color.g, color.b], expected);
                 }
             }
+            write_generic(&mut context, pixels + 4, 0x001fu16)?;
+            draw_image(&mut context, destination, 1, 0, 3, 1, image, 0, 0, graphics_context).await?;
+            let changed = framebuffer.image(&mut context)?.get_pixel(3, 0);
+            assert_eq!([changed.r, changed.g, changed.b], [0, 0, 255]);
+            destroy_image(&mut context, image).await?;
+        }
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn png_images_blend_partial_alpha_with_native_pixels() -> Result<()> {
+        // Three RGBA pixels: transparent magenta, half-transparent magenta, opaque black.
+        let png = [
+            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 3, 0, 0, 0, 1, 8, 6, 0, 0, 0, 27, 224, 20, 180, 0, 0, 0, 21, 73,
+            68, 65, 84, 120, 156, 99, 248, 207, 240, 159, 225, 63, 195, 255, 6, 6, 6, 134, 255, 0, 39, 104, 5, 124, 67, 52, 97, 229, 0, 0, 0, 0, 73,
+            69, 78, 68, 174, 66, 96, 130,
+        ];
+        let mut context = TestContext::new();
+        let buffer = context.alloc(png.len() as u32)?;
+        context.write_bytes(context.data_ptr(buffer)?, &png)?;
+        let output = context.alloc_raw(4)?;
+        create_image(&mut context, output, buffer, 0, png.len() as u32).await?;
+        let image: WIPICIndirectPtr = read_generic(&context, output)?;
+        let native = get_image_framebuffer(&mut context, image).await?;
+        let pixels = WIPICIndirectPtr(get_framebuffer_pointer(&mut context, native).await?);
+        let pixels = context.data_ptr(pixels)?;
+        assert_eq!(read_generic::<[u16; 3], _>(&context, pixels)?, [0xf81f, 0xf81f, 0]);
+
+        let destination = create_offscreen_framebuffer(&mut context, 3, 1).await?;
+        let framebuffer = FrameBuffer(read_generic(&context, context.data_ptr(destination)?)?);
+        let graphics = context.alloc_raw(size_of::<WIPICGraphicsContext>() as u32)?;
+        init_context(&mut context, graphics).await?;
+        for (pixel, expected) in [(0xf81fu16, 0x83f0u16), (0x001f, 0x03f0)] {
+            write_generic(&mut context, pixels + 2, pixel)?;
+            framebuffer.write(&mut context, &[0xe0, 0x07, 0xe0, 0x07, 0xe0, 0x07])?;
+            draw_image(&mut context, destination, 0, 0, 3, 1, image, 0, 0, graphics).await?;
+            assert_eq!(
+                read_generic::<[u16; 3], _>(&context, context.data_ptr(framebuffer.0.buf)?)?,
+                [0x07e0, expected, 0]
+            );
         }
         Ok(())
     }
