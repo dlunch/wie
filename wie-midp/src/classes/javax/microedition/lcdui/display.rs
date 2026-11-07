@@ -22,7 +22,6 @@ const TITLE_HORIZONTAL_PADDING: i32 = 4;
 const TITLE_VERTICAL_PADDING: i32 = 2;
 const TICKER_HEIGHT: i32 = 16;
 const TICKER_INTERVAL_MS: u64 = 100;
-const SOFTKEY_HEIGHT: i32 = 18;
 
 const TITLE_BACKGROUND: i32 = 0x263746;
 const WHITE: i32 = 0xffffff;
@@ -262,7 +261,14 @@ impl Display {
             )
         };
 
-        let softkey_height = if command_count > 0 { SOFTKEY_HEIGHT.min(height) } else { 0 };
+        let softkey_height = if command_count > 0 {
+            let command_height: i32 = jvm
+                .invoke_virtual(displayable, "javax/microedition/lcdui/Displayable", "getCommandBarHeight", "()I", ())
+                .await?;
+            command_height.min(height)
+        } else {
+            0
+        };
         let ticker_height = if ticker.is_null() {
             0
         } else {
