@@ -27,7 +27,7 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x06 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::DestroyRuntimeContext)?,
         0x07 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::CreateRuntimeContext)?,
         0x09 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StringLiteral)?,
-        0x0a | 0x64 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetInterfaceDispatchTable)?,
+        0x0a => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetInterfaceDispatchTable)?,
         0x0b => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RegisterClass)?,
         0x0c => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::ResolveClass)?,
         0x0d => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::InitializeClass)?,
@@ -50,6 +50,7 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x57 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorExit)?,
         0x5b => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::LoadLongArray)?,
         0x61 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StoreReferenceArray)?,
+        0x64 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetInterfaceDispatchTable64)?,
         0x82 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::SetJarPath)?,
         0x83 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StartApplication)?,
         0xe1 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetStringClass)?,
@@ -91,6 +92,9 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::LoadLongArray => EmulatedFunction::call(&java_load_long_array, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetInterfaceDispatchTable => EmulatedFunction::call(&java_get_interface_dispatch_table, core, jvm)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::GetInterfaceDispatchTable64 => EmulatedFunction::call(&java_get_interface_dispatch_table_64, core, jvm)
                 .await?
                 .write(core, lr),
             JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, &mut ()).await?.write(core, lr),
@@ -204,7 +208,16 @@ async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context
     Ok(value)
 }
 
-async fn java_get_interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, _ptr_instance: u32, ptr_interface_name: u32) -> Result<u32> {
+async fn java_get_interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, ptr_instance: u32, ptr_interface_name: u32) -> Result<u32> {
+    tracing::debug!("java_get_interface_dispatch_table({ptr_instance:#x}, {ptr_interface_name:#x})");
+    let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_interface_name)?)
+        .map_err(|error| WieError::FatalError(format!("Invalid LGT interface class name: {error}")))?;
+    LgtJvmSupport::interface_dispatch_table(jvm, &interface_name).await
+}
+
+// Import 0x64 has an observed interface-table caller, but is not a confirmed alias of 0x0a.
+async fn java_get_interface_dispatch_table_64(core: &mut ArmCore, jvm: &mut Jvm, ptr_instance: u32, ptr_interface_name: u32) -> Result<u32> {
+    tracing::debug!("java_get_interface_dispatch_table_64({ptr_instance:#x}, {ptr_interface_name:#x})");
     let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_interface_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT interface class name: {error}")))?;
     LgtJvmSupport::interface_dispatch_table(jvm, &interface_name).await

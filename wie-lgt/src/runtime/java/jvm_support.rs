@@ -616,19 +616,21 @@ mod tests {
             }
             assert_eq!(core.run_function::<u32>(element_at, &[vector_raw, 0]).await?, destination_raw);
             assert_eq!(core.run_function::<u32>(element_at, &[vector_raw, 1]).await?, stream_raw);
-            let enumeration_raw = core.run_function::<u32>(elements, &[vector_raw]).await?;
             let interface_name = "java/util/Enumeration";
             let ptr_interface_name = Allocator::alloc(&mut core, interface_name.len() as u32 + 1)?;
             write_null_terminated_string_bytes(&mut core, ptr_interface_name, interface_name.as_bytes())?;
-            let interface_lookup = get_java_interface_method(&mut core, 0x64)?;
-            let interface_table: u32 = core.run_function(interface_lookup, &[enumeration_raw, ptr_interface_name]).await?;
-            let has_more: u32 = read_generic(&core, interface_table + 4)?;
-            let next_element: u32 = read_generic(&core, interface_table + 8)?;
-            for expected in [destination_raw, stream_raw] {
-                assert_eq!(core.run_function::<u32>(has_more, &[enumeration_raw]).await?, 1);
-                assert_eq!(core.run_function::<u32>(next_element, &[enumeration_raw]).await?, expected);
+            for import in [0x0a, 0x64] {
+                let interface_lookup = get_java_interface_method(&mut core, import)?;
+                let enumeration_raw = core.run_function::<u32>(elements, &[vector_raw]).await?;
+                let interface_table: u32 = core.run_function(interface_lookup, &[enumeration_raw, ptr_interface_name]).await?;
+                let has_more: u32 = read_generic(&core, interface_table + 4)?;
+                let next_element: u32 = read_generic(&core, interface_table + 8)?;
+                for expected in [destination_raw, stream_raw] {
+                    assert_eq!(core.run_function::<u32>(has_more, &[enumeration_raw]).await?, 1);
+                    assert_eq!(core.run_function::<u32>(next_element, &[enumeration_raw]).await?, expected);
+                }
+                assert_eq!(core.run_function::<u32>(has_more, &[enumeration_raw]).await?, 0);
             }
-            assert_eq!(core.run_function::<u32>(has_more, &[enumeration_raw]).await?, 0);
             assert_eq!(core.run_function::<u32>(first_element, &[vector_raw]).await?, destination_raw);
             core.run_function::<()>(remove_at, &[vector_raw, 0]).await?;
             assert_eq!(core.run_function::<u32>(first_element, &[vector_raw]).await?, stream_raw);
