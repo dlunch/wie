@@ -95,14 +95,12 @@ impl TestPlatform {
         }
     }
 
-    pub fn with_audio_handler<T>(audio_handler: T) -> Self
+    pub fn with_audio_handler<T>(mut self, audio_handler: T) -> Self
     where
         T: Fn(AudioCommand) + Sync + Send + 'static,
     {
-        Self {
-            audio_handler: Some(Arc::new(audio_handler)),
-            ..Self::new()
-        }
+        self.audio_handler = Some(Arc::new(audio_handler));
+        self
     }
 
     pub fn with_paint_handler<T>(paint_handler: T) -> Self
