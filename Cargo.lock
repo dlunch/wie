@@ -8360,9 +8360,9 @@ dependencies = [
 
 [[package]]
 name = "wipi-types"
-version = "0.0.4"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6f3359de7c43d1d89dc0eeca40ee578bfef3a48c604873bb3d2ed433c613fe3"
+checksum = "097172b2dd7148d84f02df2c8051c68104e424ae8375e0706bb8e3d027cd10e1"
 dependencies = [
  "bytemuck",
  "cfg-if",

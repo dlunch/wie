@@ -73,7 +73,7 @@ spin = { version = "^0.12", features = ["spin_mutex", "rwlock"], default-feature
 toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "^0.3", features = ["env-filter", "time"] }
-wipi-types = { version = "^0.0.4" }
+wipi-types = { version = "^0.0.5" }
 zip = { version = "^9.0", features = ["deflate"], default-features = false }
 
 wie = { version = "0.2.21", path = ".", default-features = false }
