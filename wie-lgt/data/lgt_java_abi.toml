@@ -134,8 +134,10 @@ vtable = [
 
 [[class]]
 name = "java/lang/Thread"
+# Observed native Thread subclasses use words 0..22. Place runtime-only fields
+# after that range so they do not overlap the subclasses' native fields.
 field = [
-    { name = "id", descriptor = "J", index = 7 },
+    { name = "id", descriptor = "J", index = 23 },
 ]
 vtable = [
     { name = "start", descriptor = "()V", index = 10 },

@@ -414,16 +414,7 @@ impl JavaClassDefinition {
     }
 
     pub fn instance_field_word_count(&self) -> Result<usize> {
-        let mut class = self.clone();
-        let mut count = 0;
-        loop {
-            let descriptor = class.descriptor()?;
-            count = count.max(descriptor.instance_field_word_count as usize);
-            if descriptor.ptr_super_class == 0 {
-                return Ok(count);
-            }
-            class = Self::from_raw(descriptor.ptr_super_class, &self.core);
-        }
+        Ok(self.descriptor()?.instance_field_word_count as usize)
     }
 
     pub async fn prepare_generated(&mut self, core: &mut ArmCore, jvm: &Jvm, generated_classes: u32) -> Result<()> {
@@ -524,6 +515,23 @@ impl JavaClassDefinition {
         if descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME != 0 {
             descriptor.ptr_super_class = parent_class.as_ref().unwrap().ptr_raw;
             descriptor.flags &= !LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME;
+        }
+        if let Some(parent_class) = &parent_class {
+            let parent_word_count = parent_class.instance_field_word_count()?;
+            let native_word_count = descriptor.instance_field_word_count as usize;
+            if parent_word_count > native_word_count {
+                if descriptor.ptr_instance_reference_bitmap != 0 {
+                    let native_bitmap_size = native_word_count.div_ceil(8);
+                    let mut bitmap = vec![0; parent_word_count.div_ceil(8)];
+                    core.read_bytes(descriptor.ptr_instance_reference_bitmap, &mut bitmap[..native_bitmap_size])?;
+                    if !native_word_count.is_multiple_of(8) {
+                        bitmap[native_bitmap_size - 1] &= 0xff << (8 - native_word_count % 8);
+                    }
+                    descriptor.ptr_instance_reference_bitmap = Allocator::alloc(core, bitmap.len() as u32)?;
+                    core.write_bytes(descriptor.ptr_instance_reference_bitmap, &bitmap)?;
+                }
+                descriptor.instance_field_word_count = parent_word_count as u16;
+            }
         }
         let mut declared_methods = self.methods()?;
         let virtual_methods = if descriptor.ptr_vtable != 0 {
@@ -648,7 +656,7 @@ impl JavaClassDefinition {
             .filter(|field| !field.access_flags().contains(FieldAccessFlags::STATIC))
             .map(|field| if field.descriptor() == "J" || field.descriptor() == "D" { 2 } else { 1 })
             .sum::<usize>();
-        let total_word_count = self.descriptor()?.instance_field_word_count as usize;
+        let total_word_count = self.instance_field_word_count()?;
         let base = total_word_count.checked_sub(own_word_count).ok_or_else(|| {
             WieError::FatalError(format!(
                 "LGT class {} has more declared field words than total field words",
@@ -910,7 +918,7 @@ impl ClassDefinition for JavaClassDefinition {
             .collect::<Vec<_>>();
         let descriptor = self.descriptor().unwrap();
         if descriptor.ptr_instance_reference_bitmap != 0 {
-            // Compiler bitmap positions use the original native layout, independent of runtime fields.
+            // Compiler bitmap positions retain the native layout; added runtime field bits are zero.
             for word_index in 0..descriptor.instance_field_word_count as u32 {
                 let byte: u8 = read_generic(&self.core, descriptor.ptr_instance_reference_bitmap + word_index / 8).unwrap();
                 if byte & (0x80 >> (word_index % 8)) != 0 {
