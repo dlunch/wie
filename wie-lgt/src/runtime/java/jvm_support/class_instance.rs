@@ -32,11 +32,9 @@ impl JavaClassInstance {
 
     pub fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as u32)?;
-        let runtime_storage_size = class.runtime_field_word_count()? * size_of::<LgtJvmWord>();
-        let allocated_storage_size = runtime_storage_size + storage_size.max(size_of::<LgtJvmWord>());
-        let ptr_storage = Allocator::alloc(core, allocated_storage_size as u32)?;
-        core.write_bytes(ptr_storage, &vec![0; allocated_storage_size])?;
-        let ptr_fields = ptr_storage + runtime_storage_size as u32;
+        let allocated_storage_size = storage_size.max(size_of::<LgtJvmWord>());
+        let ptr_fields = Allocator::alloc(core, allocated_storage_size as u32)?;
+        core.write_bytes(ptr_fields, &vec![0; allocated_storage_size])?;
 
         write_generic(
             core,
@@ -53,12 +51,7 @@ impl JavaClassInstance {
 
     pub fn destroy_with_storage(mut self, storage_size: usize) -> Result<()> {
         let ptr_fields = self.ptr_fields()?;
-        let runtime_storage_size = self.class()?.runtime_field_word_count()? * size_of::<LgtJvmWord>();
-        Allocator::free(
-            &mut self.core,
-            ptr_fields - runtime_storage_size as u32,
-            (runtime_storage_size + storage_size.max(size_of::<LgtJvmWord>())) as u32,
-        )?;
+        Allocator::free(&mut self.core, ptr_fields, storage_size.max(size_of::<LgtJvmWord>()) as u32)?;
         Allocator::free(&mut self.core, self.ptr_raw, size_of::<RawJavaClassInstance>() as u32)
     }
 
@@ -82,9 +75,7 @@ impl JavaClassInstance {
     }
 
     fn field_address(&self, word_index: u32) -> Result<u32> {
-        // WIE assigns negative indices to runtime-only fields before the native buffer.
-        // These indices are internal metadata, not field offsets observed in app binaries.
-        Ok(self.ptr_fields()?.wrapping_add(word_index.wrapping_mul(size_of::<LgtJvmWord>() as u32)))
+        self.storage_address(word_index as usize * size_of::<LgtJvmWord>())
     }
 }
 
@@ -104,12 +95,11 @@ impl ClassInstance for JavaClassInstance {
         let storage_size = self.storage_size().unwrap();
         let mut core = self.core.clone();
         let instance = Self::instantiate(&mut core, &class, storage_size).unwrap();
-        let runtime_storage_size = class.runtime_field_word_count().unwrap() * size_of::<LgtJvmWord>();
-        let mut fields = vec![0; runtime_storage_size + storage_size.max(size_of::<LgtJvmWord>())];
-        core.read_bytes(self.ptr_fields().unwrap() - runtime_storage_size as u32, &mut fields)
-            .unwrap();
-        core.write_bytes(instance.ptr_fields().unwrap() - runtime_storage_size as u32, &fields)
-            .unwrap();
+        let mut fields = vec![0; storage_size];
+        if storage_size != 0 {
+            core.read_bytes(self.ptr_fields().unwrap(), &mut fields).unwrap();
+            core.write_bytes(instance.ptr_fields().unwrap(), &fields).unwrap();
+        }
         Ok(Box::new(instance))
     }
 

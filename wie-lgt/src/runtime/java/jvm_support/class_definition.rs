@@ -150,12 +150,6 @@ impl JavaClassDefinition {
             .map(|class| class.instance_field_word_count())
             .transpose()?
             .unwrap_or(0);
-        let native_field_word_count = class_abi.and_then(|class| class.instance_field_word_count);
-        let mut runtime_field_word_count = parent_class
-            .as_ref()
-            .map(|class| class.runtime_field_word_count())
-            .transpose()?
-            .unwrap_or(0);
         let mut static_field_word_index = 0usize;
         for (index, field) in field_protos.iter().enumerate() {
             let is_static = field.access_flags.contains(FieldAccessFlags::STATIC);
@@ -167,16 +161,12 @@ impl JavaClassDefinition {
                 .find(|fixed| fixed.name == field.name && fixed.descriptor == field.descriptor)
             {
                 fixed.index as usize
-            } else if native_field_word_count.is_some() {
-                // Keep Rust runtime fields outside the native prefix so native subclass fields do not overlap them.
-                runtime_field_word_count += word_count;
-                0u32.wrapping_sub(runtime_field_word_count as u32) as usize
             } else {
                 instance_field_word_index
             };
             if is_static {
                 static_field_word_index += word_count;
-            } else if (word_index as i32) >= 0 {
+            } else {
                 instance_field_word_index = instance_field_word_index.max(word_index + word_count);
             }
 
@@ -224,7 +214,7 @@ impl JavaClassDefinition {
                 ptr_vtable: 0,
                 ptr_super_class,
                 ptr_interface_references: 0,
-                instance_field_word_count: native_field_word_count.unwrap_or(instance_field_word_index) as u16,
+                instance_field_word_count: instance_field_word_index as u16,
                 link_state: 0,
                 unk7: 0,
                 ptr_instance_reference_bitmap: 0,
@@ -424,26 +414,15 @@ impl JavaClassDefinition {
     }
 
     pub fn instance_field_word_count(&self) -> Result<usize> {
-        Ok(self.descriptor()?.instance_field_word_count as usize)
-    }
-
-    pub fn runtime_field_word_count(&self) -> Result<usize> {
         let mut class = self.clone();
         let mut count = 0;
         loop {
-            for field in class.fields()? {
-                if !field.access_flags().contains(FieldAccessFlags::STATIC) {
-                    let index = field.word_index()? as i32;
-                    if index < 0 {
-                        count = count.max(index.unsigned_abs() as usize);
-                    }
-                }
-            }
-            let parent = class.descriptor()?.ptr_super_class;
-            if parent == 0 {
+            let descriptor = class.descriptor()?;
+            count = count.max(descriptor.instance_field_word_count as usize);
+            if descriptor.ptr_super_class == 0 {
                 return Ok(count);
             }
-            class = Self::from_raw(parent, &self.core);
+            class = Self::from_raw(descriptor.ptr_super_class, &self.core);
         }
     }
 
@@ -669,7 +648,7 @@ impl JavaClassDefinition {
             .filter(|field| !field.access_flags().contains(FieldAccessFlags::STATIC))
             .map(|field| if field.descriptor() == "J" || field.descriptor() == "D" { 2 } else { 1 })
             .sum::<usize>();
-        let total_word_count = self.instance_field_word_count()?;
+        let total_word_count = self.descriptor()?.instance_field_word_count as usize;
         let base = total_word_count.checked_sub(own_word_count).ok_or_else(|| {
             WieError::FatalError(format!(
                 "LGT class {} has more declared field words than total field words",
@@ -931,15 +910,8 @@ impl ClassDefinition for JavaClassDefinition {
             .collect::<Vec<_>>();
         let descriptor = self.descriptor().unwrap();
         if descriptor.ptr_instance_reference_bitmap != 0 {
-            // The JVM visits parents separately, using their actual runtime field layouts.
-            let inherited_word_count = if descriptor.ptr_super_class == 0 {
-                0
-            } else {
-                Self::from_raw(descriptor.ptr_super_class, &self.core)
-                    .instance_field_word_count()
-                    .unwrap() as u32
-            };
-            for word_index in inherited_word_count..descriptor.instance_field_word_count as u32 {
+            // Compiler bitmap positions use the original native layout, independent of runtime fields.
+            for word_index in 0..descriptor.instance_field_word_count as u32 {
                 let byte: u8 = read_generic(&self.core, descriptor.ptr_instance_reference_bitmap + word_index / 8).unwrap();
                 if byte & (0x80 >> (word_index % 8)) != 0 {
                     fields.push(Box::new(JavaReferenceField { word_index }));

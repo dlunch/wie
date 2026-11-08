@@ -134,7 +134,9 @@ vtable = [
 
 [[class]]
 name = "java/lang/Thread"
-instance_field_word_count = 4
+field = [
+    { name = "id", descriptor = "J", index = 7 },
+]
 vtable = [
     { name = "start", descriptor = "()V", index = 10 },
     { name = "run", descriptor = "()V", index = 11 },
