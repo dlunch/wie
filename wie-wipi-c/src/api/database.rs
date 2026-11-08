@@ -1,4 +1,4 @@
-use alloc::{format, string::String, vec};
+use alloc::{string::String, vec};
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
@@ -6,22 +6,23 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::normalize_guest_path;
 use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use crate::{WIPICContext, globals::DATABASE_HANDLES_HEAD};
+use crate::WIPICContext;
 
 const M_E_ERROR: i32 = -1;
 const M_E_BADFD: i32 = -2;
-const M_E_INUSE: i32 = -8;
 const M_E_INVALID: i32 = -9;
 const M_E_NOENT: i32 = -12;
 const M_E_SHORTBUF: i32 = -18;
 const M_E_DATABIG: i32 = -21;
 const M_E_BADRECID: i32 = -22;
 
-// The guest handle links open databases and stores the fixed record size; name bytes follow it.
+const DATABASE_HANDLE_MAGIC: u32 = 0x44424844;
+
+// Name bytes follow the fixed-size guest handle.
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 struct DatabaseHandle {
-    next: u32,
+    magic: u32,
     record_size: u32,
     name_length: u32,
 }
@@ -34,8 +35,6 @@ pub async fn open(context: &mut dyn WIPICContext, name: u32, record_size: i32, c
     let Some(name) = read_name(context, name)? else {
         return Ok(M_E_INVALID);
     };
-    // Isolate fixed-record metadata from RMS, partition by mode, and delimit web record IDs with a trailing slash.
-    let name = format!("wipi-c/{mode}/{name}/");
     let system = context.system().clone();
     let exists = system.platform().database_repository().exists(&name, system.pid()).await;
     if !exists {
@@ -45,47 +44,38 @@ pub async fn open(context: &mut dyn WIPICContext, name: u32, record_size: i32, c
         system.platform().database_repository().create(&name, system.pid()).await;
     }
     let mut database = system.platform().database_repository().open(&name, system.pid()).await;
-    if !exists && !database.set(0, &record_size.to_le_bytes()).await {
+    if !exists && !database.set(0, &[record_size.to_le_bytes(), mode.to_le_bytes()].concat()).await {
         return Ok(M_E_ERROR);
     }
     let Some(header) = database.get(0).await else {
         return Ok(M_E_ERROR);
     };
-    let Ok(header) = <[u8; 4]>::try_from(header.as_slice()) else {
+    let Ok(header) = <[u8; 8]>::try_from(header.as_slice()) else {
         return Ok(M_E_ERROR);
     };
-    let record_size = i32::from_le_bytes(header);
+    let record_size = i32::from_le_bytes(header[..4].try_into().unwrap());
     if record_size <= 0 {
         return Ok(M_E_ERROR);
     }
     let handle = DatabaseHandle {
-        next: read_generic(context, DATABASE_HANDLES_HEAD)?,
+        magic: DATABASE_HANDLE_MAGIC,
         record_size: record_size as u32,
         name_length: name.len() as u32,
     };
     let address = context.alloc_raw(size_of::<DatabaseHandle>() as u32 + handle.name_length)?;
     write_generic(context, address, handle)?;
     context.write_bytes(address + size_of::<DatabaseHandle>() as u32, name.as_bytes())?;
-    write_generic(context, DATABASE_HANDLES_HEAD, address)?;
     Ok(address as i32)
 }
 
 pub async fn close(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
     tracing::debug!("MC_dbCloseDataBase({db_id:#x})");
-    let mut link = DATABASE_HANDLES_HEAD;
-    loop {
-        let address: u32 = read_generic(context, link)?;
-        if address == 0 {
-            return Ok(M_E_BADFD);
-        }
-        let handle: DatabaseHandle = read_generic(context, address)?;
-        if address == db_id as u32 {
-            write_generic(context, link, handle.next)?;
-            context.free_raw(address, size_of::<DatabaseHandle>() as u32 + handle.name_length)?;
-            return Ok(0);
-        }
-        link = address;
-    }
+    let Some((handle, _)) = load_handle(context, db_id)? else {
+        return Ok(M_E_BADFD);
+    };
+    write_generic(context, db_id as u32, 0u32)?;
+    context.free_raw(db_id as u32, size_of::<DatabaseHandle>() as u32 + handle.name_length)?;
+    Ok(0)
 }
 
 pub async fn delete(context: &mut dyn WIPICContext, name: u32, mode: i32) -> Result<i32> {
@@ -96,17 +86,6 @@ pub async fn delete(context: &mut dyn WIPICContext, name: u32, mode: i32) -> Res
     let Some(name) = read_name(context, name)? else {
         return Ok(M_E_INVALID);
     };
-    let name = format!("wipi-c/{mode}/{name}/");
-    let mut address: u32 = read_generic(context, DATABASE_HANDLES_HEAD)?;
-    while address != 0 {
-        let handle: DatabaseHandle = read_generic(context, address)?;
-        let mut bytes = vec![0; handle.name_length as usize];
-        context.read_bytes(address + size_of::<DatabaseHandle>() as u32, &mut bytes)?;
-        if bytes == name.as_bytes() {
-            return Ok(M_E_INUSE);
-        }
-        address = handle.next;
-    }
     let system = context.system();
     if !system.platform().database_repository().exists(&name, system.pid()).await {
         return Ok(M_E_NOENT);
@@ -233,17 +212,17 @@ pub async fn get_access_mode(context: &mut dyn WIPICContext, name: u32) -> Resul
         return Ok(M_E_INVALID);
     };
     let system = context.system();
-    for mode in 1..=3 {
-        if system
-            .platform()
-            .database_repository()
-            .exists(&format!("wipi-c/{mode}/{name}/"), system.pid())
-            .await
-        {
-            return Ok(mode);
-        }
+    if !system.platform().database_repository().exists(&name, system.pid()).await {
+        return Ok(M_E_NOENT);
     }
-    Ok(M_E_NOENT)
+    let database = system.platform().database_repository().open(&name, system.pid()).await;
+    let Some(header) = database.get(0).await else {
+        return Ok(M_E_ERROR);
+    };
+    let Ok(header) = <[u8; 8]>::try_from(header.as_slice()) else {
+        return Ok(M_E_ERROR);
+    };
+    Ok(i32::from_le_bytes(header[4..].try_into().unwrap()))
 }
 
 pub async fn get_number_of_records(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
@@ -272,17 +251,15 @@ fn read_name(context: &dyn WIPICContext, address: u32) -> Result<Option<String>>
 }
 
 fn load_handle(context: &dyn WIPICContext, db_id: i32) -> Result<Option<(DatabaseHandle, String)>> {
-    let mut address: u32 = read_generic(context, DATABASE_HANDLES_HEAD)?;
-    while address != 0 {
-        let handle: DatabaseHandle = read_generic(context, address)?;
-        if address == db_id as u32 {
-            let mut bytes = vec![0; handle.name_length as usize];
-            context.read_bytes(address + size_of::<DatabaseHandle>() as u32, &mut bytes)?;
-            return Ok(Some((handle, String::from_utf8_lossy(&bytes).into_owned())));
-        }
-        address = handle.next;
+    let Ok(handle) = read_generic::<DatabaseHandle, _>(context, db_id as u32) else {
+        return Ok(None);
+    };
+    if handle.magic != DATABASE_HANDLE_MAGIC {
+        return Ok(None);
     }
-    Ok(None)
+    let mut bytes = vec![0; handle.name_length as usize];
+    context.read_bytes(db_id as u32 + size_of::<DatabaseHandle>() as u32, &mut bytes)?;
+    Ok(Some((handle, String::from_utf8_lossy(&bytes).into_owned())))
 }
 
 #[cfg(test)]
@@ -301,7 +278,7 @@ mod tests {
     };
 
     #[futures_test::test]
-    async fn fixed_records_persist_size_and_obey_open_handle_lifetimes() {
+    async fn fixed_records_persist_size_and_support_crud() {
         let system = System::new(Box::new(TestPlatform::new()), "test-pid", "same-aid", DefaultTaskRunner);
         let mut context = TestContext::with_system(system.clone());
         context.write_bytes(0x1000, b"/ga/tm\0").unwrap();
@@ -333,17 +310,15 @@ mod tests {
         assert_eq!(read_generic::<u32, _>(&context, 0x2200).unwrap(), id as u32);
         let second = open(&mut context, 0x1000, 99, 1, 1).await.unwrap();
         assert_eq!(get_record_size(&mut context, second).await.unwrap(), 4);
-        assert_eq!(delete(&mut context, 0x1000, 1).await.unwrap(), -8);
         assert_eq!(close(&mut context, first).await.unwrap(), 0);
         assert_eq!(close(&mut context, first).await.unwrap(), -2);
         assert_eq!(get_record_size(&mut context, first).await.unwrap(), -2);
         assert_eq!(close(&mut context, second).await.unwrap(), 0);
 
         let repository = system.platform().database_repository();
-        assert!(repository.exists("wipi-c/1/ga/tm/", "test-pid").await);
-        assert!(!repository.exists("wipi-c/1/ga/tm/", "same-aid").await);
-        assert!(!repository.exists("wipi-c/1/ga/tm/", "other-pid").await);
-        assert!(!repository.exists("ga/tm", "test-pid").await);
+        assert!(repository.exists("ga/tm", "test-pid").await);
+        assert!(!repository.exists("ga/tm", "same-aid").await);
+        assert!(!repository.exists("ga/tm", "other-pid").await);
         let mut context = TestContext::with_system(system);
         context.write_bytes(0x1000, b"ga/tm\0").unwrap();
         let reopened = open(&mut context, 0x1000, 0, 0, 1).await.unwrap();
@@ -367,5 +342,9 @@ mod tests {
         assert_eq!(close(&mut context, reopened).await.unwrap(), 0);
         assert_eq!(delete(&mut context, 0x1000, 1).await.unwrap(), 0);
         assert_eq!(open(&mut context, 0x1000, 4, 0, 1).await.unwrap(), -12);
+        let shared = open(&mut context, 0x1000, 4, 1, 2).await.unwrap();
+        assert_eq!(get_access_mode(&mut context, 0x1000).await.unwrap(), 2);
+        assert_eq!(delete(&mut context, 0x1000, 2).await.unwrap(), 0);
+        assert_eq!(close(&mut context, shared).await.unwrap(), 0);
     }
 }

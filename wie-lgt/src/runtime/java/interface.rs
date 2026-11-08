@@ -208,7 +208,7 @@ async fn java_get_interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, pt
     tracing::debug!("java_get_interface_dispatch_table({ptr_instance:#x}, {ptr_interface_name:#x})");
     let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_interface_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT interface class name: {error}")))?;
-    LgtJvmSupport::interface_dispatch_table(jvm, &interface_name).await
+    LgtJvmSupport::interface_dispatch_table(core, jvm, ptr_instance, &interface_name).await
 }
 
 async fn java_push_exception_frame(core: &mut ArmCore, _: &mut ()) -> Result<()> {

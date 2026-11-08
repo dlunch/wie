@@ -211,14 +211,8 @@ impl JavaClassDefinition {
         } else {
             JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &methods).await?
         };
-        let mut runtime_methods = if let Some(parent_class) = &parent_class {
-            parent_class.runtime_methods(jvm).await?
-        } else {
-            Vec::new()
-        };
-        JavaVtable::extend_runtime_methods(&mut runtime_methods, &methods);
-        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len(), runtime_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods, &runtime_methods)?;
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
 
         write_generic(
             core,
@@ -296,9 +290,8 @@ impl JavaClassDefinition {
         for (index, ptr_name) in interface_name_pointers.into_iter().enumerate() {
             write_generic(core, ptr_interface_names + ((index + 1) * size_of::<u32>()) as u32, ptr_name)?;
         }
-        let runtime_methods = parent_class.runtime_methods(jvm).await?;
-        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len(), runtime_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods, &runtime_methods)?;
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(
             core,
@@ -651,14 +644,8 @@ impl JavaClassDefinition {
         let ptr_class_fields = Allocator::alloc(core, class_fields_size as u32)?;
         core.write_bytes(ptr_class_fields, &vec![0; class_fields_size])?;
 
-        let mut runtime_methods = if let Some(parent_class) = &parent_class {
-            parent_class.runtime_methods(jvm).await?
-        } else {
-            Vec::new()
-        };
-        JavaVtable::extend_runtime_methods(&mut runtime_methods, &declared_methods);
-        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len(), runtime_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, self.ptr_raw, &virtual_methods, &runtime_methods)?;
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, self.ptr_raw, &virtual_methods)?;
         descriptor.ptr_class_fields = ptr_class_fields;
         descriptor.vtable_count = virtual_methods.len() as u16;
         write_generic(core, self.raw()?.ptr_descriptor, descriptor)?;
@@ -775,17 +762,56 @@ impl JavaClassDefinition {
             .collect()
     }
 
-    pub async fn runtime_methods(&self, jvm: &Jvm) -> Result<Vec<JavaMethod>> {
-        let mut methods = Vec::new();
-        for (_, declared_methods) in self.method_hierarchy(jvm).await?.into_iter().rev() {
-            JavaVtable::extend_runtime_methods(&mut methods, &declared_methods);
-        }
-        Ok(methods)
-    }
-
     pub async fn vtable_entries(&self, jvm: &Jvm) -> Result<Vec<JavaVtableEntry>> {
         let known_classes = self.method_hierarchy(jvm).await?;
         JavaVtable::read(&self.core, self.ptr_vtable()?, self.descriptor()?.vtable_count as usize, &known_classes)
+    }
+
+    pub async fn interface_dispatch_table(&self, jvm: &Jvm, interface: &Self) -> Result<u32> {
+        // Keep resolved interface tables with the receiver class for its lifetime.
+        let ptr_head = self.ptr_vtable()? + (u32::from(self.descriptor()?.vtable_count) + 1) * size_of::<u32>() as u32;
+        let head: u32 = read_generic(&self.core, ptr_head)?;
+        let mut entry = head;
+        while entry != 0 {
+            let ptr_interface: u32 = read_generic(&self.core, entry + size_of::<u32>() as u32)?;
+            if ptr_interface == interface.ptr_raw {
+                return Ok(entry + size_of::<u32>() as u32);
+            }
+            entry = read_generic(&self.core, entry)?;
+        }
+
+        let classes = self.method_hierarchy(jvm).await?;
+        let mut entries = interface.vtable_entries(jvm).await?;
+        for entry in &mut entries {
+            if let Some(declaration) = &entry.method {
+                let implementation = classes
+                    .iter()
+                    .flat_map(|(_, methods)| methods)
+                    .find(|method| {
+                        !method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE)
+                            && method.name() == declaration.name()
+                            && method.descriptor() == declaration.descriptor()
+                    })
+                    .ok_or_else(|| {
+                        WieError::FatalError(format!(
+                            "Unable to resolve interface method {}.{}{} on {}",
+                            ClassDefinition::name(interface),
+                            declaration.name(),
+                            declaration.descriptor(),
+                            ClassDefinition::name(self)
+                        ))
+                    })?;
+                entry.target = implementation.target()?;
+            }
+        }
+
+        let mut core = self.core.clone();
+        let allocation = Allocator::alloc(&mut core, ((entries.len() + 2) * size_of::<u32>()) as u32)?;
+        write_generic(&mut core, allocation, head)?;
+        let ptr_table = allocation + size_of::<u32>() as u32;
+        JavaVtable::write(&mut core, ptr_table, interface.ptr_raw, &entries)?;
+        write_generic(&mut core, ptr_head, allocation)?;
+        Ok(ptr_table)
     }
 }
 

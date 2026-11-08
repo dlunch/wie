@@ -8,7 +8,7 @@ use alloc::{
 };
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
-use jvm::{ClassInstance, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use jvm_class_proto::JavaMethodProto;
 use jvm_types::MethodAccessFlags;
 use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
@@ -221,17 +221,8 @@ where
             .collect::<Vec<_>>();
 
         let codec = JavaValueCodec::new(core);
-        let mut args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
-        let result = if self.proto.access_flags.contains(MethodAccessFlags::ABSTRACT) {
-            // Interface tables target abstract declarations; dispatch to the receiver's implementation.
-            let receiver: Box<dyn ClassInstance> = args.remove(0).into();
-            let class_name = receiver.class_definition().name().into_owned();
-            self.jvm
-                .invoke_virtual(&receiver, &class_name, &self.proto.name, &self.proto.descriptor, args)
-                .await
-        } else {
-            self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await
-        };
+        let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
+        let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
         let result = match result {
             Ok(value) => value,
             Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),

@@ -126,29 +126,20 @@ impl LgtJvmSupport {
             .ok_or_else(|| WieError::FatalError(format!("Unsupported class implementation while linking virtual method: {class_name}")))?
             .clone();
         let methods = definition.vtable_entries(jvm).await?;
-        if let Some(index) = methods.iter().position(|entry| {
-            entry
-                .method
-                .as_ref()
-                .is_some_and(|method| method.name() == name && method.descriptor() == descriptor)
-        }) {
-            return i16::try_from(index)
-                .map_err(|_| WieError::FatalError(format!("Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}")));
-        }
-
-        let methods = definition.runtime_methods(jvm).await?;
         let index = methods
             .iter()
-            .position(|method| method.name() == name && method.descriptor() == descriptor)
+            .position(|entry| {
+                entry
+                    .method
+                    .as_ref()
+                    .is_some_and(|method| method.name() == name && method.descriptor() == descriptor)
+            })
             .ok_or_else(|| WieError::FatalError(format!("Unable to resolve virtual method {class_name}.{name}{descriptor}")))?;
-
-        // Native callers use ptr_vtable + (index + 1) * 4. The first runtime
-        // entry is at ptr_vtable - 4, so its index is -2; -1 is the class header.
-        i16::try_from(-2 - index as i32)
+        i16::try_from(index)
             .map_err(|_| WieError::FatalError(format!("Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}")))
     }
 
-    pub async fn interface_dispatch_table(jvm: &mut Jvm, class_name: &str) -> Result<u32> {
+    pub async fn interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, ptr_instance: u32, class_name: &str) -> Result<u32> {
         let class = jvm
             .resolve_class(class_name)
             .await
@@ -159,7 +150,10 @@ impl LgtJvmSupport {
             .downcast_ref::<JavaClassDefinition>()
             .ok_or_else(|| WieError::FatalError(format!("Unsupported interface class implementation: {class_name}")))?;
 
-        definition.ptr_vtable()
+        JavaClassInstance::from_raw(ptr_instance, core)
+            .class()?
+            .interface_dispatch_table(jvm, definition)
+            .await
     }
 
     pub fn non_virtual_method_target(jvm: &Jvm, class_name: &str, name: &str, descriptor: &str) -> Result<u32> {
