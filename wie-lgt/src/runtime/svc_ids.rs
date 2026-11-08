@@ -63,7 +63,6 @@ pub enum JavaSystemSvcId {
     MonitorExit = 34,
     LoadLongArray = 35,
     StoreLongArray = 36,
-    GetInterfaceDispatchTable64 = 37,
 }
 
 impl TryFrom<SvcId> for JavaSystemSvcId {
@@ -108,7 +107,6 @@ impl TryFrom<SvcId> for JavaSystemSvcId {
             34 => Self::MonitorExit,
             35 => Self::LoadLongArray,
             36 => Self::StoreLongArray,
-            37 => Self::GetInterfaceDispatchTable64,
             _ => {
                 return Err(wie_util::WieError::FatalError(alloc::format!(
                     "Unknown LGT Java system SVC id {}",
