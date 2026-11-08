@@ -174,9 +174,6 @@ impl JavaVtable {
                         "Inherited vtable index does not match LGT Java ABI for {class_name}.{name}{descriptor}"
                     )));
                 }
-                if methods.len() <= index {
-                    methods.resize(index + 1, JavaVtableEntry { target: 0, method: None });
-                }
                 if methods[index]
                     .method
                     .as_ref()
