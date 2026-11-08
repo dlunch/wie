@@ -22,7 +22,7 @@ impl SYSTheme {
             ],
             fields: vec![
                 JavaFieldProto::new("ITEM_GROUP_SOUND_DEFAULT", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
-                // Native imports link this field eagerly; no format is exposed without a theme provider.
+                // Native imports link this field eagerly.
                 JavaFieldProto::new("FORMAT_SOUND_MA3", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
