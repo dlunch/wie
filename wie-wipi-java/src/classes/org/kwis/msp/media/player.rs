@@ -203,7 +203,7 @@ mod test {
     fn test_clip_playback_reuses_player_until_buffer_replacement() -> Result<()> {
         let commands = Arc::new(Mutex::new(Vec::new()));
         let recorded = commands.clone();
-        let platform = TestPlatform::with_audio_handler(move |command| recorded.lock().unwrap().push(command));
+        let platform = TestPlatform::new().with_audio_handler(move |command| recorded.lock().unwrap().push(command));
         run_jvm_test_with_system(
             Box::new([wie_midp::get_protos().into(), get_protos().into()]),
             Box::new(platform),

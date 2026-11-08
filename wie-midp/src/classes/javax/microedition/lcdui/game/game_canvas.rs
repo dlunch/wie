@@ -42,17 +42,14 @@ impl GameCanvas {
         }
     }
 
-    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, suppress_key_events: bool) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, suppress_key_events: bool) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.GameCanvas::<init>({this:?}, {suppress_key_events})");
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "<init>", "()V", ()).await?;
 
-        let width: i32 = jvm
-            .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "getWidth", "()I", ())
-            .await?;
-        let height: i32 = jvm
-            .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
-            .await?;
+        // The buffer must cover the full screen even when the reported Canvas area is smaller.
+        let screen = context.system().platform().screen();
+        let (width, height) = (screen.width() as i32, screen.height() as i32);
 
         let image: ClassInstanceRef<Image> = jvm
             .invoke_static(
