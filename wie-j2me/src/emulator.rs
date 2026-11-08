@@ -82,7 +82,7 @@ impl J2MEEmulator {
             .collect::<Vec<_>>();
         let properties = properties.iter().map(|(k, v)| (k.as_ref(), v.as_ref())).collect::<Vec<_>>();
 
-        let protos = [wie_midp::get_protos().into()];
+        let protos = [wie_midp::get_protos().into(), wie_midp_vendor::get_protos().into()];
         let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &properties, RustJavaJvmImplementation).await?;
 
         let main_class_name = main_class_name.replace('.', "/");

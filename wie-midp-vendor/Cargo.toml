@@ -1,0 +1,20 @@
+[package]
+name = "wie-midp-vendor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+
+[dependencies]
+tracing = { workspace = true }
+
+jvm = { workspace = true }
+jvm-class-proto = { workspace = true }
+jvm-types = { workspace = true }
+
+wie-jvm-support = { workspace = true }
+wie-midp = { workspace = true }
+
+[dev-dependencies]
+test-utils = { workspace = true }
