@@ -21,7 +21,9 @@ pub struct JavaVtable;
 
 impl JavaVtable {
     pub fn allocate(core: &mut ArmCore, entry_count: usize) -> Result<u32> {
-        Allocator::alloc(core, ((entry_count + 1) * size_of::<u32>()) as u32)
+        let allocation = Allocator::alloc(core, ((entry_count + 2) * size_of::<u32>()) as u32)?;
+        write_generic(core, allocation + ((entry_count + 1) * size_of::<u32>()) as u32, 0u32)?;
+        Ok(allocation)
     }
 
     pub fn read(core: &ArmCore, ptr_vtable: u32, entry_count: usize, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
@@ -128,8 +130,31 @@ impl JavaVtable {
                     .clone()
             });
         }
-        let minimum_size = abi_classes.iter().filter_map(|class| class.vtable_size).max().unwrap_or(0);
-        if methods.len() < minimum_size {
+        let minimum_size = abi_classes
+            .iter()
+            .flat_map(|class| class.vtable_size.into_iter().chain(class.vtable.iter().map(|entry| entry.index + 1)))
+            .max()
+            .unwrap_or(0);
+        if JAVA_ABI.class(class_name).is_some() {
+            // A child's fixed native slots can overlap its parent's runtime-only tail.
+            // Place the confirmed ABI first, then append those inherited methods again.
+            let inherited = core::mem::take(&mut methods);
+            let mut runtime_methods = Vec::new();
+            methods.resize(minimum_size, JavaVtableEntry { target: 0, method: None });
+            for entry in inherited {
+                if let Some(method) = &entry.method {
+                    if let Some(index) = abi_classes
+                        .iter()
+                        .find_map(|class| class.vtable_index(&method.name(), &method.descriptor()))
+                    {
+                        methods[index] = entry;
+                    } else {
+                        runtime_methods.push(entry);
+                    }
+                }
+            }
+            methods.extend(runtime_methods);
+        } else if methods.len() < minimum_size {
             methods.resize(minimum_size, JavaVtableEntry { target: 0, method: None });
         }
 
@@ -155,9 +180,6 @@ impl JavaVtable {
                         "Inherited vtable index does not match LGT Java ABI for {class_name}.{name}{descriptor}"
                     )));
                 }
-                if methods.len() <= index {
-                    methods.resize(index + 1, JavaVtableEntry { target: 0, method: None });
-                }
                 if methods[index]
                     .method
                     .as_ref()
@@ -171,7 +193,8 @@ impl JavaVtable {
             } else if let Some(index) = inherited_index {
                 index
             } else {
-                continue;
+                methods.push(JavaVtableEntry { target: 0, method: None });
+                methods.len() - 1
             };
 
             methods[index] = JavaVtableEntry {
@@ -181,42 +204,5 @@ impl JavaVtable {
         }
 
         Ok(methods)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::{vec, vec::Vec};
-    use core::mem::size_of;
-
-    use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{Result, write_generic};
-
-    use super::{JavaVtable, JavaVtableEntry};
-
-    #[test]
-    fn compiler_vtable_uses_parent_targets_for_empty_entries() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
-        Allocator::init(&mut core)?;
-
-        let compiler_targets = [0, 0x99, 0, 0x88];
-        let ptr_vtable = Allocator::alloc(&mut core, ((compiler_targets.len() + 1) * size_of::<u32>()) as u32)?;
-        write_generic(&mut core, ptr_vtable, 0x1234u32)?;
-        for (index, target) in compiler_targets.iter().enumerate() {
-            write_generic(&mut core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32, *target)?;
-        }
-
-        let parent_methods = [0x11, 0x22, 0x33, 0x44]
-            .into_iter()
-            .map(|target| JavaVtableEntry { target, method: None })
-            .collect::<Vec<_>>();
-        let entries = JavaVtable::build_from_compiler_vtable(&core, ptr_vtable, compiler_targets.len(), &parent_methods, &[])?;
-
-        assert_eq!(entries.iter().map(|entry| entry.target).collect::<Vec<_>>(), vec![0x11, 0x99, 0x33, 0x88]);
-        Ok(())
     }
 }

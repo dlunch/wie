@@ -260,7 +260,6 @@ Known functions in Java import table `0x64` are:
 | `0x06` | teardown helper paired with `0x07` |
 | `0x07` | install the generated-class collection and accompanying opaque metadata |
 | `0x09` | resolve and cache a UTF-16 Java string literal |
-| `0x0a` | obtain an interface dispatch table |
 | `0x0b` | register a generated class record |
 | `0x0c` | resolve a runtime class object from a generated class record |
 | `0x0d` | ensure class initialization using a generated callback |
@@ -282,11 +281,14 @@ Known functions in Java import table `0x64` are:
 | `0x56` | enter an object monitor |
 | `0x57` | exit an object monitor |
 | `0x61` | checked reference-array store |
+| `0x64` | obtain an interface dispatch table from an instance and an interface-name pointer |
 | `0x82` | set the application archive path |
 | `0x83` | start the Java application entry class |
 | `0xe1` | obtain the `java/lang/String` runtime class |
 | `0xe2` | obtain the `java/lang/String[]` runtime class |
 | `0xfa` | unchecked reference-array store |
+
+Import `0x64` receives the receiver in `r0` and a null-terminated interface-name pointer in `r1`. Callers load a method target from the returned table at `(method_index + 1) * 4` and pass the receiver to that target. This is observed in both ARM and Thumb callers.
 
 ## ABI details
 

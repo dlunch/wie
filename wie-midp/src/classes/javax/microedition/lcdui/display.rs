@@ -128,6 +128,10 @@ impl Display {
                 JavaFieldProto::new("height", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("paintDisabled", "Z", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("repaintPending", "Z", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("repaintLeft", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("repaintTop", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("repaintRight", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("repaintBottom", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("alertGeneration", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("tickerGeneration", "I", FieldAccessFlags::PRIVATE),
             ],
@@ -473,10 +477,8 @@ impl Display {
         if displayable.is_null() {
             jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "isInFullScreenMode", "Z", false)
                 .await?;
-            let width: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "width", "I").await?;
-            let height: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "height", "I").await?;
             return jvm
-                .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, width, height))
+                .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
                 .await;
         }
 
@@ -498,15 +500,13 @@ impl Display {
         jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "isInFullScreenMode", "Z", fullscreen_mode)
             .await?;
 
-        let width: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "width", "I").await?;
-        let height: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "height", "I").await?;
         let notification_result: JvmResult<()> = jvm
             .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "notifySizeChanged", "()V", ())
             .await;
         let timer_result = Self::schedule_alert_timeout(jvm, context, this.clone(), alert_generation).await;
         let ticker_result = Self::schedule_ticker_tick(jvm, context, this.clone(), ticker_generation).await;
         let repaint_result: JvmResult<()> = jvm
-            .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, width, height))
+            .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
             .await;
         notification_result?;
         timer_result?;
@@ -806,6 +806,52 @@ impl Display {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::repaint({this:?}, {x}, {y}, {width}, {height})");
 
+        let displayable: ClassInstanceRef<Displayable> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/Display",
+                "currentDisplayable",
+                "Ljavax/microedition/lcdui/Displayable;",
+            )
+            .await?;
+        let screen_width: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "width", "I").await?;
+        let screen_height: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "height", "I").await?;
+        let (viewport_width, viewport_height) = if displayable.is_null() {
+            (screen_width, screen_height)
+        } else {
+            let layout = Self::chrome_layout(jvm, context, &displayable, screen_width, screen_height).await?;
+            (layout.content_width, layout.content_height)
+        };
+        let (mut left, mut top, mut right, mut bottom) = if width == -1 && height == -1 {
+            (0, 0, screen_width, screen_height)
+        } else {
+            (
+                x.max(0),
+                y.max(0),
+                x.saturating_add(width).min(viewport_width),
+                y.saturating_add(height).min(viewport_height),
+            )
+        };
+        if right <= left || bottom <= top {
+            return Ok(());
+        }
+        if jvm
+            .get_field::<bool>(&this, "javax/microedition/lcdui/Display", "repaintPending", "Z")
+            .await?
+        {
+            left = left.min(jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintLeft", "I").await?);
+            top = top.min(jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintTop", "I").await?);
+            right = right.max(jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintRight", "I").await?);
+            bottom = bottom.max(jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintBottom", "I").await?);
+        }
+        for (field, value) in [
+            ("repaintLeft", left),
+            ("repaintTop", top),
+            ("repaintRight", right),
+            ("repaintBottom", bottom),
+        ] {
+            jvm.put_field(&mut this, "javax/microedition/lcdui/Display", field, "I", value).await?;
+        }
         jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "repaintPending", "Z", true)
             .await?;
         let platform = context.system().platform();
@@ -904,6 +950,18 @@ impl Display {
     async fn handle_paint_event(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::handlePaintEvent({this:?})");
 
+        let dirty_bounds = if jvm
+            .get_field::<bool>(&this, "javax/microedition/lcdui/Display", "repaintPending", "Z")
+            .await?
+        {
+            let left: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintLeft", "I").await?;
+            let top: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintTop", "I").await?;
+            let right: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintRight", "I").await?;
+            let bottom: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintBottom", "I").await?;
+            Some((left, top, right - left, bottom - top))
+        } else {
+            None
+        };
         // Repaints requested during painting belong to the next cycle.
         jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "repaintPending", "Z", false)
             .await?;
@@ -981,6 +1039,10 @@ impl Display {
                     (0, 0, layout.content_width, layout.content_height),
                 )
                 .await?;
+            if let Some(bounds) = dirty_bounds {
+                jvm.invoke_virtual::<_, ()>(&screen_graphics, "javax/microedition/lcdui/Graphics", "clipRect", "(IIII)V", bounds)
+                    .await?;
+            }
 
             let result: JvmResult<()> = jvm
                 .invoke_virtual(

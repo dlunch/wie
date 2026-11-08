@@ -298,13 +298,13 @@ pub async fn sprintk(
 pub async fn get_total_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
     tracing::warn!("stub MC_knlGetTotalMemory()");
 
-    Ok(0x100000) // TODO hardcoded
+    Ok(0x10000000) // Nominal ARM heap capacity.
 }
 
 pub async fn get_free_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
     tracing::warn!("stub MC_knlGetFreeMemory()");
 
-    Ok(0x100000) // TODO hardcoded
+    Ok(0x10000000) // Nominal ARM heap capacity.
 }
 
 pub async fn exit(context: &mut dyn WIPICContext, code: i32) -> Result<()> {

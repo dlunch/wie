@@ -202,12 +202,37 @@ impl Image {
         let midp_image: ClassInstanceRef<MidpImage> = jvm
             .get_field(&image, "org/kwis/msp/lcdui/Image", "midpImage", "Ljavax/microedition/lcdui/Image;")
             .await?;
+        let width: i32 = jvm
+            .invoke_virtual(&midp_image, "javax/microedition/lcdui/Image", "getWidth", "()I", ())
+            .await?;
+        let height: i32 = jvm
+            .invoke_virtual(&midp_image, "javax/microedition/lcdui/Image", "getHeight", "()I", ())
+            .await?;
+        // WIPI copies are mutable and flatten transparency onto white.
         let midp_image_clone: ClassInstanceRef<MidpImage> = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Image",
                 "createImage",
-                "(Ljavax/microedition/lcdui/Image;)Ljavax/microedition/lcdui/Image;",
-                (midp_image,),
+                "(II)Ljavax/microedition/lcdui/Image;",
+                (width, height),
+            )
+            .await?;
+        let graphics: ClassInstanceRef<MidpGraphics> = jvm
+            .invoke_virtual(
+                &midp_image_clone,
+                "javax/microedition/lcdui/Image",
+                "getGraphics",
+                "()Ljavax/microedition/lcdui/Graphics;",
+                (),
+            )
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "drawImage",
+                "(Ljavax/microedition/lcdui/Image;III)V",
+                (midp_image, 0, 0, 20),
             )
             .await?;
 
@@ -426,13 +451,13 @@ mod test {
                 )
                 .await?;
             assert!(
-                !jvm.invoke_virtual::<_, bool>(&clone, "org/kwis/msp/lcdui/Image", "isMutable", "()Z", ())
+                jvm.invoke_virtual::<_, bool>(&clone, "org/kwis/msp/lcdui/Image", "isMutable", "()Z", ())
                     .await?
             );
-            let immutable_graphics: ClassInstanceRef<Graphics> = jvm
+            let copied_graphics: ClassInstanceRef<Graphics> = jvm
                 .invoke_virtual(&clone, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
                 .await?;
-            assert!(immutable_graphics.is_null());
+            assert!(!copied_graphics.is_null());
             assert!(
                 !jvm.invoke_virtual::<_, bool>(&source, "org/kwis/msp/lcdui/Image", "isAnimated", "()Z", ())
                     .await?
@@ -471,6 +496,49 @@ mod test {
             let target_backend = MidpImage::image(&jvm, &target_midp).await?;
             let pixel = target_backend.get_pixel(1, 0);
             assert_eq!((pixel.r, pixel.g, pixel.b), (0xff, 0, 0));
+
+            let clone_midp = Image::midp_image(&jvm, &clone).await?;
+            let pixel = MidpImage::image(&jvm, &clone_midp).await?.get_pixel(0, 0);
+            assert_eq!((pixel.r, pixel.g, pixel.b), (255, 255, 255));
+
+            let mut pixels = jvm.instantiate_array("I", 2).await?;
+            jvm.store_array(&mut pixels, 0, [0x00ff0000i32, 0xff001122u32 as i32]).await?;
+            let transparent_midp: ClassInstanceRef<MidpImage> = jvm
+                .invoke_static(
+                    "javax/microedition/lcdui/Image",
+                    "createRGBImage",
+                    "([IIIZ)Ljavax/microedition/lcdui/Image;",
+                    (pixels, 2, 1, true),
+                )
+                .await?;
+            let transparent: ClassInstanceRef<Image> = jvm
+                .new_class("org/kwis/msp/lcdui/Image", "(Ljavax/microedition/lcdui/Image;)V", (transparent_midp,))
+                .await?
+                .into();
+            let immutable_graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &transparent,
+                    "org/kwis/msp/lcdui/Image",
+                    "getGraphics",
+                    "()Lorg/kwis/msp/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
+            assert!(immutable_graphics.is_null());
+            let copy: ClassInstanceRef<Image> = jvm
+                .invoke_static(
+                    "org/kwis/msp/lcdui/Image",
+                    "createImage",
+                    "(Lorg/kwis/msp/lcdui/Image;)Lorg/kwis/msp/lcdui/Image;",
+                    (transparent,),
+                )
+                .await?;
+            let copy_midp = Image::midp_image(&jvm, &copy).await?;
+            let copy_pixels = MidpImage::image(&jvm, &copy_midp).await?;
+            for (x, expected) in [(0, (255, 255, 255, 255)), (1, (0, 17, 34, 255))] {
+                let pixel = copy_pixels.get_pixel(x, 0);
+                assert_eq!((pixel.r, pixel.g, pixel.b, pixel.a), expected);
+            }
 
             Ok(())
         })

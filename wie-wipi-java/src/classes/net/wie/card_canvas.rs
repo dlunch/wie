@@ -157,6 +157,15 @@ impl CardCanvas {
     async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<MidpGraphics>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::paint({this:?}, {g:?})");
 
+        let mut paint_geometry = [0; 6];
+        for (value, method) in
+            paint_geometry
+                .iter_mut()
+                .zip(["getTranslateX", "getTranslateY", "getClipX", "getClipY", "getClipWidth", "getClipHeight"])
+        {
+            *value = jvm.invoke_virtual(&g, "javax/microedition/lcdui/Graphics", method, "()I", ()).await?;
+        }
+        let [translate_x, translate_y, clip_x, clip_y, clip_width, clip_height] = paint_geometry;
         let graphics = jvm
             .new_class("org/kwis/msp/lcdui/Graphics", "(Ljavax/microedition/lcdui/Graphics;)V", (g,))
             .await?;
@@ -170,10 +179,30 @@ impl CardCanvas {
                 .await?;
             let x: i32 = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "getX", "()I", ()).await?;
             let y: i32 = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "getY", "()I", ()).await?;
+            let width: i32 = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "getWidth", "()I", ()).await?;
+            let height: i32 = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "getHeight", "()I", ()).await?;
 
             let _: () = jvm.invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "reset", "()V", ()).await?;
             let _: () = jvm
-                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "translate", "(II)V", (x, y))
+                .invoke_virtual(
+                    &graphics,
+                    "org/kwis/msp/lcdui/Graphics",
+                    "translate",
+                    "(II)V",
+                    (translate_x + x, translate_y + y),
+                )
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &graphics,
+                    "org/kwis/msp/lcdui/Graphics",
+                    "setClip",
+                    "(IIII)V",
+                    (clip_x - x, clip_y - y, clip_width, clip_height),
+                )
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "clipRect", "(IIII)V", (0, 0, width, height))
                 .await?;
 
             let paint_result: JvmResult<()> = jvm

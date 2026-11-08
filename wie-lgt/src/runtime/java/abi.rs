@@ -22,6 +22,7 @@ pub struct JavaAbi {
 pub struct JavaClassAbi {
     pub name: String,
     pub vtable_size: Option<usize>,
+    pub instance_field_word_count: Option<usize>,
     #[serde(default)]
     pub vtable: Vec<JavaVtableIndex>,
     #[serde(default)]

@@ -32,7 +32,8 @@ impl JavaClassInstance {
 
     pub fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as u32)?;
-        let allocated_storage_size = storage_size.max(size_of::<LgtJvmWord>());
+        let runtime_storage_size = class.runtime_field_word_count()? * size_of::<LgtJvmWord>();
+        let allocated_storage_size = (storage_size + runtime_storage_size).max(size_of::<LgtJvmWord>());
         let ptr_fields = Allocator::alloc(core, allocated_storage_size as u32)?;
         core.write_bytes(ptr_fields, &vec![0; allocated_storage_size])?;
 
@@ -51,7 +52,12 @@ impl JavaClassInstance {
 
     pub fn destroy_with_storage(mut self, storage_size: usize) -> Result<()> {
         let ptr_fields = self.ptr_fields()?;
-        Allocator::free(&mut self.core, ptr_fields, storage_size.max(size_of::<LgtJvmWord>()) as u32)?;
+        let runtime_storage_size = self.class()?.runtime_field_word_count()? * size_of::<LgtJvmWord>();
+        Allocator::free(
+            &mut self.core,
+            ptr_fields,
+            (storage_size + runtime_storage_size).max(size_of::<LgtJvmWord>()) as u32,
+        )?;
         Allocator::free(&mut self.core, self.ptr_raw, size_of::<RawJavaClassInstance>() as u32)
     }
 
@@ -75,7 +81,14 @@ impl JavaClassInstance {
     }
 
     fn field_address(&self, word_index: u32) -> Result<u32> {
-        self.storage_address(word_index as usize * size_of::<LgtJvmWord>())
+        let index = word_index as i32;
+        let word_index = if index < 0 {
+            // Native subclasses have different fixed sizes, so bind runtime tags to the receiver's tail.
+            self.class()?.instance_field_word_count()? + index.unsigned_abs() as usize - 1
+        } else {
+            word_index as usize
+        };
+        self.storage_address(word_index * size_of::<LgtJvmWord>())
     }
 }
 
@@ -95,11 +108,10 @@ impl ClassInstance for JavaClassInstance {
         let storage_size = self.storage_size().unwrap();
         let mut core = self.core.clone();
         let instance = Self::instantiate(&mut core, &class, storage_size).unwrap();
-        let mut fields = vec![0; storage_size];
-        if storage_size != 0 {
-            core.read_bytes(self.ptr_fields().unwrap(), &mut fields).unwrap();
-            core.write_bytes(instance.ptr_fields().unwrap(), &fields).unwrap();
-        }
+        let runtime_storage_size = class.runtime_field_word_count().unwrap() * size_of::<LgtJvmWord>();
+        let mut fields = vec![0; (storage_size + runtime_storage_size).max(size_of::<LgtJvmWord>())];
+        core.read_bytes(self.ptr_fields().unwrap(), &mut fields).unwrap();
+        core.write_bytes(instance.ptr_fields().unwrap(), &fields).unwrap();
         Ok(Box::new(instance))
     }
 
