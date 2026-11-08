@@ -9,7 +9,7 @@ use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody,
-    api::{fs, graphics, im, kernel, media, misc, net, uic, util},
+    api::{database, fs, graphics, im, kernel, media, misc, net, uic, util},
 };
 
 use crate::runtime::{
@@ -350,6 +350,24 @@ pub fn get_im_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
+pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
+    vec![
+        database::open.into_body(),
+        database::close.into_body(),
+        database::delete.into_body(),
+        database::insert_record.into_body(),
+        database::select_record.into_body(),
+        database::update_record.into_body(),
+        database::delete_record.into_body(),
+        database::list_records.into_body(),
+        gen_stub(8, "MC_dbSortRecords"),
+        database::get_access_mode.into_body(),
+        database::get_number_of_records.into_body(),
+        database::get_record_size.into_body(),
+        gen_stub(12, "MC_dbListDataBases"),
+    ]
+}
+
 async fn unk_screen_flush(context: &mut dyn WIPICContext) -> Result<()> {
     tracing::debug!("KTF unk_screen_flush()");
     let framebuffer = graphics::get_screen_framebuffer(context, 0).await?;
@@ -500,13 +518,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICGraphicsMethodId::GetImageInfo => Some(gen_stub(59, "OEMC_grpGetImageInfo")),
         },
         WIPICTableId::Interface3 => get_im_method_table().into_iter().nth(function_id as usize),
-        WIPICTableId::Interface4 => {
-            if function_id < 64 {
-                Some(gen_stub(4, "stub"))
-            } else {
-                None
-            }
-        }
+        WIPICTableId::Database => get_database_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Interface5 => {
             if function_id < 64 {
                 Some(gen_stub(5, "stub"))

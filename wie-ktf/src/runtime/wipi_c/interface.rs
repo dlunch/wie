@@ -53,7 +53,7 @@ pub async fn get_wipic_interfaces(core: &mut ArmCore, context: &mut dyn WIPICCon
     let misc_interface = write_methods(core, context, WIPICTableId::Misc, method_table::get_misc_method_table())?;
     let graphics_interface = write_interface(context, graphics_interface)?;
     let interface_3 = write_methods(core, context, WIPICTableId::Interface3, method_table::get_im_method_table())?;
-    let interface_4 = write_methods(core, context, WIPICTableId::Interface4, method_table::get_stub_method_table(4))?;
+    let database_interface = write_methods(core, context, WIPICTableId::Database, method_table::get_database_method_table())?;
     let interface_5 = write_methods(core, context, WIPICTableId::Interface5, method_table::get_stub_method_table(5))?;
     let fs_interface = write_interface(context, fs_interface)?;
     let interface_7 = write_methods(core, context, WIPICTableId::Interface7, method_table::get_stub_method_table(7))?;
@@ -72,7 +72,7 @@ pub async fn get_wipic_interfaces(core: &mut ArmCore, context: &mut dyn WIPICCon
         misc_interface,
         graphics_interface,
         interface_3,
-        interface_4,
+        database_interface,
         interface_5,
         fs_interface,
         interface_7,

@@ -150,6 +150,12 @@ impl JavaClassDefinition {
             .map(|class| class.instance_field_word_count())
             .transpose()?
             .unwrap_or(0);
+        let mut runtime_field_word_count = parent_class
+            .as_ref()
+            .map(|class| class.runtime_field_word_count())
+            .transpose()?
+            .unwrap_or(0);
+        let native_field_word_count = class_abi.and_then(|class| class.instance_field_word_count);
         let mut static_field_word_index = 0usize;
         for (index, field) in field_protos.iter().enumerate() {
             let is_static = field.access_flags.contains(FieldAccessFlags::STATIC);
@@ -161,12 +167,18 @@ impl JavaClassDefinition {
                 .find(|fixed| fixed.name == field.name && fixed.descriptor == field.descriptor)
             {
                 fixed.index as usize
+            } else if native_field_word_count.is_some() {
+                // Native subclasses keep their compiled offsets. Negative tags place
+                // runtime-only fields after the actual receiver's native field area.
+                let runtime_index = 0u32.wrapping_sub(runtime_field_word_count as u32 + 1);
+                runtime_field_word_count += word_count;
+                runtime_index as usize
             } else {
                 instance_field_word_index
             };
             if is_static {
                 static_field_word_index += word_count;
-            } else {
+            } else if (word_index as i32) >= 0 {
                 instance_field_word_index = instance_field_word_index.max(word_index + word_count);
             }
 
@@ -214,7 +226,7 @@ impl JavaClassDefinition {
                 ptr_vtable: 0,
                 ptr_super_class,
                 ptr_interface_references: 0,
-                instance_field_word_count: instance_field_word_index as u16,
+                instance_field_word_count: native_field_word_count.unwrap_or(instance_field_word_index) as u16,
                 link_state: 0,
                 unk7: 0,
                 ptr_instance_reference_bitmap: 0,
@@ -417,6 +429,27 @@ impl JavaClassDefinition {
         Ok(self.descriptor()?.instance_field_word_count as usize)
     }
 
+    pub fn runtime_field_word_count(&self) -> Result<usize> {
+        let mut class = self.clone();
+        let mut count = 0;
+        loop {
+            for field in class.fields()? {
+                if !field.access_flags().contains(FieldAccessFlags::STATIC) {
+                    let index = field.word_index()? as i32;
+                    if index < 0 {
+                        let width = if field.descriptor() == "J" || field.descriptor() == "D" { 2 } else { 1 };
+                        count = count.max(index.unsigned_abs() as usize - 1 + width);
+                    }
+                }
+            }
+            let parent = class.descriptor()?.ptr_super_class;
+            if parent == 0 {
+                return Ok(count);
+            }
+            class = Self::from_raw(parent, &self.core);
+        }
+    }
+
     pub async fn prepare_generated(&mut self, core: &mut ArmCore, jvm: &Jvm, generated_classes: u32) -> Result<()> {
         self.patch_declared_instance_field_word_indices()?;
 
@@ -523,7 +556,25 @@ impl JavaClassDefinition {
             } else {
                 Vec::new()
             };
-
+            let parent_classes = if let Some(parent_class) = &parent_class {
+                parent_class.method_hierarchy(jvm).await?
+            } else {
+                Vec::new()
+            };
+            let mut native_parent_methods = parent_methods.clone();
+            for (index, entry) in native_parent_methods.iter_mut().enumerate() {
+                if let Some(method) = &entry.method {
+                    let owner = Self::from_raw(method.raw()?.ptr_class, core);
+                    let fixed_index = parent_classes
+                        .iter()
+                        .find_map(|(name, _)| JAVA_ABI.class(name)?.vtable_index(&method.name(), &method.descriptor()));
+                    // Generated parents are already linked; runtime prototypes remain unlinked.
+                    // Their appended slots cannot identify native overrides at the same indices.
+                    if owner.descriptor()?.link_state != 3 && fixed_index != Some(index) {
+                        *entry = JavaVtableEntry { target: 0, method: None };
+                    }
+                }
+            }
             let mut abi_classes = Vec::new();
             if let Some(class) = JAVA_ABI.class(&class_name) {
                 abi_classes.push(class);
@@ -540,11 +591,11 @@ impl JavaClassDefinition {
                 if target == 0 {
                     continue;
                 }
-                if parent_methods.get(index).is_some_and(|entry| entry.target == target) {
+                if native_parent_methods.get(index).is_some_and(|entry| entry.target == target) {
                     continue;
                 }
 
-                let method = if let Some(parent_method) = parent_methods.get(index).and_then(|entry| entry.method.as_ref()) {
+                let method = if let Some(parent_method) = native_parent_methods.get(index).and_then(|entry| entry.method.as_ref()) {
                     Some((
                         parent_method.name(),
                         parent_method.descriptor(),
@@ -598,13 +649,34 @@ impl JavaClassDefinition {
                 descriptor.ptr_methods = ptr_methods;
             }
 
-            JavaVtable::build_from_compiler_vtable(
+            let mut methods = JavaVtable::build_from_compiler_vtable(
                 core,
                 descriptor.ptr_vtable,
                 descriptor.vtable_count as usize,
-                &parent_methods,
+                &native_parent_methods,
                 &declared_methods,
-            )?
+            )?;
+            // Native call sites retain their compiled slots; runtime-only methods follow them.
+            for method in declared_methods
+                .iter()
+                .chain(parent_methods.iter().filter_map(|entry| entry.method.as_ref()))
+            {
+                if method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) || method.name().starts_with('<') {
+                    continue;
+                }
+                if !methods.iter().any(|entry| {
+                    entry
+                        .method
+                        .as_ref()
+                        .is_some_and(|candidate| candidate.name() == method.name() && candidate.descriptor() == method.descriptor())
+                }) {
+                    methods.push(JavaVtableEntry {
+                        target: method.target()?,
+                        method: Some(method.clone()),
+                    });
+                }
+            }
+            methods
         } else {
             JavaVtable::build_methods(jvm, &class_name, parent_class.as_ref(), &declared_methods).await?
         };
@@ -622,18 +694,6 @@ impl JavaClassDefinition {
         let mut raw = self.raw()?;
         raw.unk1 = ptr_vtable;
         write_generic(core, self.ptr_raw, raw)
-    }
-
-    pub fn set_vtable_entries(&self, entries: &[JavaVtableEntry]) -> Result<()> {
-        let mut core = self.core.clone();
-        let ptr_vtable = JavaVtable::allocate(&mut core, entries.len())?;
-        JavaVtable::write(&mut core, ptr_vtable, self.ptr_raw, entries)?;
-        let mut descriptor = self.descriptor()?;
-        descriptor.vtable_count = entries.len() as u16;
-        write_generic(&mut core, self.raw()?.ptr_descriptor, descriptor)?;
-        let mut raw = self.raw()?;
-        raw.unk1 = ptr_vtable;
-        write_generic(&mut core, self.ptr_raw, raw)
     }
 
     pub fn set_link_state(&self, link_state: u16) -> Result<()> {
@@ -723,7 +783,7 @@ impl JavaClassDefinition {
         write_generic(core, self.raw()?.ptr_descriptor, descriptor)
     }
 
-    pub async fn vtable_entries(&self, jvm: &Jvm) -> Result<Vec<JavaVtableEntry>> {
+    async fn method_hierarchy(&self, jvm: &Jvm) -> Result<Vec<(String, Vec<JavaMethod>)>> {
         let mut hierarchy = vec![self.clone()];
         while let Some(parent_name) = ClassDefinition::super_class_name(hierarchy.last().unwrap()) {
             let parent_class = jvm
@@ -738,11 +798,62 @@ impl JavaClassDefinition {
             hierarchy.push(parent_class);
         }
 
-        let known_classes = hierarchy
+        hierarchy
             .into_iter()
             .map(|class| Ok((ClassDefinition::name(&class).into_owned(), class.methods()?)))
-            .collect::<Result<Vec<_>>>()?;
+            .collect()
+    }
+
+    pub async fn vtable_entries(&self, jvm: &Jvm) -> Result<Vec<JavaVtableEntry>> {
+        let known_classes = self.method_hierarchy(jvm).await?;
         JavaVtable::read(&self.core, self.ptr_vtable()?, self.descriptor()?.vtable_count as usize, &known_classes)
+    }
+
+    pub async fn interface_dispatch_table(&self, jvm: &Jvm, interface: &Self) -> Result<u32> {
+        // Keep resolved interface tables with the receiver class for its lifetime.
+        let ptr_head = self.ptr_vtable()? + (u32::from(self.descriptor()?.vtable_count) + 1) * size_of::<u32>() as u32;
+        let head: u32 = read_generic(&self.core, ptr_head)?;
+        let mut entry = head;
+        while entry != 0 {
+            let ptr_interface: u32 = read_generic(&self.core, entry + size_of::<u32>() as u32)?;
+            if ptr_interface == interface.ptr_raw {
+                return Ok(entry + size_of::<u32>() as u32);
+            }
+            entry = read_generic(&self.core, entry)?;
+        }
+
+        let classes = self.method_hierarchy(jvm).await?;
+        let mut entries = interface.vtable_entries(jvm).await?;
+        for entry in &mut entries {
+            if let Some(declaration) = &entry.method {
+                let implementation = classes
+                    .iter()
+                    .flat_map(|(_, methods)| methods)
+                    .find(|method| {
+                        !method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE)
+                            && method.name() == declaration.name()
+                            && method.descriptor() == declaration.descriptor()
+                    })
+                    .ok_or_else(|| {
+                        WieError::FatalError(format!(
+                            "Unable to resolve interface method {}.{}{} on {}",
+                            ClassDefinition::name(interface),
+                            declaration.name(),
+                            declaration.descriptor(),
+                            ClassDefinition::name(self)
+                        ))
+                    })?;
+                entry.target = implementation.target()?;
+            }
+        }
+
+        let mut core = self.core.clone();
+        let allocation = Allocator::alloc(&mut core, ((entries.len() + 2) * size_of::<u32>()) as u32)?;
+        write_generic(&mut core, allocation, head)?;
+        let ptr_table = allocation + size_of::<u32>() as u32;
+        JavaVtable::write(&mut core, ptr_table, interface.ptr_raw, &entries)?;
+        write_generic(&mut core, ptr_head, allocation)?;
+        Ok(ptr_table)
     }
 }
 
@@ -862,15 +973,8 @@ impl ClassDefinition for JavaClassDefinition {
             .collect::<Vec<_>>();
         let descriptor = self.descriptor().unwrap();
         if descriptor.ptr_instance_reference_bitmap != 0 {
-            // The JVM visits parents separately, using their actual runtime field layouts.
-            let inherited_word_count = if descriptor.ptr_super_class == 0 {
-                0
-            } else {
-                Self::from_raw(descriptor.ptr_super_class, &self.core)
-                    .instance_field_word_count()
-                    .unwrap() as u32
-            };
-            for word_index in inherited_word_count..descriptor.instance_field_word_count as u32 {
+            // Native bitmap positions stay fixed; the JVM traces typed runtime fields separately.
+            for word_index in 0..descriptor.instance_field_word_count as u32 {
                 let byte: u8 = read_generic(&self.core, descriptor.ptr_instance_reference_bitmap + word_index / 8).unwrap();
                 if byte & (0x80 >> (word_index % 8)) != 0 {
                     fields.push(Box::new(JavaReferenceField { word_index }));

@@ -25,6 +25,7 @@ impl TextComponent {
             fields: vec![
                 JavaFieldProto::new("m_cPos", "I", FieldAccessFlags::PROTECTED),
                 JavaFieldProto::new("m_td", "[C", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("maxLength", "I", FieldAccessFlags::PROTECTED),
                 JavaFieldProto::new("imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", FieldAccessFlags::PROTECTED),
                 JavaFieldProto::new("iMode", "I", FieldAccessFlags::PROTECTED),
             ],
@@ -36,6 +37,7 @@ impl TextComponent {
         tracing::debug!("stub org.kwis.msp.lwc.TextComponent::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await?;
+        jvm.put_field(&mut this, "org/kwis/msp/lwc/TextComponent", "maxLength", "I", -1).await?;
 
         // TODO constant. 0: CONSTRAINT_ANY
         let im_handler = jvm.new_class("org/kwis/msp/lcdui/InputMethodHandler", "(I)V", (0,)).await?;
@@ -53,7 +55,7 @@ impl TextComponent {
     }
 
     async fn set_max_length(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>, max_length: i32) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::<init>({this:?}, {max_length})");
+        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::setMaxLength({this:?}, {max_length})");
 
         Ok(())
     }
@@ -65,7 +67,7 @@ impl TextComponent {
     }
 
     async fn get_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>) -> JvmResult<ClassInstanceRef<String>> {
-        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::<init>({this:?})");
+        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::getString({this:?})");
 
         let result = JavaLangString::from_rust_string(jvm, "temp").await?;
 
