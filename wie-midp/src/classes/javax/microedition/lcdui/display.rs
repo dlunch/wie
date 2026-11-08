@@ -262,9 +262,16 @@ impl Display {
         };
 
         let softkey_height = if command_count > 0 {
-            let command_height: i32 = jvm
-                .invoke_virtual(displayable, "javax/microedition/lcdui/Displayable", "getCommandBarHeight", "()I", ())
-                .await?;
+            let mut command_height = 18;
+            if jvm.is_instance(&***displayable, "javax/microedition/lcdui/Canvas") {
+                let key = JavaLangString::from_rust_string(jvm, "m.SK_VM").await?;
+                let version: ClassInstanceRef<JavaString> = jvm
+                    .invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (key,))
+                    .await?;
+                if !version.is_null() {
+                    command_height = 16;
+                }
+            }
             command_height.min(height)
         } else {
             0

@@ -127,7 +127,7 @@ impl SktEmulator {
             .collect::<Vec<_>>();
 
         let protos = [
-            wie_skvm::get_midp_protos().into(),
+            wie_midp::get_protos().into(),
             wie_skvm::get_protos().into(),
             wie_wipi_java::get_protos().into(),
         ];

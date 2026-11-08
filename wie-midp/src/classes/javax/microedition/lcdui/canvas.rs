@@ -456,11 +456,30 @@ mod test {
             Box::new([get_protos().into(), [RecordingCanvas::as_proto(), RecordingGameCanvas::as_proto()].into()]),
             |jvm| async move {
                 let display: ClassInstanceRef<Display> = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?.into();
-                for (class, game_canvas) in [
-                    ("javax/microedition/lcdui/TestRecordingCanvas", false),
-                    ("javax/microedition/lcdui/TestRecordingGameCanvas", true),
+                for (class, game_canvas, skvm) in [
+                    ("javax/microedition/lcdui/TestRecordingCanvas", false, false),
+                    ("javax/microedition/lcdui/TestRecordingGameCanvas", true, false),
+                    ("javax/microedition/lcdui/TestRecordingCanvas", false, true),
+                    ("javax/microedition/lcdui/TestRecordingGameCanvas", true, true),
                 ] {
+                    if skvm {
+                        let key = JavaLangString::from_rust_string(&jvm, "m.SK_VM").await?;
+                        let value = JavaLangString::from_rust_string(&jvm, "10").await?;
+                        let _: ClassInstanceRef<()> = jvm
+                            .invoke_static(
+                                "java/lang/System",
+                                "setProperty",
+                                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;",
+                                (key, value),
+                            )
+                            .await?;
+                    }
                     let canvas: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                    assert_eq!(
+                        jvm.invoke_virtual::<_, i32>(&canvas, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
+                            .await?,
+                        if skvm { 224 } else { 240 }
+                    );
                     for (action, expected_key) in [
                         (1, MIDPKeyCode::UP),
                         (6, MIDPKeyCode::DOWN),
@@ -512,13 +531,14 @@ mod test {
                             "javax/microedition/lcdui/Displayable",
                             "addCommand",
                             "(Ljavax/microedition/lcdui/Command;)V",
-                            (command,),
+                            (command.clone(),),
                         )
                         .await?;
                     let decorated_height: i32 = jvm
                         .invoke_virtual(&canvas, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
                         .await?;
-                    assert!(decorated_height < 240);
+                    let command_height = if skvm { 16 } else { 18 };
+                    assert_eq!(decorated_height, 240 - 16 - command_height);
                     if game_canvas {
                         let graphics: ClassInstanceRef<Graphics> = jvm
                             .invoke_virtual(
@@ -614,6 +634,49 @@ mod test {
                             .await?;
                         assert_eq!(jvm.get_field::<i32>(&canvas, class, field, "I").await?, key);
                     }
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &canvas,
+                            "javax/microedition/lcdui/Displayable",
+                            "removeCommand",
+                            "(Ljavax/microedition/lcdui/Command;)V",
+                            (command,),
+                        )
+                        .await?;
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &canvas,
+                            "javax/microedition/lcdui/Displayable",
+                            "setTitle",
+                            "(Ljava/lang/String;)V",
+                            (ClassInstanceRef::<()>::new(None),),
+                        )
+                        .await?;
+                    let height = if skvm { 224 } else { 240 };
+                    assert_eq!(
+                        jvm.invoke_virtual::<_, i32>(&canvas, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
+                            .await?,
+                        height
+                    );
+                    assert_eq!(jvm.get_field::<i32>(&canvas, class, "lastHeight", "I").await?, height);
+                    let _: () = jvm
+                        .invoke_virtual(&canvas, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (0, 0, 320, 240))
+                        .await?;
+                    let _: () = jvm
+                        .invoke_virtual(&canvas, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                        .await?;
+                    let mut graphics: ClassInstanceRef<Graphics> = jvm
+                        .invoke_virtual(
+                            &display,
+                            "javax/microedition/lcdui/Display",
+                            "getScreenGraphics",
+                            "()Ljavax/microedition/lcdui/Graphics;",
+                            (),
+                        )
+                        .await?;
+                    let image_ref = Graphics::image(&jvm, &mut graphics).await?;
+                    let bottom = Image::image(&jvm, &image_ref).await?.get_pixel(319, 239);
+                    assert_eq!((bottom.r, bottom.g, bottom.b), (0x22, 0xaa, 0x44));
                 }
                 Ok(())
             },

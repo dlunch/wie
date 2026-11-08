@@ -5,16 +5,6 @@ use wie_jvm_support::WieJavaClassProto;
 
 pub mod classes;
 
-pub fn get_midp_protos() -> [WieJavaClassProto; 47] {
-    wie_midp::get_protos().map(|proto| {
-        if proto.name == "javax/microedition/lcdui/Canvas" {
-            classes::javax::microedition::lcdui::Canvas::as_proto()
-        } else {
-            proto
-        }
-    })
-}
-
 pub fn get_protos() -> [WieJavaClassProto; 31] {
     [
         classes::com::skt::m::AudioClip::as_proto(),
