@@ -265,12 +265,7 @@ mod test {
     async fn pixels(jvm: &Jvm, display: &ClassInstanceRef<Display>) -> JvmResult<Vec<u8>> {
         let _: () = jvm.invoke_virtual(display, DISPLAY, "handlePaintEvent", "()V", ()).await?;
         let image: ClassInstanceRef<Image> = jvm
-            .get_field(
-                display,
-                "javax/microedition/lcdui/Display",
-                "screenImage",
-                "Ljavax/microedition/lcdui/Image;",
-            )
+            .get_static_field("javax/microedition/lcdui/Display", "screenImage", "Ljavax/microedition/lcdui/Image;")
             .await?;
         Ok(Image::image(jvm, &image).await?.raw().into_owned())
     }

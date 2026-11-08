@@ -1229,8 +1229,7 @@ mod test {
                 .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &label).await?, "");
             let mut screen_graphics: ClassInstanceRef<Graphics> = jvm
-                .invoke_virtual(
-                    &display,
+                .invoke_static(
                     "javax/microedition/lcdui/Display",
                     "getScreenGraphics",
                     "()Ljavax/microedition/lcdui/Graphics;",
@@ -1732,8 +1731,7 @@ mod test {
                     .await?;
                 show(&jvm, &display, JavaValue::from(alert.clone()).into()).await?;
                 let mut graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(
-                        &display,
+                    .invoke_static(
                         "javax/microedition/lcdui/Display",
                         "getScreenGraphics",
                         "()Ljavax/microedition/lcdui/Graphics;",

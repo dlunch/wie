@@ -51,6 +51,7 @@ impl Display {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
+                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "setCurrent",
@@ -101,7 +102,7 @@ impl Display {
                     "getScreenGraphics",
                     "()Ljavax/microedition/lcdui/Graphics;",
                     Self::screen_graphics,
-                    MethodAccessFlags::empty(),
+                    MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getContentHeight",
@@ -122,8 +123,16 @@ impl Display {
             fields: vec![
                 JavaFieldProto::new("isInFullScreenMode", "Z", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("currentDisplayable", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("screenImage", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("screenGraphics", "Ljavax/microedition/lcdui/Graphics;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new(
+                    "screenImage",
+                    "Ljavax/microedition/lcdui/Image;",
+                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
+                ),
+                JavaFieldProto::new(
+                    "screenGraphics",
+                    "Ljavax/microedition/lcdui/Graphics;",
+                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
+                ),
                 JavaFieldProto::new("width", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("height", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("paintDisabled", "Z", FieldAccessFlags::PRIVATE),
@@ -139,20 +148,15 @@ impl Display {
         }
     }
 
-    async fn init(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Display::<init>({this:?})");
+    async fn cl_init(jvm: &Jvm, context: &mut WieJvmContext) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::<clinit>()");
 
-        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
-
+        // Vendor APIs can access the shared screen before a MIDlet is constructed.
         let (width, height) = {
             let platform = context.system().platform();
             let screen = platform.screen();
             (screen.width() as i32, screen.height() as i32)
         };
-
-        jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "width", "I", width).await?;
-        jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "height", "I", height)
-            .await?;
 
         let screen_image = jvm
             .invoke_static(
@@ -172,22 +176,36 @@ impl Display {
             )
             .await?;
 
-        jvm.put_field(
-            &mut this,
+        jvm.put_static_field(
             "javax/microedition/lcdui/Display",
             "screenImage",
             "Ljavax/microedition/lcdui/Image;",
             screen_image,
         )
         .await?;
-        jvm.put_field(
-            &mut this,
+        jvm.put_static_field(
             "javax/microedition/lcdui/Display",
             "screenGraphics",
             "Ljavax/microedition/lcdui/Graphics;",
             screen_graphics,
         )
         .await?;
+
+        Ok(())
+    }
+
+    async fn init(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::<init>({this:?})");
+
+        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+        let (width, height) = {
+            let platform = context.system().platform();
+            let screen = platform.screen();
+            (screen.width() as i32, screen.height() as i32)
+        };
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "width", "I", width).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "height", "I", height)
+            .await?;
 
         Ok(())
     }
@@ -974,8 +992,7 @@ impl Display {
             )
             .await?;
         let screen_graphics: ClassInstanceRef<Graphics> = jvm
-            .get_field(
-                &this,
+            .get_static_field(
                 "javax/microedition/lcdui/Display",
                 "screenGraphics",
                 "Ljavax/microedition/lcdui/Graphics;",
@@ -1074,12 +1091,7 @@ impl Display {
         let disable_paint: bool = jvm.get_field(&this, "javax/microedition/lcdui/Display", "paintDisabled", "Z").await?;
         if !disable_paint {
             let screen_image: ClassInstanceRef<Image> = jvm
-                .get_field(
-                    &this,
-                    "javax/microedition/lcdui/Display",
-                    "screenImage",
-                    "Ljavax/microedition/lcdui/Image;",
-                )
+                .get_static_field("javax/microedition/lcdui/Display", "screenImage", "Ljavax/microedition/lcdui/Image;")
                 .await?;
             let image = Image::image(jvm, &screen_image).await?;
 
@@ -1222,11 +1234,10 @@ impl Display {
         Ok(())
     }
 
-    async fn screen_graphics(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
-        tracing::debug!("javax.microedition.lcdui.Display::getScreenGraphics({this:?})");
+    async fn screen_graphics(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Graphics>> {
+        tracing::debug!("javax.microedition.lcdui.Display::getScreenGraphics()");
 
-        jvm.get_field(
-            &this,
+        jvm.get_static_field(
             "javax/microedition/lcdui/Display",
             "screenGraphics",
             "Ljavax/microedition/lcdui/Graphics;",
@@ -1886,8 +1897,7 @@ mod test {
 
             let display: ClassInstanceRef<Display> = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?.into();
             let mut graphics: ClassInstanceRef<Graphics> = jvm
-                .invoke_virtual(
-                    &display,
+                .invoke_static(
                     "javax/microedition/lcdui/Display",
                     "getScreenGraphics",
                     "()Ljavax/microedition/lcdui/Graphics;",
@@ -2116,8 +2126,7 @@ mod test {
                 .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                 .await?;
             let mut graphics: ClassInstanceRef<Graphics> = jvm
-                .invoke_virtual(
-                    &display,
+                .invoke_static(
                     "javax/microedition/lcdui/Display",
                     "getScreenGraphics",
                     "()Ljavax/microedition/lcdui/Graphics;",

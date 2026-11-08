@@ -6,10 +6,7 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_backend::canvas::{Clip, PixelType, Rgb8Pixel};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::{
-    lcdui::{Graphics, Image},
-    midlet::MIDlet,
-};
+use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
 // class com.skt.m.Graphics2D
 pub struct Graphics2D;
@@ -153,17 +150,8 @@ impl Graphics2D {
             )
             .await?;
 
-        let midlet: ClassInstanceRef<MIDlet> = jvm
-            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
-            .await?;
-        let display = MIDlet::display(jvm, &midlet).await?;
         let screen: ClassInstanceRef<Image> = jvm
-            .get_field(
-                &display,
-                "javax/microedition/lcdui/Display",
-                "screenImage",
-                "Ljavax/microedition/lcdui/Image;",
-            )
+            .get_static_field("javax/microedition/lcdui/Display", "screenImage", "Ljavax/microedition/lcdui/Image;")
             .await?;
         let source = Image::image(jvm, &screen).await?;
         Image::canvas(jvm, &image).await?.draw(
@@ -366,17 +354,12 @@ impl Graphics2D {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec};
+    use alloc::boxed::Box;
 
     use jvm::{Array, ClassInstanceRef, JavaError, Result as JvmResult};
-    use jvm_types::ClassAccessFlags;
     use test_utils::run_jvm_test;
 
-    use wie_jvm_support::WieJavaClassProto;
-    use wie_midp::classes::javax::microedition::{
-        lcdui::{Graphics, Image},
-        midlet::MIDlet,
-    };
+    use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
     use crate::classes::com::{skt::m::SISImage, xce::lcdui::XDisplay};
 
@@ -384,25 +367,11 @@ mod test {
 
     #[test]
     fn captured_lcd_region_is_an_independent_screen_snapshot() {
-        let midlet_proto = WieJavaClassProto {
-            name: "test/LcdMidlet",
-            parent_class: Some("javax/microedition/midlet/MIDlet"),
-            interfaces: vec![],
-            methods: vec![],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         run_jvm_test(
-            Box::new([wie_midp::get_protos().into(), [Graphics2D::as_proto(), midlet_proto].into()]),
+            Box::new([wie_midp::get_protos().into(), [Graphics2D::as_proto()].into()]),
             |jvm| async move {
-                let midlet: ClassInstanceRef<MIDlet> = jvm.instantiate_class("test/LcdMidlet").await?.into();
-                let _: () = jvm
-                    .invoke_special(&midlet, "javax/microedition/midlet/MIDlet", "<init>", "()V", ())
-                    .await?;
-                let display = MIDlet::display(&jvm, &midlet).await?;
                 let graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(
-                        &display,
+                    .invoke_static(
                         "javax/microedition/lcdui/Display",
                         "getScreenGraphics",
                         "()Ljavax/microedition/lcdui/Graphics;",

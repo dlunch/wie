@@ -633,8 +633,7 @@ mod test {
                             );
                         }
                         let mut graphics: ClassInstanceRef<Graphics> = jvm
-                            .invoke_virtual(
-                                &display,
+                            .invoke_static(
                                 "javax/microedition/lcdui/Display",
                                 "getScreenGraphics",
                                 "()Ljavax/microedition/lcdui/Graphics;",
@@ -728,8 +727,7 @@ mod test {
                         .invoke_virtual(&canvas, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
                         .await?;
                     let mut graphics: ClassInstanceRef<Graphics> = jvm
-                        .invoke_virtual(
-                            &display,
+                        .invoke_static(
                             "javax/microedition/lcdui/Display",
                             "getScreenGraphics",
                             "()Ljavax/microedition/lcdui/Graphics;",
