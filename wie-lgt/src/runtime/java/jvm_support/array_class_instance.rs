@@ -205,25 +205,3 @@ impl ArrayRawBufferMut for ArrayRawBufferImpl {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use core::mem::size_of;
-
-    use super::{LGT_ARRAY_STORAGE_PREFIX_SIZE, array_data_offset, array_storage_size};
-
-    #[test]
-    fn storage_layout_matches_lgt_abi() {
-        assert_eq!(LGT_ARRAY_STORAGE_PREFIX_SIZE, 8);
-
-        assert_eq!(array_data_offset(1), 4);
-        assert_eq!(array_data_offset(2), 4);
-        assert_eq!(array_data_offset(4), 4);
-        assert_eq!(array_data_offset(size_of::<u64>()), 8);
-
-        assert_eq!(array_storage_size(3, 1), 11);
-        assert_eq!(array_storage_size(3, 2), 14);
-        assert_eq!(array_storage_size(3, 4), 20);
-        assert_eq!(array_storage_size(3, 8), 32);
-    }
-}

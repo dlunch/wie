@@ -168,7 +168,7 @@ impl JavaClassDefinition {
             {
                 fixed.index as usize
             } else if native_field_word_count.is_some() {
-                // Runtime implementation fields precede the native ABI layout.
+                // Keep Rust runtime fields outside the native prefix so native subclass fields do not overlap them.
                 runtime_field_word_count += word_count;
                 0u32.wrapping_sub(runtime_field_word_count as u32) as usize
             } else {

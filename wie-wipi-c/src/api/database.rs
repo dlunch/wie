@@ -8,6 +8,16 @@ use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_ge
 
 use crate::{WIPICContext, globals::DATABASE_HANDLES_HEAD};
 
+const M_E_ERROR: i32 = -1;
+const M_E_BADFD: i32 = -2;
+const M_E_INUSE: i32 = -8;
+const M_E_INVALID: i32 = -9;
+const M_E_NOENT: i32 = -12;
+const M_E_SHORTBUF: i32 = -18;
+const M_E_DATABIG: i32 = -21;
+const M_E_BADRECID: i32 = -22;
+
+// The guest handle links open databases and stores the fixed record size; name bytes follow it.
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 struct DatabaseHandle {
@@ -19,33 +29,34 @@ struct DatabaseHandle {
 pub async fn open(context: &mut dyn WIPICContext, name: u32, record_size: i32, create: i32, mode: i32) -> Result<i32> {
     tracing::debug!("MC_dbOpenDataBase({name:#x}, {record_size}, {create}, {mode})");
     if !(1..=3).contains(&mode) || (create != 0 && record_size <= 0) {
-        return Ok(-9); // M_E_INVALID
+        return Ok(M_E_INVALID);
     }
     let Some(name) = read_name(context, name)? else {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     };
+    // Isolate fixed-record metadata from RMS, partition by mode, and delimit web record IDs with a trailing slash.
     let name = format!("wipi-c/{mode}/{name}/");
     let system = context.system().clone();
     let exists = system.platform().database_repository().exists(&name, system.pid()).await;
     if !exists {
         if create == 0 {
-            return Ok(-12); // M_E_NOENT
+            return Ok(M_E_NOENT);
         }
         system.platform().database_repository().create(&name, system.pid()).await;
     }
     let mut database = system.platform().database_repository().open(&name, system.pid()).await;
     if !exists && !database.set(0, &record_size.to_le_bytes()).await {
-        return Ok(-1); // M_E_ERROR
+        return Ok(M_E_ERROR);
     }
     let Some(header) = database.get(0).await else {
-        return Ok(-1);
+        return Ok(M_E_ERROR);
     };
     let Ok(header) = <[u8; 4]>::try_from(header.as_slice()) else {
-        return Ok(-1);
+        return Ok(M_E_ERROR);
     };
     let record_size = i32::from_le_bytes(header);
     if record_size <= 0 {
-        return Ok(-1);
+        return Ok(M_E_ERROR);
     }
     let handle = DatabaseHandle {
         next: read_generic(context, DATABASE_HANDLES_HEAD)?,
@@ -65,7 +76,7 @@ pub async fn close(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
     loop {
         let address: u32 = read_generic(context, link)?;
         if address == 0 {
-            return Ok(-2); // M_E_BADFD
+            return Ok(M_E_BADFD);
         }
         let handle: DatabaseHandle = read_generic(context, address)?;
         if address == db_id as u32 {
@@ -80,10 +91,10 @@ pub async fn close(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
 pub async fn delete(context: &mut dyn WIPICContext, name: u32, mode: i32) -> Result<i32> {
     tracing::debug!("MC_dbDeleteDataBase({name:#x}, {mode})");
     if !(1..=3).contains(&mode) {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     }
     let Some(name) = read_name(context, name)? else {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     };
     let name = format!("wipi-c/{mode}/{name}/");
     let mut address: u32 = read_generic(context, DATABASE_HANDLES_HEAD)?;
@@ -92,31 +103,31 @@ pub async fn delete(context: &mut dyn WIPICContext, name: u32, mode: i32) -> Res
         let mut bytes = vec![0; handle.name_length as usize];
         context.read_bytes(address + size_of::<DatabaseHandle>() as u32, &mut bytes)?;
         if bytes == name.as_bytes() {
-            return Ok(-8); // M_E_INUSE
+            return Ok(M_E_INUSE);
         }
         address = handle.next;
     }
     let system = context.system();
     if !system.platform().database_repository().exists(&name, system.pid()).await {
-        return Ok(-12);
+        return Ok(M_E_NOENT);
     }
     Ok(if system.platform().database_repository().delete(&name, system.pid()).await {
         0
     } else {
-        -1
+        M_E_ERROR
     })
 }
 
 pub async fn insert_record(context: &mut dyn WIPICContext, db_id: i32, buffer: u32, length: i32) -> Result<i32> {
     tracing::debug!("MC_dbInsertRecord({db_id:#x}, {buffer:#x}, {length})");
     let Some((handle, name)) = load_handle(context, db_id)? else {
-        return Ok(-2);
+        return Ok(M_E_BADFD);
     };
     if buffer == 0 || length <= 0 {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     }
     if length as u32 > handle.record_size {
-        return Ok(-21); // M_E_DATABIG
+        return Ok(M_E_DATABIG);
     }
     let mut bytes = vec![0; handle.record_size as usize];
     context.read_bytes(buffer, &mut bytes[..length as usize])?;
@@ -130,27 +141,27 @@ pub async fn insert_record(context: &mut dyn WIPICContext, db_id: i32, buffer: u
             id += 1;
         }
     }
-    Ok(if database.set(id, &bytes).await { id as i32 } else { -1 })
+    Ok(if database.set(id, &bytes).await { id as i32 } else { M_E_ERROR })
 }
 
 pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, record_id: i32, buffer: u32, length: i32) -> Result<i32> {
     tracing::debug!("MC_dbSelectRecord({db_id:#x}, {record_id}, {buffer:#x}, {length})");
     let Some((handle, name)) = load_handle(context, db_id)? else {
-        return Ok(-2);
+        return Ok(M_E_BADFD);
     };
     if buffer == 0 || length <= 0 {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     }
     if (length as u32) < handle.record_size {
-        return Ok(-18); // M_E_SHORTBUF
+        return Ok(M_E_SHORTBUF);
     }
     if record_id <= 0 {
-        return Ok(-22); // M_E_BADRECID
+        return Ok(M_E_BADRECID);
     }
     let system = context.system();
     let database = system.platform().database_repository().open(&name, system.pid()).await;
     let Some(bytes) = database.get(record_id as u32).await else {
-        return Ok(-22);
+        return Ok(M_E_BADRECID);
     };
     context.write_bytes(buffer, &bytes)?;
     Ok(0)
@@ -159,56 +170,56 @@ pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, record_id
 pub async fn update_record(context: &mut dyn WIPICContext, db_id: i32, record_id: i32, buffer: u32, length: i32) -> Result<i32> {
     tracing::debug!("MC_dbUpdateRecord({db_id:#x}, {record_id}, {buffer:#x}, {length})");
     let Some((handle, name)) = load_handle(context, db_id)? else {
-        return Ok(-2);
+        return Ok(M_E_BADFD);
     };
     if buffer == 0 || length <= 0 {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     }
     if length as u32 > handle.record_size {
-        return Ok(-21);
+        return Ok(M_E_DATABIG);
     }
     if record_id <= 0 {
-        return Ok(-22);
+        return Ok(M_E_BADRECID);
     }
     let system = context.system().clone();
     let mut database = system.platform().database_repository().open(&name, system.pid()).await;
     let Some(mut bytes) = database.get(record_id as u32).await else {
-        return Ok(-22);
+        return Ok(M_E_BADRECID);
     };
     context.read_bytes(buffer, &mut bytes[..length as usize])?;
-    Ok(if database.set(record_id as u32, &bytes).await { 0 } else { -1 })
+    Ok(if database.set(record_id as u32, &bytes).await { 0 } else { M_E_ERROR })
 }
 
 pub async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, record_id: i32) -> Result<i32> {
     tracing::debug!("MC_dbDeleteRecord({db_id:#x}, {record_id})");
     let Some((_, name)) = load_handle(context, db_id)? else {
-        return Ok(-2);
+        return Ok(M_E_BADFD);
     };
     if record_id <= 0 {
-        return Ok(-22);
+        return Ok(M_E_BADRECID);
     }
     let system = context.system();
     let mut database = system.platform().database_repository().open(&name, system.pid()).await;
     if database.get(record_id as u32).await.is_none() {
-        return Ok(-22);
+        return Ok(M_E_BADRECID);
     }
-    Ok(if database.delete(record_id as u32).await { 0 } else { -1 })
+    Ok(if database.delete(record_id as u32).await { 0 } else { M_E_ERROR })
 }
 
 pub async fn list_records(context: &mut dyn WIPICContext, db_id: i32, buffer: u32, length: i32) -> Result<i32> {
     tracing::debug!("MC_dbListRecords({db_id:#x}, {buffer:#x}, {length})");
     let Some((_, name)) = load_handle(context, db_id)? else {
-        return Ok(-2);
+        return Ok(M_E_BADFD);
     };
     if buffer == 0 || length <= 0 {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     }
     let system = context.system();
     let database = system.platform().database_repository().open(&name, system.pid()).await;
     let mut ids = database.get_record_ids().await;
     ids.retain(|id| *id != 0);
     if (length as usize) < ids.len() * size_of::<u32>() {
-        return Ok(-18);
+        return Ok(M_E_SHORTBUF);
     }
     for (index, id) in ids.iter().enumerate() {
         write_generic(context, buffer + index as u32 * 4, *id)?;
@@ -219,7 +230,7 @@ pub async fn list_records(context: &mut dyn WIPICContext, db_id: i32, buffer: u3
 pub async fn get_access_mode(context: &mut dyn WIPICContext, name: u32) -> Result<i32> {
     tracing::debug!("MC_dbGetAccessMode({name:#x})");
     let Some(name) = read_name(context, name)? else {
-        return Ok(-9);
+        return Ok(M_E_INVALID);
     };
     let system = context.system();
     for mode in 1..=3 {
@@ -232,13 +243,13 @@ pub async fn get_access_mode(context: &mut dyn WIPICContext, name: u32) -> Resul
             return Ok(mode);
         }
     }
-    Ok(-12)
+    Ok(M_E_NOENT)
 }
 
 pub async fn get_number_of_records(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
     tracing::debug!("MC_dbGetNumberOfRecords({db_id:#x})");
     let Some((_, name)) = load_handle(context, db_id)? else {
-        return Ok(-2);
+        return Ok(M_E_BADFD);
     };
     let system = context.system();
     let database = system.platform().database_repository().open(&name, system.pid()).await;
@@ -247,7 +258,7 @@ pub async fn get_number_of_records(context: &mut dyn WIPICContext, db_id: i32) -
 
 pub async fn get_record_size(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
     tracing::debug!("MC_dbGetRecordSize({db_id:#x})");
-    Ok(load_handle(context, db_id)?.map_or(-2, |(handle, _)| handle.record_size as i32))
+    Ok(load_handle(context, db_id)?.map_or(M_E_BADFD, |(handle, _)| handle.record_size as i32))
 }
 
 fn read_name(context: &dyn WIPICContext, address: u32) -> Result<Option<String>> {

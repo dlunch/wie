@@ -82,7 +82,8 @@ impl JavaClassInstance {
     }
 
     fn field_address(&self, word_index: u32) -> Result<u32> {
-        // Negative word indices address runtime fields before the native buffer.
+        // WIE assigns negative indices to runtime-only fields before the native buffer.
+        // These indices are internal metadata, not field offsets observed in app binaries.
         Ok(self.ptr_fields()?.wrapping_add(word_index.wrapping_mul(size_of::<LgtJvmWord>() as u32)))
     }
 }
