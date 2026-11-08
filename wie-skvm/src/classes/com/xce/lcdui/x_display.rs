@@ -6,10 +6,7 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_backend::canvas::Color;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::{
-    lcdui::{Graphics, Image},
-    midlet::MIDlet,
-};
+use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
 // class com.xce.lcdui.XDisplay
 pub struct XDisplay;
@@ -84,17 +81,8 @@ impl XDisplay {
     async fn refresh(jvm: &Jvm, context: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.XDisplay::refresh({x}, {y}, {width}, {height})");
 
-        let midlet: ClassInstanceRef<MIDlet> = jvm
-            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
-            .await?;
-        let display = MIDlet::display(jvm, &midlet).await?;
         let screen_image: ClassInstanceRef<Image> = jvm
-            .get_field(
-                &display,
-                "javax/microedition/lcdui/Display",
-                "screenImage",
-                "Ljavax/microedition/lcdui/Image;",
-            )
+            .get_static_field("javax/microedition/lcdui/Display", "screenImage", "Ljavax/microedition/lcdui/Image;")
             .await?;
         let image = Image::image(jvm, &screen_image).await?;
         let platform = context.system().platform();
@@ -222,6 +210,9 @@ mod tests {
     use core::sync::atomic::{AtomicU32, Ordering};
 
     use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
+    use wie_midp::classes::javax::microedition::midlet::MIDlet;
+
+    use crate::classes::com::xce::lcdui::Toolkit;
 
     use super::*;
 
@@ -430,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn refresh_presents_shared_pixels_without_consuming_pending_repaint() {
+    fn toolkit_graphics_survives_midlet_startup_and_refresh_preserves_pending_repaint() {
         let midlet_proto = WieJavaClassProto {
             name: "test/RefreshMidlet",
             parent_class: Some("javax/microedition/midlet/MIDlet"),
@@ -447,22 +438,14 @@ mod tests {
             observed_paints.fetch_add(1, Ordering::SeqCst);
         });
         run_jvm_test_with_system(
-            Box::new([wie_midp::get_protos().into(), [XDisplay::as_proto(), midlet_proto].into()]),
+            Box::new([
+                wie_midp::get_protos().into(),
+                [XDisplay::as_proto(), Toolkit::as_proto(), midlet_proto].into(),
+            ]),
             Box::new(platform),
             move |jvm, _system| async move {
-                let midlet: ClassInstanceRef<MIDlet> = jvm.instantiate_class("test/RefreshMidlet").await?.into();
-                let _: () = jvm
-                    .invoke_special(&midlet, "javax/microedition/midlet/MIDlet", "<init>", "()V", ())
-                    .await?;
-                let display = MIDlet::display(&jvm, &midlet).await?;
                 let graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(
-                        &display,
-                        "javax/microedition/lcdui/Display",
-                        "getScreenGraphics",
-                        "()Ljavax/microedition/lcdui/Graphics;",
-                        (),
-                    )
+                    .get_static_field("com/xce/lcdui/Toolkit", "graphics", "Ljavax/microedition/lcdui/Graphics;")
                     .await?;
                 let _: () = jvm
                     .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
@@ -470,6 +453,20 @@ mod tests {
                 let _: () = jvm
                     .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (3, 4, 2, 1))
                     .await?;
+                let midlet: ClassInstanceRef<MIDlet> = jvm.instantiate_class("test/RefreshMidlet").await?.into();
+                let _: () = jvm
+                    .invoke_special(&midlet, "javax/microedition/midlet/MIDlet", "<init>", "()V", ())
+                    .await?;
+                let display = MIDlet::display(&jvm, &midlet).await?;
+                let screen_graphics: ClassInstanceRef<Graphics> = jvm
+                    .invoke_static(
+                        "javax/microedition/lcdui/Display",
+                        "getScreenGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
+                    .await?;
+                assert!(graphics.equals(&**screen_graphics)?);
                 for pending in [false, true] {
                     if pending {
                         let _: () = jvm

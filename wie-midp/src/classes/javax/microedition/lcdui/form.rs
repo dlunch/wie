@@ -1801,8 +1801,7 @@ mod test {
             .await?;
             let display = show_form(&jvm, &form, 80, 240).await?;
             let mut graphics: ClassInstanceRef<Graphics> = jvm
-                .invoke_virtual(
-                    &display,
+                .invoke_static(
                     "javax/microedition/lcdui/Display",
                     "getScreenGraphics",
                     "()Ljavax/microedition/lcdui/Graphics;",
@@ -1950,8 +1949,7 @@ mod test {
                     "paint must preserve the reveal"
                 );
                 let mut graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(
-                        &display,
+                    .invoke_static(
                         "javax/microedition/lcdui/Display",
                         "getScreenGraphics",
                         "()Ljavax/microedition/lcdui/Graphics;",

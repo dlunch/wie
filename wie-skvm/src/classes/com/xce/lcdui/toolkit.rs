@@ -9,10 +9,7 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::{
-    lcdui::{Display, Font, Graphics, Image},
-    midlet::MIDlet,
-};
+use wie_midp::classes::javax::microedition::lcdui::{Font, Graphics, Image};
 
 macro_rules! define_image_accessors {
     ($(($getter:ident, $setter:ident, $field:literal)),+ $(,)?) => {
@@ -260,32 +257,16 @@ impl Toolkit {
             jvm.put_static_field("com/xce/lcdui/Toolkit", field, "I", value).await?;
         }
 
-        let current_midlet: ClassInstanceRef<MIDlet> = jvm
-            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
+        let graphics: ClassInstanceRef<Graphics> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Display",
+                "getScreenGraphics",
+                "()Ljavax/microedition/lcdui/Graphics;",
+                (),
+            )
             .await?;
-
-        if !current_midlet.is_null() {
-            let display: ClassInstanceRef<Display> = jvm
-                .invoke_static(
-                    "javax/microedition/lcdui/Display",
-                    "getDisplay",
-                    "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
-                    (current_midlet,),
-                )
-                .await?;
-            let graphics: ClassInstanceRef<Graphics> = jvm
-                .invoke_virtual(
-                    &display,
-                    "javax/microedition/lcdui/Display",
-                    "getScreenGraphics",
-                    "()Ljavax/microedition/lcdui/Graphics;",
-                    (),
-                )
-                .await?;
-
-            jvm.put_static_field("com/xce/lcdui/Toolkit", "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
-                .await?;
-        }
+        jvm.put_static_field("com/xce/lcdui/Toolkit", "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
+            .await?;
 
         Ok(())
     }

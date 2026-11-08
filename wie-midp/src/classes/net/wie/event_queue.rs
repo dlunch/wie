@@ -429,7 +429,7 @@ mod test {
 
     use crate::{
         classes::javax::microedition::{
-            lcdui::{Display, Graphics, Image},
+            lcdui::{Graphics, Image},
             midlet::MIDlet,
         },
         get_protos,
@@ -545,17 +545,8 @@ mod test {
 
         async fn run(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             let count: i32 = jvm.get_field(&this, "net/wie/RecurringCallback", "count", "I").await?;
-            let display: ClassInstanceRef<Display> = jvm
-                .get_field(
-                    &this,
-                    "javax/microedition/lcdui/Displayable",
-                    "currentDisplay",
-                    "Ljavax/microedition/lcdui/Display;",
-                )
-                .await?;
             let mut graphics: ClassInstanceRef<Graphics> = jvm
-                .invoke_virtual(
-                    &display,
+                .invoke_static(
                     "javax/microedition/lcdui/Display",
                     "getScreenGraphics",
                     "()Ljavax/microedition/lcdui/Graphics;",
