@@ -102,7 +102,7 @@ impl JavaMethod {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    fn raw(&self) -> Result<RawJavaMethod> {
+    pub fn raw(&self) -> Result<RawJavaMethod> {
         read_generic(&self.core, self.ptr_raw)
     }
 

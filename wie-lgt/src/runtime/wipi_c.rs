@@ -311,6 +311,8 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc};
     use core::sync::atomic::{AtomicBool, Ordering};
 
+    use jvm::{ClassInstance, runtime::JavaLangString};
+
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, Options, System};
     use wie_core_arm::{Allocator, ArmCore};
@@ -349,6 +351,26 @@ mod tests {
                     "Resource lookup strings must not accumulate in the guest frame"
                 );
             }
+            {
+                let _frame = jvm.push_native_frame(&[]);
+                let original = {
+                    let _frame = jvm.push_native_frame(&[]);
+                    let name = JavaLangString::from_rust_string(&jvm, "copied thread").await.unwrap();
+                    jvm.new_class("java/lang/Thread", "(Ljava/lang/String;)V", (name,)).await.unwrap()
+                };
+                let copied = jvm.shallow_clone(&original).unwrap();
+                // Only the copy remains rooted, so its runtime fields must retain the name.
+                jvm.collect_garbage().unwrap();
+                let thread_name: Box<dyn ClassInstance> = jvm
+                    .invoke_virtual(&copied, "java/lang/Thread", "getName", "()Ljava/lang/String;", ())
+                    .await
+                    .unwrap();
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &thread_name).await.unwrap(), "copied thread");
+            }
+            assert!(
+                jvm.collect_garbage().unwrap() >= 3,
+                "The copied thread, name and character array must be released"
+            );
             task_done.store(true, Ordering::Relaxed);
             Ok(())
         });

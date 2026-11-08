@@ -136,18 +136,24 @@ impl JavaVtable {
             .max()
             .unwrap_or(0);
         if JAVA_ABI.class(class_name).is_some() {
-            // Runtime superclasses can contain methods outside the native API layout.
+            // A child's fixed native slots can overlap its parent's runtime-only tail.
+            // Place the confirmed ABI first, then append those inherited methods again.
             let inherited = core::mem::take(&mut methods);
+            let mut runtime_methods = Vec::new();
             methods.resize(minimum_size, JavaVtableEntry { target: 0, method: None });
             for entry in inherited {
-                if let Some(method) = &entry.method
-                    && let Some(index) = abi_classes
+                if let Some(method) = &entry.method {
+                    if let Some(index) = abi_classes
                         .iter()
                         .find_map(|class| class.vtable_index(&method.name(), &method.descriptor()))
-                {
-                    methods[index] = entry;
+                    {
+                        methods[index] = entry;
+                    } else {
+                        runtime_methods.push(entry);
+                    }
                 }
             }
+            methods.extend(runtime_methods);
         } else if methods.len() < minimum_size {
             methods.resize(minimum_size, JavaVtableEntry { target: 0, method: None });
         }
