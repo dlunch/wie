@@ -139,8 +139,7 @@ const start = () => {
       // Disabled session storage must not prevent startup.
     }
   }).catch(error => {
-    if (error instanceof Error && (error.name === "ChunkLoadError" ||
-      error instanceof WebAssembly.CompileError && /magic|\\0asm/.test(error.message))) {
+    if (error instanceof Error && (error.name === "ChunkLoadError" || error instanceof WebAssembly.CompileError)) {
       try {
         if (!sessionStorage.getItem(reloadKey)) {
           sessionStorage.setItem(reloadKey, "1");
