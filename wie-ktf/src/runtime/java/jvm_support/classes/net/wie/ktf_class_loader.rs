@@ -124,13 +124,26 @@ impl KtfClassLoader {
     ) -> JvmResult<ClassInstanceRef<Class>> {
         tracing::debug!("net.wie.KtfClassLoader::loadClass({this:?}, {name:?})");
 
-        // Native definitions take precedence over duplicate bytecode wrappers in the JAR.
-        for method in ["findLoadedClass", "findClass"] {
+        let class: ClassInstanceRef<Class> = jvm
+            .invoke_virtual(
+                &this,
+                "net/wie/KtfClassLoader",
+                "findLoadedClass",
+                "(Ljava/lang/String;)Ljava/lang/Class;",
+                (name.clone(),),
+            )
+            .await?;
+        if !class.is_null() {
+            return Ok(class);
+        }
+
+        // The JVM runtime creates arrays; native definitions take precedence over JAR bytecode.
+        if !JavaLangString::to_rust_string(jvm, &name).await?.starts_with('[') {
             let class: ClassInstanceRef<Class> = jvm
                 .invoke_virtual(
                     &this,
                     "net/wie/KtfClassLoader",
-                    method,
+                    "findClass",
                     "(Ljava/lang/String;)Ljava/lang/Class;",
                     (name.clone(),),
                 )
@@ -170,10 +183,6 @@ impl KtfClassLoader {
 
         // find from client.bin
         let name = JavaLangString::to_rust_string(jvm, &name).await?.replace('.', "/");
-        // ClassLoader.loadClass constructs array definitions through the JVM runtime.
-        if name.starts_with('[') {
-            return Ok(None.into());
-        }
 
         let ptr_name_size = (name.len() + 1) as u32;
         let ptr_name = Allocator::alloc(&mut context.core, ptr_name_size).unwrap();
