@@ -10,7 +10,7 @@ use wie_midp::classes::{
     net::wie::MIDPKeyCode,
 };
 
-// The shared MIDP event queue uses SKVM codes; Nokia callbacks use these values.
+// Nokia's fixed key constants differ from the shared MIDP event codes.
 const KEY_CODES: [(&str, i32, i32); 9] = [
     ("KEY_UP_ARROW", MIDPKeyCode::UP as i32, -1),
     ("KEY_DOWN_ARROW", MIDPKeyCode::DOWN as i32, -2),
@@ -129,5 +129,93 @@ impl FullCanvas {
             .unwrap_or(code);
         jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "handleKeyEvent", "(II)V", (event_type, code))
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{boxed::Box, vec};
+
+    use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+
+    use test_utils::run_jvm_test;
+    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_midp::classes::{
+        javax::microedition::lcdui::Graphics,
+        net::wie::{KeyboardEventType, MIDPKeyCode},
+    };
+
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<()>) -> JvmResult<()> {
+        jvm.invoke_special(&this, "com/nokia/mid/ui/FullCanvas", "<init>", "()V", ()).await
+    }
+
+    async fn paint(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<()>, _: ClassInstanceRef<Graphics>) -> JvmResult<()> {
+        Ok(())
+    }
+
+    async fn key_pressed(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<()>, code: i32) -> JvmResult<()> {
+        jvm.put_field(&mut this, "test/FullCanvas", "pressed", "I", code).await
+    }
+
+    #[test]
+    fn full_canvas_initializes_and_translates_key_events() {
+        let canvas_proto = WieJavaClassProto {
+            name: "test/FullCanvas",
+            parent_class: Some("com/nokia/mid/ui/FullCanvas"),
+            interfaces: vec![],
+            methods: vec![
+                JavaMethodProto::new("<init>", "()V", init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("paint", "(Ljavax/microedition/lcdui/Graphics;)V", paint, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("keyPressed", "(I)V", key_pressed, MethodAccessFlags::PROTECTED),
+            ],
+            fields: vec![JavaFieldProto::new("pressed", "I", FieldAccessFlags::PUBLIC)],
+            access_flags: ClassAccessFlags::PUBLIC,
+        };
+        run_jvm_test(
+            Box::new([wie_midp::get_protos().into(), crate::get_protos().into(), [canvas_proto].into()]),
+            |jvm| async move {
+                let canvas = jvm.new_class("test/FullCanvas", "()V", ()).await?;
+                let title = JavaLangString::from_rust_string(&jvm, "Fullscreen canvas").await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &canvas,
+                        "javax/microedition/lcdui/Displayable",
+                        "setTitle",
+                        "(Ljava/lang/String;)V",
+                        (title,),
+                    )
+                    .await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&canvas, "javax/microedition/lcdui/Canvas", "getHeight", "()I", ())
+                        .await?,
+                    240
+                );
+
+                let display = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "setCurrent",
+                        "(Ljavax/microedition/lcdui/Displayable;)V",
+                        (canvas.clone(),),
+                    )
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "handleKeyEvent",
+                        "(II)V",
+                        (KeyboardEventType::KeyPressed as i32, MIDPKeyCode::UP as i32),
+                    )
+                    .await?;
+                assert_eq!(jvm.get_field::<i32>(&canvas, "test/FullCanvas", "pressed", "I").await?, -1);
+                Ok(())
+            },
+        )
+        .unwrap();
     }
 }
