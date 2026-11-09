@@ -86,7 +86,14 @@ impl RecordStore {
 
         let mut database = Self::get_database(jvm, context, &this).await?;
 
-        let data: Vec<i8> = jvm.load_array(&data, offset as _, length as _).await?;
+        let data: Vec<i8> = if data.is_null() {
+            if length != 0 {
+                return Err(jvm.exception("java/lang/NullPointerException", "Record data is null").await);
+            }
+            Vec::new()
+        } else {
+            jvm.load_array(&data, offset as _, length as _).await?
+        };
 
         let id = database.add(&cast_vec(data)).await;
 
@@ -136,6 +143,9 @@ impl RecordStore {
         }
 
         let data = result.unwrap();
+        if data.is_empty() {
+            return Ok(None.into());
+        }
 
         let mut array = jvm.instantiate_array("B", data.len() as _).await?;
         jvm.store_array(&mut array, 0, cast_vec::<u8, i8>(data)).await?;
@@ -193,7 +203,14 @@ impl RecordStore {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.rms.RecordStore::setRecord({this:?}, {record_id}, {data:?}, {offset}, {length})");
 
-        let data: Vec<i8> = jvm.load_array(&data, offset as _, length as _).await?;
+        let data: Vec<i8> = if data.is_null() {
+            if length != 0 {
+                return Err(jvm.exception("java/lang/NullPointerException", "Record data is null").await);
+            }
+            Vec::new()
+        } else {
+            jvm.load_array(&data, offset as _, length as _).await?
+        };
 
         let mut database = Self::get_database(jvm, context, &this).await?;
         database.set(record_id as _, &cast_vec(data)).await;
@@ -307,7 +324,7 @@ mod test {
     use super::{RecordComparator, RecordEnumeration, RecordFilter, RecordStore};
 
     #[test]
-    fn delete_record_removes_record_and_rejects_unknown_id() -> Result<()> {
+    fn empty_records_can_be_updated_and_deleted() -> Result<()> {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "delete-record").await?.into();
             let store: ClassInstanceRef<RecordStore> = jvm
@@ -319,12 +336,51 @@ mod test {
                 )
                 .await?;
 
-            let mut data = jvm.instantiate_array("B", 2).await?;
-            jvm.store_array(&mut data, 0, [1i8, 2]).await?;
             let record_id: i32 = jvm
-                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "addRecord", "([BII)I", (data, 0, 2))
+                .invoke_virtual(
+                    &store,
+                    "javax/microedition/rms/RecordStore",
+                    "addRecord",
+                    "([BII)I",
+                    (ClassInstanceRef::<Array<i8>>::from(None), 0, 0),
+                )
                 .await?;
             assert_eq!(record_id, 1);
+            let empty: ClassInstanceRef<Array<i8>> = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getRecord", "(I)[B", (record_id,))
+                .await?;
+            assert!(empty.is_null());
+
+            let mut data = jvm.instantiate_array("B", 2).await?;
+            jvm.store_array(&mut data, 0, [1i8, 2]).await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &store,
+                    "javax/microedition/rms/RecordStore",
+                    "setRecord",
+                    "(I[BII)V",
+                    (record_id, data, 0, 2),
+                )
+                .await?;
+            let loaded: ClassInstanceRef<Array<i8>> = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getRecord", "(I)[B", (record_id,))
+                .await?;
+            assert_eq!(jvm.load_array::<i8>(&loaded, 0, 2).await?, [1, 2]);
+
+            let _: () = jvm
+                .invoke_virtual(
+                    &store,
+                    "javax/microedition/rms/RecordStore",
+                    "setRecord",
+                    "(I[BII)V",
+                    (record_id, ClassInstanceRef::<Array<i8>>::from(None), 0, 0),
+                )
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&store, "javax/microedition/rms/RecordStore", "getRecordSize", "(I)I", (record_id,))
+                    .await?,
+                0
+            );
 
             let count: i32 = jvm
                 .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())

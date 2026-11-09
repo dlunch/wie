@@ -21,6 +21,12 @@ impl InputMethodHandler {
                 JavaMethodProto::new("<init>", "(I)V", Self::init, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getCurrentMode", "()I", Self::get_current_mode, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("setCurrentMode", "(I)Z", Self::set_current_mode, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "notifyKeyInput",
+                    "(II)Z",
+                    Self::notify_key_input,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
                 JavaMethodProto::new("hideSymbolCard", "()V", Self::hide_symbol_card, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "setInputMethodListener",
@@ -32,6 +38,7 @@ impl InputMethodHandler {
             fields: vec![
                 JavaFieldProto::new("currentMode", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("allowedModes", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("listener", "Lorg/kwis/msp/lcdui/InputMethodListener;", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
@@ -78,6 +85,39 @@ impl InputMethodHandler {
         Ok(true)
     }
 
+    async fn notify_key_input(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32, kind: i32) -> JvmResult<bool> {
+        tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::notifyKeyInput({this:?}, {key_code}, {kind})");
+
+        // shortcut: numeric key presses commit a placeholder until text input is implemented.
+        if kind != 1 || !(i32::from(b'0')..=i32::from(b'9')).contains(&key_code) {
+            return Ok(false);
+        }
+        let listener: ClassInstanceRef<InputMethodListener> = jvm
+            .get_field(
+                &this,
+                "org/kwis/msp/lcdui/InputMethodHandler",
+                "listener",
+                "Lorg/kwis/msp/lcdui/InputMethodListener;",
+            )
+            .await?;
+        if listener.is_null() {
+            return Ok(false);
+        }
+        let mut text = jvm.instantiate_array("C", 4).await?;
+        jvm.store_array(&mut text, 0, "temp".encode_utf16()).await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &listener,
+                "org/kwis/msp/lcdui/InputMethodListener",
+                "notifyTextChanged",
+                "([CII)V",
+                (text, 4, -1),
+            )
+            .await?;
+
+        Ok(true)
+    }
+
     async fn hide_symbol_card(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::hideSymbolCard({this:?})");
 
@@ -85,12 +125,21 @@ impl InputMethodHandler {
     }
 
     async fn set_input_method_listener(
-        _: &Jvm,
+        jvm: &Jvm,
         _: &mut WieJvmContext,
-        this: ClassInstanceRef<Self>,
+        mut this: ClassInstanceRef<Self>,
         listener: ClassInstanceRef<InputMethodListener>,
     ) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::setInputMethodListener({this:?}, {listener:?})");
+        tracing::debug!("org.kwis.msp.lcdui.InputMethodHandler::setInputMethodListener({this:?}, {listener:?})");
+
+        jvm.put_field(
+            &mut this,
+            "org/kwis/msp/lcdui/InputMethodHandler",
+            "listener",
+            "Lorg/kwis/msp/lcdui/InputMethodListener;",
+            listener,
+        )
+        .await?;
 
         Ok(())
     }
