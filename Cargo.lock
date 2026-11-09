@@ -7736,6 +7736,7 @@ dependencies = [
  "wie-backend",
  "wie-jvm-support",
  "wie-midp",
+ "wie-midp-vendor",
  "wie-util",
  "zip",
 ]
@@ -7846,6 +7847,19 @@ dependencies = [
  "wie-backend",
  "wie-jvm-support",
  "wie-util",
+]
+
+[[package]]
+name = "wie-midp-vendor"
+version = "0.2.22"
+dependencies = [
+ "jvm",
+ "jvm-class-proto",
+ "jvm-types",
+ "test-utils",
+ "tracing",
+ "wie-jvm-support",
+ "wie-midp",
 ]
 
 [[package]]

@@ -80,9 +80,12 @@ impl J2MEEmulator {
             .into_iter()
             .map(|(k, v)| (format!("wie.appProperty.{k}"), v))
             .collect::<Vec<_>>();
-        let properties = properties.iter().map(|(k, v)| (k.as_ref(), v.as_ref())).collect::<Vec<_>>();
+        let properties = [("microedition.platform", "wie")]
+            .into_iter()
+            .chain(properties.iter().map(|(k, v)| (k.as_ref(), v.as_ref())))
+            .collect::<Vec<_>>();
 
-        let protos = [wie_midp::get_protos().into()];
+        let protos = [wie_midp::get_protos().into(), wie_midp_vendor::get_protos().into()];
         let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &properties, RustJavaJvmImplementation).await?;
 
         let main_class_name = main_class_name.replace('.', "/");
