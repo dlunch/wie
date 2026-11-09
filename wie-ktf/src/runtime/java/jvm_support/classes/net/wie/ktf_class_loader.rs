@@ -41,6 +41,12 @@ impl KtfClassLoader {
                     MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
+                    "loadClass",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    Self::load_class,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
                     "findClass",
                     "(Ljava/lang/String;)Ljava/lang/Class;",
                     Self::find_class,
@@ -108,6 +114,53 @@ impl KtfClassLoader {
             .await?;
 
         Ok(())
+    }
+
+    async fn load_class(
+        jvm: &Jvm,
+        _: &mut ClassLoaderContext,
+        this: ClassInstanceRef<Self>,
+        name: ClassInstanceRef<String>,
+    ) -> JvmResult<ClassInstanceRef<Class>> {
+        tracing::debug!("net.wie.KtfClassLoader::loadClass({this:?}, {name:?})");
+
+        let class: ClassInstanceRef<Class> = jvm
+            .invoke_virtual(
+                &this,
+                "net/wie/KtfClassLoader",
+                "findLoadedClass",
+                "(Ljava/lang/String;)Ljava/lang/Class;",
+                (name.clone(),),
+            )
+            .await?;
+        if !class.is_null() {
+            return Ok(class);
+        }
+
+        // The JVM runtime creates arrays; native definitions take precedence over JAR bytecode.
+        if !JavaLangString::to_rust_string(jvm, &name).await?.starts_with('[') {
+            let class: ClassInstanceRef<Class> = jvm
+                .invoke_virtual(
+                    &this,
+                    "net/wie/KtfClassLoader",
+                    "findClass",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    (name.clone(),),
+                )
+                .await?;
+            if !class.is_null() {
+                return Ok(class);
+            }
+        }
+
+        jvm.invoke_special(
+            &this,
+            "java/lang/ClassLoader",
+            "loadClass",
+            "(Ljava/lang/String;)Ljava/lang/Class;",
+            (name,),
+        )
+        .await
     }
 
     async fn find_class(
