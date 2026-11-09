@@ -83,23 +83,23 @@ impl KtfJvmSupport {
 
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
         let jvm_implementation = KtfJvmImplementation::new(core);
-        let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], jvm_implementation.clone()).await?;
+        // KtfClassLoader exposes the app JAR as resources, never as bytecode.
+        let jvm = JvmSupport::new_jvm(system, None, Box::new(protos), &[], jvm_implementation.clone()).await?;
         register_java_interface_svc_handler(core, &jvm)?;
-
-        let system_class_loader: Box<dyn ClassInstance> = jvm
-            .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", [])
-            .await
-            .unwrap();
 
         // used in tests
         if jar_name.is_none() {
+            let system_class_loader = jvm
+                .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", [])
+                .await
+                .unwrap();
             return Ok((jvm, system_class_loader));
         }
 
         // find client.bin
         let jar_name_java = JavaLangString::from_rust_string(&jvm, jar_name.unwrap()).await.unwrap();
         let jar_file = jvm
-            .new_class("java/util/jar/JarFile", "(Ljava/lang/String;)V", (jar_name_java,))
+            .new_class("java/util/jar/JarFile", "(Ljava/lang/String;)V", (jar_name_java.clone(),))
             .await
             .unwrap();
         let entries: ClassInstanceRef<Enumeration> = jvm
@@ -148,9 +148,9 @@ impl KtfJvmSupport {
         let class_loader = jvm
             .new_class(
                 "net/wie/KtfClassLoader",
-                "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
+                "(Ljava/lang/String;Ljava/lang/String;II)V",
                 (
-                    system_class_loader,
+                    jar_name_java,
                     binary_name,
                     ptr_jvm_context as i32,
                     (SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_current_jvm_thread_context) as u32) as i32,

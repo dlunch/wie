@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec};
+use alloc::{boxed::Box, format, vec};
 
 use bytemuck::cast_slice;
 use jvm::{
@@ -31,12 +31,12 @@ impl KtfClassLoader {
     pub fn as_proto() -> ClassLoaderProto {
         ClassLoaderProto {
             name: "net/wie/KtfClassLoader",
-            parent_class: Some("java/lang/ClassLoader"),
+            parent_class: Some("java/net/URLClassLoader"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new(
                     "<init>",
-                    "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
+                    "(Ljava/lang/String;Ljava/lang/String;II)V",
                     Self::init,
                     MethodAccessFlags::PUBLIC,
                 ),
@@ -63,17 +63,38 @@ impl KtfClassLoader {
         jvm: &Jvm,
         context: &mut ClassLoaderContext,
         mut this: ClassInstanceRef<Self>,
-        parent: ClassInstanceRef<ClassLoader>,
+        jar_name: ClassInstanceRef<String>,
         binary_name: ClassInstanceRef<String>,
         ptr_jvm_context: i32,
         ptr_current_jvm_thread_context: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.KtfClassLoader::<init>({this:?}, {parent:?}, {binary_name:?})");
+        tracing::debug!(
+            "net.wie.KtfClassLoader::<init>({this:?}, {jar_name:?}, {binary_name:?}, {ptr_jvm_context:#x}, {ptr_current_jvm_thread_context:#x})"
+        );
 
-        let _: () = jvm
-            .invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
+        let parent: ClassInstanceRef<ClassLoader> = jvm
+            .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
             .await?;
 
+        let jar_name = JavaLangString::to_rust_string(jvm, &jar_name).await?;
+        let url = JavaLangString::from_rust_string(jvm, &format!("file:{jar_name}")).await?;
+        let url = jvm.new_class("java/net/URL", "(Ljava/lang/String;)V", (url,)).await?;
+        let mut urls = jvm.instantiate_array("Ljava/net/URL;", 1).await?;
+        jvm.store_array(&mut urls, 0, [url]).await?;
+
+        let _: () = jvm
+            .invoke_special(
+                &this,
+                "java/net/URLClassLoader",
+                "<init>",
+                "([Ljava/net/URL;Ljava/lang/ClassLoader;)V",
+                (urls, parent),
+            )
+            .await?;
+
+        // Native resource APIs use the system loader during initialization.
+        jvm.put_static_field("java/lang/ClassLoader", "systemClassLoader", "Ljava/lang/ClassLoader;", this.clone())
+            .await?;
         jvm.put_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;", this.clone())
             .await?;
 
