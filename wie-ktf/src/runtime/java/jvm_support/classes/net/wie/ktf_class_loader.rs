@@ -7,10 +7,7 @@ use jvm::{
 };
 use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::{
-    lang::{Class, ClassLoader, String},
-    net::URL,
-};
+use rustjava_runtime::classes::java::lang::{Class, ClassLoader, String};
 use wipi_types::ktf::ExeInterfaceFunctions;
 
 use wie_backend::System;
@@ -44,21 +41,20 @@ impl KtfClassLoader {
                     MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
+                    "loadClass",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    Self::load_class,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
                     "findClass",
                     "(Ljava/lang/String;)Ljava/lang/Class;",
                     Self::find_class,
                     MethodAccessFlags::PROTECTED,
                 ),
-                JavaMethodProto::new(
-                    "findResource",
-                    "(Ljava/lang/String;)Ljava/net/URL;",
-                    Self::find_resource,
-                    MethodAccessFlags::PROTECTED,
-                ),
             ],
             fields: vec![
                 JavaFieldProto::new("nativeFunctions", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("resourceLoader", "Ljava/lang/ClassLoader;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new(
                     "instance",
                     "Lnet/wie/KtfClassLoader;",
@@ -78,20 +74,10 @@ impl KtfClassLoader {
         ptr_jvm_context: i32,
         ptr_current_jvm_thread_context: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "net.wie.KtfClassLoader::<init>({this:?}, {parent:?}, {binary_name:?}, {ptr_jvm_context:#x}, {ptr_current_jvm_thread_context:#x})"
-        );
-
-        // Keep the system URL loader for resources, but delegate classes to its RustJar parent.
-        let class_parent: ClassInstanceRef<ClassLoader> = jvm
-            .get_field(&parent, "java/lang/ClassLoader", "parent", "Ljava/lang/ClassLoader;")
-            .await?;
+        tracing::debug!("net.wie.KtfClassLoader::<init>({this:?}, {parent:?}, {binary_name:?})");
 
         let _: () = jvm
-            .invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (class_parent,))
-            .await?;
-
-        jvm.put_field(&mut this, "net/wie/KtfClassLoader", "resourceLoader", "Ljava/lang/ClassLoader;", parent)
+            .invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
             .await?;
 
         jvm.put_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;", this.clone())
@@ -130,22 +116,35 @@ impl KtfClassLoader {
         Ok(())
     }
 
-    async fn find_resource(
+    async fn load_class(
         jvm: &Jvm,
         _: &mut ClassLoaderContext,
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
-    ) -> JvmResult<ClassInstanceRef<URL>> {
-        tracing::debug!("net.wie.KtfClassLoader::findResource({this:?}, {name:?})");
+    ) -> JvmResult<ClassInstanceRef<Class>> {
+        tracing::debug!("net.wie.KtfClassLoader::loadClass({this:?}, {name:?})");
 
-        let loader: ClassInstanceRef<ClassLoader> = jvm
-            .get_field(&this, "net/wie/KtfClassLoader", "resourceLoader", "Ljava/lang/ClassLoader;")
-            .await?;
-        jvm.invoke_virtual(
-            &loader,
+        // Native definitions take precedence over duplicate bytecode wrappers in the JAR.
+        for method in ["findLoadedClass", "findClass"] {
+            let class: ClassInstanceRef<Class> = jvm
+                .invoke_virtual(
+                    &this,
+                    "net/wie/KtfClassLoader",
+                    method,
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    (name.clone(),),
+                )
+                .await?;
+            if !class.is_null() {
+                return Ok(class);
+            }
+        }
+
+        jvm.invoke_special(
+            &this,
             "java/lang/ClassLoader",
-            "getResource",
-            "(Ljava/lang/String;)Ljava/net/URL;",
+            "loadClass",
+            "(Ljava/lang/String;)Ljava/lang/Class;",
             (name,),
         )
         .await
@@ -171,6 +170,10 @@ impl KtfClassLoader {
 
         // find from client.bin
         let name = JavaLangString::to_rust_string(jvm, &name).await?.replace('.', "/");
+        // ClassLoader.loadClass constructs array definitions through the JVM runtime.
+        if name.starts_with('[') {
+            return Ok(None.into());
+        }
 
         let ptr_name_size = (name.len() + 1) as u32;
         let ptr_name = Allocator::alloc(&mut context.core, ptr_name_size).unwrap();

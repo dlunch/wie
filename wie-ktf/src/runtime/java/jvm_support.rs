@@ -159,15 +159,6 @@ impl KtfJvmSupport {
             .await
             .unwrap();
 
-        jvm.put_static_field(
-            "java/lang/ClassLoader",
-            "systemClassLoader",
-            "Ljava/lang/ClassLoader;",
-            class_loader.clone(),
-        )
-        .await
-        .unwrap();
-
         Ok((jvm, class_loader))
     }
 
