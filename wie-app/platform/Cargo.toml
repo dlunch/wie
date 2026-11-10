@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 links = "wie-app-platform"
+build = "build.rs"
 publish = false
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
