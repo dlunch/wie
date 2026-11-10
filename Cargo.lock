@@ -6554,7 +6554,6 @@ dependencies = [
  "wie-core-arm-native",
  "wie-jvm-support",
  "wie-util",
- "wie-wipi-c",
 ]
 
 [[package]]
@@ -7905,7 +7904,6 @@ name = "wie-util"
 version = "0.2.24"
 dependencies = [
  "bytemuck",
- "tracing",
  "tracing-attributes",
 ]
 
