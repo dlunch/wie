@@ -6539,7 +6539,7 @@ dependencies = [
 
 [[package]]
 name = "test-utils"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "hashbrown 0.17.1",
@@ -7565,7 +7565,7 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
 name = "wie"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7592,7 +7592,7 @@ dependencies = [
 
 [[package]]
 name = "wie-app"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "alsa",
  "anyhow",
@@ -7639,7 +7639,7 @@ dependencies = [
 
 [[package]]
 name = "wie-app-platform"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "tauri",
  "tauri-plugin",
@@ -7647,7 +7647,7 @@ dependencies = [
 
 [[package]]
 name = "wie-backend"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "ab_glyph",
  "async-trait",
@@ -7669,7 +7669,7 @@ dependencies = [
 
 [[package]]
 name = "wie-core-arm"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "arm32_cpu",
  "async-trait",
@@ -7691,7 +7691,7 @@ dependencies = [
 
 [[package]]
 name = "wie-core-arm-aot"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "nom",
  "wie-util",
@@ -7699,7 +7699,7 @@ dependencies = [
 
 [[package]]
 name = "wie-core-arm-native"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
@@ -7717,7 +7717,7 @@ dependencies = [
 
 [[package]]
 name = "wie-core-arm-wasm"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "wasm-encoder",
  "wie-core-arm-aot",
@@ -7725,7 +7725,7 @@ dependencies = [
 
 [[package]]
 name = "wie-j2me"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -7742,7 +7742,7 @@ dependencies = [
 
 [[package]]
 name = "wie-jvm-support"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -7760,7 +7760,7 @@ dependencies = [
 
 [[package]]
 name = "wie-ktf"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -7789,7 +7789,7 @@ dependencies = [
 
 [[package]]
 name = "wie-ktf-dump"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "anyhow",
  "clap",
@@ -7799,7 +7799,7 @@ dependencies = [
 
 [[package]]
 name = "wie-lgt"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -7829,7 +7829,7 @@ dependencies = [
 
 [[package]]
 name = "wie-midp"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bitflags 2.13.2",
@@ -7850,7 +7850,7 @@ dependencies = [
 
 [[package]]
 name = "wie-midp-vendor"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "jvm",
  "jvm-class-proto",
@@ -7863,7 +7863,7 @@ dependencies = [
 
 [[package]]
 name = "wie-skt"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -7880,7 +7880,7 @@ dependencies = [
 
 [[package]]
 name = "wie-skvm"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bitflags 2.13.2",
@@ -7901,14 +7901,14 @@ dependencies = [
 
 [[package]]
 name = "wie-util"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "bytemuck",
 ]
 
 [[package]]
 name = "wie-web"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7933,7 +7933,7 @@ dependencies = [
 
 [[package]]
 name = "wie-wipi-c"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -7948,7 +7948,7 @@ dependencies = [
 
 [[package]]
 name = "wie-wipi-java"
-version = "0.2.24"
+version = "0.2.25"
 dependencies = [
  "async-trait",
  "bitflags 2.13.2",
