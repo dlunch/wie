@@ -190,6 +190,12 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
     })
 }
 
+#[wasm_bindgen(js_name = appPlatform)]
+pub fn app_platform(filename: &str, buf: &[u8]) -> Result<String, JsError> {
+    let file_type = wie::determine_file_type(filename, buf).map_err(|error| JsError::new(&error.to_string()))?;
+    Ok(file_type.name().into())
+}
+
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]

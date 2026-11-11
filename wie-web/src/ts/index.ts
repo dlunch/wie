@@ -16,6 +16,15 @@ const main = async () => {
     environment: process.env.ENVIRONMENT,
     release: process.env.SENTRY_RELEASE,
     integrations: [wasmIntegration()],
+    // Ad scripts, injected browser scripts, and dropped connections are outside the app's control.
+    denyUrls: [/googlesyndication\.com/],
+    ignoreErrors: [
+      "Non-Error promise rejection captured with value: undefined",
+      "Blocked a frame with origin",
+      "Failed to fetch",
+      "Load failed",
+      "Response body loading was aborted",
+    ],
   });
   const native = isTauri();
   const backend = await initializeWie();
@@ -56,6 +65,7 @@ const main = async () => {
 
   const routeToApp = async (app: LibraryApp) => {
     let failed = false;
+    let crashed = false;
     Sentry.setContext("emulated_app", { id: app.id, title: app.title, filename: app.filename });
     libraryView.hidden = true;
     playerView.hidden = false;
@@ -66,20 +76,22 @@ const main = async () => {
       failed = true;
       const failure = rustPanic ?? error;
       const panicked = rustPanic !== undefined;
+      // A trap or stack overflow aborts WASM mid-call like a panic, so the instance cannot run again.
+      crashed = panicked || failure instanceof WebAssembly.RuntimeError || failure instanceof RangeError;
       const showError = () => {
         window.alert(native ? t("restartRequired") : String(failure));
-        if (panicked && !native) window.location.reload();
+        if (crashed && !native) window.location.reload();
       };
       if (Sentry.isEnabled()) {
         const eventId = Sentry.captureException(failure, {
-          mechanism: { type: "wie", handled: !panicked },
-          captureContext: { tags: { error_kind: panicked ? "panic" : "handled" } },
+          mechanism: { type: "wie", handled: !crashed },
+          captureContext: { tags: { error_kind: panicked ? "panic" : crashed ? "trap" : "handled" } },
         });
         Sentry.showReportDialog({
           eventId,
           lang: getLocale(),
           onError: showError,
-          ...(native ? { subtitle: t("restartRequired") } : panicked ? {
+          ...(native ? { subtitle: t("restartRequired") } : crashed ? {
             subtitle: t("emulatorStopped"),
             onClose: () => window.location.reload(),
           } : {}),
@@ -89,13 +101,14 @@ const main = async () => {
       }
     } finally {
       Sentry.setContext("emulated_app", null);
+      Sentry.getCurrentScope().setFingerprint([]);
       if (native && failed) {
         const warning = document.getElementById("player-warning") as HTMLElement;
         warning.textContent = t("restartRequired");
         warning.setAttribute("role", "alert");
         warning.hidden = false;
         playerView.querySelectorAll<HTMLButtonElement>("button").forEach(button => { button.disabled = true; });
-      } else if (!rustPanic) {
+      } else if (!crashed) {
         playerView.hidden = true;
         libraryView.hidden = false;
         if (!pageLeaving) recordPageView();
