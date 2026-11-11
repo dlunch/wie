@@ -42,6 +42,12 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUyQUM3NjQ1OUI3MzA5MEIKUldRTENYT2JSWGFzVWh0OStORHRFbDdnU0RrNGxLRExyWnNzM2gwclNIVUMwUDU2WTh6d05sOHMK",
+      "endpoints": ["https://github.com/dlunch/wie/releases/latest/download/latest.json"]
+    }
+  },
   "bundle": {
     "active": true,
     "android": {
