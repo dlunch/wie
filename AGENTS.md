@@ -38,6 +38,8 @@
 - Let Rust's scope-based destruction manage lifetimes. Use explicit `drop` only when release timing is required for correct behavior.
 - Keep implementations and automation minimal. Do not add options, dependencies, scripts, metadata, workflow steps, or explicit version/retention settings unless they are required for the requested behavior; rely on established tool and repository defaults when they are sufficient.
 - Avoid redundant or defensive validation for states already guaranteed by internal types, trusted workflow context, build tools, or a following command that will fail naturally. Add validation only at meaningful external/dynamic boundaries or when it provides required observable behavior.
+- Keep reusable core code independent of frontend and platform implementations. Inject host implementations from the application layer through consumer-owned interfaces, reusing existing traits before adding new abstractions.
+- Do not include names of locally used test games in PR titles, descriptions, or comments.
 - Keep emulated runtime state authoritative in guest memory. Do not add host-side state or metadata registries; host adapters may only reference and operate on guest-backed structures.
 - Do not add special-case branches keyed to a specific application or Java class in shared runtime infrastructure. Represent confirmed ABI differences as data and handle them through generic mechanisms.
 - Use reference implementations only to understand architectural boundaries and responsibilities. Derive API contracts from public specifications and documentation, and implement behavior independently without copying reference implementation code or algorithms.
