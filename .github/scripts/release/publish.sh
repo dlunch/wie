@@ -11,6 +11,25 @@ if [[ "$CHANNEL" == stable ]]; then
     release_id=$(jq -r '.id' <<< "$release")
   fi
 
+  # The updater picks its installer by "<os>-<arch>-<bundle type>", falling back to "<os>-<arch>".
+  platforms='{}'
+  while read -r target asset; do
+    platforms=$(jq --arg target "$target" --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$asset" \
+      --rawfile signature "release-assets/$asset.sig" '.[$target] = {url: $url, signature: ($signature | rtrimstr("\n"))}' <<< "$platforms")
+  done <<EOF
+windows-x86_64-nsis wie-$tag-windows-x86_64-unsigned-setup.exe
+windows-x86_64-msi wie-$tag-windows-x86_64-unsigned.msi
+windows-aarch64-nsis wie-$tag-windows-aarch64-unsigned-setup.exe
+windows-aarch64-msi wie-$tag-windows-aarch64-unsigned.msi
+linux-x86_64-appimage wie-$tag-linux-x86_64.AppImage
+linux-aarch64-appimage wie-$tag-linux-aarch64.AppImage
+linux-x86_64-deb wie-$tag-linux-x86_64.deb
+linux-aarch64-deb wie-$tag-linux-aarch64.deb
+darwin-x86_64 wie-$tag-macos-universal-unsigned.app.tar.gz
+darwin-aarch64 wie-$tag-macos-universal-unsigned.app.tar.gz
+EOF
+  jq -n --arg version "${tag#v}" --argjson platforms "$platforms" '{version: $version, platforms: $platforms}' > release-assets/latest.json
+
   gh release upload "$tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
   generate_notes_args=(--method POST "$repo/releases/generate-notes" -f tag_name="$tag")

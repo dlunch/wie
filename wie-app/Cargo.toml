@@ -42,6 +42,9 @@ gtk = "0.18"
 [target.'cfg(not(target_vendor = "apple"))'.dependencies]
 rodio = { version = "^0.22", features = ["playback"] }
 
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
 [target.'cfg(not(any(target_os = "linux", target_os = "ios")))'.dependencies]
 softbuffer = "0.4.8"
 raw-window-handle = "0.6"

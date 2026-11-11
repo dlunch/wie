@@ -12,6 +12,8 @@ mod settings;
 mod store;
 
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
+#[cfg(desktop)]
+use tauri_plugin_updater::{Result as UpdaterResult, UpdaterExt};
 use tracing_subscriber::layer::SubscriberExt;
 
 use runtime::AppState;
@@ -25,6 +27,15 @@ async fn initialize_advertising(_app: AppHandle) -> Result<&'static str, String>
     }
     #[cfg(desktop)]
     Ok("sponsor")
+}
+
+#[cfg(desktop)]
+async fn update(app: AppHandle) -> UpdaterResult<()> {
+    if let Some(update) = app.updater()?.check().await? {
+        update.download_and_install(|_, _| {}, || {}).await?;
+        app.restart();
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -50,6 +61,17 @@ pub fn run() {
 
             #[cfg(mobile)]
             app.handle().plugin(tauri_plugin_haptics::init())?;
+            // The update manifest only describes stable releases; nightly and local builds must not be replaced by them.
+            #[cfg(desktop)]
+            if option_env!("ENVIRONMENT") == Some("production") {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                let app = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = update(app).await {
+                        tracing::warn!("Failed to update: {error}");
+                    }
+                });
+            }
             #[cfg(not(target_os = "ios"))]
             let view = screen::NativeView::new(app.get_webview_window("main").ok_or("Main window is unavailable")?)?;
             app.manage(AppState::new(

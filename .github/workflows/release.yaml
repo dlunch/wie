@@ -170,12 +170,14 @@ jobs:
 
       - name: Build unsigned installers
         uses: tauri-apps/tauri-action@v1
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           projectPath: wie-app
           retryAttempts: 2
           args: >-
             --config '${{ needs.context.outputs.tauri_config }}'
-            --ci --target ${{ matrix.target }} --bundles msi,nsis --no-sign
+            --ci --target ${{ matrix.target }} --bundles msi,nsis
 
       - name: Upload native debug information
         shell: bash
@@ -191,6 +193,10 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item (Get-ChildItem target/${{ matrix.target }}/release/bundle/msi/*.msi | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-${{ matrix.arch }}-unsigned.msi"
           Copy-Item (Get-ChildItem target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-${{ matrix.arch }}-unsigned-setup.exe"
+          if ($env:ENVIRONMENT -eq 'production') {
+            Copy-Item target/${{ matrix.target }}/release/bundle/msi/*.msi.sig "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-${{ matrix.arch }}-unsigned.msi.sig"
+            Copy-Item target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe.sig "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-${{ matrix.arch }}-unsigned-setup.exe.sig"
+          }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
@@ -263,16 +269,22 @@ jobs:
 
       - name: Bundle stripped Linux executable
         working-directory: wie-app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: >-
           cargo tauri bundle
           --config '${{ needs.context.outputs.tauri_config }}'
-          --ci --target ${{ matrix.target }} --bundles appimage,deb --no-sign
+          --ci --target ${{ matrix.target }} --bundles appimage,deb
 
       - name: Package bundles
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}.AppImage"
           cp target/${{ matrix.target }}/release/bundle/deb/*.deb "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}.deb"
+          if [ "$ENVIRONMENT" = production ]; then
+            cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.sig "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}.AppImage.sig"
+            cp target/${{ matrix.target }}/release/bundle/deb/*.deb.sig "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-${{ matrix.arch }}.deb.sig"
+          fi
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7
@@ -368,16 +380,22 @@ jobs:
 
       - name: Bundle unsigned universal executable
         working-directory: wie-app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: >-
           cargo tauri bundle
           --config '${{ needs.context.outputs.tauri_config }}'
-          --ci --target universal-apple-darwin --bundles app,dmg --no-sign
+          --ci --target universal-apple-darwin --bundles app,dmg
 
       - name: Package bundles
         run: |
           mkdir -p dist
           ditto -c -k --keepParent target/universal-apple-darwin/release/bundle/macos/*.app "dist/wie-${{ needs.context.outputs.asset_identity }}-macos-universal-unsigned.app.zip"
           cp target/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/wie-${{ needs.context.outputs.asset_identity }}-macos-universal-unsigned.dmg"
+          if [ "$ENVIRONMENT" = production ]; then
+            cp target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz "dist/wie-${{ needs.context.outputs.asset_identity }}-macos-universal-unsigned.app.tar.gz"
+            cp target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig "dist/wie-${{ needs.context.outputs.asset_identity }}-macos-universal-unsigned.app.tar.gz.sig"
+          fi
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v7
