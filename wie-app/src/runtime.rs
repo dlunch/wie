@@ -19,6 +19,7 @@ use sentry::protocol::Context;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, ipc::Channel};
 
+use wie::determine_file_type;
 use wie_backend::Instant as GuestInstant;
 
 use crate::{
@@ -194,6 +195,8 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
             }
             let (metadata, bytes) = library.read_archive(&id).map_err(|error| error.to_string())?;
             save_migration::run(&state.store, &metadata.id, &metadata.filename, &bytes).map_err(|error| error.to_string())?;
+            let platform = determine_file_type(&metadata.filename, &bytes).map_err(|error| error.to_string())?.name();
+            let app_id = metadata.id.clone();
             let app_context = Context::Other(
                 [
                     ("id".into(), metadata.id.into()),
@@ -221,7 +224,11 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
             .prepare(session_id, metadata.filename, bytes);
             let worker = tauri::async_runtime::spawn_blocking(move || {
                 sentry::with_scope(
-                    |scope| scope.set_context("emulated_app", app_context),
+                    |scope| {
+                        scope.set_context("emulated_app", app_context);
+                        // Stack-only grouping merges unrelated apps that fail in the same host frames.
+                        scope.set_fingerprint(Some(&["{{ default }}", platform, &app_id]));
+                    },
                     || {
                         if let Err(error) = worker.run(receiver, started) {
                             sentry::integrations::anyhow::capture_anyhow(&error);

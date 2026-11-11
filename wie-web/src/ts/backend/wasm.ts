@@ -1,4 +1,5 @@
-import { WieWeb } from "@pkg";
+import { WieWeb, appPlatform } from "@pkg";
+import * as Sentry from "@sentry/browser";
 
 import type { PlayerSession, SessionEvent } from "../backend";
 import { AudioPlayer } from "../midi";
@@ -10,6 +11,7 @@ export interface WasmSession extends PlayerSession {
 }
 
 export const startWasmSession = (
+  id: string,
   filename: string,
   archive: Uint8Array,
   font: Uint8Array,
@@ -18,6 +20,8 @@ export const startWasmSession = (
   suspended = false,
 ): WasmSession => {
   if (rustPanic) throw rustPanic;
+  // Stack-only grouping merges unrelated apps that fail in the same host frames.
+  Sentry.getCurrentScope().setFingerprint(["{{ default }}", appPlatform(filename, archive), id]);
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
   canvas.width = 240;
   canvas.height = 320;

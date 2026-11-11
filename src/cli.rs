@@ -253,9 +253,14 @@ fn set_app_context(filename: &str, bytes: &[u8]) {
         .into_iter()
         .collect::<BTreeMap<_, _>>();
     // Diagnostics must not make optional app metadata a prerequisite for execution.
-    if let Ok(metadata) = determine_file_type(filename, bytes).and_then(|file_type| extract_app_metadata(filename, bytes, file_type)) {
-        context.insert("id".into(), metadata.id.into());
-        context.insert("title".into(), metadata.title.into());
+    if let Ok(file_type) = determine_file_type(filename, bytes) {
+        let platform = file_type.name();
+        if let Ok(metadata) = extract_app_metadata(filename, bytes, file_type) {
+            // Stack-only grouping merges unrelated apps that fail in the same host frames.
+            sentry::configure_scope(|scope| scope.set_fingerprint(Some(&["{{ default }}", platform, &metadata.id])));
+            context.insert("id".into(), metadata.id.into());
+            context.insert("title".into(), metadata.title.into());
+        }
     }
     sentry::configure_scope(|scope| scope.set_context("emulated_app", Context::Other(context)));
 }

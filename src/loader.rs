@@ -17,6 +17,17 @@ pub enum FileType {
     J2me,
 }
 
+impl FileType {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Ktf => "ktf",
+            Self::Lgt => "lgt",
+            Self::Skt => "skt",
+            Self::J2me => "j2me",
+        }
+    }
+}
+
 pub fn determine_file_type(filename: &str, bytes: &[u8]) -> anyhow::Result<FileType> {
     let filename = filename.to_ascii_lowercase();
     if filename.ends_with(".zip") {
