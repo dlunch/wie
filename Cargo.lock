@@ -7904,7 +7904,6 @@ name = "wie-util"
 version = "0.2.24"
 dependencies = [
  "bytemuck",
- "tracing-attributes",
 ]
 
 [[package]]

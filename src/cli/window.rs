@@ -206,13 +206,13 @@ impl Scaler {
         }
     }
 
-    fn scale_image(&mut self, dst: &mut Vec<u32>, src: &[u32], dst_size: PhysicalSize<u32>, src_size: LogicalSize<u32>) {
+    fn scale_image(&mut self, dst: &mut [u32], src: &[u32], dst_size: PhysicalSize<u32>, src_size: LogicalSize<u32>) {
         match self {
             Scaler::Native => dst.copy_from_slice(src),
             Scaler::Lanczos3 { scale: _, resizer } => {
                 let (_, srcarr, _) = unsafe { src.align_to::<u8>() };
                 let srcimg = fast_image_resize::images::ImageRef::new(src_size.width, src_size.height, srcarr, PixelType::U8x4).unwrap();
-                let (_, dstarr, _) = unsafe { dst.as_mut_slice().align_to_mut::<u8>() };
+                let (_, dstarr, _) = unsafe { dst.align_to_mut::<u8>() };
                 let mut dstimg = fast_image_resize::images::Image::from_slice_u8(dst_size.width, dst_size.height, dstarr, PixelType::U8x4).unwrap();
                 resizer
                     .resize(
