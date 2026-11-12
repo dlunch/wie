@@ -95,6 +95,7 @@ vtable = [
     { name = "readUnsignedByte", descriptor = "()I", index = 24 },
     { name = "readShort", descriptor = "()S", index = 25 },
     { name = "readInt", descriptor = "()I", index = 28 },
+    { name = "readUTF", descriptor = "()Ljava/lang/String;", index = 32 },
 ]
 
 [[class]]

@@ -26,6 +26,12 @@ impl DialogComponent {
                     MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new("doModal", "()I", Self::do_modal, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "setButtonString",
+                    "(ILjava/lang/String;)V",
+                    Self::set_button_string,
+                    MethodAccessFlags::PUBLIC,
+                ),
             ],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC,
@@ -51,5 +57,17 @@ impl DialogComponent {
         tracing::warn!("stub org.kwis.msp.lwc.DialogComponent::doModal({this:?})");
 
         Ok(12) // DLG_CANCEL
+    }
+
+    async fn set_button_string(
+        _: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        button: i32,
+        label: ClassInstanceRef<String>,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.DialogComponent::setButtonString({this:?}, {button}, {label:?})");
+
+        Ok(())
     }
 }

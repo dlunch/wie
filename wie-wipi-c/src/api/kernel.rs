@@ -175,19 +175,11 @@ pub async fn unset_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord) -
 pub async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlAlloc({size:#x})");
 
-    if size == 0 {
-        return Ok(WIPICIndirectPtr(0));
-    }
-
     context.alloc(size)
 }
 
 pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlCalloc({size:#x})");
-
-    if size == 0 {
-        return Ok(WIPICIndirectPtr(0));
-    }
 
     let memory = context.alloc(size)?;
 
@@ -469,11 +461,12 @@ mod test {
     }
 
     #[futures_test::test]
-    async fn test_zero_size_memory_returns_null() -> Result<()> {
+    async fn test_zero_size_memory() -> Result<()> {
         let mut context = TestContext::new();
 
-        assert_eq!(alloc(&mut context, 0).await.unwrap().0, 0);
-        assert_eq!(calloc(&mut context, 0).await.unwrap().0, 0);
+        // Apps dereference the handle of a zero-size allocation, so it must be a real one.
+        assert_ne!(alloc(&mut context, 0).await.unwrap().0, 0);
+        assert_ne!(calloc(&mut context, 0).await.unwrap().0, 0);
         assert_eq!(free(&mut context, wipi_types::wipic::WIPICIndirectPtr(0)).await.unwrap().0, 0);
 
         Ok(())
