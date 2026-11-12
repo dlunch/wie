@@ -1,8 +1,8 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
 use jvm::{
-    Jvm,
-    runtime::{JavaIoInputStream, JavaLangClassLoader},
+    ClassInstance, Jvm,
+    runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
 };
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
@@ -94,6 +94,20 @@ impl WIPICContext for KtfWIPICContext {
         });
 
         Ok(())
+    }
+
+    async fn java_property(&self, name: &str) -> Result<Option<String>> {
+        let name = JavaLangString::from_rust_string(&self.jvm, name).await.unwrap();
+        let value: Option<Box<dyn ClassInstance>> = self
+            .jvm
+            .invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (name,))
+            .await
+            .unwrap();
+
+        Ok(match value {
+            Some(value) => Some(JavaLangString::to_rust_string(&self.jvm, &value).await.unwrap()),
+            None => None,
+        })
     }
 
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
@@ -245,7 +259,7 @@ mod tests {
             let thread = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
             write_generic(&mut core, thread, KtfJvmThreadContext::zeroed())?;
             KtfJvmSupport::set_current_thread_context(&mut core, thread)?;
-            let (jvm, _) = KtfJvmSupport::init(&mut core, &mut system_task, None).await?;
+            let (jvm, _) = KtfJvmSupport::init(&mut core, &mut system_task, None, &[]).await?;
             let queue = jvm.new_class("net/wie/EventQueue", "()V", ()).await.unwrap();
             let timer = Allocator::alloc(&mut core, size_of::<kernel::WIPICTimer>() as u32)?;
             let mut context = KtfWIPICContext::new(core.clone(), system_task.clone(), jvm.clone());

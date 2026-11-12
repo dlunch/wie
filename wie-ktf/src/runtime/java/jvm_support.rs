@@ -65,7 +65,12 @@ pub const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
 pub struct KtfJvmSupport;
 
 impl KtfJvmSupport {
-    pub async fn init(core: &mut ArmCore, system: &mut System, jar_name: Option<&str>) -> Result<(Jvm, Box<dyn ClassInstance>)> {
+    pub async fn init(
+        core: &mut ArmCore,
+        system: &mut System,
+        jar_name: Option<&str>,
+        properties: &[(&str, &str)],
+    ) -> Result<(Jvm, Box<dyn ClassInstance>)> {
         let jvm_context = InitParam2 {
             unk1: 0,
             unk2: 0,
@@ -83,7 +88,7 @@ impl KtfJvmSupport {
 
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
         let jvm_implementation = KtfJvmImplementation::new(core);
-        let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], jvm_implementation.clone()).await?;
+        let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), properties, jvm_implementation.clone()).await?;
         register_java_interface_svc_handler(core, &jvm)?;
 
         let system_class_loader: Box<dyn ClassInstance> = jvm
@@ -295,7 +300,7 @@ mod test {
         write_generic(&mut core, ptr_thread_context, KtfJvmThreadContext::zeroed())?;
         KtfJvmSupport::set_current_thread_context(&mut core, ptr_thread_context)?;
 
-        let (jvm, _) = KtfJvmSupport::init(&mut core, system, None).await?;
+        let (jvm, _) = KtfJvmSupport::init(&mut core, system, None, &[]).await?;
 
         Ok((jvm, core))
     }

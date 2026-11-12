@@ -15,6 +15,8 @@ use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes
 
 use crate::{WIPICResult, context::WIPICContext, globals::PENDING_TIMERS_HEAD, method::MethodBody};
 
+pub const ACCESS_LEVEL_PROPERTY: &str = "wie.access_level";
+
 pub use self::sprintf::sprintf;
 
 #[repr(C, packed)]
@@ -331,9 +333,13 @@ pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPIC
     Ok(1)
 }
 
-pub async fn get_access_level(_context: &mut dyn WIPICContext) -> Result<i32> {
-    tracing::warn!("stub MC_knlGetAccessLevel()");
-    Ok(0)
+pub async fn get_access_level(context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::debug!("MC_knlGetAccessLevel()");
+
+    // The app descriptor carries the access level granted to the app, as hex.
+    let access_level = context.java_property(ACCESS_LEVEL_PROPERTY).await?;
+
+    Ok(access_level.and_then(|x| u32::from_str_radix(&x, 16).ok()).unwrap_or(0) as i32)
 }
 
 pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWord, buf_size: i32) -> Result<i32> {
