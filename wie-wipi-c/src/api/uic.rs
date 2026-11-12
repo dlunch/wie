@@ -4,6 +4,9 @@ use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use crate::context::WIPICContext;
 
+// shortcut: text components report a placeholder until text input is implemented.
+const PLACEHOLDER_TEXT: &[u8] = b"temp";
+
 pub async fn create_application_context(_context: &mut dyn WIPICContext) -> Result<WIPICIndirectPtr> {
     tracing::warn!("stub MC_uicCreateApplicationContext");
 
@@ -51,10 +54,10 @@ pub async fn set_fg_color(_context: &mut dyn WIPICContext, cc: u32, color: u32) 
     Ok(())
 }
 
-pub async fn get_font(_context: &mut dyn WIPICContext, cc: WIPICWord) -> Result<i32> {
-    tracing::warn!("stub MC_uicGetFont({cc:#x})");
+pub async fn set_event_handler(_context: &mut dyn WIPICContext, cc: WIPICWord, handler: WIPICWord) -> Result<()> {
+    tracing::warn!("stub MC_uicSetEventHandler({cc:#x}, {handler:#x})");
 
-    Ok(0)
+    Ok(())
 }
 
 pub async fn set_bg_color(_context: &mut dyn WIPICContext, cc: u32, color: u32) -> Result<()> {
@@ -74,12 +77,17 @@ pub async fn delete_text(_context: &mut dyn WIPICContext, cc: u32, idx: i32, len
 
 pub async fn get_text_size(_context: &mut dyn WIPICContext, cc: u32) -> Result<i32> {
     tracing::warn!("stub MC_uicGetTextSize({cc:#x})");
-    Ok(0)
+
+    Ok(PLACEHOLDER_TEXT.len() as i32)
 }
 
-pub async fn get_text(_context: &mut dyn WIPICContext, cc: u32, idx: i32, destination: u32, len: i32) -> Result<i32> {
+pub async fn get_text(context: &mut dyn WIPICContext, cc: u32, idx: i32, destination: u32, len: i32) -> Result<i32> {
     tracing::warn!("stub MC_uicGetText({cc:#x}, {idx}, {destination:#x}, {len})");
-    Ok(0)
+
+    let size = len.clamp(0, PLACEHOLDER_TEXT.len() as i32);
+    context.write_bytes(destination, &PLACEHOLDER_TEXT[..size as usize])?;
+
+    Ok(size)
 }
 
 pub async fn set_enable(_context: &mut dyn WIPICContext, cc: WIPICWord, enable: i32) -> Result<()> {
