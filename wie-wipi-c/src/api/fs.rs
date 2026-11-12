@@ -17,7 +17,7 @@ struct FileHandle {
 }
 
 const FILE_HANDLE_MAGIC: u32 = 0x46534648;
-const STORAGE_LIMIT: u64 = 1024 * 1024;
+const STORAGE_LIMIT: u64 = 16 * 1024 * 1024;
 const OPEN_READ_ONLY: i32 = 1;
 const OPEN_WRITE_ONLY: i32 = 2;
 const OPEN_WRITE_TRUNCATE: i32 = 4;
