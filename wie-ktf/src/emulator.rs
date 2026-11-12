@@ -76,16 +76,7 @@ impl KtfEmulator {
 
         let jar_filename = format!("{}.jar", adf.aid);
 
-        Self::load(
-            platform,
-            &jar_filename,
-            &adf.pid,
-            &adf.aid,
-            Some(adf.mclass),
-            adf.access_level,
-            &files,
-            options,
-        )
+        Self::load(platform, &jar_filename, adf, &files, options)
     }
 
     pub fn from_jar(
@@ -99,7 +90,16 @@ impl KtfEmulator {
     ) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, pid, aid, main_class_name, None, &files, options)
+        let adf = KtfAdf {
+            name: String::new(),
+            aid: aid.to_owned(),
+            pid: pid.to_owned(),
+            mclass: main_class_name.unwrap_or_default(),
+            display_size: None,
+            access_level: None,
+        };
+
+        Self::load(platform, jar_filename, adf, &files, options)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -141,19 +141,9 @@ impl KtfEmulator {
         validate_client_bin(&client_bin)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn load(
-        platform: Box<dyn Platform>,
-        jar_filename: &str,
-        pid: &str,
-        aid: &str,
-        main_class_name: Option<String>,
-        access_level: Option<String>,
-        files: &BTreeMap<String, Vec<u8>>,
-        options: Options,
-    ) -> Result<Self> {
+    fn load(platform: Box<dyn Platform>, jar_filename: &str, adf: KtfAdf, files: &BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
         let mut core = ArmCore::new(options)?;
-        let system = System::new(platform, pid, aid, KtfTaskRunner { core: core.clone() });
+        let system = System::new(platform, &adf.pid, &adf.aid, KtfTaskRunner { core: core.clone() });
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
@@ -168,30 +158,22 @@ impl KtfEmulator {
         let mut core_clone = core.clone();
         let mut system_clone = system.clone();
         let jar_filename_clone = jar_filename.to_owned();
-        system.spawn(async move || Self::start(&mut core_clone, &mut system_clone, jar_filename_clone, main_class_name, access_level).await);
+        system.spawn(async move || Self::start(&mut core_clone, &mut system_clone, jar_filename_clone, adf).await);
 
         Ok(Self { core, system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn start(
-        core: &mut ArmCore,
-        system: &mut System,
-        jar_filename: String,
-        main_class_name: Option<String>,
-        access_level: Option<String>,
-    ) -> Result<()> {
-        let properties = access_level.iter().map(|x| (ACCESS_LEVEL_PROPERTY, x.as_str())).collect::<Vec<_>>();
+    async fn start(core: &mut ArmCore, system: &mut System, jar_filename: String, adf: KtfAdf) -> Result<()> {
+        let properties = adf.access_level.iter().map(|x| (ACCESS_LEVEL_PROPERTY, x.as_str())).collect::<Vec<_>>();
         let (jvm, class_loader) = KtfJvmSupport::init(core, system, Some(&jar_filename), &properties).await?;
-        let clet_mode = main_class_name.as_deref().is_some_and(is_clet_mode);
+        let clet_mode = is_clet_mode(&adf.mclass);
 
-        let main_class_name = if let Some(x) = main_class_name {
-            x
-        } else {
+        if adf.mclass.is_empty() {
             return Err(WieError::FatalError("Main class not found".into()));
-        };
+        }
 
-        let main_class_name = main_class_name.replace('.', "/");
+        let main_class_name = adf.mclass.replace('.', "/");
 
         let main_class_name_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await.unwrap();
         let _main_class: Box<dyn ClassInstance> = jvm
