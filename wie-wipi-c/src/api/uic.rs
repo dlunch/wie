@@ -108,12 +108,6 @@ pub async fn set_max_text_size(_context: &mut dyn WIPICContext, cc: WIPICWord, m
     Ok(0)
 }
 
-pub async fn get_menu_item(_context: &mut dyn WIPICContext, cc: WIPICWord, idx: u32, psz: WIPICWord, buflen: i32, img: WIPICWord) -> Result<i32> {
-    tracing::warn!("stub MC_uicGetMenuItem({cc:#x}, {idx}, {psz:#x}, {buflen}, {img:#x})");
-
-    Ok(0)
-}
-
 pub async fn get_time(context: &mut dyn WIPICContext, component: u32, out_ptr: u32) -> Result<()> {
     tracing::warn!("stub MC_uicGetTime({component:#x}, {out_ptr:#x})");
 
