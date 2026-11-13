@@ -16,7 +16,7 @@ pub struct KtfAdf {
     pub pid: String,
     pub mclass: String,
     pub display_size: Option<(u32, u32)>,
-    pub access_level: Option<String>,
+    pub slvl: Option<String>,
 }
 
 impl KtfAdf {
@@ -26,7 +26,7 @@ impl KtfAdf {
         let mut pid = String::new();
         let mut mclass = String::new();
         let mut display_size = None;
-        let mut access_level = None;
+        let mut slvl = None;
 
         let mut lines = data.split(|x| *x == b'\n');
 
@@ -42,7 +42,7 @@ impl KtfAdf {
             } else if line.starts_with(b"DisplaySize:") {
                 display_size = parse_display_size(&line[12..]);
             } else if line.starts_with(b"SLvl:") {
-                access_level = Some(String::from_utf8_lossy(&line[5..]).trim().into());
+                slvl = Some(String::from_utf8_lossy(&line[5..]).trim().into());
             }
         }
 
@@ -52,7 +52,7 @@ impl KtfAdf {
             pid,
             mclass,
             display_size,
-            access_level,
+            slvl,
         }
     }
 }
@@ -105,7 +105,7 @@ mod tests {
         assert_eq!(adf.pid, "bar");
         assert_eq!(adf.mclass, "baz");
         assert_eq!(adf.display_size, Some((176, 220)));
-        assert_eq!(adf.access_level.as_deref(), Some("00142FBC"));
+        assert_eq!(adf.slvl.as_deref(), Some("00142FBC"));
     }
 
     #[test]

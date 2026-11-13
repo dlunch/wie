@@ -20,7 +20,7 @@ use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extrac
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, write_generic};
-use wie_wipi_c::api::kernel::ACCESS_LEVEL_PROPERTY;
+use wie_wipi_c::api::kernel::SLVL_PROPERTY;
 
 use crate::runtime::{LgtJvmSupport, SUPPORT_CONTEXT_BASE, exception, init::load_native};
 
@@ -88,7 +88,7 @@ impl LgtEmulator {
             aid: aid.to_owned(),
             pid: pid.to_owned(),
             mclass: main_class_name.unwrap_or_default(),
-            access_level: None,
+            slvl: None,
         };
 
         Self::load(platform, jar_filename, app_info, &files, options)
@@ -150,11 +150,7 @@ impl LgtEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, app_info: LgtAppInfo) -> Result<()> {
-        let properties = app_info
-            .access_level
-            .iter()
-            .map(|x| (ACCESS_LEVEL_PROPERTY, x.as_str()))
-            .collect::<Vec<_>>();
+        let properties = app_info.slvl.iter().map(|x| (SLVL_PROPERTY, x.as_str())).collect::<Vec<_>>();
         let jvm = LgtJvmSupport::init(core, system, Some(&jar_filename), &properties).await?;
 
         let class_loader = match JavaLangClassLoader::get_system_class_loader(&jvm).await {
@@ -206,7 +202,7 @@ struct LgtAppInfo {
     aid: String,
     pid: String,
     mclass: String,
-    access_level: Option<String>,
+    slvl: Option<String>,
 }
 
 impl LgtAppInfo {
@@ -215,7 +211,7 @@ impl LgtAppInfo {
         let mut aid = String::new();
         let mut pid = String::new();
         let mut mclass = String::new();
-        let mut access_level = None;
+        let mut slvl = None;
 
         let mut lines = data.split(|x| *x == b'\n');
 
@@ -229,7 +225,7 @@ impl LgtAppInfo {
             } else if line.starts_with(b"MClass:") {
                 mclass = String::from_utf8_lossy(&line[7..]).into();
             } else if line.starts_with(b"SLvl:") {
-                access_level = Some(String::from_utf8_lossy(&line[5..]).trim().into());
+                slvl = Some(String::from_utf8_lossy(&line[5..]).trim().into());
             }
         }
 
@@ -238,7 +234,7 @@ impl LgtAppInfo {
             aid,
             pid,
             mclass,
-            access_level,
+            slvl,
         }
     }
 }
@@ -318,6 +314,6 @@ mod tests {
         assert_eq!(app_info.aid, "aid");
         assert_eq!(app_info.pid, "pid");
         assert_eq!(app_info.mclass, "Clet");
-        assert_eq!(app_info.access_level.as_deref(), Some("0000000000000000000001C7E33D2FBC"));
+        assert_eq!(app_info.slvl.as_deref(), Some("0000000000000000000001C7E33D2FBC"));
     }
 }
