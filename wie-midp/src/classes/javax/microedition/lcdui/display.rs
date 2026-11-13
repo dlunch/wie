@@ -13,7 +13,7 @@ use wie_backend::{Event, text_layout::wrap};
 use wie_jvm_support::{JvmSupport, WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::{
-    lcdui::{Alert, Displayable, Graphics, Image, Ticker},
+    lcdui::{Alert, Displayable, Graphics, Image, Item, Ticker},
     midlet::MIDlet,
 };
 
@@ -77,6 +77,18 @@ impl Display {
                 JavaMethodProto::new("vibrate", "(I)Z", Self::vibrate, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("isColor", "()Z", Self::is_color, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("flashBacklight", "(I)Z", Self::flash_backlight, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("numAlphaLevels", "()I", Self::num_alpha_levels, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("numColors", "()I", Self::num_colors, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getColor", "(I)I", Self::get_color, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getBorderStyle", "(Z)I", Self::get_border_style, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getBestImageWidth", "(I)I", Self::get_best_image_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getBestImageHeight", "(I)I", Self::get_best_image_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "setCurrentItem",
+                    "(Ljavax/microedition/lcdui/Item;)V",
+                    Self::set_current_item,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
@@ -811,6 +823,49 @@ impl Display {
         }
 
         Ok(false)
+    }
+
+    async fn num_alpha_levels(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::numAlphaLevels({this:?})");
+
+        Ok(256)
+    }
+
+    async fn num_colors(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::numColors({this:?})");
+
+        Ok(1 << 24)
+    }
+
+    async fn get_color(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, color_specifier: i32) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::getColor({this:?}, {color_specifier})");
+
+        // COLOR_BACKGROUND and COLOR_HIGHLIGHTED_FOREGROUND are light, the rest are dark.
+        Ok(if matches!(color_specifier, 0 | 3) { WHITE } else { 0 })
+    }
+
+    async fn get_border_style(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, highlighted: bool) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::getBorderStyle({this:?}, {highlighted})");
+
+        Ok(0) // Graphics.SOLID
+    }
+
+    async fn get_best_image_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, image_type: i32) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::getBestImageWidth({this:?}, {image_type})");
+
+        Ok(16)
+    }
+
+    async fn get_best_image_height(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, image_type: i32) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::getBestImageHeight({this:?}, {image_type})");
+
+        Ok(16)
+    }
+
+    async fn set_current_item(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, item: ClassInstanceRef<Item>) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::setCurrentItem({this:?}, {item:?})");
+
+        Ok(())
     }
 
     async fn repaint(
