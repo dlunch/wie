@@ -10,7 +10,6 @@ use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, write_generic};
-use wie_wipi_c::api::kernel::SLVL_PROPERTY;
 
 use crate::{
     adf::{KtfAdf, find_client_bin, validate_client_bin},
@@ -165,7 +164,7 @@ impl KtfEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn start(core: &mut ArmCore, system: &mut System, jar_filename: String, adf: KtfAdf) -> Result<()> {
-        let properties = adf.slvl.iter().map(|x| (SLVL_PROPERTY, x.as_str())).collect::<Vec<_>>();
+        let properties = adf.slvl.iter().map(|x| ("wie.slvl", x.as_str())).collect::<Vec<_>>();
         let (jvm, class_loader) = KtfJvmSupport::init(core, system, Some(&jar_filename), &properties).await?;
         let clet_mode = is_clet_mode(&adf.mclass);
 

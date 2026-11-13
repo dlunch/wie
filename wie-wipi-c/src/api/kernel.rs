@@ -15,8 +15,6 @@ use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes
 
 use crate::{WIPICResult, context::WIPICContext, globals::PENDING_TIMERS_HEAD, method::MethodBody};
 
-pub const SLVL_PROPERTY: &str = "wie.slvl";
-
 pub use self::sprintf::sprintf;
 
 #[repr(C, packed)]
@@ -338,7 +336,7 @@ pub async fn get_access_level(context: &mut dyn WIPICContext) -> Result<i32> {
 
     // The app descriptor carries the access level granted to the app, as hex.
     // Some descriptors store a wider value; the permission masks are in the low word.
-    let slvl = context.java_property(SLVL_PROPERTY).await?;
+    let slvl = context.java_property("wie.slvl").await?;
 
     Ok(slvl.and_then(|x| u128::from_str_radix(&x, 16).ok()).unwrap_or(0) as i32)
 }

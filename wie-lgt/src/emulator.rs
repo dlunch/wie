@@ -20,7 +20,6 @@ use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extrac
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, write_generic};
-use wie_wipi_c::api::kernel::SLVL_PROPERTY;
 
 use crate::runtime::{LgtJvmSupport, SUPPORT_CONTEXT_BASE, exception, init::load_native};
 
@@ -150,7 +149,7 @@ impl LgtEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, app_info: LgtAppInfo) -> Result<()> {
-        let properties = app_info.slvl.iter().map(|x| (SLVL_PROPERTY, x.as_str())).collect::<Vec<_>>();
+        let properties = app_info.slvl.iter().map(|x| ("wie.slvl", x.as_str())).collect::<Vec<_>>();
         let jvm = LgtJvmSupport::init(core, system, Some(&jar_filename), &properties).await?;
 
         let class_loader = match JavaLangClassLoader::get_system_class_loader(&jvm).await {
