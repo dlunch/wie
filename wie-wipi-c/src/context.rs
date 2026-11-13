@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
@@ -20,6 +20,7 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send + Sync {
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord>;
     fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()>;
+    async fn java_property(&self, name: &str) -> Result<Option<String>>;
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>>;
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>>;
     fn set_timer(&mut self, due: Instant, callback: WIPICMethodBody);
@@ -177,6 +178,10 @@ pub mod test {
 
         fn spawn(&mut self, _callback: WIPICMethodBody) -> Result<()> {
             todo!()
+        }
+
+        async fn java_property(&self, _name: &str) -> Result<Option<String>> {
+            Ok(None)
         }
 
         async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {

@@ -57,6 +57,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::Execute => kernel::execute.into_body(),
         WIPICSvcId::Exit => kernel::exit.into_body(),
         WIPICSvcId::GetCurProgramId => kernel::get_cur_program_id.into_body(),
+        WIPICSvcId::GetAccessLevel => kernel::get_access_level.into_body(),
         WIPICSvcId::GetProgramName => kernel::get_program_name.into_body(),
         WIPICSvcId::Alloc => kernel::alloc.into_body(),
         WIPICSvcId::Calloc => kernel::calloc.into_body(),
@@ -338,7 +339,7 @@ mod tests {
             let mut registers = core.save_context();
             registers.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
             core.restore_context(&registers);
-            let jvm = LgtJvmSupport::init(&mut core, &task_system, None).await?;
+            let jvm = LgtJvmSupport::init(&mut core, &task_system, None, &[]).await?;
             register_wipic_svc_handler(&mut core, &task_system, &jvm)?;
             let name = Allocator::alloc(&mut core, 8)?;
             write_null_terminated_string_bytes(&mut core, name, b"missing")?;

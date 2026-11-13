@@ -331,9 +331,14 @@ pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPIC
     Ok(1)
 }
 
-pub async fn get_access_level(_context: &mut dyn WIPICContext) -> Result<i32> {
-    tracing::warn!("stub MC_knlGetAccessLevel()");
-    Ok(0)
+pub async fn get_access_level(context: &mut dyn WIPICContext) -> Result<i32> {
+    tracing::debug!("MC_knlGetAccessLevel()");
+
+    // The app descriptor carries the access level granted to the app, as hex.
+    // Some descriptors store a wider value; the permission masks are in the low word.
+    let slvl = context.java_property("wie.slvl").await?;
+
+    Ok(slvl.and_then(|x| u128::from_str_radix(&x, 16).ok()).unwrap_or(0) as i32)
 }
 
 pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWord, buf_size: i32) -> Result<i32> {

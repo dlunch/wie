@@ -1,8 +1,14 @@
-use alloc::{boxed::Box, format, string::ToString, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 use jvm::{
-    Jvm,
-    runtime::{JavaIoInputStream, JavaLangClassLoader},
+    ClassInstance, Jvm,
+    runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
 };
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
@@ -90,6 +96,20 @@ impl WIPICContext for LgtWIPICContext {
         });
 
         Ok(())
+    }
+
+    async fn java_property(&self, name: &str) -> Result<Option<String>> {
+        let name = JavaLangString::from_rust_string(&self.jvm, name).await.unwrap();
+        let value: Option<Box<dyn ClassInstance>> = self
+            .jvm
+            .invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (name,))
+            .await
+            .unwrap();
+
+        Ok(match value {
+            Some(value) => Some(JavaLangString::to_rust_string(&self.jvm, &value).await.unwrap()),
+            None => None,
+        })
     }
 
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
@@ -188,7 +208,7 @@ mod tests {
             caller.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;
             caller.cpsr = 0x10;
             core.restore_context(&caller);
-            let jvm = LgtJvmSupport::init(&mut core, &system_task, None).await?;
+            let jvm = LgtJvmSupport::init(&mut core, &system_task, None, &[]).await?;
             let queue = jvm.new_class("net/wie/EventQueue", "()V", ()).await.unwrap();
             let timer = Allocator::alloc(&mut core, size_of::<kernel::WIPICTimer>() as u32)?;
             let mut context = LgtWIPICContext::new(core.clone(), system_task.clone(), jvm.clone());

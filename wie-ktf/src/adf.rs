@@ -16,6 +16,7 @@ pub struct KtfAdf {
     pub pid: String,
     pub mclass: String,
     pub display_size: Option<(u32, u32)>,
+    pub slvl: Option<String>,
 }
 
 impl KtfAdf {
@@ -25,6 +26,7 @@ impl KtfAdf {
         let mut pid = String::new();
         let mut mclass = String::new();
         let mut display_size = None;
+        let mut slvl = None;
 
         let mut lines = data.split(|x| *x == b'\n');
 
@@ -39,6 +41,8 @@ impl KtfAdf {
                 mclass = String::from_utf8_lossy(&line[7..]).trim().into();
             } else if line.starts_with(b"DisplaySize:") {
                 display_size = parse_display_size(&line[12..]);
+            } else if line.starts_with(b"SLvl:") {
+                slvl = Some(String::from_utf8_lossy(&line[5..]).trim().into());
             }
         }
 
@@ -48,6 +52,7 @@ impl KtfAdf {
             pid,
             mclass,
             display_size,
+            slvl,
         }
     }
 }
@@ -92,13 +97,15 @@ mod tests {
 
     #[test]
     fn parse_adf_full() {
-        let data = b"Name:\xc2\xa5\xbf\xe4\xc2\xa5\xbf\xe4\xc5\xb8\xc0\xcc\xc4\xef2\nAID:foo\nPID:bar\nMClass:baz\nDisplaySize:176*220\n";
+        let data =
+            b"Name:\xc2\xa5\xbf\xe4\xc2\xa5\xbf\xe4\xc5\xb8\xc0\xcc\xc4\xef2\nAID:foo\nPID:bar\nMClass:baz\nDisplaySize:176*220\nSLvl:00142FBC\n";
         let adf = KtfAdf::parse(data);
         assert_eq!(adf.name, "짜요짜요타이쿤2");
         assert_eq!(adf.aid, "foo");
         assert_eq!(adf.pid, "bar");
         assert_eq!(adf.mclass, "baz");
         assert_eq!(adf.display_size, Some((176, 220)));
+        assert_eq!(adf.slvl.as_deref(), Some("00142FBC"));
     }
 
     #[test]
