@@ -14,6 +14,7 @@ use jvm::{Result as JvmResult, runtime::JavaLangString};
 use wie_backend::{
     DefaultTaskRunner, Emulator, Event, Platform, System,
     canvas::{decode_res, encode_png},
+    extract_zip,
 };
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
@@ -34,10 +35,18 @@ impl SktEmulator {
         Self::load(platform, &jar_filename, &msd.id, Some(msd.main_class), msd.properties, &files)
     }
 
-    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str) -> Result<Self> {
+        let (_, manifest) = extract_zip(&jar)?
+            .into_iter()
+            .find(|(path, _)| path.eq_ignore_ascii_case("META-INF/MANIFEST.MF"))
+            .ok_or_else(|| WieError::FatalError("JAR manifest not found".into()))?;
+        // Manifest values wrap onto continuation lines that start with a space.
+        let manifest = String::from_utf8_lossy(&manifest).replace("\r\n ", "").replace("\n ", "");
+        let msd = SktMsd::parse(jar_filename, manifest.as_bytes());
+        let main_class_name = (!msd.main_class.is_empty()).then_some(msd.main_class);
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, id, main_class_name, BTreeMap::new(), &files)
+        Self::load(platform, jar_filename, id, main_class_name, msd.properties, &files)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -75,7 +84,16 @@ impl SktEmulator {
     }
 
     pub fn loadable_jar(jar: &[u8]) -> bool {
+        // A plain JAR is an SKVM app when its class constant pools reference SKVM-only packages.
         jar.starts_with(b"\x20\x00\x00\x00\x00\x00\x00\x00")
+            || extract_zip(jar).is_ok_and(|files| {
+                files.iter().any(|(filename, data)| {
+                    filename.ends_with(".class")
+                        && [b"com/skt/m/".as_slice(), b"com/xce/"]
+                            .iter()
+                            .any(|package| data.windows(package.len()).any(|x| x == *package))
+                })
+            })
     }
 
     fn load(
@@ -228,9 +246,29 @@ impl SktMsd {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{collections::BTreeMap, vec};
+    extern crate std;
+
+    use alloc::{collections::BTreeMap, vec, vec::Vec};
+    use std::io::{Cursor, Write};
+
+    use zip::{ZipWriter, write::SimpleFileOptions};
 
     use super::{SktEmulator, SktMsd};
+
+    #[test]
+    fn detects_plain_jar_referencing_skvm_classes() {
+        for (class, expected) in [
+            (b"\x01\x00\x13com/skt/m/AudioClip".as_slice(), true),
+            (b"\x01\x00\x10java/lang/Object", false),
+        ] {
+            let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+            writer.start_file("Main.class", SimpleFileOptions::default()).unwrap();
+            writer.write_all(class).unwrap();
+            let jar = writer.finish().unwrap().into_inner();
+
+            assert_eq!(SktEmulator::loadable_jar(&jar), expected);
+        }
+    }
 
     #[test]
     fn parse_msd_name() {

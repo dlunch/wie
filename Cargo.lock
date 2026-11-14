@@ -7987,6 +7987,7 @@ dependencies = [
  "wie-skvm",
  "wie-util",
  "wie-wipi-java",
+ "zip",
 ]
 
 [[package]]

@@ -112,7 +112,7 @@ pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>
         }
         FileType::Skt => {
             let id = &filename[..filename.len() - 4];
-            Box::new(SktEmulator::from_jar(platform, filename, bytes, id, None)?)
+            Box::new(SktEmulator::from_jar(platform, filename, bytes, id)?)
         }
         FileType::J2me => Box::new(J2MEEmulator::from_jar(platform, filename, bytes)?),
     })
