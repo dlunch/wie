@@ -149,6 +149,7 @@ impl Display {
                 JavaFieldProto::new("height", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("paintDisabled", "Z", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("repaintPending", "Z", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("painting", "Z", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("repaintLeft", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("repaintTop", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("repaintRight", "I", FieldAccessFlags::PRIVATE),
@@ -1057,10 +1058,10 @@ impl Display {
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::serviceRepaints({this:?})");
 
-        if jvm
-            .get_field::<bool>(&this, "javax/microedition/lcdui/Display", "repaintPending", "Z")
-            .await?
-        {
+        let pending: bool = jvm.get_field(&this, "javax/microedition/lcdui/Display", "repaintPending", "Z").await?;
+        // Called from a paint callback, this would paint again inside the paint; that request waits for the next cycle.
+        let painting: bool = jvm.get_field(&this, "javax/microedition/lcdui/Display", "painting", "Z").await?;
+        if pending && !painting {
             let _: () = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                 .await?;
@@ -1071,6 +1072,16 @@ impl Display {
     async fn handle_paint_event(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::handlePaintEvent({this:?})");
 
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "painting", "Z", true)
+            .await?;
+        let result = Self::paint_current(jvm, context, this.clone()).await;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "painting", "Z", false)
+            .await?;
+
+        result
+    }
+
+    async fn paint_current(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let dirty_bounds = if jvm
             .get_field::<bool>(&this, "javax/microedition/lcdui/Display", "repaintPending", "Z")
             .await?
