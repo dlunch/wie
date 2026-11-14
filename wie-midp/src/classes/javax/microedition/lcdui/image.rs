@@ -9,7 +9,7 @@ use jvm::{
 };
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::lang::String;
+use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 
 use wie_backend::canvas::{
     ArgbPixel, Canvas, Color, Image as BackendImage, ImageBuffer, ImageBufferCanvas, PixelType, Rgb332Pixel, Rgb565Pixel, decode_image,
@@ -69,6 +69,18 @@ impl Image {
                     "createImage",
                     "(Ljavax/microedition/lcdui/Image;)Ljavax/microedition/lcdui/Image;",
                     Self::create_image_from_image,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "createImage",
+                    "(Ljavax/microedition/lcdui/Image;IIIII)Ljavax/microedition/lcdui/Image;",
+                    Self::create_image_from_region,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "createImage",
+                    "(Ljava/io/InputStream;)Ljavax/microedition/lcdui/Image;",
+                    Self::create_image_from_stream,
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
             ],
@@ -223,6 +235,95 @@ impl Image {
         let src_image = Image::image(jvm, &image).await?;
 
         Self::create_image_instance(jvm, src_image.width(), src_image.height(), &src_image.raw(), src_image.bytes_per_pixel()).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn create_image_from_region(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        image: ClassInstanceRef<Image>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        transform: i32,
+    ) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("javax.microedition.lcdui.Image::createImage({image:?}, {x}, {y}, {width}, {height}, {transform})");
+
+        if image.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "image is null").await);
+        }
+
+        let src_image = Image::image(jvm, &image).await?;
+        let region = if width > 0 && height > 0 {
+            Self::transform_region(&*src_image, x, y, width, height, transform)
+        } else {
+            None
+        };
+        let Some((width, height, pixels)) = region else {
+            return Err(jvm
+                .exception("java/lang/IllegalArgumentException", "Invalid image region or transform")
+                .await);
+        };
+
+        Self::create_image_instance(jvm, width as _, height as _, cast_slice(&pixels), 4).await
+    }
+
+    // Copies a source region as ARGB pixels with a Sprite transform applied, returning the resulting size.
+    // Returns None when the transform is unknown or the region leaves the source bounds.
+    pub fn transform_region(src: &dyn BackendImage, x: i32, y: i32, width: i32, height: i32, transform: i32) -> Option<(i32, i32, Vec<u32>)> {
+        let in_bounds = x >= 0
+            && y >= 0
+            && width >= 0
+            && height >= 0
+            && x as i64 + width as i64 <= src.width() as i64
+            && y as i64 + height as i64 <= src.height() as i64;
+        if !in_bounds || !(0..8).contains(&transform) {
+            return None;
+        }
+
+        // Transforms 4 to 7 include a quarter turn, which swaps the output dimensions.
+        let (out_width, out_height) = if transform >= 4 { (height, width) } else { (width, height) };
+        let mut pixels = Vec::with_capacity((out_width * out_height) as usize);
+        for out_y in 0..out_height {
+            for out_x in 0..out_width {
+                let (src_x, src_y) = match transform {
+                    1 => (out_x, height - 1 - out_y),             // TRANS_MIRROR_ROT180
+                    2 => (width - 1 - out_x, out_y),              // TRANS_MIRROR
+                    3 => (width - 1 - out_x, height - 1 - out_y), // TRANS_ROT180
+                    4 => (out_y, out_x),                          // TRANS_MIRROR_ROT270
+                    5 => (out_y, height - 1 - out_x),             // TRANS_ROT90
+                    6 => (width - 1 - out_y, out_x),              // TRANS_ROT270
+                    7 => (width - 1 - out_y, height - 1 - out_x), // TRANS_MIRROR_ROT90
+                    _ => (out_x, out_y),                          // TRANS_NONE
+                };
+                pixels.push(ArgbPixel::from_color(src.get_pixel(x + src_x, y + src_y)));
+            }
+        }
+
+        Some((out_width, out_height, pixels))
+    }
+
+    async fn create_image_from_stream(jvm: &Jvm, _: &mut WieJvmContext, stream: ClassInstanceRef<InputStream>) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("javax.microedition.lcdui.Image::createImage({stream:?})");
+
+        if stream.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "stream is null").await);
+        }
+
+        let image_data = JavaIoInputStream::read_until_end(jvm, &stream).await?;
+        let image_data_len = image_data.len() as i32;
+
+        let mut image_array = jvm.instantiate_array("B", image_data_len as _).await?;
+        jvm.array_raw_buffer_mut(&mut image_array).await?.write(0, &image_data)?;
+
+        jvm.invoke_static(
+            "javax/microedition/lcdui/Image",
+            "createImage",
+            "([BII)Ljavax/microedition/lcdui/Image;",
+            (image_array, 0, image_data_len),
+        )
+        .await
     }
 
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
@@ -564,6 +665,54 @@ mod tests {
                     )
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&output, 0, 1).await?, [source[3]]);
+
+                // A cropped column, then the whole image rotated a quarter turn clockwise (TRANS_ROT90).
+                for ((x, width, transform), (out_width, out_height), positions) in
+                    [((1, 1, 0), (1, 2), &[1, 3][..]), ((0, 2, 5), (2, 2), &[2, 0, 3, 1][..])]
+                {
+                    let region: ClassInstanceRef<Image> = jvm
+                        .invoke_static(
+                            "javax/microedition/lcdui/Image",
+                            "createImage",
+                            "(Ljavax/microedition/lcdui/Image;IIIII)Ljavax/microedition/lcdui/Image;",
+                            (image.clone(), x, 0, width, 2, transform),
+                        )
+                        .await?;
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &region,
+                            "javax/microedition/lcdui/Image",
+                            "getRGB",
+                            "([IIIIIII)V",
+                            (output.clone(), 0, out_width, 0, 0, out_width, out_height),
+                        )
+                        .await?;
+                    let expected: Vec<i32> = positions
+                        .iter()
+                        .map(|&position| {
+                            if process_alpha {
+                                source[position]
+                            } else {
+                                source[position] | 0xff000000u32 as i32
+                            }
+                        })
+                        .collect();
+                    assert_eq!(jvm.load_array::<i32>(&output, 0, expected.len()).await?, expected);
+                }
+                for (width, transform) in [(2, 0), (1, 8)] {
+                    let result = jvm
+                        .invoke_static::<_, ClassInstanceRef<Image>>(
+                            "javax/microedition/lcdui/Image",
+                            "createImage",
+                            "(Ljavax/microedition/lcdui/Image;IIIII)Ljavax/microedition/lcdui/Image;",
+                            (image.clone(), 1, 0, width, 2, transform),
+                        )
+                        .await;
+                    let Err(JavaError::JavaException(exception)) = result else {
+                        panic!("invalid region or transform succeeded")
+                    };
+                    assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
+                }
                 jvm.store_array(&mut output, 0, [42i32; 4]).await?;
                 for (offset, scanlength, x, y, width, height, error) in [
                     (0, 2, -1, 0, 1, 1, "java/lang/IllegalArgumentException"),

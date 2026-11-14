@@ -6,6 +6,8 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+use crate::classes::javax::microedition::lcdui::Display;
+
 // class javax.microedition.lcdui.AlertType
 pub struct AlertType;
 
@@ -18,6 +20,12 @@ impl AlertType {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PRIVATE),
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "playSound",
+                    "(Ljavax/microedition/lcdui/Display;)Z",
+                    Self::play_sound,
+                    MethodAccessFlags::PUBLIC,
+                ),
             ],
             fields: vec![
                 JavaFieldProto::new(
@@ -56,6 +64,17 @@ impl AlertType {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         Ok(())
+    }
+
+    async fn play_sound(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        target: ClassInstanceRef<Display>,
+    ) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.AlertType::playSound({this:?}, {target:?})");
+
+        Ok(false)
     }
 
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {

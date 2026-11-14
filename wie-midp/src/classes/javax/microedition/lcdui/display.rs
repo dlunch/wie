@@ -504,12 +504,23 @@ impl Display {
         )
         .await?;
 
+        // App callbacks may throw; the screen switch still has to complete before the error is reported.
+        let hide_result: JvmResult<()> =
+            if !old_displayable.is_null() && !same_displayable && jvm.is_instance(&**old_displayable, "javax/microedition/lcdui/Canvas") {
+                jvm.invoke_virtual(&old_displayable, "javax/microedition/lcdui/Canvas", "hideNotify", "()V", ())
+                    .await
+            } else {
+                Ok(())
+            };
+
         if displayable.is_null() {
             jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "isInFullScreenMode", "Z", false)
                 .await?;
-            return jvm
+            let repaint_result: JvmResult<()> = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
                 .await;
+            hide_result?;
+            return repaint_result;
         }
 
         if !same_displayable {
@@ -533,12 +544,20 @@ impl Display {
         let notification_result: JvmResult<()> = jvm
             .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "notifySizeChanged", "()V", ())
             .await;
+        let show_result: JvmResult<()> = if !same_displayable && jvm.is_instance(&**displayable, "javax/microedition/lcdui/Canvas") {
+            jvm.invoke_virtual(&displayable, "javax/microedition/lcdui/Canvas", "showNotify", "()V", ())
+                .await
+        } else {
+            Ok(())
+        };
         let timer_result = Self::schedule_alert_timeout(jvm, context, this.clone(), alert_generation).await;
         let ticker_result = Self::schedule_ticker_tick(jvm, context, this.clone(), ticker_generation).await;
         let repaint_result: JvmResult<()> = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
             .await;
+        hide_result?;
         notification_result?;
+        show_result?;
         timer_result?;
         ticker_result?;
         repaint_result?;

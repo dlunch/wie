@@ -1,4 +1,4 @@
-mod control;
+pub mod control;
 mod controllable;
 mod manager;
 mod media_exception;

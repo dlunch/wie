@@ -40,6 +40,19 @@ impl Font {
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
+                    "getFont",
+                    "(I)Ljavax/microedition/lcdui/Font;",
+                    Self::get_font_by_specifier,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("getFace", "()I", Self::get_face, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getStyle", "()I", Self::get_style, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getSize", "()I", Self::get_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isPlain", "()Z", Self::is_plain, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isBold", "()Z", Self::is_bold, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isItalic", "()Z", Self::is_italic, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isUnderlined", "()Z", Self::is_underlined, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
                     "getDefaultFont",
                     "()Ljavax/microedition/lcdui/Font;",
                     Self::get_default_font,
@@ -152,6 +165,55 @@ impl Font {
         let instance = jvm.new_class("javax/microedition/lcdui/Font", "()V", []).await?;
 
         Ok(instance.into())
+    }
+
+    async fn get_font_by_specifier(jvm: &Jvm, _: &mut WieJvmContext, font_specifier: i32) -> JvmResult<ClassInstanceRef<Font>> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::getFont({font_specifier})");
+
+        jvm.invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
+            .await
+    }
+
+    async fn get_face(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::getFace({this:?})");
+
+        Ok(0) // FACE_SYSTEM
+    }
+
+    async fn get_style(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::getStyle({this:?})");
+
+        Ok(0) // STYLE_PLAIN
+    }
+
+    async fn get_size(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::getSize({this:?})");
+
+        Ok(0) // SIZE_MEDIUM
+    }
+
+    async fn is_plain(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::isPlain({this:?})");
+
+        Ok(true)
+    }
+
+    async fn is_bold(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::isBold({this:?})");
+
+        Ok(false)
+    }
+
+    async fn is_italic(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::isItalic({this:?})");
+
+        Ok(false)
+    }
+
+    async fn is_underlined(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::isUnderlined({this:?})");
+
+        Ok(false)
     }
 
     async fn string_width(jvm: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {

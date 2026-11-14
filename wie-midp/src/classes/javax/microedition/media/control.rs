@@ -1,8 +1,12 @@
+mod volume_control;
+
 use alloc::vec;
 
 use jvm_types::ClassAccessFlags;
 
 use wie_jvm_support::WieJavaClassProto;
+
+pub use self::volume_control::VolumeControl;
 
 // interface javax.microedition.media.Control
 pub struct Control;
