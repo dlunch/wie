@@ -501,6 +501,9 @@ mod test {
                 .await?;
                 jvm.invoke_virtual::<_, ()>(&this, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (4, 5, 6, 7))
                     .await?;
+                // Servicing repaints from inside paint must leave the request above for the next cycle.
+                jvm.invoke_virtual::<_, ()>(&this, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                    .await?;
             }
 
             let _: () = jvm
