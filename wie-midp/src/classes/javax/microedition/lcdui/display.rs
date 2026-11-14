@@ -512,6 +512,14 @@ impl Display {
             } else {
                 Ok(())
             };
+        // A callback can switch screens again. That newer transition has already completed, so this one stops here.
+        if jvm
+            .get_field::<i32>(&this, "javax/microedition/lcdui/Display", "alertGeneration", "I")
+            .await?
+            != alert_generation
+        {
+            return hide_result;
+        }
 
         if displayable.is_null() {
             jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "isInFullScreenMode", "Z", false)
@@ -544,6 +552,14 @@ impl Display {
         let notification_result: JvmResult<()> = jvm
             .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "notifySizeChanged", "()V", ())
             .await;
+        if jvm
+            .get_field::<i32>(&this, "javax/microedition/lcdui/Display", "alertGeneration", "I")
+            .await?
+            != alert_generation
+        {
+            hide_result?;
+            return notification_result;
+        }
         let show_result: JvmResult<()> = if !same_displayable && jvm.is_instance(&**displayable, "javax/microedition/lcdui/Canvas") {
             jvm.invoke_virtual(&displayable, "javax/microedition/lcdui/Canvas", "showNotify", "()V", ())
                 .await

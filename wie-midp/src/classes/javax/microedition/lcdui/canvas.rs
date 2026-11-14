@@ -389,6 +389,8 @@ mod test {
                 ],
                 fields: vec![
                     JavaFieldProto::new("shown", "Z", FieldAccessFlags::PUBLIC),
+                    JavaFieldProto::new("redirectDisplay", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PUBLIC),
+                    JavaFieldProto::new("redirect", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("translateX", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("translateY", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("clipX", "I", FieldAccessFlags::PUBLIC),
@@ -501,7 +503,35 @@ mod test {
 
         async fn hide_notify(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "shown", "Z", false)
-                .await
+                .await?;
+
+            let redirect: ClassInstanceRef<Canvas> = jvm
+                .get_field(
+                    &this,
+                    "javax/microedition/lcdui/TestRecordingCanvas",
+                    "redirect",
+                    "Ljavax/microedition/lcdui/Displayable;",
+                )
+                .await?;
+            if redirect.is_null() {
+                return Ok(());
+            }
+            let display: ClassInstanceRef<Display> = jvm
+                .get_field(
+                    &this,
+                    "javax/microedition/lcdui/TestRecordingCanvas",
+                    "redirectDisplay",
+                    "Ljavax/microedition/lcdui/Display;",
+                )
+                .await?;
+            jvm.invoke_virtual(
+                &display,
+                "javax/microedition/lcdui/Display",
+                "setCurrent",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (redirect,),
+            )
+            .await
         }
     }
 
@@ -841,6 +871,45 @@ mod test {
                     let bottom = Image::image(&jvm, &image_ref).await?.get_pixel(319, 239);
                     assert_eq!((bottom.r, bottom.g, bottom.b), (0x22, 0xaa, 0x44));
                 }
+
+                // The first canvas switches to `redirect` from hideNotify, which supersedes the switch to `superseded`.
+                let class = "javax/microedition/lcdui/TestRecordingCanvas";
+                let mut first: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                let superseded: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                let redirect: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                jvm.put_field(
+                    &mut first,
+                    class,
+                    "redirectDisplay",
+                    "Ljavax/microedition/lcdui/Display;",
+                    display.clone(),
+                )
+                .await?;
+                jvm.put_field(&mut first, class, "redirect", "Ljavax/microedition/lcdui/Displayable;", redirect.clone())
+                    .await?;
+                for shown in [first, superseded.clone()] {
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &display,
+                            "javax/microedition/lcdui/Display",
+                            "setCurrent",
+                            "(Ljavax/microedition/lcdui/Displayable;)V",
+                            (shown,),
+                        )
+                        .await?;
+                }
+                let current: ClassInstanceRef<Canvas> = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "getCurrent",
+                        "()Ljavax/microedition/lcdui/Displayable;",
+                        (),
+                    )
+                    .await?;
+                assert_eq!(current.identity(), redirect.identity());
+                assert!(jvm.get_field::<bool>(&redirect, class, "shown", "Z").await?);
+                assert!(!jvm.get_field::<bool>(&superseded, class, "shown", "Z").await?);
                 Ok(())
             },
         )
