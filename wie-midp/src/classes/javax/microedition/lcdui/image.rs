@@ -187,17 +187,12 @@ impl Image {
             return Err(exception);
         };
 
-        let image_data = JavaIoInputStream::read_until_end(jvm, &stream).await?;
-        let image_data_len = image_data.len() as i32;
-
-        let mut image_array = jvm.instantiate_array("B", image_data_len as _).await?;
-        jvm.array_raw_buffer_mut(&mut image_array).await?.write(0, &image_data)?;
-
+        // The stream overload reports undecodable data as an IOException, which this overload requires as well.
         jvm.invoke_static(
             "javax/microedition/lcdui/Image",
             "createImage",
-            "([BII)Ljavax/microedition/lcdui/Image;",
-            (image_array, 0, image_data_len),
+            "(Ljava/io/InputStream;)Ljavax/microedition/lcdui/Image;",
+            (stream,),
         )
         .await
     }
