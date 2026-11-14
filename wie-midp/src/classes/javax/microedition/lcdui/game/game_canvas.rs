@@ -126,10 +126,12 @@ impl GameCanvas {
     async fn get_key_states(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.GameCanvas::getKeyStates({this:?})");
 
-        let held: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Canvas", "heldGameKeys", "I").await?;
-        let pressed: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Canvas", "pressedGameKeys", "I").await?;
+        let held: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Displayable", "heldGameKeys", "I").await?;
+        let pressed: i32 = jvm
+            .get_field(&this, "javax/microedition/lcdui/Displayable", "pressedGameKeys", "I")
+            .await?;
         // Presses since the last call stay reported once, so a quick tap between two polls is not lost.
-        jvm.put_field(&mut this, "javax/microedition/lcdui/Canvas", "pressedGameKeys", "I", 0)
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "pressedGameKeys", "I", 0)
             .await?;
 
         let shown: bool = jvm
