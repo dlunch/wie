@@ -366,6 +366,18 @@ impl Image {
                 (),
             )
             .await?;
+        // WIPI names transforms by rotation angle, negative when mirrored; drawRegion takes the MIDP Sprite transforms.
+        let transform = match transform {
+            0 => 0,
+            90 => 5,   // TRAN_ROT90
+            180 => 3,  // TRAN_ROT180
+            270 => 6,  // TRAN_ROT270
+            -99 => 2,  // TRAN_MIR
+            -90 => 7,  // TRAN_MIR_ROT90
+            -180 => 1, // TRAN_MIR_ROT180
+            -270 => 4, // TRAN_MIR_ROT270
+            _ => return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid transform").await),
+        };
         jvm.invoke_virtual(
             &graphics,
             "javax/microedition/lcdui/Graphics",
@@ -500,6 +512,29 @@ mod test {
             let clone_midp = Image::midp_image(&jvm, &clone).await?;
             let pixel = MidpImage::image(&jvm, &clone_midp).await?.get_pixel(0, 0);
             assert_eq!((pixel.r, pixel.g, pixel.b), (255, 255, 255));
+
+            // TRAN_MIR: the red pixel on the right of the target lands on the left.
+            let _: () = jvm
+                .invoke_virtual(
+                    &clone,
+                    "org/kwis/msp/lcdui/Image",
+                    "drawImage",
+                    "(Lorg/kwis/msp/lcdui/Image;IIIIIIII)V",
+                    [
+                        target.into(),
+                        0.into(),
+                        0.into(),
+                        2.into(),
+                        1.into(),
+                        0.into(),
+                        0.into(),
+                        (-99).into(),
+                        20.into(),
+                    ],
+                )
+                .await?;
+            let pixel = MidpImage::image(&jvm, &clone_midp).await?.get_pixel(0, 0);
+            assert_eq!((pixel.r, pixel.g, pixel.b), (0xff, 0, 0));
 
             let mut pixels = jvm.instantiate_array("I", 2).await?;
             jvm.store_array(&mut pixels, 0, [0x00ff0000i32, 0xff001122u32 as i32]).await?;
