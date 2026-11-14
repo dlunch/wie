@@ -33,7 +33,20 @@ impl MIDlet {
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
                 JavaMethodProto::new_abstract("startApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("pauseApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
                 JavaMethodProto::new_abstract("destroyApp", "(Z)V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new(
+                    "notifyPaused",
+                    "()V",
+                    Self::notify_paused,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new(
+                    "platformRequest",
+                    "(Ljava/lang/String;)Z",
+                    Self::platform_request,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
                 JavaMethodProto::new(
                     "notifyDestroyed",
                     "()V",
@@ -112,6 +125,23 @@ impl MIDlet {
         tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyDestroyed({this:?})");
 
         Ok(())
+    }
+
+    async fn notify_paused(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyPaused({this:?})");
+
+        Ok(())
+    }
+
+    async fn platform_request(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        url: ClassInstanceRef<String>,
+    ) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.midlet.MIDlet::platformRequest({this:?}, {url:?})");
+
+        Ok(false)
     }
 
     async fn resume_request(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {

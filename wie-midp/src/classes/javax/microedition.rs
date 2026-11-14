@@ -1,3 +1,4 @@
+pub mod io;
 pub mod lcdui;
 pub mod media;
 pub mod midlet;

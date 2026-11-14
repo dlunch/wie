@@ -26,6 +26,24 @@ impl Manager {
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
+                    "createPlayer",
+                    "(Ljava/lang/String;)Ljavax/microedition/media/Player;",
+                    Self::create_player_from_locator,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getSupportedProtocols",
+                    "(Ljava/lang/String;)[Ljava/lang/String;",
+                    Self::get_supported_protocols,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "playTone",
+                    "(III)V",
+                    Self::play_tone,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
                     "getSupportedContentTypes",
                     "(Ljava/lang/String;)[Ljava/lang/String;",
                     Self::get_supported_content_types,
@@ -51,6 +69,33 @@ impl Manager {
         } else {
             Err(jvm.exception("javax/microedition/media/MediaException", "Unsupported media type").await)
         }
+    }
+
+    // Players are created from streams only, so no locator protocol is supported.
+    async fn create_player_from_locator(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        locator: ClassInstanceRef<String>,
+    ) -> Result<ClassInstanceRef<Player>> {
+        tracing::debug!("javax.microedition.media.Manager::createPlayer({locator:?})");
+
+        Err(jvm.exception("javax/microedition/media/MediaException", "Unsupported locator").await)
+    }
+
+    async fn get_supported_protocols(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        content_type: ClassInstanceRef<String>,
+    ) -> Result<ClassInstanceRef<Array<String>>> {
+        tracing::debug!("javax.microedition.media.Manager::getSupportedProtocols({content_type:?})");
+
+        Ok(jvm.instantiate_array("Ljava/lang/String;", 0).await?.into())
+    }
+
+    async fn play_tone(_jvm: &Jvm, _context: &mut WieJvmContext, note: i32, duration: i32, volume: i32) -> Result<()> {
+        tracing::warn!("stub javax.microedition.media.Manager::playTone({note}, {duration}, {volume})");
+
+        Ok(())
     }
 
     async fn get_supported_content_types(

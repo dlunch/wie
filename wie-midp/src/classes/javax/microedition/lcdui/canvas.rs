@@ -1,8 +1,9 @@
-use alloc::vec;
+use alloc::{string::String as RustString, vec};
 
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::JavaMethodProto;
 use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -38,6 +39,19 @@ impl Canvas {
                 JavaMethodProto::new("setFullScreenMode", "(Z)V", Self::set_full_screen_mode, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("hasPointerEvents", "()Z", Self::has_pointer_events, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "hasPointerMotionEvents",
+                    "()Z",
+                    Self::has_pointer_motion_events,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("hasRepeatEvents", "()Z", Self::has_repeat_events, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getKeyName", "(I)Ljava/lang/String;", Self::get_key_name, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("pointerPressed", "(II)V", Self::pointer_pressed, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("pointerReleased", "(II)V", Self::pointer_released, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("pointerDragged", "(II)V", Self::pointer_dragged, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("showNotify", "()V", Self::show_notify, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("hideNotify", "()V", Self::hide_notify, MethodAccessFlags::PROTECTED),
                 // Protected so vendor canvases in other Java packages can translate key codes.
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
@@ -215,6 +229,72 @@ impl Canvas {
         Ok(false)
     }
 
+    async fn has_pointer_motion_events(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::hasPointerMotionEvents({this:?})");
+
+        Ok(false)
+    }
+
+    async fn has_repeat_events(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::hasRepeatEvents({this:?})");
+
+        Ok(true)
+    }
+
+    async fn get_key_name(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::getKeyName({this:?}, {key_code})");
+
+        let name = match MIDPKeyCode::from_raw(key_code) {
+            Some(MIDPKeyCode::UP) => "UP".into(),
+            Some(MIDPKeyCode::DOWN) => "DOWN".into(),
+            Some(MIDPKeyCode::LEFT) => "LEFT".into(),
+            Some(MIDPKeyCode::RIGHT) => "RIGHT".into(),
+            Some(MIDPKeyCode::FIRE) => "SELECT".into(),
+            Some(MIDPKeyCode::LEFT_SOFT_KEY) => "SOFT1".into(),
+            Some(MIDPKeyCode::RIGHT_SOFT_KEY) => "SOFT2".into(),
+            Some(MIDPKeyCode::CLEAR) => "CLEAR".into(),
+            Some(MIDPKeyCode::CALL) => "SEND".into(),
+            Some(MIDPKeyCode::HANGUP) => "END".into(),
+            Some(MIDPKeyCode::VOLUME_UP) => "VOLUME UP".into(),
+            Some(MIDPKeyCode::VOLUME_DOWN) => "VOLUME DOWN".into(),
+            // The remaining key codes are the ASCII codes of the keypad characters.
+            Some(_) => RustString::from(key_code as u8 as char),
+            None => return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid key code").await),
+        };
+
+        Ok(JavaLangString::from_rust_string(jvm, &name).await?.into())
+    }
+
+    async fn pointer_pressed(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::pointerPressed({this:?}, {x}, {y})");
+
+        Ok(())
+    }
+
+    async fn pointer_released(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::pointerReleased({this:?}, {x}, {y})");
+
+        Ok(())
+    }
+
+    async fn pointer_dragged(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::pointerDragged({this:?}, {x}, {y})");
+
+        Ok(())
+    }
+
+    async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::showNotify({this:?})");
+
+        Ok(())
+    }
+
+    async fn hide_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::hideNotify({this:?})");
+
+        Ok(())
+    }
+
     async fn handle_key_event(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::handleKeyEvent({this:?}, {event_type}, {code})");
 
@@ -304,8 +384,13 @@ mod test {
                     JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, MethodAccessFlags::PROTECTED),
                     JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, MethodAccessFlags::PROTECTED),
                     JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
+                    JavaMethodProto::new("showNotify", "()V", Self::show_notify, MethodAccessFlags::PROTECTED),
+                    JavaMethodProto::new("hideNotify", "()V", Self::hide_notify, MethodAccessFlags::PROTECTED),
                 ],
                 fields: vec![
+                    JavaFieldProto::new("shown", "Z", FieldAccessFlags::PUBLIC),
+                    JavaFieldProto::new("redirectDisplay", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PUBLIC),
+                    JavaFieldProto::new("redirect", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("translateX", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("translateY", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("clipX", "I", FieldAccessFlags::PUBLIC),
@@ -410,6 +495,44 @@ mod test {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "released", "I", code)
                 .await
         }
+
+        async fn show_notify(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "shown", "Z", true)
+                .await
+        }
+
+        async fn hide_notify(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+            jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "shown", "Z", false)
+                .await?;
+
+            let redirect: ClassInstanceRef<Canvas> = jvm
+                .get_field(
+                    &this,
+                    "javax/microedition/lcdui/TestRecordingCanvas",
+                    "redirect",
+                    "Ljavax/microedition/lcdui/Displayable;",
+                )
+                .await?;
+            if redirect.is_null() {
+                return Ok(());
+            }
+            let display: ClassInstanceRef<Display> = jvm
+                .get_field(
+                    &this,
+                    "javax/microedition/lcdui/TestRecordingCanvas",
+                    "redirectDisplay",
+                    "Ljavax/microedition/lcdui/Display;",
+                )
+                .await?;
+            jvm.invoke_virtual(
+                &display,
+                "javax/microedition/lcdui/Display",
+                "setCurrent",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (redirect,),
+            )
+            .await
+        }
     }
 
     impl RecordingGameCanvas {
@@ -482,6 +605,7 @@ mod test {
             Box::new([get_protos().into(), [RecordingCanvas::as_proto(), RecordingGameCanvas::as_proto()].into()]),
             |jvm| async move {
                 let display: ClassInstanceRef<Display> = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?.into();
+                let mut recording_canvas: ClassInstanceRef<Canvas> = None.into();
                 for (class, game_canvas, skvm) in [
                     ("javax/microedition/lcdui/TestRecordingCanvas", false, false),
                     ("javax/microedition/lcdui/TestRecordingGameCanvas", true, false),
@@ -591,6 +715,15 @@ mod test {
                             (canvas.clone(),),
                         )
                         .await?;
+                    // The recording canvas is shown when it becomes current and hidden once the game canvas replaces it.
+                    if !game_canvas {
+                        recording_canvas = canvas.clone();
+                    }
+                    assert_eq!(
+                        jvm.get_field::<bool>(&recording_canvas, "javax/microedition/lcdui/TestRecordingCanvas", "shown", "Z")
+                            .await?,
+                        !game_canvas
+                    );
                     for (fullscreen, callback_count, event_type, field, key) in [
                         (false, 1, KeyboardEventType::KeyPressed, "pressed", MIDPKeyCode::KEY_NUM1),
                         (true, 2, KeyboardEventType::KeyRepeated, "repeated", MIDPKeyCode::KEY_NUM2),
@@ -738,6 +871,80 @@ mod test {
                     let bottom = Image::image(&jvm, &image_ref).await?.get_pixel(319, 239);
                     assert_eq!((bottom.r, bottom.g, bottom.b), (0x22, 0xaa, 0x44));
                 }
+
+                // The first canvas switches to `redirect` from hideNotify, which supersedes the switch to `superseded`.
+                let class = "javax/microedition/lcdui/TestRecordingCanvas";
+                let mut first: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                let superseded: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                let redirect: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                jvm.put_field(
+                    &mut first,
+                    class,
+                    "redirectDisplay",
+                    "Ljavax/microedition/lcdui/Display;",
+                    display.clone(),
+                )
+                .await?;
+                jvm.put_field(&mut first, class, "redirect", "Ljavax/microedition/lcdui/Displayable;", redirect.clone())
+                    .await?;
+                for shown in [first, superseded.clone()] {
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &display,
+                            "javax/microedition/lcdui/Display",
+                            "setCurrent",
+                            "(Ljavax/microedition/lcdui/Displayable;)V",
+                            (shown,),
+                        )
+                        .await?;
+                }
+                let current: ClassInstanceRef<Canvas> = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "getCurrent",
+                        "()Ljavax/microedition/lcdui/Displayable;",
+                        (),
+                    )
+                    .await?;
+                assert_eq!(current.identity(), redirect.identity());
+                assert!(jvm.get_field::<bool>(&redirect, class, "shown", "Z").await?);
+                assert!(!jvm.get_field::<bool>(&superseded, class, "shown", "Z").await?);
+
+                // A hideNotify that switches to the screen already being shown must not cancel that screen's activation.
+                let mut hidden: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                jvm.put_field(
+                    &mut hidden,
+                    class,
+                    "redirectDisplay",
+                    "Ljavax/microedition/lcdui/Display;",
+                    display.clone(),
+                )
+                .await?;
+                jvm.put_field(
+                    &mut hidden,
+                    class,
+                    "redirect",
+                    "Ljavax/microedition/lcdui/Displayable;",
+                    superseded.clone(),
+                )
+                .await?;
+                for shown in [hidden, superseded.clone()] {
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &display,
+                            "javax/microedition/lcdui/Display",
+                            "setCurrent",
+                            "(Ljavax/microedition/lcdui/Displayable;)V",
+                            (shown,),
+                        )
+                        .await?;
+                }
+                assert!(jvm.get_field::<bool>(&superseded, class, "shown", "Z").await?);
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&superseded, "javax/microedition/lcdui/Displayable", "isShown", "()Z", ())
+                        .await?
+                );
                 Ok(())
             },
         )

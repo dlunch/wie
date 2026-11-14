@@ -5,8 +5,11 @@ pub mod classes;
 
 use wie_jvm_support::WieJavaClassProto;
 
-pub fn get_protos() -> [WieJavaClassProto; 47] {
+pub fn get_protos() -> [WieJavaClassProto; 52] {
     [
+        classes::javax::microedition::io::Connection::as_proto(),
+        classes::javax::microedition::io::ConnectionNotFoundException::as_proto(),
+        classes::javax::microedition::io::Connector::as_proto(),
         classes::javax::microedition::lcdui::Alert::as_proto(),
         classes::javax::microedition::lcdui::AlertType::as_proto(),
         classes::javax::microedition::lcdui::Canvas::as_proto(),
@@ -37,8 +40,10 @@ pub fn get_protos() -> [WieJavaClassProto; 47] {
         classes::javax::microedition::media::Manager::as_proto(),
         classes::javax::microedition::media::MediaException::as_proto(),
         classes::javax::microedition::media::Player::as_proto(),
+        classes::javax::microedition::media::control::VolumeControl::as_proto(),
         classes::javax::microedition::media::PlayerListener::as_proto(),
         classes::javax::microedition::midlet::MIDlet::as_proto(),
+        classes::javax::microedition::midlet::MIDletStateChangeException::as_proto(),
         classes::javax::microedition::rms::InvalidRecordIDException::as_proto(),
         classes::javax::microedition::rms::RecordComparator::as_proto(),
         classes::javax::microedition::rms::RecordEnumeration::as_proto(),

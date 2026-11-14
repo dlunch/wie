@@ -188,11 +188,7 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::copyArea({this:?}, {dx}, {dy}, {sx}, {sy}, {w}, {h})");
 
-        if w <= 0 || h <= 0 {
-            return Ok(());
-        }
-
-        let mut midp_graphics = jvm
+        let midp_graphics = jvm
             .get_field(
                 &this,
                 "org/kwis/msp/lcdui/Graphics",
@@ -200,27 +196,16 @@ impl Graphics {
                 "Ljavax/microedition/lcdui/Graphics;",
             )
             .await?;
-        let image = MidpGraphics::image(jvm, &mut midp_graphics).await?;
-        let mut canvas = MidpImage::canvas(jvm, &image).await?;
 
-        let translate_x: i32 = jvm
-            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateX", "()I", ())
-            .await?;
-        let translate_y: i32 = jvm
-            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateY", "()I", ())
-            .await?;
-        let clip = MidpGraphics::clip(jvm, &midp_graphics).await?;
-
-        canvas.copy_area(
-            translate_x + dx,
-            translate_y + dy,
-            translate_x + sx,
-            translate_y + sy,
-            w as _,
-            h as _,
-            clip,
-        );
-        Ok(())
+        // LEFT | TOP
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "copyArea",
+            "(IIIIIII)V",
+            (sx, sy, w, h, dx, dy, 4 | 16),
+        )
+        .await
     }
 
     async fn set_color(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, color: i32) -> JvmResult<()> {

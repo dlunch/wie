@@ -112,6 +112,15 @@ impl Graphics {
                 JavaMethodProto::new("translate", "(II)V", Self::translate, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("drawRGB", "([IIIIIIIZ)V", Self::draw_rgb, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getGrayScale", "()I", Self::get_gray_scale, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getRedComponent", "()I", Self::get_red_component, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getGreenComponent", "()I", Self::get_green_component, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getBlueComponent", "()I", Self::get_blue_component, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getDisplayColor", "(I)I", Self::get_display_color, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setStrokeStyle", "(I)V", Self::set_stroke_style, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getStrokeStyle", "()I", Self::get_stroke_style, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("copyArea", "(IIIIIII)V", Self::copy_area, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillTriangle", "(IIIIII)V", Self::fill_triangle, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
                 JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
@@ -672,10 +681,10 @@ impl Graphics {
         _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         img: ClassInstanceRef<Image>,
-        src_x: i32,
-        src_y: i32,
-        width: i32,
-        height: i32,
+        mut src_x: i32,
+        mut src_y: i32,
+        mut width: i32,
+        mut height: i32,
         transform: i32,
         x: i32,
         y: i32,
@@ -690,14 +699,24 @@ impl Graphics {
             return Err(jvm.exception("java/lang/NullPointerException", "img is null").await);
         }
 
-        let src_image = Image::image(jvm, &img).await?;
+        let mut src_image = Image::image(jvm, &img).await?;
+        // The untransformed region is drawn straight from the source; other transforms draw a transformed copy.
+        if transform != 0 {
+            let Some((out_width, out_height, pixels)) = Image::transform_region(&*src_image, src_x, src_y, width, height, transform) else {
+                return Err(jvm
+                    .exception("java/lang/IllegalArgumentException", "Invalid image region or transform")
+                    .await);
+            };
+            src_image = Box::new(VecImageBuffer::<ArgbPixel>::from_raw(out_width as _, out_height as _, pixels));
+            (src_x, src_y, width, height) = (0, 0, out_width, out_height);
+        }
 
         let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let x_delta = if anchor.contains(Anchor::HCENTER) {
             -width / 2
         } else if anchor.contains(Anchor::RIGHT) {
-            -height
+            -width
         } else {
             0
         };
@@ -939,6 +958,126 @@ impl Graphics {
         let color = (value << 16) | (value << 8) | value;
 
         jvm.put_field(&mut this, "javax/microedition/lcdui/Graphics", "color", "I", color).await?;
+
+        Ok(())
+    }
+
+    async fn get_gray_scale(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getGrayScale({this:?})");
+
+        let color: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Graphics", "color", "I").await?;
+
+        Ok((((color >> 16) & 0xff) + ((color >> 8) & 0xff) + (color & 0xff)) / 3)
+    }
+
+    async fn get_red_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getRedComponent({this:?})");
+
+        let color: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Graphics", "color", "I").await?;
+
+        Ok((color >> 16) & 0xff)
+    }
+
+    async fn get_green_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getGreenComponent({this:?})");
+
+        let color: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Graphics", "color", "I").await?;
+
+        Ok((color >> 8) & 0xff)
+    }
+
+    async fn get_blue_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getBlueComponent({this:?})");
+
+        let color: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Graphics", "color", "I").await?;
+
+        Ok(color & 0xff)
+    }
+
+    async fn get_display_color(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, color: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getDisplayColor({this:?}, {color})");
+
+        Ok(color & 0xffffff)
+    }
+
+    async fn set_stroke_style(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, style: i32) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.lcdui.Graphics::setStrokeStyle({this:?}, {style})");
+
+        Ok(())
+    }
+
+    async fn get_stroke_style(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Graphics::getStrokeStyle({this:?})");
+
+        Ok(0) // SOLID
+    }
+
+    async fn copy_area(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        x_src: i32,
+        y_src: i32,
+        width: i32,
+        height: i32,
+        x_dest: i32,
+        y_dest: i32,
+        anchor: Anchor,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::copyArea({this:?}, {x_src}, {y_src}, {width}, {height}, {x_dest}, {y_dest}, {})",
+            anchor.0
+        );
+
+        if width <= 0 || height <= 0 {
+            return Ok(());
+        }
+
+        let x_delta = if anchor.contains(Anchor::HCENTER) {
+            -width / 2
+        } else if anchor.contains(Anchor::RIGHT) {
+            -width
+        } else {
+            0
+        };
+        let y_delta = if anchor.contains(Anchor::VCENTER) {
+            -height / 2
+        } else if anchor.contains(Anchor::BOTTOM) {
+            -height
+        } else {
+            0
+        };
+
+        let translate_x: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Graphics", "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Graphics", "translateY", "I").await?;
+        let clip = Self::clip(jvm, &this).await?;
+
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
+        canvas.copy_area(
+            translate_x + x_dest + x_delta,
+            translate_y + y_dest + y_delta,
+            translate_x + x_src,
+            translate_y + y_src,
+            width as _,
+            height as _,
+            clip,
+        );
+
+        Ok(())
+    }
+
+    async fn fill_triangle(
+        _: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        x3: i32,
+        y3: i32,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.lcdui.Graphics::fillTriangle({this:?}, {x1}, {y1}, {x2}, {y2}, {x3}, {y3})");
 
         Ok(())
     }
@@ -1311,6 +1450,79 @@ mod test {
             assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
             let color = backend_image.get_pixel(3, 2);
             assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_draw_region_applies_transform_and_anchor() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let (image, graphics) = new_graphics(&jvm).await?;
+
+            let mut rgb_data = jvm.instantiate_array("I", 2).await?;
+            jvm.store_array(&mut rgb_data, 0, [0xffff0000u32 as i32, 0xff0000ffu32 as i32]).await?;
+            let source: ClassInstanceRef<Image> = jvm
+                .invoke_static(
+                    "javax/microedition/lcdui/Image",
+                    "createRGBImage",
+                    "([IIIZ)Ljavax/microedition/lcdui/Image;",
+                    (rgb_data, 2, 1, true),
+                )
+                .await?;
+            // TRANS_MIRROR with RIGHT | TOP: the mirrored row ends at x = 10.
+            let _: () = jvm
+                .invoke_virtual(
+                    &graphics,
+                    "javax/microedition/lcdui/Graphics",
+                    "drawRegion",
+                    "(Ljavax/microedition/lcdui/Image;IIIIIIII)V",
+                    [
+                        source.clone().into(),
+                        0.into(),
+                        0.into(),
+                        2.into(),
+                        1.into(),
+                        2.into(),
+                        10.into(),
+                        0.into(),
+                        (8 | 16).into(),
+                    ],
+                )
+                .await?;
+            // TRANS_ROT90 with LEFT | TOP: the row becomes a column running downwards.
+            let _: () = jvm
+                .invoke_virtual(
+                    &graphics,
+                    "javax/microedition/lcdui/Graphics",
+                    "drawRegion",
+                    "(Ljavax/microedition/lcdui/Image;IIIIIIII)V",
+                    [
+                        source.into(),
+                        0.into(),
+                        0.into(),
+                        2.into(),
+                        1.into(),
+                        5.into(),
+                        20.into(),
+                        0.into(),
+                        (4 | 16).into(),
+                    ],
+                )
+                .await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            for (x, y, expected) in [
+                (8, 0, (0x00, 0x00, 0xff)),
+                (9, 0, (0xff, 0x00, 0x00)),
+                (10, 0, (0xff, 0xff, 0xff)),
+                (20, 0, (0xff, 0x00, 0x00)),
+                (20, 1, (0x00, 0x00, 0xff)),
+                (21, 0, (0xff, 0xff, 0xff)),
+            ] {
+                let color = backend_image.get_pixel(x, y);
+                assert_eq!((color.r, color.g, color.b), expected, "({x}, {y})");
+            }
 
             Ok(())
         })
