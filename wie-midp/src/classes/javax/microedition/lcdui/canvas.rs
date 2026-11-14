@@ -347,7 +347,7 @@ impl Canvas {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec};
+    use alloc::{boxed::Box, vec, vec::Vec};
     use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
@@ -827,6 +827,27 @@ mod test {
                             )
                             .await?;
                         assert_eq!(jvm.get_field::<i32>(&canvas, class, field, "I").await?, key);
+                    }
+                    if game_canvas {
+                        // KEY_NUM1 (GAME_A) is still held; it is then released and KEY_NUM3 (GAME_B) tapped between two polls.
+                        let tap = [
+                            (KeyboardEventType::KeyReleased as i32, MIDPKeyCode::KEY_NUM1 as i32),
+                            (KeyboardEventType::KeyPressed as i32, MIDPKeyCode::KEY_NUM3 as i32),
+                            (KeyboardEventType::KeyReleased as i32, MIDPKeyCode::KEY_NUM3 as i32),
+                        ];
+                        let mut states = Vec::new();
+                        for events in [&[][..], &tap[..], &[][..]] {
+                            for &event in events {
+                                let _: () = jvm
+                                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handleKeyEvent", "(II)V", event)
+                                    .await?;
+                            }
+                            let state: i32 = jvm
+                                .invoke_virtual(&canvas, "javax/microedition/lcdui/game/GameCanvas", "getKeyStates", "()I", ())
+                                .await?;
+                            states.push(state);
+                        }
+                        assert_eq!(states, [1 << 9, 1 << 10, 0]);
                     }
                     let _: () = jvm
                         .invoke_virtual(
