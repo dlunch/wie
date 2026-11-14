@@ -910,6 +910,41 @@ mod test {
                 assert_eq!(current.identity(), redirect.identity());
                 assert!(jvm.get_field::<bool>(&redirect, class, "shown", "Z").await?);
                 assert!(!jvm.get_field::<bool>(&superseded, class, "shown", "Z").await?);
+
+                // A hideNotify that switches to the screen already being shown must not cancel that screen's activation.
+                let mut hidden: ClassInstanceRef<Canvas> = jvm.new_class(class, "()V", ()).await?.into();
+                jvm.put_field(
+                    &mut hidden,
+                    class,
+                    "redirectDisplay",
+                    "Ljavax/microedition/lcdui/Display;",
+                    display.clone(),
+                )
+                .await?;
+                jvm.put_field(
+                    &mut hidden,
+                    class,
+                    "redirect",
+                    "Ljavax/microedition/lcdui/Displayable;",
+                    superseded.clone(),
+                )
+                .await?;
+                for shown in [hidden, superseded.clone()] {
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &display,
+                            "javax/microedition/lcdui/Display",
+                            "setCurrent",
+                            "(Ljavax/microedition/lcdui/Displayable;)V",
+                            (shown,),
+                        )
+                        .await?;
+                }
+                assert!(jvm.get_field::<bool>(&superseded, class, "shown", "Z").await?);
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&superseded, "javax/microedition/lcdui/Displayable", "isShown", "()Z", ())
+                        .await?
+                );
                 Ok(())
             },
         )

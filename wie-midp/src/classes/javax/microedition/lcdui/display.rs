@@ -512,14 +512,14 @@ impl Display {
             } else {
                 Ok(())
             };
-        // A callback can switch screens again. That newer transition has already completed, so this one stops here.
-        if jvm
-            .get_field::<i32>(&this, "javax/microedition/lcdui/Display", "alertGeneration", "I")
-            .await?
-            != alert_generation
-        {
+        // A callback can switch screens again. A switch to another screen has already completed, so this one stops here.
+        if !Self::is_current(jvm, &this, &displayable).await? {
             return hide_result;
         }
+        // A nested switch to this same screen found it unattached and left its activation to this transition,
+        // which continues under the generations that switch started.
+        let alert_generation: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "alertGeneration", "I").await?;
+        let ticker_generation: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Display", "tickerGeneration", "I").await?;
 
         if displayable.is_null() {
             jvm.put_field(&mut this, "javax/microedition/lcdui/Display", "isInFullScreenMode", "Z", false)
@@ -552,11 +552,7 @@ impl Display {
         let notification_result: JvmResult<()> = jvm
             .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "notifySizeChanged", "()V", ())
             .await;
-        if jvm
-            .get_field::<i32>(&this, "javax/microedition/lcdui/Display", "alertGeneration", "I")
-            .await?
-            != alert_generation
-        {
+        if !Self::is_current(jvm, &this, &displayable).await? {
             hide_result?;
             return notification_result;
         }
@@ -579,6 +575,23 @@ impl Display {
         repaint_result?;
 
         Ok(())
+    }
+
+    async fn is_current(jvm: &Jvm, this: &ClassInstanceRef<Self>, displayable: &ClassInstanceRef<Displayable>) -> JvmResult<bool> {
+        let current: ClassInstanceRef<Displayable> = jvm
+            .get_field(
+                this,
+                "javax/microedition/lcdui/Display",
+                "currentDisplayable",
+                "Ljavax/microedition/lcdui/Displayable;",
+            )
+            .await?;
+
+        Ok(if current.is_null() || displayable.is_null() {
+            current.is_null() && displayable.is_null()
+        } else {
+            current.identity() == displayable.identity()
+        })
     }
 
     async fn schedule_alert_timeout(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, generation: i32) -> JvmResult<()> {
