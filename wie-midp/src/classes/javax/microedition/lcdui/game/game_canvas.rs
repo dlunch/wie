@@ -6,10 +6,7 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::{
-    javax::microedition::lcdui::{Graphics, Image},
-    net::wie::KeyboardEventType,
-};
+use crate::classes::javax::microedition::lcdui::{Graphics, Image};
 
 // class javax.microedition.lcdui.game.GameCanvas
 pub struct GameCanvas;
@@ -31,7 +28,6 @@ impl GameCanvas {
                 JavaMethodProto::new("flushGraphics", "()V", Self::flush_graphics, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("flushGraphics", "(IIII)V", Self::flush_graphics_region, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getKeyStates", "()I", Self::get_key_states, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
                     "paint",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
@@ -39,12 +35,11 @@ impl GameCanvas {
                     MethodAccessFlags::PROTECTED,
                 ),
             ],
-            fields: vec![
-                JavaFieldProto::new("offscreenImage", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                // One bit per game action, at the position of the action's value.
-                JavaFieldProto::new("heldKeys", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("pressedKeys", "I", FieldAccessFlags::PRIVATE),
-            ],
+            fields: vec![JavaFieldProto::new(
+                "offscreenImage",
+                "Ljavax/microedition/lcdui/Image;",
+                FieldAccessFlags::PRIVATE,
+            )],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }
@@ -104,9 +99,10 @@ impl GameCanvas {
     async fn flush_graphics(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.GameCanvas::flushGraphics({this:?})");
 
+        // The app may draw the next frame into the buffer as soon as this returns, so the paint cannot stay queued.
         let _: () = jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "()V", ()).await?;
-
-        Ok(())
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+            .await
     }
 
     async fn flush_graphics_region(
@@ -120,79 +116,26 @@ impl GameCanvas {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.GameCanvas::flushGraphics({this:?}, {x}, {y}, {width}, {height})");
 
-        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (x, y, width, height))
+        let _: () = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (x, y, width, height))
+            .await?;
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
             .await
     }
 
     async fn get_key_states(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.GameCanvas::getKeyStates({this:?})");
 
-        let held: i32 = jvm.get_field(&this, "javax/microedition/lcdui/game/GameCanvas", "heldKeys", "I").await?;
-        let pressed: i32 = jvm
-            .get_field(&this, "javax/microedition/lcdui/game/GameCanvas", "pressedKeys", "I")
-            .await?;
+        let held: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Canvas", "heldGameKeys", "I").await?;
+        let pressed: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Canvas", "pressedGameKeys", "I").await?;
         // Presses since the last call stay reported once, so a quick tap between two polls is not lost.
-        jvm.put_field(&mut this, "javax/microedition/lcdui/game/GameCanvas", "pressedKeys", "I", 0)
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Canvas", "pressedGameKeys", "I", 0)
             .await?;
 
         let shown: bool = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "isShown", "()Z", ())
             .await?;
         Ok(if shown { held | pressed } else { 0 })
-    }
-
-    async fn handle_key_event(
-        jvm: &Jvm,
-        _context: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
-        event_type: i32,
-        code: i32,
-    ) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.game.GameCanvas::handleKeyEvent({this:?}, {event_type}, {code})");
-
-        let action: i32 = jvm
-            .invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "getGameAction", "(I)I", (code,))
-            .await?;
-        if action != 0 {
-            let held: i32 = jvm.get_field(&this, "javax/microedition/lcdui/game/GameCanvas", "heldKeys", "I").await?;
-            match KeyboardEventType::from_raw(event_type) {
-                Some(KeyboardEventType::KeyPressed) => {
-                    let pressed: i32 = jvm
-                        .get_field(&this, "javax/microedition/lcdui/game/GameCanvas", "pressedKeys", "I")
-                        .await?;
-                    jvm.put_field(
-                        &mut this,
-                        "javax/microedition/lcdui/game/GameCanvas",
-                        "heldKeys",
-                        "I",
-                        held | (1 << action),
-                    )
-                    .await?;
-                    jvm.put_field(
-                        &mut this,
-                        "javax/microedition/lcdui/game/GameCanvas",
-                        "pressedKeys",
-                        "I",
-                        pressed | (1 << action),
-                    )
-                    .await?;
-                }
-                Some(KeyboardEventType::KeyReleased) => {
-                    jvm.put_field(
-                        &mut this,
-                        "javax/microedition/lcdui/game/GameCanvas",
-                        "heldKeys",
-                        "I",
-                        held & !(1 << action),
-                    )
-                    .await?;
-                }
-                _ => {}
-            }
-        }
-
-        jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "handleKeyEvent", "(II)V", (event_type, code))
-            .await
     }
 
     async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {

@@ -1,8 +1,8 @@
-use alloc::{string::String as RustString, vec};
+use alloc::{format, string::String as RustString, vec};
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -55,13 +55,23 @@ impl Canvas {
                 // Protected so vendor canvases in other Java packages can translate key codes.
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
+                    "setDisplay",
+                    "(Ljavax/microedition/lcdui/Display;)V",
+                    Self::set_display,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new(
                     "handlePaintEvent",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
                     Self::handle_paint_event,
                     MethodAccessFlags::empty(),
                 ),
             ],
-            fields: vec![],
+            fields: vec![
+                // Game key state polled by GameCanvas: one bit per game action, at the position of the action's value.
+                JavaFieldProto::new("heldGameKeys", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("pressedGameKeys", "I", FieldAccessFlags::PRIVATE),
+            ],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
@@ -295,7 +305,38 @@ impl Canvas {
         Ok(())
     }
 
-    async fn handle_key_event(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
+    async fn set_display(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        display: ClassInstanceRef<Display>,
+    ) -> JvmResult<()> {
+        let log = format!("javax.microedition.lcdui.Canvas::setDisplay({this:?}, {display:?})");
+        tracing::debug!("{log}");
+
+        // Releases while another screen is current never arrive here, so every key starts unpressed when shown again.
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Canvas", "heldGameKeys", "I", 0)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Canvas", "pressedGameKeys", "I", 0)
+            .await?;
+
+        jvm.invoke_special(
+            &this,
+            "javax/microedition/lcdui/Displayable",
+            "setDisplay",
+            "(Ljavax/microedition/lcdui/Display;)V",
+            (display,),
+        )
+        .await
+    }
+
+    async fn handle_key_event(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        event_type: i32,
+        code: i32,
+    ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::handleKeyEvent({this:?}, {event_type}, {code})");
 
         let event_type = if let Some(event_type) = KeyboardEventType::from_raw(event_type) {
@@ -303,6 +344,33 @@ impl Canvas {
         } else {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid keyboard event type").await);
         };
+
+        let action: i32 = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "getGameAction", "(I)I", (code,))
+            .await?;
+        if action != 0 {
+            let held: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Canvas", "heldGameKeys", "I").await?;
+            match event_type {
+                KeyboardEventType::KeyPressed => {
+                    let pressed: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Canvas", "pressedGameKeys", "I").await?;
+                    jvm.put_field(&mut this, "javax/microedition/lcdui/Canvas", "heldGameKeys", "I", held | (1 << action))
+                        .await?;
+                    jvm.put_field(
+                        &mut this,
+                        "javax/microedition/lcdui/Canvas",
+                        "pressedGameKeys",
+                        "I",
+                        pressed | (1 << action),
+                    )
+                    .await?;
+                }
+                KeyboardEventType::KeyReleased => {
+                    jvm.put_field(&mut this, "javax/microedition/lcdui/Canvas", "heldGameKeys", "I", held & !(1 << action))
+                        .await?;
+                }
+                _ => {}
+            }
+        }
 
         let _: () = match event_type {
             KeyboardEventType::KeyPressed => {
@@ -848,6 +916,32 @@ mod test {
                             states.push(state);
                         }
                         assert_eq!(states, [1 << 9, 1 << 10, 0]);
+
+                        // A key held while another screen takes over reads as unpressed once this canvas is shown again.
+                        let _: () = jvm
+                            .invoke_virtual(
+                                &display,
+                                "javax/microedition/lcdui/Display",
+                                "handleKeyEvent",
+                                "(II)V",
+                                (KeyboardEventType::KeyPressed as i32, MIDPKeyCode::KEY_NUM1 as i32),
+                            )
+                            .await?;
+                        for shown in [recording_canvas.clone(), canvas.clone()] {
+                            let _: () = jvm
+                                .invoke_virtual(
+                                    &display,
+                                    "javax/microedition/lcdui/Display",
+                                    "setCurrent",
+                                    "(Ljavax/microedition/lcdui/Displayable;)V",
+                                    (shown,),
+                                )
+                                .await?;
+                        }
+                        let state: i32 = jvm
+                            .invoke_virtual(&canvas, "javax/microedition/lcdui/game/GameCanvas", "getKeyStates", "()I", ())
+                            .await?;
+                        assert_eq!(state, 0);
                     }
                     let _: () = jvm
                         .invoke_virtual(
