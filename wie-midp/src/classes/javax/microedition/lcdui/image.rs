@@ -312,18 +312,12 @@ impl Image {
         }
 
         let image_data = JavaIoInputStream::read_until_end(jvm, &stream).await?;
-        let image_data_len = image_data.len() as i32;
+        // Unlike the byte array overload, a stream that cannot be decoded is an I/O failure.
+        let Ok(image) = decode_image(&image_data) else {
+            return Err(jvm.exception("java/io/IOException", "Failed to decode image").await);
+        };
 
-        let mut image_array = jvm.instantiate_array("B", image_data_len as _).await?;
-        jvm.array_raw_buffer_mut(&mut image_array).await?.write(0, &image_data)?;
-
-        jvm.invoke_static(
-            "javax/microedition/lcdui/Image",
-            "createImage",
-            "([BII)Ljavax/microedition/lcdui/Image;",
-            (image_array, 0, image_data_len),
-        )
-        .await
+        Self::create_image_instance(jvm, image.width(), image.height(), &image.raw(), image.bytes_per_pixel()).await
     }
 
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
@@ -762,6 +756,20 @@ mod tests {
                 assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
                 jvm.store_array(&mut pixels, 0, source).await?;
             }
+            let garbage = jvm.instantiate_array("B", 4).await?;
+            let stream = jvm.new_class("java/io/ByteArrayInputStream", "([B)V", (garbage,)).await?;
+            let result = jvm
+                .invoke_static::<_, ClassInstanceRef<Image>>(
+                    "javax/microedition/lcdui/Image",
+                    "createImage",
+                    "(Ljava/io/InputStream;)Ljavax/microedition/lcdui/Image;",
+                    (stream,),
+                )
+                .await;
+            let Err(JavaError::JavaException(exception)) = result else {
+                panic!("undecodable stream succeeded")
+            };
+            assert!(jvm.is_instance(&*exception, "java/io/IOException"));
             for (width, height, null, error) in [
                 (0, 2, false, "java/lang/IllegalArgumentException"),
                 (2, -1, false, "java/lang/IllegalArgumentException"),
