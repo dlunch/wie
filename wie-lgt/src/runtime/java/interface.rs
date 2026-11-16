@@ -43,6 +43,7 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x22 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseNullPointerException)?,
         0x23 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseArrayIndexException)?,
         0x25 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseArithmeticException)?,
+        0x26 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseClassCastException)?,
         0x54 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk54)?,
         0x55 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk55)?,
         0x56 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorEnter)?,
@@ -115,6 +116,7 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
                 .await?
                 .write(core, lr),
             JavaSystemSvcId::RaiseArithmeticException => EmulatedFunction::call(&java_raise_arithmetic_exception, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::RaiseClassCastException => EmulatedFunction::call(&java_raise_class_cast_exception, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::Unk1 => EmulatedFunction::call(&java_unk1, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::Unk2 => EmulatedFunction::call(&java_unk2, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::Unk3 => EmulatedFunction::call(&java_unk3, core, &mut ()).await?.write(core, lr),
@@ -252,6 +254,12 @@ async fn java_raise_arithmetic_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> 
     Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)))
 }
 
+async fn java_raise_class_cast_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<()> {
+    tracing::debug!("java_raise_class_cast_exception()");
+    let JavaError::JavaException(exception) = jvm.exception("java/lang/ClassCastException", "").await;
+    Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)))
+}
+
 async fn java_load_long_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_array: u32, index: u32) -> Result<i64> {
     tracing::debug!("java_load_long_array({ptr_array:#x}, {index})");
     if ptr_array == 0 {
@@ -307,12 +315,20 @@ async fn java_get_string_class(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32
     Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
 }
 
-async fn java_get_string_array_class(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
+async fn java_get_string_array_class(core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
+    array_class_name_pointer(core, jvm, "[Ljava/lang/String;").await
+}
+
+// Generated code hands array types to the runtime the same way it hands class types to cast checks:
+// as the native class-name pointer that java/lang/Class objects expose for regular classes.
+async fn array_class_name_pointer(core: &ArmCore, jvm: &Jvm, name: &str) -> Result<u32> {
     let class = jvm
-        .resolve_class("[Ljava/lang/String;")
+        .resolve_class(name)
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
-    Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
+    let ptr_class = LgtJvmSupport::class_definition_raw(&*class.definition);
+
+    Ok(LgtJvmSupport::class_from_raw(core, ptr_class).descriptor()?.ptr_name)
 }
 
 async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
@@ -419,12 +435,7 @@ async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_c
     };
     let name = format!("{}{component}", "[".repeat(rank as usize));
 
-    let class = jvm
-        .resolve_class(&name)
-        .await
-        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
-
-    Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
+    array_class_name_pointer(core, jvm, &name).await
 }
 
 async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32) -> Result<u32> {
@@ -468,11 +479,9 @@ async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u
     Ok(ptr_instance)
 }
 
-async fn java_instantiate_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, length: u32) -> Result<u32> {
-    let class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
-    let name = JavaLangClass::name(jvm, &class_object)
-        .await
-        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+async fn java_instantiate_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_name: u32, length: u32) -> Result<u32> {
+    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_class_name)?)
+        .map_err(|error| WieError::FatalError(format!("Invalid LGT array class name: {error}")))?;
     let element_type = name
         .strip_prefix('[')
         .ok_or_else(|| WieError::FatalError(format!("Not an LGT array class: {name}")))?;
@@ -484,11 +493,9 @@ async fn java_instantiate_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_obj
     Ok(LgtJvmSupport::class_instance_raw(&*array))
 }
 
-async fn java_instantiate_multi_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, ptr_dimensions: u32, rank: u32) -> Result<u32> {
-    let class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
-    let name = JavaLangClass::name(jvm, &class_object)
-        .await
-        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+async fn java_instantiate_multi_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_name: u32, ptr_dimensions: u32, rank: u32) -> Result<u32> {
+    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_class_name)?)
+        .map_err(|error| WieError::FatalError(format!("Invalid LGT array class name: {error}")))?;
     let dimensions = (0..rank)
         .map(|index| read_generic::<u32, _>(core, ptr_dimensions + index * size_of::<u32>() as u32).map(|value| value as usize))
         .collect::<Result<Vec<_>>>()?;
