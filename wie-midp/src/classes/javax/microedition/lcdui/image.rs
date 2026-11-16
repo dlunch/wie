@@ -282,21 +282,26 @@ impl Image {
         let mut pixels = Vec::with_capacity((out_width * out_height) as usize);
         for out_y in 0..out_height {
             for out_x in 0..out_width {
-                let (src_x, src_y) = match transform {
-                    1 => (out_x, height - 1 - out_y),             // TRANS_MIRROR_ROT180
-                    2 => (width - 1 - out_x, out_y),              // TRANS_MIRROR
-                    3 => (width - 1 - out_x, height - 1 - out_y), // TRANS_ROT180
-                    4 => (out_y, out_x),                          // TRANS_MIRROR_ROT270
-                    5 => (out_y, height - 1 - out_x),             // TRANS_ROT90
-                    6 => (width - 1 - out_y, out_x),              // TRANS_ROT270
-                    7 => (width - 1 - out_y, height - 1 - out_x), // TRANS_MIRROR_ROT90
-                    _ => (out_x, out_y),                          // TRANS_NONE
-                };
+                let (src_x, src_y) = Self::transform_source(transform, width, height, out_x, out_y);
                 pixels.push(ArgbPixel::from_color(src.get_pixel(x + src_x, y + src_y)));
             }
         }
 
         Some((out_width, out_height, pixels))
+    }
+
+    // Maps a pixel of a transformed region back to its position in the untransformed width x height region.
+    pub fn transform_source(transform: i32, width: i32, height: i32, out_x: i32, out_y: i32) -> (i32, i32) {
+        match transform {
+            1 => (out_x, height - 1 - out_y),             // TRANS_MIRROR_ROT180
+            2 => (width - 1 - out_x, out_y),              // TRANS_MIRROR
+            3 => (width - 1 - out_x, height - 1 - out_y), // TRANS_ROT180
+            4 => (out_y, out_x),                          // TRANS_MIRROR_ROT270
+            5 => (out_y, height - 1 - out_x),             // TRANS_ROT90
+            6 => (width - 1 - out_y, out_x),              // TRANS_ROT270
+            7 => (width - 1 - out_y, height - 1 - out_x), // TRANS_MIRROR_ROT90
+            _ => (out_x, out_y),                          // TRANS_NONE
+        }
     }
 
     async fn create_image_from_stream(jvm: &Jvm, _: &mut WieJvmContext, stream: ClassInstanceRef<InputStream>) -> JvmResult<ClassInstanceRef<Image>> {

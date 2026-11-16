@@ -26,6 +26,8 @@ impl GameCanvas {
                     MethodAccessFlags::PROTECTED,
                 ),
                 JavaMethodProto::new("flushGraphics", "()V", Self::flush_graphics, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("flushGraphics", "(IIII)V", Self::flush_graphics_region, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getKeyStates", "()I", Self::get_key_states, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "paint",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
@@ -97,9 +99,45 @@ impl GameCanvas {
     async fn flush_graphics(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.GameCanvas::flushGraphics({this:?})");
 
+        // The app may draw the next frame into the buffer as soon as this returns, so the paint cannot stay queued.
         let _: () = jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "()V", ()).await?;
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+            .await
+    }
 
-        Ok(())
+    async fn flush_graphics_region(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.game.GameCanvas::flushGraphics({this:?}, {x}, {y}, {width}, {height})");
+
+        let _: () = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (x, y, width, height))
+            .await?;
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+            .await
+    }
+
+    async fn get_key_states(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.game.GameCanvas::getKeyStates({this:?})");
+
+        let held: i32 = jvm.get_field(&this, "javax/microedition/lcdui/Displayable", "heldGameKeys", "I").await?;
+        let pressed: i32 = jvm
+            .get_field(&this, "javax/microedition/lcdui/Displayable", "pressedGameKeys", "I")
+            .await?;
+        // Presses since the last call stay reported once, so a quick tap between two polls is not lost.
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "pressedGameKeys", "I", 0)
+            .await?;
+
+        let shown: bool = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "isShown", "()Z", ())
+            .await?;
+        Ok(if shown { held | pressed } else { 0 })
     }
 
     async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {

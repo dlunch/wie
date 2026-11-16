@@ -163,6 +163,9 @@ impl Displayable {
                 JavaFieldProto::new("sizeDirty", "Z", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("sizeNotifying", "Z", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("commandMenuOpen", "Z", FieldAccessFlags::PRIVATE),
+                // Game key state polled by GameCanvas: one bit per game action, at the position of the action's value.
+                JavaFieldProto::new("heldGameKeys", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("pressedGameKeys", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("commandMenuIndex", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("isInFullScreenMode", "Z", FieldAccessFlags::PRIVATE),
             ],
@@ -398,6 +401,11 @@ impl Displayable {
         jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "commandMenuOpen", "Z", false)
             .await?;
         jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "commandMenuIndex", "I", -1)
+            .await?;
+        // Releases while another screen is current never arrive here, so every key starts unpressed when shown again.
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "heldGameKeys", "I", 0)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "pressedGameKeys", "I", 0)
             .await?;
 
         Ok(())
@@ -981,6 +989,11 @@ impl Displayable {
                             .await;
                     }
                     jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "commandMenuOpen", "Z", true)
+                        .await?;
+                    // The open menu consumes key releases, so keys held at this point would otherwise stay reported.
+                    jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "heldGameKeys", "I", 0)
+                        .await?;
+                    jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "pressedGameKeys", "I", 0)
                         .await?;
                     jvm.put_field(&mut this, "javax/microedition/lcdui/Displayable", "commandMenuIndex", "I", 0)
                         .await?;
