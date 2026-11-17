@@ -189,6 +189,18 @@ vtable = [
 ]
 
 [[class]]
+name = "java/util/Timer"
+vtable = [
+    { name = "schedule", descriptor = "(Ljava/util/TimerTask;JJ)V", index = 12 },
+]
+
+[[class]]
+name = "java/util/TimerTask"
+# Native subclasses start their own fields at word 6. Keep the runtime's
+# TimerTask state outside that fixed prefix instead of overlapping child fields.
+instance_field_word_count = 6
+
+[[class]]
 name = "org/kwis/msp/lcdui/Jlet"
 vtable = [
     { name = "startApp", descriptor = "([Ljava/lang/String;)V", index = 15 },
