@@ -318,6 +318,30 @@ mod test {
                     0
                 );
 
+                // Apps can also wrap a container in a card themselves; every constructor yields a usable card.
+                let display_width: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getWidth", "()I", ()).await?;
+                let whole_display = jvm
+                    .new_class("org/kwis/msp/lwc/ProxyCard", "(Lorg/kwis/msp/lwc/ContainerComponent;)V", (shell.clone(),))
+                    .await?;
+                let transparent = jvm
+                    .new_class(
+                        "org/kwis/msp/lwc/ProxyCard",
+                        "(Lorg/kwis/msp/lwc/ContainerComponent;Z)V",
+                        (shell.clone(), true),
+                    )
+                    .await?;
+                let bounded = jvm
+                    .new_class(
+                        "org/kwis/msp/lwc/ProxyCard",
+                        "(Lorg/kwis/msp/lwc/ContainerComponent;IIIIZ)V",
+                        (shell.clone(), 1, 2, 30, 40, true),
+                    )
+                    .await?;
+                for (card, expected_width) in [(whole_display, display_width), (transparent, display_width), (bounded, 30)] {
+                    let width: i32 = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "getWidth", "()I", ()).await?;
+                    assert_eq!(width, expected_width);
+                }
+
                 Ok(())
             },
         )
