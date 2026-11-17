@@ -8,14 +8,13 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::org::kwis::msp::{lcdui::Graphics, lwc::ContainerComponent};
 
-// class net.wie.ShellCard
-// Presents a shell component on the display's card stack.
-pub struct ShellCard;
+// class org.kwis.msp.lwc.ProxyCard
+pub struct ProxyCard;
 
-impl ShellCard {
+impl ProxyCard {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
-            name: "net/wie/ShellCard",
+            name: "org/kwis/msp/lwc/ProxyCard",
             parent_class: Some("org/kwis/msp/lcdui/Card"),
             interfaces: vec![],
             methods: vec![
@@ -30,9 +29,9 @@ impl ShellCard {
                 JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
             ],
             fields: vec![JavaFieldProto::new(
-                "component",
+                "cmp",
                 "Lorg/kwis/msp/lwc/ContainerComponent;",
-                FieldAccessFlags::PRIVATE,
+                FieldAccessFlags::empty(),
             )],
             access_flags: ClassAccessFlags::PUBLIC,
         }
@@ -49,15 +48,15 @@ impl ShellCard {
         width: i32,
         height: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.ShellCard::<init>({this:?}, {component:?}, {x}, {y}, {width}, {height})");
+        tracing::debug!("org.kwis.msp.lwc.ProxyCard::<init>({this:?}, {component:?}, {x}, {y}, {width}, {height})");
 
         let _: () = jvm
             .invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "(IIII)V", (x, y, width, height))
             .await?;
         jvm.put_field(
             &mut this,
-            "net/wie/ShellCard",
-            "component",
+            "org/kwis/msp/lwc/ProxyCard",
+            "cmp",
             "Lorg/kwis/msp/lwc/ContainerComponent;",
             component,
         )
@@ -65,10 +64,10 @@ impl ShellCard {
     }
 
     async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
-        tracing::debug!("net.wie.ShellCard::paint({this:?}, {graphics:?})");
+        tracing::debug!("org.kwis.msp.lwc.ProxyCard::paint({this:?}, {graphics:?})");
 
         let component: ClassInstanceRef<ContainerComponent> = jvm
-            .get_field(&this, "net/wie/ShellCard", "component", "Lorg/kwis/msp/lwc/ContainerComponent;")
+            .get_field(&this, "org/kwis/msp/lwc/ProxyCard", "cmp", "Lorg/kwis/msp/lwc/ContainerComponent;")
             .await?;
         jvm.invoke_virtual(
             &component,
@@ -81,20 +80,20 @@ impl ShellCard {
     }
 
     async fn key_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: i32, chr: i32) -> JvmResult<bool> {
-        tracing::debug!("net.wie.ShellCard::keyNotify({this:?}, {type}, {chr})");
+        tracing::debug!("org.kwis.msp.lwc.ProxyCard::keyNotify({this:?}, {type}, {chr})");
 
         let component: ClassInstanceRef<ContainerComponent> = jvm
-            .get_field(&this, "net/wie/ShellCard", "component", "Lorg/kwis/msp/lwc/ContainerComponent;")
+            .get_field(&this, "org/kwis/msp/lwc/ProxyCard", "cmp", "Lorg/kwis/msp/lwc/ContainerComponent;")
             .await?;
         jvm.invoke_virtual(&component, "org/kwis/msp/lwc/Component", "keyNotify", "(II)Z", (r#type, chr))
             .await
     }
 
     async fn show_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
-        tracing::debug!("net.wie.ShellCard::showNotify({this:?}, {show})");
+        tracing::debug!("org.kwis.msp.lwc.ProxyCard::showNotify({this:?}, {show})");
 
         let component: ClassInstanceRef<ContainerComponent> = jvm
-            .get_field(&this, "net/wie/ShellCard", "component", "Lorg/kwis/msp/lwc/ContainerComponent;")
+            .get_field(&this, "org/kwis/msp/lwc/ProxyCard", "cmp", "Lorg/kwis/msp/lwc/ContainerComponent;")
             .await?;
         jvm.invoke_virtual(&component, "org/kwis/msp/lwc/Component", "showNotify", "(Z)V", (show,))
             .await
