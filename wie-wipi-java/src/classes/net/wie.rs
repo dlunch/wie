@@ -1,9 +1,11 @@
 mod card_canvas;
+mod shell_card;
 mod wipi_file_output_stream;
 mod wipi_midlet;
 
 pub use self::{
     card_canvas::{CardCanvas, WIPIKeyCode},
+    shell_card::ShellCard,
     wipi_file_output_stream::WIPIFileOutputStream,
     wipi_midlet::WIPIMIDlet,
 };

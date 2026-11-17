@@ -76,7 +76,7 @@ impl ShellComponent {
 
         let card = jvm
             .new_class(
-                "org/kwis/msp/lwc/ProxyCard",
+                "net/wie/ShellCard",
                 "(Lorg/kwis/msp/lwc/ContainerComponent;IIII)V",
                 (this.clone(), x, y, width, height),
             )
