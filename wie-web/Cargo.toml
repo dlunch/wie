@@ -7,10 +7,10 @@ description.workspace = true
 repository.workspace = true
 publish = false
 
-[package.metadata.wasm-pack.profile.release]
+[package.metadata.wasm-pack.profile.custom]
 wasm-opt = ["-O", "-g", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 
-[package.metadata.wasm-pack.profile.release.wasm-bindgen]
+[package.metadata.wasm-pack.profile.custom.wasm-bindgen]
 dwarf-debug-info = true
 
 [package.metadata.wasm-pack.profile.profiling]
@@ -26,7 +26,8 @@ anyhow = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }
 serde_json = "1.0"
-tracing = { workspace = true }
+# The web log layer filters at INFO, so finer levels are compiled out of release builds.
+tracing = { workspace = true, features = ["release_max_level_info"] }
 tracing-subscriber = { workspace = true }
 
 hashbrown = { version = "^0.17" }
