@@ -32,6 +32,25 @@ opt-level = 1
 debug = 2
 lto = "thin"
 
+# The web build optimizes for download size; only the interpreter crates stay speed-optimized.
+[profile.web]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+
+[profile.web.package.wie-core-arm]
+opt-level = 3
+
+[profile.web.package.arm32_cpu]
+opt-level = 3
+
+[profile.web.package.jvm]
+opt-level = 3
+
+[profile.web.package.jvm-bytecode]
+opt-level = 3
+
 [workspace.package]
 version = "0.2.29"
 edition = "2024"
