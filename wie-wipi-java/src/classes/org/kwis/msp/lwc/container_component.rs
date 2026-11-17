@@ -6,7 +6,7 @@ use jvm_types::{ClassAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::org::kwis::msp::lwc::Component;
+use crate::classes::org::kwis::msp::{lcdui::Graphics, lwc::Component};
 
 // class org.kwis.msp.lwc.ContainerComponent
 pub struct ContainerComponent;
@@ -32,6 +32,7 @@ impl ContainerComponent {
                     Self::remove_component,
                     MethodAccessFlags::PUBLIC,
                 ),
+                JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
             ],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
@@ -60,6 +61,12 @@ impl ContainerComponent {
 
     async fn remove_component(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, component: ClassInstanceRef<Component>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.Component::removeComponent({this:?}, {component:?})");
+
+        Ok(())
+    }
+
+    async fn paint(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.ContainerComponent::paint({this:?}, {graphics:?})");
 
         Ok(())
     }
