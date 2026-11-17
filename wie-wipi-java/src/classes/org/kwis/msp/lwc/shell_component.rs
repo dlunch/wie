@@ -342,6 +342,13 @@ mod test {
                     assert_eq!(width, expected_width);
                 }
 
+                // Apps subtract the annunciator's height from the display height to size their drawing area.
+                let annunciator = jvm.new_class("org/kwis/msp/lwc/AnnunciatorComponent", "(Z)V", (false,)).await?;
+                let annunciator_height: i32 = jvm
+                    .invoke_virtual(&annunciator, "org/kwis/msp/lwc/Component", "getHeight", "()I", ())
+                    .await?;
+                assert_eq!(annunciator_height, 0);
+
                 Ok(())
             },
         )
