@@ -73,7 +73,13 @@ impl Component {
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_area, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
             ],
-            fields: vec![JavaFieldProto::new("focused", "Z", FieldAccessFlags::PRIVATE)],
+            fields: vec![
+                JavaFieldProto::new("x", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("y", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("w", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("h", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("focused", "Z", FieldAccessFlags::PRIVATE),
+            ],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
@@ -118,28 +124,31 @@ impl Component {
         Ok(())
     }
 
-    async fn get_height(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({this:?})");
+    async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lwc.Component::getHeight({this:?})");
 
-        Ok(0)
+        jvm.get_field(&this, "org/kwis/msp/lwc/Component", "h", "I").await
     }
 
-    async fn get_width(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::getWidth({this:?})");
+    async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lwc.Component::getWidth({this:?})");
 
-        Ok(0)
+        jvm.get_field(&this, "org/kwis/msp/lwc/Component", "w", "I").await
     }
 
-    async fn get_x(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::getX({this:?})");
+    async fn get_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lwc.Component::getX({this:?})");
 
-        Ok(0)
+        jvm.get_field(&this, "org/kwis/msp/lwc/Component", "x", "I").await
     }
 
-    async fn repaint(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::repaint({this:?})");
+    async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lwc.Component::repaint({this:?})");
 
-        Ok(())
+        let width: i32 = jvm.get_field(&this, "org/kwis/msp/lwc/Component", "w", "I").await?;
+        let height: i32 = jvm.get_field(&this, "org/kwis/msp/lwc/Component", "h", "I").await?;
+        jvm.invoke_virtual(&this, "org/kwis/msp/lwc/Component", "repaint", "(IIII)V", (0, 0, width, height))
+            .await
     }
 
     async fn service_repaints(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
@@ -154,10 +163,10 @@ impl Component {
         Ok(())
     }
 
-    async fn get_y(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::getY({this:?})");
+    async fn get_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lwc.Component::getY({this:?})");
 
-        Ok(0)
+        jvm.get_field(&this, "org/kwis/msp/lwc/Component", "y", "I").await
     }
 
     async fn get_x_on_screen(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
