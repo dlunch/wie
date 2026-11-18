@@ -285,23 +285,7 @@ impl ExecutionAccess for MemoryAccess<'_> {
         if !address.is_multiple_of(4) {
             return None;
         }
-        let start = address as usize / PAGE_SIZE;
-        let offset = (address & PAGE_MASK) as usize;
-        let len = words as usize * 4;
-        let first_len = len.min(PAGE_SIZE - offset);
-        if first_len == len {
-            let page = self.memory.pages[start].bytes.as_mut()?;
-            return Some((&mut page[offset..offset + len], &mut []));
-        }
-        let end = address.wrapping_add((words - 1) * 4) as usize / PAGE_SIZE;
-        let (first, second) = if start < end {
-            let (lower, upper) = self.memory.pages.split_at_mut(end);
-            (lower[start].bytes.as_mut()?, upper[0].bytes.as_mut()?)
-        } else {
-            let (lower, upper) = self.memory.pages.split_at_mut(start);
-            (upper[0].bytes.as_mut()?, lower[end].bytes.as_mut()?)
-        };
-        Some((&mut first[offset..], &mut second[..len - first_len]))
+        MemoryPage::transfer_range(&mut self.memory.pages, address, words).ok()
     }
 }
 
@@ -1533,6 +1517,42 @@ mod tests {
         assert!(matches!(result.stop_reason, EngineStopReason::End));
         assert_eq!(result.budget_consumed, 0);
         assert_eq!(engines.native.reg_read(ArmRegister::R0), 0);
+
+        // Carry flows through ADC and RRX. MSR then predicates both uses of the
+        // same address, so an unmapped page may be skipped on every iteration.
+        let words = [
+            0xe0b1_1002u32, // adcs r1,r1,r2
+            0xe1b0_3061,    // movs r3,r1,rrx
+            0xe10f_5000,    // mrs r5,cpsr
+            0xe128_f006,    // msr cpsr_f,r6
+            0x15c4_3000,    // strbne r3,[r4]
+            0x11d4_70b0,    // ldrhne r7,[r4]
+            0xe250_0001,    // subs r0,r0,#1
+            0x1aff_fff7,    // bne 0x1000
+            0xe12f_ff1e,    // bx lr
+        ];
+        let mut engines = Engines::new(&words.into_iter().flat_map(u32::to_le_bytes).collect::<Vec<_>>());
+        for entry in [0x1000, 0x1004, 0x100c, 0x1014] {
+            for (flags, address) in [(0, 0x21002), (1 << 30, 0x40000)] {
+                engines.reset(
+                    entry,
+                    0x4800_001f,
+                    &[
+                        (ArmRegister::R0, 3),
+                        (ArmRegister::R1, u32::MAX),
+                        (ArmRegister::R2, 1),
+                        (ArmRegister::R4, address),
+                        (ArmRegister::R6, flags),
+                    ],
+                );
+                assert!(engines.compare_run(0x8000));
+                engines.compare_memory();
+            }
+        }
+        engines.reset(0x1000, 0x1f, &[(ArmRegister::R0, 3), (ArmRegister::R2, 5), (ArmRegister::R4, 0x40000)]);
+        assert!(!engines.compare_run(0x8000));
+        assert_eq!(engines.native.reg_read(ArmRegister::R1), 5);
+        assert_eq!(engines.native.reg_read(ArmRegister::PC), 0x1010);
 
         for suffix in [0xf802u16, 0xe802] {
             let mut bytes: Vec<_> = [0xf000, suffix, 0x3001, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect();

@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 
 mod analysis;
+pub use analysis::{RegionFlow, RegisterUsage};
 
 use crate::RegionKey;
 
@@ -243,6 +244,7 @@ impl Operation {
             }
             | Self::Load { destination: Reg::PC, .. } => true,
             Self::MultipleTransfer { registers, load: true, .. } => registers & (1 << Reg::PC.index()) != 0,
+            Self::DoubleTransfer { register, load: true, .. } => register.index() == 14,
             _ => false,
         }
     }

@@ -6,7 +6,7 @@ use nom::{Parser, bytes::complete::take, number::complete::le_u32};
 use crate::CompileRequest;
 
 /// Increment when analysis, generated code, execution ABI, or the cache format changes.
-pub const AOT_CACHE_VERSION: u32 = 6;
+pub const AOT_CACHE_VERSION: u32 = 3;
 const MAGIC: &[u8; 8] = b"WIEAOT\0\0";
 
 pub fn key_input(request: &CompileRequest) -> Vec<u8> {

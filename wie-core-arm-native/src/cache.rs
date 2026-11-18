@@ -1,4 +1,4 @@
-use alloc::{collections::BTreeSet, format, vec::Vec};
+use alloc::{format, vec::Vec};
 use core::mem::{align_of, offset_of, size_of};
 
 use cranelift_codegen::isa::TargetIsa;
@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 
 use wie_core_arm_aot::{
     CodeImage, CompileRequest, ManifestRegion, MemoryPage, RunFrame, cache as artifact,
-    manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
+    manifest::{InstructionOwnership, decode_manifest_region, encode_manifest_region, validate_manifest_region},
 };
 use wie_util::Result;
 
@@ -58,16 +58,21 @@ pub(crate) fn key(isa: &dyn TargetIsa, request: &CompileRequest) -> [u8; 32] {
 pub(crate) fn encode<'a>(key: &[u8; 32], regions: impl Iterator<Item = &'a PendingRegion>) -> Option<Vec<u8>> {
     let mut regions: Vec<_> = regions.collect();
     regions.sort_unstable_by_key(|region| region.index);
-    let mut code = Vec::new();
+    let mut code_length = 0usize;
     let mut manifest = Vec::new();
-    for region in regions {
-        let (alignment, bytes) = region.code.as_ref()?;
-        code.extend_from_slice(&alignment.to_le_bytes());
-        code.extend_from_slice(&u32::try_from(bytes.len()).ok()?.to_le_bytes());
-        code.extend_from_slice(bytes);
+    for region in &regions {
+        code_length = code_length.checked_add(8 + region.code.as_ref()?.1.len())?;
         encode_manifest_region(&region.manifest, &mut manifest);
     }
-    let mut bytes = artifact::encode(key, &code, &manifest)?;
+    let mut bytes = artifact::encode_header(key, code_length, manifest.len())?;
+    bytes.reserve(code_length + manifest.len() + 32);
+    for region in regions {
+        let (alignment, code) = region.code.as_ref()?;
+        bytes.extend_from_slice(&alignment.to_le_bytes());
+        bytes.extend_from_slice(&u32::try_from(code.len()).ok()?.to_le_bytes());
+        bytes.extend_from_slice(code);
+    }
+    bytes.extend_from_slice(&manifest);
     let digest = Sha256::digest(&bytes);
     bytes.extend_from_slice(&digest);
     Some(bytes)
@@ -86,7 +91,7 @@ pub(crate) fn decode<'a>(bytes: &'a [u8], key: &[u8; 32], images: &[CodeImage]) 
     }
     let (mut input, mut manifest) = artifact::decode(payload, key)?;
     let mut regions = Vec::new();
-    let mut owned = BTreeSet::new();
+    let mut owned = InstructionOwnership::default();
     while !manifest.is_empty() {
         let lengths: nom::IResult<_, _> = (le_u32, le_u32).parse(input);
         let (remaining, (alignment, code_length)) = lengths.ok()?;
@@ -109,7 +114,7 @@ pub(crate) fn decode<'a>(bytes: &'a [u8], key: &[u8; 32], images: &[CodeImage]) 
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, sync::Arc, vec};
+    use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec};
 
     use cranelift_codegen::{isa, settings, settings::Configurable};
     use cranelift_module::{FuncId, Module};
@@ -134,7 +139,7 @@ mod tests {
             max_region_blocks: 512,
             regions: Box::new(core::iter::empty()),
         };
-        let module = crate::create_module().unwrap();
+        let module = crate::create_module(false).unwrap();
         let isa = module.0.as_ref().unwrap().isa();
         let original = key(isa, &input());
         assert_eq!(original, key(isa, &input()));

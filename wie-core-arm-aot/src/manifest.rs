@@ -1,4 +1,4 @@
-use alloc::{collections::BTreeSet, string::String, vec::Vec};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
 
 use nom::{Parser, multi::length_count, number::complete::le_u32};
 
@@ -42,8 +42,12 @@ pub fn decode_manifest_region(input: &mut &[u8]) -> Option<ManifestRegion> {
     })
 }
 
+/// Instruction start addresses already claimed in each ARM or Thumb address space.
+#[derive(Default)]
+pub struct InstructionOwnership(BTreeMap<(bool, u32), u64>);
+
 /// Validates cached instruction coverage against input image bounds and ownership across an artifact.
-pub fn validate_manifest_region(region: &ManifestRegion, images: &[CodeImage], owned: &mut BTreeSet<RegionKey>) -> Result<(), String> {
+pub fn validate_manifest_region(region: &ManifestRegion, images: &[CodeImage], owned: &mut InstructionOwnership) -> Result<(), String> {
     let alignment = if region.entry.thumb { 2 } else { 4 };
     if region.entry.cpu_mode != 0x1f
         || region.instruction_pcs.binary_search(&region.entry.pc).is_err()
@@ -86,10 +90,14 @@ pub fn validate_manifest_region(region: &ManifestRegion, images: &[CodeImage], o
     }) {
         return Err(String::from("cached instruction is outside source spans"));
     }
-    for &pc in &region.instruction_pcs {
-        if !owned.insert(RegionKey { pc, ..region.entry }) {
+    // One bit per halfword keeps dense game images compact without allocating for address gaps.
+    for pcs in region.instruction_pcs.chunk_by(|left, right| left >> 7 == right >> 7) {
+        let mask = pcs.iter().fold(0u64, |mask, pc| mask | (1 << ((pc >> 1) & 63)));
+        let word = owned.0.entry((region.entry.thumb, pcs[0] >> 7)).or_default();
+        if *word & mask != 0 {
             return Err(String::from("duplicate cached instruction ownership"));
         }
+        *word |= mask;
     }
     Ok(())
 }
@@ -137,14 +145,14 @@ mod tests {
             encode_manifest_region(region, &mut bytes);
         }
         let mut remaining = bytes.as_slice();
-        let mut owned = BTreeSet::new();
+        let mut owned = InstructionOwnership::default();
         for expected in &manifest {
             let actual = decode_manifest_region(&mut remaining).unwrap();
             validate_manifest_region(&actual, &images, &mut owned).unwrap();
             assert!(actual.entry == expected.entry);
             assert_eq!(actual.instruction_pcs, expected.instruction_pcs);
             assert_eq!(actual.code_ranges, expected.code_ranges);
-            assert!(validate_manifest_region(&actual, &images[..1], &mut BTreeSet::new()).is_err());
+            assert!(validate_manifest_region(&actual, &images[..1], &mut InstructionOwnership::default()).is_err());
         }
         assert!(remaining.is_empty());
     }
@@ -181,7 +189,10 @@ mod tests {
                 11 => region.entry.cpu_mode = 0x10,
                 _ => unreachable!(),
             }
-            assert!(validate_manifest_region(&region, &images, &mut BTreeSet::new()).is_err(), "case {case}");
+            assert!(
+                validate_manifest_region(&region, &images, &mut InstructionOwnership::default()).is_err(),
+                "case {case}"
+            );
         }
         let mut encoded = Vec::new();
         encode_manifest_region(&valid(), &mut encoded);
@@ -193,7 +204,7 @@ mod tests {
             corrupt[offset..offset + 4].copy_from_slice(&u32::MAX.to_le_bytes());
             assert!(decode_manifest_region(&mut corrupt.as_slice()).is_none(), "offset={offset}");
         }
-        let mut owned = BTreeSet::new();
+        let mut owned = InstructionOwnership::default();
         validate_manifest_region(&valid(), &images, &mut owned).unwrap();
         let mut overlapping = valid();
         overlapping.entry.pc = 0x1002;

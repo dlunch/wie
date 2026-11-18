@@ -1,8 +1,35 @@
-use alloc::{vec, vec::Vec};
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 
-use super::{AluOp, BasicBlock, BranchTarget, Condition, MemoryOperand, Operation, Reg, Shift, ShiftAmount, Value};
+use super::{AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryOperand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value};
+
+#[derive(Default)]
+pub struct RegisterUsage {
+    pub reads: [u32; 16],
+    pub writes: [u32; 16],
+    pub scalar_bases: [u32; 16],
+}
+
+impl RegisterUsage {
+    pub fn observe(&mut self, operation: &Operation) {
+        operation.visit_registers(
+            |reg| self.reads[usize::from(reg.index())] += 1,
+            |reg| self.writes[usize::from(reg.index())] += 1,
+        );
+        if let Operation::Load { address, .. } | Operation::Store { address, .. } = operation
+            && let Some(reg) = address.effective_base_register()
+        {
+            self.scalar_bases[usize::from(reg.index())] += 1;
+        }
+    }
+}
 
 impl MemoryOperand {
+    /// The register alone supplies the effective address, independently of writeback.
+    pub fn effective_base_register(&self) -> Option<&Reg> {
+        let Value::Register(reg) = &self.base else { return None };
+        (!self.pre_index || self.offset.constant_value().is_some_and(|(offset, _)| offset == 0)).then_some(reg)
+    }
+
     /// Effective address and indexed base, with the guest's 32-bit wrapping arithmetic.
     pub fn constant_address(&self) -> Option<(u32, u32)> {
         let Value::Immediate(base) = self.base else { return None };
@@ -208,6 +235,103 @@ impl Operation {
         }
         if let Some(Value::Register(reg)) = input {
             read(reg);
+        }
+    }
+}
+
+impl Instruction {
+    /// Statically known successor in the current instruction set and CPU mode when executed.
+    pub fn fixed_successor(&self, thumb: bool) -> Option<u32> {
+        match &self.operation {
+            Operation::Branch {
+                target: BranchTarget::Address(target),
+                exchange,
+                ..
+            } if !exchange || (target.get() & 1 != 0) == thumb => Some(target.get() & if thumb { !1 } else { !3 }),
+            Operation::WriteCpsr { mask, .. } if mask & 0x0100_003f != 0 => None,
+            op if op.writes_pc() => None,
+            _ => Some(self.pc.get().wrapping_add(u32::from(self.size))),
+        }
+    }
+}
+
+pub struct RegionFlow {
+    pub has_backedge: bool,
+    pub outgoing_branches: usize,
+    pub live_flag_updates: Vec<u8>,
+}
+
+impl RegionIr {
+    /// Analyze direct native edges. An exit exposes NZCV, while internal edges carry them to the next instruction.
+    pub fn control_flow(&self) -> RegionFlow {
+        struct Node {
+            taken: usize,
+            skipped: usize,
+            written: u8,
+            killed: u8,
+            read: u8,
+        }
+        let instructions = || self.blocks.iter().flat_map(|block| &block.instructions);
+        let indices: BTreeMap<_, _> = instructions().enumerate().map(|(index, ins)| (ins.pc.get(), index)).collect();
+        let exit = indices.len();
+        let index_of = |pc: u32| if pc < 0x1000 { exit } else { indices.get(&pc).copied().unwrap_or(exit) };
+        let mut has_backedge = false;
+        let mut outgoing_branches = 0;
+        let nodes: Vec<_> = instructions()
+            .map(|ins| {
+                let taken = ins.fixed_successor(self.entry.thumb).map_or(exit, index_of);
+                if ins.operation.writes_pc() {
+                    if taken == exit {
+                        outgoing_branches += 1;
+                    } else if let Operation::Branch {
+                        target: BranchTarget::Address(target),
+                        link: None,
+                        ..
+                    } = &ins.operation
+                    {
+                        has_backedge |= target.get() <= ins.pc.get();
+                    }
+                }
+                let (written, killed, read) = ins.operation.implicit_flag_effects();
+                let (skipped, killed) = if ins.condition == Condition::Always {
+                    (taken, killed)
+                } else {
+                    (index_of(ins.pc.get().wrapping_add(u32::from(ins.size))), 0)
+                };
+                let read = if matches!(ins.operation, Operation::ReadCpsr { .. } | Operation::WriteCpsr { .. }) {
+                    0xf
+                } else {
+                    read | ins.condition.flag_inputs()
+                };
+                Node {
+                    taken,
+                    skipped,
+                    written,
+                    killed,
+                    read,
+                }
+            })
+            .collect();
+        let mut live = vec![0; nodes.len() + 1];
+        live[exit] = 0xf;
+        loop {
+            let mut changed = false;
+            for (index, node) in nodes.iter().enumerate().rev() {
+                let before = node.read | ((live[node.taken] | live[node.skipped]) & !node.killed);
+                changed |= before != live[index];
+                live[index] = before;
+            }
+            if !changed {
+                break;
+            }
+        }
+        RegionFlow {
+            has_backedge,
+            outgoing_branches,
+            live_flag_updates: nodes
+                .into_iter()
+                .map(|node| node.written & (live[node.taken] | live[node.skipped]))
+                .collect(),
         }
     }
 }
