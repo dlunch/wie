@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use core::ops::Range;
 
 use nom::{Parser, bytes::complete::take, number::complete::le_u32};
 
@@ -22,31 +23,45 @@ pub fn key_input(request: &CompileRequest) -> Vec<u8> {
     input
 }
 
-/// Hosts append a SHA-256 digest to this payload before storing it.
-pub fn encode(key: &[u8; 32], code: &[u8], manifest: &[u8]) -> Option<Vec<u8>> {
-    let code_length = u32::try_from(code.len()).ok()?;
-    let manifest_length = u32::try_from(manifest.len()).ok()?;
-    let mut bytes = Vec::new();
+pub const HEADER_LENGTH: usize = 52;
+
+/// A record is this header followed by the code and manifest; hosts append a SHA-256 digest before storing it.
+/// Hosts write the code next to the header themselves so the module is never copied into a second buffer.
+pub fn encode_header(key: &[u8; 32], code_length: usize, manifest_length: usize) -> Option<Vec<u8>> {
+    let code_length = u32::try_from(code_length).ok()?;
+    let manifest_length = u32::try_from(manifest_length).ok()?;
+    let mut bytes = Vec::with_capacity(HEADER_LENGTH);
     bytes.extend_from_slice(MAGIC);
     bytes.extend_from_slice(&AOT_CACHE_VERSION.to_le_bytes());
     bytes.extend_from_slice(key);
     bytes.extend_from_slice(&code_length.to_le_bytes());
     bytes.extend_from_slice(&manifest_length.to_le_bytes());
+    Some(bytes)
+}
+
+pub fn encode(key: &[u8; 32], code: &[u8], manifest: &[u8]) -> Option<Vec<u8>> {
+    let mut bytes = encode_header(key, code.len(), manifest.len())?;
     bytes.extend_from_slice(code);
     bytes.extend_from_slice(manifest);
     Some(bytes)
 }
 
-/// Decode a payload after the host has verified and removed its SHA-256 digest.
-pub fn decode<'a>(bytes: &'a [u8], key: &[u8; 32]) -> Option<(&'a [u8], &'a [u8])> {
-    let header: nom::IResult<_, _> = (take(8usize), le_u32, take(32usize), le_u32, le_u32).parse(bytes);
-    let (input, (magic, version, stored_key, code_length, manifest_length)) = header.ok()?;
+/// Validate a record header against the record length (digest already removed) and return the code and manifest ranges.
+pub fn decode_header(header: &[u8], record_length: usize, key: &[u8; 32]) -> Option<(Range<usize>, Range<usize>)> {
+    let parsed: nom::IResult<_, _> = (take(8usize), le_u32, take(32usize), le_u32, le_u32).parse(header);
+    let (_, (magic, version, stored_key, code_length, manifest_length)) = parsed.ok()?;
     if magic != MAGIC || version != AOT_CACHE_VERSION || stored_key != key {
         return None;
     }
-    let record: nom::IResult<_, _> = (take(code_length as usize), take(manifest_length as usize)).parse(input);
-    let (remaining, artifact) = record.ok()?;
-    remaining.is_empty().then_some(artifact)
+    let code_end = HEADER_LENGTH.checked_add(code_length as usize)?;
+    let manifest_end = code_end.checked_add(manifest_length as usize)?;
+    (manifest_end == record_length).then_some((HEADER_LENGTH..code_end, code_end..manifest_end))
+}
+
+/// Decode a payload after the host has verified and removed its SHA-256 digest.
+pub fn decode<'a>(bytes: &'a [u8], key: &[u8; 32]) -> Option<(&'a [u8], &'a [u8])> {
+    let (code, manifest) = decode_header(bytes, bytes.len(), key)?;
+    Some((&bytes[code], &bytes[manifest]))
 }
 
 #[cfg(test)]

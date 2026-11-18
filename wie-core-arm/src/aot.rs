@@ -243,7 +243,7 @@ mod tests {
             regions: Box::new(Decoder::new(images, None)),
         })
         .unwrap();
-        assert_eq!(&artifact.bytes[..8], b"\0asm\x01\0\0\0");
+        assert_eq!(&artifact.chunks[0][..8], b"\0asm\x01\0\0\0");
         let mut owned = BTreeSet::new();
         for region in &artifact.manifest {
             assert_eq!(region.entry.cpu_mode, 0x1f);
