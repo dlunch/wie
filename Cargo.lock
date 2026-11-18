@@ -983,9 +983,9 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "classfile"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38c3ea88d353acb057603957fec61c142b47d7c9fbe6fc13c96cf38de82d57ad"
+checksum = "1014f2a96b1bbf9ded316e1cd4d52182e4d60dfa7b76120ee4eba2541f1fb467"
 dependencies = [
  "jvm-types",
  "nom",
@@ -3268,9 +3268,9 @@ dependencies = [
 
 [[package]]
 name = "jvm"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79b44c18b52c408f60f384789312ee37aa905358ae1f7207de6783be6fb57520"
+checksum = "8a03d808f645c20f1efc5a9a216fb0b3255f7693cccd5ddfe07fdf5f3883e002"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -3282,15 +3282,15 @@ dependencies = [
  "hashbrown 0.17.1",
  "jvm-types",
  "nom",
- "parking_lot",
+ "parking_lot 0.13.0",
  "tracing",
 ]
 
 [[package]]
 name = "jvm-bytecode"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d05f8530c78a378bf7ef6acca6a0664f5d2d6da7b2a9a809e7919c20ac6a2e72"
+checksum = "833f7d1f355864860d2a0cec07960afb4e8a08c148a5e45ed22db1e4e8d36486"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -3300,15 +3300,15 @@ dependencies = [
  "jvm",
  "jvm-class-proto",
  "jvm-types",
- "parking_lot",
+ "parking_lot 0.13.0",
  "tracing",
 ]
 
 [[package]]
 name = "jvm-class-proto"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ca8329958fab5896be0d14c73ee2d1e50c93ecfed9045b52f100f645b4dba8a"
+checksum = "79dcf70188e50357e2b0a304ae393500204978d3f607b0ee3bed202ccffab9ac"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -3318,9 +3318,9 @@ dependencies = [
 
 [[package]]
 name = "jvm-types"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e1111b4b358361b9ff35a916f1f38c358233a1f39638ba05e1cbd873921f23a"
+checksum = "49478a6b191690498a1c13b91b6ec9427e641ec10894293c58a10b899e36ea59"
 dependencies = [
  "bitflags 2.13.2",
 ]
@@ -3487,6 +3487,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lock_api"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65d91b22da179613dcf4d6ec8349563f52a363f6849e03b00dd0a185ec4a59af"
+dependencies = [
+ "scopeguard",
+]
+
+[[package]]
 name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3581,7 +3590,7 @@ dependencies = [
  "libc",
  "log",
  "ndk-context",
- "parking_lot",
+ "parking_lot 0.12.5",
  "wasm-bindgen",
  "web-sys",
  "windows",
@@ -4467,8 +4476,18 @@ version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
 dependencies = [
- "lock_api",
- "parking_lot_core",
+ "lock_api 0.4.14",
+ "parking_lot_core 0.9.12",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9cf937ca4e1d0b7578784559063422fc39ae7c5a00f02471f2614d5486fd226"
+dependencies = [
+ "lock_api 0.5.0",
+ "parking_lot_core 0.10.0",
 ]
 
 [[package]]
@@ -4480,6 +4499,18 @@ dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall 0.5.18",
+ "smallvec",
+ "windows-link",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cfff060068cc18aa7815010fcaf80c68c7fb9e85fc7f5c0f9bf142c21d19826"
+dependencies = [
+ "libc",
+ "redox_syscall 0.9.5",
  "smallvec",
  "windows-link",
 ]
@@ -5167,9 +5198,9 @@ dependencies = [
 
 [[package]]
 name = "rustjava-runtime"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec340d178242e00fcfbabcf6cf9af813a943e3b62328374302d69d36fd109cb8"
+checksum = "2e40a2268c569ca77c814e0605b55cef8a72468aaa83fe988724c4155e5570de"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -5181,7 +5212,7 @@ dependencies = [
  "jvm-class-proto",
  "jvm-types",
  "libm",
- "parking_lot",
+ "parking_lot 0.13.0",
  "percent-encoding",
  "regex",
  "tracing",
@@ -5957,7 +5988,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a18596f8c785a729f2819c0f6a7eae6ebeebdfffbfe4214ae6b087f690e31901"
 dependencies = [
  "new_debug_unreachable",
- "parking_lot",
+ "parking_lot 0.12.5",
  "phf_shared",
  "precomputed-hash",
 ]
@@ -6258,7 +6289,7 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "objc2-ui-kit 0.3.2",
- "parking_lot",
+ "parking_lot 0.12.5",
  "percent-encoding",
  "raw-window-handle",
  "tao-macros",
@@ -6811,7 +6842,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
+ "parking_lot 0.12.5",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
