@@ -160,7 +160,7 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context:
     for (instruction, flags_live) in ir
         .blocks
         .iter()
-        .flat_map(|block| block.instructions.iter().zip(block.live_flag_updates(false)))
+        .flat_map(|block| block.instructions.iter().zip(block.live_flag_updates()))
     {
         emitter.pc = instruction.pc.get();
         emitter.builder.switch_to_block(emitter.entries[&emitter.pc]);

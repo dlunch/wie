@@ -834,7 +834,7 @@ mod tests {
 
     #[test]
     fn interpreter_handoff_and_backend_failure_preserve_progress_and_budget() {
-        for (completed, budget) in [(None, 10), (Some(0), 10), (Some(2), 10), (Some(2), 2)] {
+        for (completed, budget) in [(None, 10), (None, 1), (Some(0), 10), (Some(2), 10), (Some(2), 2)] {
             let calls = Arc::new(Mutex::new((0, false)));
             let mut engine = Arm32CpuEngine::with_backend(Some(Box::new(TestExecutor {
                 calls: calls.clone(),
@@ -851,8 +851,16 @@ mod tests {
             engine.record_image(0x1000, 6);
             let preparation = engine.begin_preparation().unwrap().unwrap();
             engine.finish_preparation(futures::executor::block_on(preparation));
-            let result = engine.run(0x2000, budget).unwrap();
-            assert_eq!(result.budget_consumed, 3 - completed.unwrap_or(0));
+            let mut result = engine.run(0x2000, budget).unwrap();
+            let mut consumed = result.budget_consumed;
+            if budget == 1 {
+                assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+                assert_eq!(consumed, 1);
+                assert_eq!(engine.reg_read(ArmRegister::PC), 0x1002);
+                result = engine.run(0x2000, 2).unwrap();
+                consumed += result.budget_consumed;
+            }
+            assert_eq!(consumed, 3 - completed.unwrap_or(0));
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
             assert_eq!(engine.aot.is_some(), completed.is_none());
             assert_eq!(calls.lock().0, if completed.is_some() { 1 } else { 2 });

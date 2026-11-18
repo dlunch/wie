@@ -214,7 +214,7 @@ impl Operation {
 
 impl BasicBlock {
     /// Returns the live NZCV output bits (8, 4, 2, 1) of each instruction.
-    pub fn live_flag_updates(&self, memory_observes_flags: bool) -> Vec<u8> {
+    pub fn live_flag_updates(&self) -> Vec<u8> {
         let mut updates = vec![0; self.instructions.len()];
         let mut live = 0xf;
         let mut next_pc = None;
@@ -223,10 +223,6 @@ impl BasicBlock {
                 live = 0xf;
             }
             next_pc = Some(instruction.pc.get());
-            // A fallible host access can expose the incoming flags even if execution later continues.
-            if memory_observes_flags && instruction.operation.accesses_memory() {
-                live = 0xf;
-            }
             if matches!(
                 instruction.operation,
                 Operation::Branch { .. } | Operation::ReadCpsr { .. } | Operation::WriteCpsr { .. }

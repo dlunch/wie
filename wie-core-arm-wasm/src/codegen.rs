@@ -298,10 +298,12 @@ impl RegionLocals {
                 _ => {}
             }
         }
-        checkpoints += u32::from(cache.retry_pages);
         // Materialize at the smaller set of emitted sites: flag producers or consumers.
         cache.publish_mask = if flag_writes < checkpoints { 0 } else { cache.flags_written };
 
+        // Scalar accesses share a cold page-directory retry. Pack live flags there
+        // instead of charging that checkpoint to every execution of a flag producer.
+        checkpoints += u32::from(cache.retry_pages);
         let mut next_local = FIRST_REGISTER;
         for index in 0..15 {
             let writes = writes[index];
@@ -407,7 +409,7 @@ fn compile_region(ir: &RegionIr, transfers: &Transfers) -> Function {
     s.br_table(targets, count);
     let mut index = 0;
     for block in &ir.blocks {
-        let live = block.live_flag_updates(true);
+        let live = block.live_flag_updates();
         s.end();
         if let Some(body) = small_loop_body(ir, block) {
             s.loop_(BlockType::Empty);
@@ -427,7 +429,7 @@ fn compile_region(ir: &RegionIr, transfers: &Transfers) -> Function {
                 .i32_const(body.instructions[0].pc.get().wrapping_sub(ir.entry.pc) as i32)
                 .i32_ne();
             s.br_if(count - index + 1 + extra);
-            for (i, (instruction, flags)) in body.instructions.iter().zip(body.live_flag_updates(true)).enumerate() {
+            for (i, (instruction, flags)) in body.instructions.iter().zip(body.live_flag_updates()).enumerate() {
                 emit_instruction(&mut s, transfers, &regs, instruction, exit_depth, i + 1 == body.instructions.len(), flags);
             }
             s.br(0).end();
@@ -2138,8 +2140,70 @@ mod tests {
                 ],
             }],
         });
+        let handoff_slot = builder.region_functions.len();
+        // R5 dies across the store, the conditional load may preserve R2, and a yield observes R7 and SP.
+        for (multiple, load, before, after) in [(false, false, 5, 5), (false, true, 2, 5), (true, false, 7, 7), (true, true, 13, 13)] {
+            let mut addr = address(1);
+            // The scalar address consumes C even when N and V die across the access.
+            addr.offset.shift = Shift::Rrx;
+            let transfer = if multiple {
+                Operation::MultipleTransfer {
+                    base: Reg::new(1),
+                    registers: 0xc,
+                    increment: true,
+                    before: false,
+                    write_back: true,
+                    load,
+                }
+            } else if load {
+                Operation::Load {
+                    destination: Reg::new(2),
+                    address: addr,
+                    width: Width::Word,
+                    signed: false,
+                }
+            } else {
+                Operation::Store {
+                    value: Value::Register(Reg::new(2)),
+                    address: addr,
+                    width: Width::Word,
+                }
+            };
+            let alu = |op, rd| Operation::Alu {
+                op,
+                destination: Some(Reg::new(rd)),
+                left: Value::Register(Reg::new(0)),
+                right: Operand {
+                    value: Value::Immediate(1),
+                    ..address(1).offset
+                },
+                set_flags: true,
+            };
+            let instructions = [
+                (Condition::Always, alu(AluOp::Sub, before)),
+                (Condition::Eq, transfer),
+                (Condition::Always, alu(AluOp::Add, after)),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(i, (condition, operation))| Instruction {
+                pc: MemoryAddress::new(0x1000 + i as u32 * 4),
+                size: 4,
+                condition,
+                operation,
+            })
+            .collect();
+            builder.add_region(&mut RegionIr {
+                entry: RegionKey {
+                    thumb: false,
+                    ..low_body.entry
+                },
+                blocks: vec![BasicBlock { instructions }],
+            });
+        }
         let bytes: Vec<u8> = builder.assemble().unwrap().into_iter().flatten().collect();
         let mut node = Command::new("node")
+            .env("AOT_HANDOFF_SLOT", std::format!("{handoff_slot}"))
             .env("AOT_RETRY_SLOT", std::format!("{retry_slot}"))
             .args([
                 "-e",
@@ -2299,6 +2363,69 @@ for (const failure of ['pages', 'resolve', 'page_switch', null]) for (const star
     assert.equal(pages, 1);
     assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), failure === 'pages' ? 0 : failure === 'page_switch' ? (start === 0x1000 ? 42 : 0) : 43);
     if (failure === 'page_switch') assert.equal(new DataView(memory.buffer).getUint32(0x23000, true), 43);
+}
+// SUBS, conditional transfer, ADDS. The interpreter retries
+// only the transfer. Its budget may expire before the unconditional ADDS.
+let handoffSlot = Number(process.env.AOT_HANDOFF_SLOT);
+for (const [multiple, load, before, after] of [[false,false,5,5], [false,true,2,5], [true,false,7,7], [true,true,13,13]]) {
+    const slot = handoffSlot++;
+    for (const scenario of ['mapped', 'unaligned', 'missing', 'condition-false']) {
+        const memory = new WebAssembly.Memory({initial: 3});
+        const table = directory(memory, [[0, 65536], ...(scenario === 'missing' ? [] : [[1, 131072]])]);
+        const frame = new Uint32Array(memory.buffer, 0, 20);
+        const address = (multiple ? 0xfffc : 0x10000) + Number(scenario === 'unaligned');
+        const r0 = scenario === 'condition-false' ? 2 : 1;
+        frame[0] = r0; frame[1] = multiple ? address : (address + 0x80000000) >>> 0;
+        frame[2] = 0x33557799; frame[3] = 0xaabbccdd; frame[after] = 99;
+        frame[15] = 0x1000; frame[16] = 0x9000001f; frame[17] = 0x100c;
+        const data = new Uint32Array(memory.buffer, 65536 + (address & ~3), multiple ? 2 : 1);
+        data.set(multiple ? [0x12345678, 0x87654321] : [0x12345678]);
+        const expected = Array.from(frame.slice(0, 18)), expectedData = Array.from(data);
+        expected[before] = r0 - 1;
+        const transfer = (regs, words) => {
+            for (let i = 0; i < words.length; ++i) {
+                if (load) {
+                    const bits = (address & 3) * 8;
+                    regs[2 + i] = ((words[i] >>> bits) | (words[i] << (32 - bits))) >>> 0;
+                } else words[i] = regs[2 + i];
+            }
+            if (multiple) regs[1] += 8;
+        };
+        const dispatch = new WebAssembly.Instance(module, {wie: {
+            memory, pages() { return table; }, resolve() { return -1; },
+            word_range(_, base, words) {
+                assert.equal(base, address); assert.equal(words, 2);
+                if (scenario !== 'mapped') return 0n;
+                frame[19] = 4;
+                return BigInt(65536 + base) | (131072n << 32n);
+            },
+        }}).exports.dispatch;
+        const exit = dispatch(0, 1, slot);
+        if (scenario === 'missing' || scenario === 'unaligned') {
+            assert.equal(exit, 4); assert.equal(frame[15], 0x1004);
+            if (multiple) assert.equal(frame[before], r0 - 1); // SP and R7 are sampled at a yield.
+            assert.ok(frame[16] & 0x40000000); // EQ is re-evaluated by the interpreter.
+            if (!multiple) assert.equal((frame[1] + ((frame[16] & 0x20000000) ? 0x80000000 : 0)) >>> 0, address);
+            assert.deepEqual(Array.from(data), expectedData);
+            // An inaccessible page faults during replay. No compiled transfer or writeback ran.
+            if (scenario === 'missing') {
+                assert.deepEqual(Array.from(frame.slice(1, 4)), expected.slice(1, 4));
+                continue;
+            }
+            transfer(frame, data);
+            frame[15] += 4;
+            // Resume in a fresh instance with only the saved frame and guest memory.
+            const resumed = new WebAssembly.Instance(module, {wie: {memory,
+                pages() { throw Error('unexpected pages'); }, word_range() { throw Error('unexpected range'); },
+                resolve() { return -1; },
+            }}).exports.dispatch;
+            assert.equal(resumed(0, 1, slot), 3);
+        } else assert.equal(exit, 3);
+        if (r0 === 1) transfer(expected, expectedData);
+        expected[after] = r0 + 1; expected[15] = expected[17]; expected[16] = 0x1f;
+        assert.deepEqual(Array.from(frame.slice(0, 18)), expected);
+        assert.deepEqual(Array.from(data), expectedData);
+    }
 }
 for (const slot of [20, 21]) for (const outcome of ['throw', 'decline', 0x2000, 0x2001]) {
     const memory = new WebAssembly.Memory({initial: 2});
