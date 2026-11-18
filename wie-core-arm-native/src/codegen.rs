@@ -1,4 +1,4 @@
-use alloc::{collections::BTreeMap, format, vec, vec::Vec};
+use alloc::{collections::BTreeMap, format};
 use core::mem::{offset_of, size_of, swap};
 
 use cranelift_codegen::{
@@ -15,72 +15,6 @@ use wie_core_arm_aot::{
 use wie_util::{Result, WieError};
 
 mod memory;
-
-fn live_flag_updates(instructions: &[Instruction]) -> Vec<bool> {
-    let mut updates = vec![true; instructions.len()];
-    let mut live = 0xf;
-    let mut next_pc = None;
-    for (instruction, update) in instructions.iter().zip(&mut updates).rev() {
-        if next_pc != Some(instruction.pc.get().wrapping_add(u32::from(instruction.size))) || instruction.operation.writes_pc() {
-            live = 0xf;
-        }
-        next_pc = Some(instruction.pc.get());
-        let (written, killed, read) = match &instruction.operation {
-            Operation::Alu { op, right, set_flags, .. } => {
-                let carry_input = matches!(op, AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry) || right.shift == Shift::Rrx;
-                let (written, killed) = if !set_flags {
-                    (0, 0)
-                } else if matches!(
-                    op,
-                    AluOp::Add | AluOp::Sub | AluOp::ReverseSub | AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry
-                ) {
-                    (0xf, 0xf)
-                } else if matches!(op, AluOp::Multiply | AluOp::CountLeadingZeros) {
-                    (0xc, 0xc)
-                } else if right.shift == Shift::Rrx {
-                    (0xe, 0xe)
-                } else {
-                    match right.amount {
-                        ShiftAmount::Immediate(0) => (0xc, 0xc),
-                        ShiftAmount::Immediate(_) => (0xe, 0xe),
-                        // A zero register shift preserves carry instead of overwriting it.
-                        ShiftAmount::Register(_) => (0xe, 0xc),
-                    }
-                };
-                (written, killed, if carry_input { 0x2 } else { 0 })
-            }
-            Operation::MultiplyAccumulate { set_flags, .. } | Operation::MultiplyLong { set_flags, .. } => {
-                let written = if *set_flags { 0xc } else { 0 };
-                (written, written, 0)
-            }
-            Operation::Load { address, .. } | Operation::Store { address, .. } | Operation::DoubleTransfer { address, .. } => {
-                (0, 0, if address.offset.shift == Shift::Rrx { 0x2 } else { 0 })
-            }
-            Operation::MultipleTransfer { .. } | Operation::Swap { .. } | Operation::Nop => (0, 0, 0),
-            // Normal exits and CPSR accesses observe flags; guest memory faults are terminal.
-            _ => {
-                live = 0xf;
-                (0, 0, 0)
-            }
-        };
-        *update = written & live != 0;
-        if instruction.condition == Condition::Always {
-            live &= !killed;
-        }
-        live |= read
-            | match instruction.condition {
-                Condition::Eq | Condition::Ne => 0x4,
-                Condition::Cs | Condition::Cc => 0x2,
-                Condition::Mi | Condition::Pl => 0x8,
-                Condition::Vs | Condition::Vc => 0x1,
-                Condition::Hi | Condition::Ls => 0x6,
-                Condition::Ge | Condition::Lt => 0x9,
-                Condition::Gt | Condition::Le => 0xd,
-                Condition::Always => 0,
-            };
-    }
-    updates
-}
 
 pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context: &mut FunctionBuilderContext, isa: &dyn TargetIsa) -> Result<()> {
     // The IR is public input: reject out-of-frame registers before creating native accesses.
@@ -226,7 +160,7 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context:
     for (instruction, flags_live) in ir
         .blocks
         .iter()
-        .flat_map(|block| block.instructions.iter().zip(live_flag_updates(&block.instructions)))
+        .flat_map(|block| block.instructions.iter().zip(block.live_flag_updates()))
     {
         emitter.pc = instruction.pc.get();
         emitter.builder.switch_to_block(emitter.entries[&emitter.pc]);
@@ -245,7 +179,7 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context:
         } else {
             None
         };
-        let next = emitter.operation(instruction, flags_live);
+        let next = emitter.operation(instruction, flags_live != 0);
         let fixed = match &instruction.operation {
             // Internal edges preserve the entry mode; control-field writes must recheck it.
             Operation::WriteCpsr { mask, .. } if mask & 0x0100_003f != 0 => None,

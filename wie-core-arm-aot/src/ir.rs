@@ -1,5 +1,7 @@
 use alloc::vec::Vec;
 
+mod analysis;
+
 use crate::RegionKey;
 
 #[derive(PartialEq)]
@@ -226,6 +228,13 @@ pub enum Operation {
 }
 
 impl Operation {
+    pub fn accesses_memory(&self) -> bool {
+        matches!(
+            self,
+            Self::Load { .. } | Self::Store { .. } | Self::DoubleTransfer { .. } | Self::MultipleTransfer { .. } | Self::Swap { .. }
+        )
+    }
+
     pub fn writes_pc(&self) -> bool {
         match self {
             Self::Branch { .. }

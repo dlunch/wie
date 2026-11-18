@@ -153,7 +153,9 @@ pub trait CompiledExecutor: Send {
     fn prepare(&mut self, request: CompileRequest) -> PreparationFuture;
     /// Releases a compiled region; a shared module remains alive until its last region is released.
     fn release(&mut self, handle: CompiledHandle);
-    /// Resumable exits and `Err` publish guest state and the next PC in `frame`.
+    /// Resumable exits and `Err` publish the next PC and live guest state in `frame`.
+    /// A memory handoff retries the same instruction. Even if its interpreter step yields,
+    /// flags overwritten before any observer reads them need not be reconstructed.
     /// `GuestFault` is terminal: report its PC and address without reconstructing flags or partial-instruction effects.
     /// On `Err`, discard this executor and resume in the interpreter without replaying completed writes.
     /// Fallible host calls must fail before guest side effects; arbitrary code or memory corruption is not resumable.
