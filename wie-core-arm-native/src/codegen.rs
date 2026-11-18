@@ -16,7 +16,7 @@ use wie_util::{Result, WieError};
 
 mod memory;
 
-pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context: &mut FunctionBuilderContext, isa: &dyn TargetIsa) -> Result<()> {
+pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_context: &mut FunctionBuilderContext, isa: &dyn TargetIsa) -> Result<()> {
     // The IR is public input: reject out-of-frame registers before creating native accesses.
     let register = |register: &Reg| {
         if register.index() > 15 {
@@ -115,6 +115,9 @@ pub(crate) fn emit_region(ir: &RegionIr, context: &mut Context, builder_context:
             }
             Operation::Nop => {}
         }
+    }
+    for block in &mut ir.blocks {
+        block.eliminate_dead_alu_stores();
     }
     let mut builder = FunctionBuilder::new(&mut context.func, builder_context);
     let entry = builder.create_block();
@@ -516,10 +519,10 @@ impl Emitter<'_> {
                 if destination.is_none() && !set_flags {
                     return None;
                 }
-                if matches!(op, AluOp::Move | AluOp::Not)
-                    && let Some((value, carry)) = right.constant_value()
+                if (!set_flags || matches!(op, AluOp::Move | AluOp::Not))
+                    && let Some((right, carry)) = right.constant_value()
+                    && let Some(value) = op.constant_result(left, right)
                 {
-                    let value = if *op == AluOp::Not { !value } else { value };
                     if set_flags {
                         let flags = (value & 0x8000_0000) | (u32::from(value == 0) << 30) | (carry.unwrap_or(0) << 29);
                         let cpsr = self.cpsr();
@@ -862,7 +865,7 @@ mod tests {
             context.func.signature = Signature::new(isa.default_call_conv());
             context.func.signature.params.extend([AbiParam::new(isa.pointer_type()); 2]);
             context.func.signature.returns.push(AbiParam::new(types::I32));
-            emit_region(&ir, &mut context, &mut FunctionBuilderContext::new(), isa.as_ref()).unwrap();
+            emit_region(&mut ir, &mut context, &mut FunctionBuilderContext::new(), isa.as_ref()).unwrap();
             let blocks: Vec<_> = context.func.layout.blocks().collect();
             let mut backedge = false;
             let mut calls = 0;

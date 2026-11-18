@@ -302,7 +302,7 @@ fn compile_region(
     module: &mut JITModule,
     context: &mut Context,
     builder_context: &mut FunctionBuilderContext,
-    ir: RegionIr,
+    mut ir: RegionIr,
 ) -> Result<(FuncId, ManifestRegion)> {
     module.clear_context(context);
     let pointer = module.isa().pointer_type();
@@ -312,7 +312,7 @@ fn compile_region(
         .declare_anonymous_function(&context.func.signature)
         .map_err(|error| WieError::FatalError(format!("Declaring native ARM AOT region: {error}")))?;
     context.func.name = UserFuncName::user(0, function.as_u32());
-    codegen::emit_region(&ir, context, builder_context, module.isa())?;
+    codegen::emit_region(&mut ir, context, builder_context, module.isa())?;
     module
         .define_function(function, context)
         .map_err(|error| WieError::FatalError(format!("Compiling native ARM AOT region: {error}")))?;

@@ -104,6 +104,12 @@ impl Emitter<'_> {
     }
 
     fn memory_address(&mut self, address: &MemoryOperand) -> (Value, Value) {
+        if let Some((effective, indexed)) = address.constant_address() {
+            return (
+                self.builder.ins().iconst(types::I32, i64::from(effective)),
+                self.builder.ins().iconst(types::I32, i64::from(indexed)),
+            );
+        }
         let base = self.value(&address.base);
         let (offset, _) = self.operand(&address.offset, false);
         let writeback = if address.subtract {
