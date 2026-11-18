@@ -27,4 +27,3 @@ wie-midp = { workspace = true }
 jvm-bytecode = { workspace = true }
 
 test-utils = { workspace = true }
-wie-wipi-java = { workspace = true }

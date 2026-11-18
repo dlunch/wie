@@ -262,17 +262,15 @@ mod tests {
     use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestPlatform, TestPlatformEvent, run_jvm_test_with_system};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-    use wie_wipi_java::classes::org::kwis::msp::lcdui::Jlet;
+    use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
     use crate::classes::com::skt::m::Call;
 
     use super::Device;
 
-    async fn destroy_app(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Jlet>, unconditional: bool) -> JvmResult<()> {
-        let request: &[u8] = if unconditional { b"forced" } else { b"requested" };
-        context.system().platform().write_stdout(request);
-        let _: () = jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Jlet", "notifyDestroyed", "()V", ()).await?;
-        context.system().platform().write_stdout(b"cleaned");
+    async fn destroy_app(_: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<MIDlet>, unconditional: bool) -> JvmResult<()> {
+        assert!(unconditional);
+        context.system().platform().write_stdout(b"destroyed");
         Ok(())
     }
 
@@ -280,27 +278,23 @@ mod tests {
     fn device_operations_report_failures_and_browser_destroys_midlet_before_exit() {
         let events = Arc::new(AtomicU32::new(0));
         let recorded = events.clone();
-        let platform = TestPlatform::with_event_handler(move |event| match (recorded.fetch_add(1, Ordering::SeqCst), event) {
-            (0, TestPlatformEvent::Stdout(bytes)) => assert_eq!(bytes, b"forced"),
-            (3, TestPlatformEvent::Stdout(bytes)) => assert_eq!(bytes, b"requested"),
-            (1 | 4, TestPlatformEvent::Stdout(bytes)) => assert_eq!(bytes, b"cleaned"),
-            (2, TestPlatformEvent::Exit) => (),
-            _ => panic!("unexpected lifecycle event"),
+        let platform = TestPlatform::with_event_handler(move |event| match event {
+            TestPlatformEvent::Stdout(bytes) => {
+                assert_eq!(bytes, b"destroyed");
+                assert_eq!(recorded.fetch_add(1, Ordering::SeqCst), 0);
+            }
+            TestPlatformEvent::Exit => assert_eq!(recorded.fetch_add(1, Ordering::SeqCst), 1),
         });
-        let jlet_proto = WieJavaClassProto {
-            name: "test/BrowserJlet",
-            parent_class: Some("org/kwis/msp/lcdui/Jlet"),
+        let midlet_proto = WieJavaClassProto {
+            name: "test/BrowserMidlet",
+            parent_class: Some("javax/microedition/midlet/MIDlet"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("destroyApp", "(Z)V", destroy_app, MethodAccessFlags::PROTECTED)],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC,
         };
         run_jvm_test_with_system(
-            Box::new([
-                wie_midp::get_protos().into(),
-                wie_wipi_java::get_protos().into(),
-                [Device::as_proto(), Call::as_proto(), jlet_proto].into(),
-            ]),
+            Box::new([wie_midp::get_protos().into(), [Device::as_proto(), Call::as_proto(), midlet_proto].into()]),
             Box::new(platform),
             move |jvm, _system| async move {
                 let phone_number: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "01012345678").await?.into();
@@ -322,20 +316,15 @@ mod tests {
                     .await?;
                 assert!(!installed);
 
-                for browser_exit in [true, false] {
-                    jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await?;
-                    let jlet = jvm.instantiate_class("test/BrowserJlet").await?;
-                    let _: () = jvm.invoke_special(&jlet, "org/kwis/msp/lcdui/Jlet", "<init>", "()V", ()).await?;
-                    if browser_exit {
-                        let url = JavaLangString::from_rust_string(&jvm, "http://example.invalid/").await?;
-                        let _: () = jvm
-                            .invoke_static("com/skt/m/Device", "invokeWapBrowser", "(Ljava/lang/String;)V", (url,))
-                            .await?;
-                    } else {
-                        let _: () = jvm.invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "notifyDestroyed", "()V", ()).await?;
-                    }
-                }
-                assert_eq!(events.load(Ordering::SeqCst), 5);
+                let midlet = jvm.instantiate_class("test/BrowserMidlet").await?;
+                let _: () = jvm
+                    .invoke_special(&midlet, "javax/microedition/midlet/MIDlet", "<init>", "()V", ())
+                    .await?;
+                let url = JavaLangString::from_rust_string(&jvm, "http://example.invalid/").await?;
+                let _: () = jvm
+                    .invoke_static("com/skt/m/Device", "invokeWapBrowser", "(Ljava/lang/String;)V", (url,))
+                    .await?;
+                assert_eq!(events.load(Ordering::SeqCst), 2);
 
                 Ok(())
             },
