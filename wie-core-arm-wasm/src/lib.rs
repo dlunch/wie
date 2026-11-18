@@ -7,20 +7,16 @@ use wie_core_arm_aot::{CompileRegion, CompileRequest, ManifestRegion};
 
 mod codegen;
 
-const COPY_SIZE: usize = 64 * 1024;
-
 pub struct WasmArtifact {
-    pub bytes: Vec<u8>,
+    /// Module bytes in order, kept as separate chunks so hosts can release each one as they copy it out.
+    pub chunks: VecDeque<Vec<u8>>,
     pub manifest: Vec<ManifestRegion>,
 }
 
 pub struct Compiler {
     regions: Box<dyn Iterator<Item = Option<CompileRegion>> + Send>,
     builder: Option<codegen::ModuleBuilder>,
-    chunks: VecDeque<Vec<u8>>,
-    chunk_offset: usize,
     artifact: WasmArtifact,
-    complete: bool,
 }
 
 impl Compiler {
@@ -28,74 +24,48 @@ impl Compiler {
         Self {
             regions: Box::new(request.coalesced_regions()),
             builder: Some(codegen::ModuleBuilder::default()),
-            chunks: VecDeque::new(),
-            chunk_offset: 0,
             artifact: WasmArtifact {
-                bytes: Vec::new(),
+                chunks: VecDeque::new(),
                 manifest: Vec::new(),
             },
-            complete: false,
         }
     }
 
-    /// Consumes one bounded decoder step or assembles at most 64 KiB.
+    /// Consumes one bounded decoder step, or assembles the module once every region is emitted.
     pub fn step(&mut self) -> Result<bool, String> {
-        if self.complete {
+        let Some(builder) = &mut self.builder else {
             return Ok(true);
-        }
-        if let Some(builder) = &mut self.builder {
-            let region = match self.regions.next() {
-                Some(None) => return Ok(false),
-                region => region.flatten(),
-            };
-            if let Some(region) = region {
-                builder.add_region(&region.ir);
-                let mut instruction_pcs: Vec<_> = region
-                    .ir
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
-                    .map(|instruction| instruction.pc.get())
-                    .collect();
-                instruction_pcs.sort_unstable();
-                self.artifact.manifest.push(ManifestRegion {
-                    entry: region.ir.entry,
-                    instruction_pcs,
-                    code_ranges: region
-                        .ir
-                        .blocks
-                        .iter()
-                        .map(|block| {
-                            let last = block.instructions.last().unwrap();
-                            u64::from(block.instructions[0].pc.get())..u64::from(last.pc.get()) + u64::from(last.size)
-                        })
-                        .collect(),
-                });
-            } else {
-                let builder = core::mem::take(builder);
-                self.builder = None;
-                self.chunks = builder.begin_assembly(&mut self.artifact.bytes)?;
-            }
-            return Ok(false);
-        }
-
-        let mut remaining = COPY_SIZE;
-        while remaining != 0 {
-            let Some(chunk) = self.chunks.front() else {
-                self.complete = true;
-                return Ok(true);
-            };
-            let count = remaining.min(chunk.len() - self.chunk_offset);
-            self.artifact
-                .bytes
-                .extend_from_slice(&chunk[self.chunk_offset..self.chunk_offset + count]);
-            self.chunk_offset += count;
-            remaining -= count;
-            if self.chunk_offset == chunk.len() {
-                self.chunks.pop_front();
-                self.chunk_offset = 0;
-            }
-        }
+        };
+        let region = match self.regions.next() {
+            Some(None) => return Ok(false),
+            region => region.flatten(),
+        };
+        let Some(region) = region else {
+            self.artifact.chunks = self.builder.take().unwrap().assemble()?;
+            return Ok(true);
+        };
+        builder.add_region(&region.ir);
+        let mut instruction_pcs: Vec<_> = region
+            .ir
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .map(|instruction| instruction.pc.get())
+            .collect();
+        instruction_pcs.sort_unstable();
+        self.artifact.manifest.push(ManifestRegion {
+            entry: region.ir.entry,
+            instruction_pcs,
+            code_ranges: region
+                .ir
+                .blocks
+                .iter()
+                .map(|block| {
+                    let last = block.instructions.last().unwrap();
+                    u64::from(block.instructions[0].pc.get())..u64::from(last.pc.get()) + u64::from(last.size)
+                })
+                .collect(),
+        });
         Ok(false)
     }
 
@@ -174,17 +144,10 @@ mod tests {
             assert!(!compiler.step().unwrap());
             assert_eq!(calls.load(Ordering::Relaxed), step);
             assert_eq!(compiler.artifact.manifest.len(), emitted);
-            assert!(compiler.artifact.bytes.is_empty());
+            assert!(compiler.artifact.chunks.is_empty());
         }
-        loop {
-            let previous_size = compiler.artifact.bytes.len();
-            let complete = compiler.step().unwrap();
-            assert!(compiler.artifact.bytes.len() - previous_size <= COPY_SIZE);
-            assert_eq!(calls.load(Ordering::Relaxed), 5);
-            if complete {
-                break;
-            }
-        }
+        assert!(compiler.step().unwrap());
+        assert!(!compiler.artifact.chunks.is_empty());
         assert!(compiler.step().unwrap());
         assert_eq!(calls.load(Ordering::Relaxed), 5);
         let artifact = compiler.finish();

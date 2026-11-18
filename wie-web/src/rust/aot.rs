@@ -149,8 +149,13 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
         && !candidate.is_undefined()
     {
         let restored = async {
-            let record = candidate.dyn_into::<Uint8Array>()?.to_vec();
-            let (code, mut manifest) = cache::decode(&record, &cache_key).ok_or_else(|| JsValue::from_str("invalid cached artifact"))?;
+            // Copy only the header and manifest into Wasm memory; the code stays in the JS-owned record.
+            let record = candidate.dyn_into::<Uint8Array>()?;
+            let header = record.subarray(0, cache::HEADER_LENGTH as u32).to_vec();
+            let (code, manifest) =
+                cache::decode_header(&header, record.length() as usize, &cache_key).ok_or_else(|| JsValue::from_str("invalid cached artifact"))?;
+            let manifest = record.subarray(manifest.start as u32, manifest.end as u32).to_vec();
+            let mut manifest = manifest.as_slice();
             let mut owned = BTreeSet::new();
             let mut regions = Vec::new();
             while !manifest.is_empty() {
@@ -166,7 +171,8 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
                 });
             }
             let digest = Reflect::get(&lookup, &"digest".into())?;
-            let dispatcher = prepare_dispatcher(code, Some(&record), &key, &digest, regions.len(), false).await?;
+            let code = record.subarray(code.start as u32, code.end as u32);
+            let dispatcher = prepare_dispatcher(&code, &JsValue::UNDEFINED, &key, &digest, regions.len(), false).await?;
             Ok::<_, JsValue>((CompiledArtifact { regions }, dispatcher))
         }
         .await;
@@ -185,7 +191,7 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
             break;
         }
     }
-    let WasmArtifact { bytes, manifest } = compiler.finish();
+    let WasmArtifact { mut chunks, manifest } = compiler.finish();
     let mut serialized = Vec::new();
     let mut regions = Vec::with_capacity(manifest.len());
     for (slot, manifest) in manifest.into_iter().enumerate() {
@@ -196,8 +202,26 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
             handle: CompiledHandle { module, slot: slot as u32 },
         });
     }
-    let record = cache_key.and_then(|key| cache::encode(&key, &bytes, &serialized));
-    let dispatcher = prepare_dispatcher(&bytes, record.as_deref(), &key, &JsValue::UNDEFINED, regions.len(), module != 0).await?;
+    // Move the module chunk by chunk into one JS-owned buffer, laid out as the cache record when caching, so Wasm
+    // memory never holds a second full copy of the module.
+    let code_length = chunks.iter().map(Vec::len).sum::<usize>();
+    let header = cache_key.and_then(|key| cache::encode_header(&key, code_length, serialized.len()));
+    let code_start = header.as_ref().map_or(0, Vec::len);
+    let caching = header.is_some();
+    if let Some(header) = header {
+        chunks.push_front(header);
+        chunks.push_back(serialized);
+    }
+    let buffer = Uint8Array::new_with_length(chunks.iter().map(Vec::len).sum::<usize>() as u32);
+    let mut offset = 0;
+    while let Some(chunk) = chunks.pop_front() {
+        preparation_checkpoint(&mut group_started).await?;
+        buffer.subarray(offset, offset + chunk.len() as u32).copy_from(&chunk);
+        offset += chunk.len() as u32;
+    }
+    let code = buffer.subarray(code_start as u32, (code_start + code_length) as u32);
+    let record = if caching { buffer.into() } else { JsValue::UNDEFINED };
+    let dispatcher = prepare_dispatcher(&code, &record, &key, &JsValue::UNDEFINED, regions.len(), module != 0).await?;
     Ok((CompiledArtifact { regions }, dispatcher))
 }
 
@@ -210,8 +234,8 @@ async fn preparation_checkpoint(group_started: &mut f64) -> Result<(), JsValue> 
 }
 
 async fn prepare_dispatcher(
-    bytes: &[u8],
-    record: Option<&[u8]>,
+    bytes: &Uint8Array,
+    record: &JsValue,
     key: &JsValue,
     cached_digest: &JsValue,
     region_count: usize,
@@ -224,12 +248,9 @@ async fn prepare_dispatcher(
     });
     warmup.regs[15] = 0x1000;
     let imports = execution_imports()?;
-    // JS owns these bytes before an await can grow Wasm memory.
-    let bytes = Uint8Array::from(bytes);
-    let record = record.map(|record| JsValue::from(Uint8Array::from(record))).unwrap_or(JsValue::UNDEFINED);
     let promise = compile_arm(
-        &bytes,
-        &record,
+        bytes,
+        record,
         key,
         cached_digest,
         &imports,

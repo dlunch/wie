@@ -81,14 +81,15 @@ impl ModuleBuilder {
 
     fn push_body(&mut self, body: Function) {
         let body = body.into_raw_body();
-        let mut length = Vec::new();
-        (body.len() as u32).encode(&mut length);
-        self.code_size += length.len() + body.len();
-        self.bodies.push_back(length);
-        self.bodies.push_back(body);
+        // Bodies stay alive until the host copies the module out, so store each one exactly sized.
+        let mut chunk = Vec::with_capacity(5 + body.len());
+        (body.len() as u32).encode(&mut chunk);
+        chunk.extend_from_slice(&body);
+        self.code_size += chunk.len();
+        self.bodies.push_back(chunk);
     }
 
-    pub(crate) fn begin_assembly(mut self, output: &mut Vec<u8>) -> Result<VecDeque<Vec<u8>>, String> {
+    pub(crate) fn assemble(mut self) -> Result<VecDeque<Vec<u8>>, String> {
         let regions = self.functions.len() as u32 - 1;
         0_u32.encode(&mut self.functions);
         let mut exports = ExportSection::new();
@@ -177,17 +178,6 @@ impl ModuleBuilder {
             Ok::<_, String>(header)
         });
         let (functions_header, code_header) = (functions_header?, code_header?);
-        // Reserve once; subsequent assembly copies at most one chunk and never reallocates the output.
-        output.reserve_exact(
-            prefix.len()
-                + self.functions.len()
-                + export_bytes.len()
-                + self.code_size
-                + functions_header.len()
-                + code_header.len()
-                + table_bytes.len()
-                + element_bytes.len(),
-        );
         self.bodies.push_front(code_header);
         self.bodies.push_front(element_bytes);
         self.bodies.push_front(export_bytes);
@@ -1196,25 +1186,14 @@ mod tests {
         assert!(compiler.artifact.manifest.is_empty());
         assert!(!compiler.step().unwrap());
         assert!(compiler.artifact.manifest.is_empty());
-        let mut assembly_steps = 0;
-        loop {
-            let previous = compiler.artifact.bytes.len();
-            let complete = compiler.step().unwrap();
-            let copied = compiler.artifact.bytes.len() - previous;
-            assert!(copied <= 64 * 1024);
-            assembly_steps += usize::from(copied != 0);
-            if complete {
-                break;
-            }
-        }
-        assert!(assembly_steps > 8);
+        while !compiler.step().unwrap() {}
         let artifact = compiler.finish();
         assert_eq!(artifact.manifest.iter().filter(|region| !region.entry.thumb).count(), 8);
         assert_eq!(
             artifact.manifest.iter().map(|region| region.instruction_pcs.len()).sum::<usize>(),
             8 * 512
         );
-        assert!(artifact.bytes.len() > 512 * 1024);
+        assert!(artifact.chunks.iter().map(Vec::len).sum::<usize>() > 512 * 1024);
     }
 
     #[test]
@@ -1601,10 +1580,7 @@ mod tests {
                 }
             }
         }
-        let mut bytes = Vec::new();
-        for chunk in builder.begin_assembly(&mut bytes).unwrap() {
-            bytes.extend_from_slice(&chunk);
-        }
+        let bytes: Vec<u8> = builder.assemble().unwrap().into_iter().flatten().collect();
         let mut node = Command::new("node")
             .args([
                 "-e",
