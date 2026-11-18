@@ -134,7 +134,7 @@ mod tests {
             max_region_blocks: 512,
             regions: Box::new(core::iter::empty()),
         };
-        let module = crate::create_module().unwrap();
+        let module = crate::create_module(false).unwrap();
         let isa = module.0.as_ref().unwrap().isa();
         let original = key(isa, &input());
         assert_eq!(original, key(isa, &input()));

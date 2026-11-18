@@ -3,7 +3,7 @@ use core::mem::{offset_of, size_of, swap};
 
 use cranelift_codegen::{
     Context,
-    ir::{Block, InstBuilder, MemFlagsData, Type, Value, condcodes::IntCC, types},
+    ir::{Block, InstBuilder, MemFlagsData, SigRef, Type, Value, condcodes::IntCC, types},
     isa::TargetIsa,
 };
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch, Variable};
@@ -11,14 +11,21 @@ use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch, Variab
 use wie_core_arm_aot::{
     CompiledExit, RunFrame,
     ir::{
-        self, AluOp, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, RegisterUsage, Shift, ShiftAmount, Width,
+        self, AluOp, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionFlow, RegionIr, RegisterUsage, Shift,
+        ShiftAmount, Width,
     },
 };
 use wie_util::{Result, WieError};
 
 mod memory;
 
-pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_context: &mut FunctionBuilderContext, isa: &dyn TargetIsa) -> Result<()> {
+pub(crate) fn emit_region(
+    ir: &mut RegionIr,
+    flow: RegionFlow,
+    context: &mut Context,
+    builder_context: &mut FunctionBuilderContext,
+    isa: &dyn TargetIsa,
+) -> Result<()> {
     // The IR is public input: reject out-of-frame registers before creating native accesses.
     let register = |register: &Reg| {
         if register.index() > 15 {
@@ -127,6 +134,7 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
     builder.switch_to_block(entry);
     let frame = builder.block_params(entry)[0];
     let pages = builder.block_params(entry)[1];
+    let transfer = builder.block_params(entry)[2];
     let dispatch = builder.create_block();
     let fault = builder.create_block();
     builder.append_block_param(fault, types::I32);
@@ -141,9 +149,12 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
         registers: [GuestRegister::Frame; 16],
         translated: [None; 16],
         status: None,
+        exchange: None,
         builder,
         frame,
         pages,
+        transfer,
+        transfer_signature: None,
         ptr_type: isa.pointer_type(),
         thumb: ir.entry.thumb,
         pc: ir.entry.pc,
@@ -153,27 +164,13 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
         fault,
     };
     let mut usage = RegisterUsage::default();
-    let mut has_backedge = false;
-    let mut outgoing_branches = 0;
     for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
         usage.observe(&instruction.operation);
-        if instruction.operation.writes_pc() {
-            match &instruction.operation {
-                Operation::Branch {
-                    target: BranchTarget::Address(target),
-                    exchange: false,
-                    ..
-                } if emitter.entries.contains_key(&target.get()) => {
-                    has_backedge |= target.get() <= instruction.pc.get();
-                }
-                _ => outgoing_branches += 1,
-            }
-        }
     }
     // Every PC is an external entry. Carry mutable values across those joins for
     // loops with at most one outgoing branch; coalesced fragments otherwise pay for the
     // phi arguments on paths that leave before reusing the register.
-    let cache_loop = has_backedge && outgoing_branches <= 1;
+    let cache_loop = flow.has_backedge && flow.outgoing_branches <= 1;
     for index in 0..15 {
         let reads = usage.reads[index];
         let writes = usage.writes[index];
@@ -204,22 +201,31 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
     }
     let pc = emitter.load_frame(offset_of!(RunFrame, regs) + 15 * size_of::<u32>());
     let shift = if ir.entry.thumb { 1 } else { 2 };
-    let index = emitter.builder.ins().ushr_imm_s(pc, shift);
-    emitter.boundaries(pc, cpsr);
+    let origin = emitter.entries.first_key_value().map_or(0, |(&pc, _)| pc);
+    let offset = emitter.builder.ins().iadd_imm_s(pc, -i64::from(origin));
+    let index = emitter.builder.ins().ushr_imm_s(offset, shift);
+    emitter.boundaries(cpsr);
     let low = emitter.builder.ins().band_imm_s(pc, (1 << shift) - 1);
     let unaligned = emitter.builder.ins().icmp_imm_s(IntCC::NotEqual, low, 0);
     emitter.guard(unaligned);
     // Instruction-sized keys let Cranelift use dense jump tables for sequential code.
     let mut switch = Switch::new();
+    let mut previous = None;
     for (&pc, &block) in &emitter.entries {
-        switch.set_entry(u128::from(pc >> shift), block);
+        let slot = (pc - origin) >> shift;
+        if let Some(previous) = previous
+            && slot - previous <= 4
+        {
+            // A few default entries cost less than another range comparison and branch.
+            for hole in previous + 1..slot {
+                switch.set_entry(u128::from(hole), dispatch);
+            }
+        }
+        switch.set_entry(u128::from(slot), block);
+        previous = Some(slot);
     }
     switch.emit(&mut emitter.builder, index, dispatch);
-    for (instruction, flags_live) in ir
-        .blocks
-        .iter()
-        .flat_map(|block| block.instructions.iter().zip(block.live_flag_updates()))
-    {
+    for (instruction, flags_live) in ir.blocks.iter().flat_map(|block| &block.instructions).zip(flow.live_flag_updates) {
         emitter.pc = instruction.pc.get();
         emitter.builder.switch_to_block(emitter.entries[&emitter.pc]);
         if emitter.pc < 0x1000 {
@@ -238,17 +244,7 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
             None
         };
         let next = emitter.operation(instruction, flags_live);
-        let fixed = match &instruction.operation {
-            // Internal edges preserve the entry mode; control-field writes must recheck it.
-            Operation::WriteCpsr { mask, .. } if mask & 0x0100_003f != 0 => None,
-            Operation::Branch {
-                target: BranchTarget::Address(address),
-                exchange,
-                ..
-            } if !exchange || (address.get() & 1 != 0) == emitter.thumb => Some(address.get() & if emitter.thumb { !1 } else { !3 }),
-            _ if next.is_none() => Some(fallthrough),
-            _ => None,
-        };
+        let fixed = instruction.fixed_successor(emitter.thumb);
         if let Some(skip) = skipped {
             if next.is_some() || fixed != Some(fallthrough) {
                 emitter.commit(next, fixed, fallthrough);
@@ -261,6 +257,21 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
             emitter.commit(next, fixed, fallthrough);
         }
     }
+    if let Some(exchange) = emitter.exchange {
+        emitter.builder.switch_to_block(exchange);
+        let value = emitter.builder.block_params(exchange)[0];
+        let thumb = emitter.builder.ins().band_imm_s(value, 1);
+        let bit = emitter.builder.ins().ishl_imm_s(thumb, 5);
+        emitter.set_cpsr_bits(0x20, bit);
+        // ARM clears both address bits, Thumb preserves bit one.
+        let alignment_bit = emitter.builder.ins().ishl_imm_s(thumb, 1);
+        let mask = emitter.builder.ins().bor_imm_s(alignment_bit, -4);
+        let next = emitter.builder.ins().band(value, mask);
+        emitter.store_register(&Reg::PC, next);
+        emitter.builder.ins().jump(dispatch, &[]);
+    }
+    let publish = emitter.builder.create_block();
+    emitter.builder.append_block_param(publish, types::I32);
     for (block, exit) in [(dispatch, CompiledExit::Dispatch), (fault, CompiledExit::GuestFault)] {
         emitter.builder.switch_to_block(block);
         if exit == CompiledExit::GuestFault {
@@ -269,21 +280,22 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
             emitter.store_register(&Reg::PC, pc);
             emitter.store_frame(offset_of!(RunFrame, fault_address), address);
         }
-        // No generated instruction calls the host. Both pages of a split transfer
-        // are checked before it starts, so the fault edge still has the completed prefix.
-        for (index, register) in emitter.registers.into_iter().enumerate() {
-            if let GuestRegister::Local(var) = register {
-                let value = emitter.builder.use_var(var);
-                emitter.store_frame(offset_of!(RunFrame, regs) + index * size_of::<u32>(), value);
-            }
-        }
-        if emitter.status.is_some() {
-            let cpsr = emitter.cpsr();
-            emitter.store_frame(offset_of!(RunFrame, cpsr), cpsr);
-        }
         let reason = emitter.builder.ins().iconst(types::I32, exit as i64);
-        emitter.builder.ins().return_(&[reason]);
+        emitter.builder.ins().jump(publish, &[reason.into()]);
     }
+    emitter.builder.switch_to_block(publish);
+    for (index, register) in emitter.registers.into_iter().enumerate() {
+        if let GuestRegister::Local(var) = register {
+            let value = emitter.builder.use_var(var);
+            emitter.store_frame(offset_of!(RunFrame, regs) + index * size_of::<u32>(), value);
+        }
+    }
+    if emitter.status.is_some() {
+        let cpsr = emitter.cpsr();
+        emitter.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+    }
+    let reason = emitter.builder.block_params(publish)[0];
+    emitter.builder.ins().return_(&[reason]);
     emitter.builder.seal_all_blocks();
     emitter.builder.finalize(isa.frontend_config());
     Ok(())
@@ -296,6 +308,11 @@ enum GuestRegister {
     Local(Variable),
 }
 
+enum NextPc {
+    Direct(Value),
+    Exchange(Value),
+}
+
 struct StatusVariables {
     control: Variable,
     nzcv: [Variable; 4],
@@ -306,8 +323,11 @@ struct Emitter<'a> {
     registers: [GuestRegister; 16],
     translated: [Option<(Value, Value)>; 16],
     status: Option<StatusVariables>,
+    exchange: Option<Block>,
     frame: Value,
     pages: Value,
+    transfer: Value,
+    transfer_signature: Option<SigRef>,
     ptr_type: Type,
     thumb: bool,
     pc: u32,
@@ -413,15 +433,13 @@ impl Emitter<'_> {
         self.builder.switch_to_block(next);
     }
 
-    fn boundaries(&mut self, pc: Value, cpsr: Value) {
-        let low = self.builder.ins().icmp_imm_s(IntCC::UnsignedLessThan, pc, 0x1000);
-        self.guard(low);
+    fn boundaries(&mut self, cpsr: Value) {
         let mode = self.builder.ins().band_imm_s(cpsr, 0x0100_003f);
         let changed = self.builder.ins().icmp_imm_s(IntCC::NotEqual, mode, i64::from(self.mode));
         self.guard(changed);
     }
 
-    fn commit(&mut self, next: Option<Value>, fixed: Option<u32>, fallthrough: u32) {
+    fn commit(&mut self, next: Option<NextPc>, fixed: Option<u32>, fallthrough: u32) {
         // Internal edges need no published PC.
         if let Some(pc) = fixed {
             let target = self.entries.get(&pc).copied().filter(|_| pc >= 0x1000);
@@ -431,23 +449,29 @@ impl Emitter<'_> {
             }
             self.builder.ins().jump(target.unwrap_or(self.dispatch), &[]);
         } else {
-            let next = next.unwrap_or_else(|| self.builder.ins().iconst(types::I32, i64::from(fallthrough)));
+            let next = match next {
+                Some(NextPc::Exchange(value)) => {
+                    let exit = *self.exchange.get_or_insert_with(|| {
+                        let block = self.builder.create_block();
+                        self.builder.append_block_param(block, types::I32);
+                        block
+                    });
+                    self.builder.ins().jump(exit, &[value.into()]);
+                    return;
+                }
+                Some(NextPc::Direct(value)) => value,
+                None => self.builder.ins().iconst(types::I32, i64::from(fallthrough)),
+            };
             self.store_register(&Reg::PC, next);
             self.builder.ins().jump(self.dispatch, &[]);
         }
     }
 
-    fn pc_write(&mut self, value: Value, exchange: bool) -> Value {
+    fn pc_write(&mut self, value: Value, exchange: bool) -> NextPc {
         if exchange {
-            let thumb = self.builder.ins().band_imm_s(value, 1);
-            let bit = self.builder.ins().ishl_imm_s(thumb, 5);
-            self.set_cpsr_bits(0x20, bit);
-            let thumb_mask = self.builder.ins().iconst(types::I32, -2);
-            let arm_mask = self.builder.ins().iconst(types::I32, -4);
-            let mask = self.builder.ins().select(thumb, thumb_mask, arm_mask);
-            self.builder.ins().band(value, mask)
+            NextPc::Exchange(value)
         } else {
-            self.builder.ins().band_imm_s(value, if self.thumb { -2 } else { -4 })
+            NextPc::Direct(self.builder.ins().band_imm_s(value, if self.thumb { -2 } else { -4 }))
         }
     }
 
@@ -573,7 +597,13 @@ impl Emitter<'_> {
     }
 
     fn set_flags(&mut self, live: u8, result: Value, carry: Option<Value>, overflow: Option<Value>) {
-        let negative = (live & 8 != 0).then(|| {
+        let mut flags = None;
+        // In the packed CPSR the 32-bit sign is already in its destination bit.
+        let packed_sign = self.status.is_none() && self.builder.func.dfg.value_type(result) == types::I32;
+        if packed_sign && live & 8 != 0 {
+            flags = Some(self.builder.ins().band_imm_s(result, i64::from(i32::MIN)));
+        }
+        let negative = (live & 8 != 0 && !packed_sign).then(|| {
             if self.builder.func.dfg.value_type(result) == types::I64 {
                 let bit = self.builder.ins().ushr_imm_s(result, 63);
                 self.builder.ins().ireduce(types::I32, bit)
@@ -585,7 +615,6 @@ impl Emitter<'_> {
             let bit = self.builder.ins().icmp_imm_s(IntCC::Equal, result, 0);
             self.builder.ins().uextend(types::I32, bit)
         });
-        let mut flags = None;
         for (index, value) in [overflow, carry, zero, negative].into_iter().enumerate() {
             if let Some(value) = value {
                 if let Some(status) = &self.status {
@@ -613,7 +642,12 @@ impl Emitter<'_> {
                     Condition::Vs | Condition::Vc => 28,
                     _ => 31,
                 };
-                self.flag(bit)
+                if self.status.is_some() {
+                    self.flag(bit)
+                } else {
+                    let cpsr = self.load_frame(offset_of!(RunFrame, cpsr));
+                    self.builder.ins().band_imm_s(cpsr, 1 << bit)
+                }
             }
             Condition::Hi | Condition::Ls => {
                 let cpsr = self.cpsr();
@@ -642,7 +676,7 @@ impl Emitter<'_> {
         }
     }
 
-    fn operation(&mut self, instruction: &Instruction, flags_live: u8) -> Option<Value> {
+    fn operation(&mut self, instruction: &Instruction, flags_live: u8) -> Option<NextPc> {
         match &instruction.operation {
             Operation::Alu {
                 op,
@@ -836,9 +870,11 @@ impl Emitter<'_> {
                             let bit = self.builder.ins().iconst(types::I32, if thumb { 0x20 } else { 0 });
                             self.set_cpsr_bits(0x20, bit);
                         }
-                        self.builder
-                            .ins()
-                            .iconst(types::I32, i64::from(address.get() & if thumb { !1 } else { !3 }))
+                        NextPc::Direct(
+                            self.builder
+                                .ins()
+                                .iconst(types::I32, i64::from(address.get() & if thumb { !1 } else { !3 })),
+                        )
                     }
                     BranchTarget::Register(register) => {
                         let target = self.register(register);
@@ -1009,9 +1045,11 @@ mod tests {
                 .unwrap();
             let mut context = Context::new();
             context.func.signature = Signature::new(isa.default_call_conv());
-            context.func.signature.params.extend([AbiParam::new(isa.pointer_type()); 2]);
+            context.func.signature.params.extend([AbiParam::new(isa.pointer_type()); 3]);
             context.func.signature.returns.push(AbiParam::new(types::I32));
-            emit_region(&mut ir, &mut context, &mut FunctionBuilderContext::new(), isa.as_ref()).unwrap();
+            let flow = ir.control_flow();
+            assert_eq!(flow.live_flag_updates[..5], [2, 0, 0, 0, 0]);
+            emit_region(&mut ir, flow, &mut context, &mut FunctionBuilderContext::new(), isa.as_ref()).unwrap();
             let blocks: Vec<_> = context.func.layout.blocks().collect();
             let mut backedge = false;
             let mut calls = 0;
@@ -1029,7 +1067,7 @@ mod tests {
             }
             assert!(backedge, "fixed guest backedge must stay in native CFG");
             assert_eq!(calls, 0, "persistent native code must not call process-specific flag helpers");
-            assert_eq!(arithmetic_flags, 3, "the carry-only add must not compute signed overflow");
+            assert_eq!(arithmetic_flags, 2, "only the two externally visible arithmetic results need overflow");
             let compiled = context.compile(isa.as_ref(), &mut ControlPlane::default()).unwrap();
             assert!(!compiled.code_buffer().is_empty());
             assert!(

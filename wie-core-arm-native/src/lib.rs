@@ -19,12 +19,13 @@ use cranelift_frontend::FunctionBuilderContext;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{FuncId, Module, default_libcall_names};
 use futures::channel::oneshot;
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use spin::Mutex;
 
 use wie_core_arm_aot::{
     CodeImage, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, ManifestRegion,
-    MemoryPage, PreparationFuture, RunFrame, ir::RegionIr,
+    MemoryPage, PreparationFuture, RunFrame,
+    ir::{RegionFlow, RegionIr},
 };
 use wie_util::{Result, WieError};
 
@@ -33,7 +34,33 @@ mod codegen;
 
 pub use cache::NativeCache;
 
-type RegionFn = unsafe extern "C" fn(*mut RunFrame, *mut MemoryPage) -> u32;
+type WordTransfer = extern "C" fn(&mut RunFrame, &mut [MemoryPage; 0x10000], u32, u32, u32) -> u64;
+type RegionFn = unsafe extern "C" fn(*mut RunFrame, *mut MemoryPage, WordTransfer) -> u32;
+
+extern "C" fn transfer_words(frame: &mut RunFrame, pages: &mut [MemoryPage; 0x10000], address: u32, descriptor: u32, store_pc: u32) -> u64 {
+    let mut registers = descriptor as u16;
+    let load = descriptor >> 16 != 0;
+    let (first, second) = match MemoryPage::transfer_range(pages, address, registers.count_ones()) {
+        Ok(range) => range,
+        Err(address) => return (1 << 32) | u64::from(address),
+    };
+    let mut target = 0;
+    for word in first.as_chunks_mut::<4>().0.iter_mut().chain(second.as_chunks_mut::<4>().0) {
+        let reg = registers.trailing_zeros() as usize;
+        registers &= registers - 1;
+        if load {
+            let value = u32::from_le_bytes(*word);
+            if reg == 15 {
+                target = value;
+            } else {
+                frame.regs[reg] = value;
+            }
+        } else {
+            *word = (if reg == 15 { store_pc } else { frame.regs[reg] }).to_le_bytes();
+        }
+    }
+    u64::from(target)
+}
 
 struct ModuleOwner(Option<JITModule>);
 
@@ -93,7 +120,7 @@ impl CompiledExecutor for NativeExecutor {
         rayon::spawn(move || {
             let prepared = (|| -> Result<_> {
                 let cache = if let Some(mut cache) = cache {
-                    let module = create_module()?;
+                    let module = create_module(false)?;
                     let key = cache::key(module.0.as_ref().unwrap().isa(), &request);
                     match cache.load(&key) {
                         Ok(Some(bytes)) => match restore(module, &bytes, &key, &request.images) {
@@ -183,7 +210,7 @@ impl CompiledExecutor for NativeExecutor {
                 .ok_or_else(|| WieError::FatalError("Native ARM AOT region is unavailable".into()))?;
             // Finalized code has this exact ABI; both borrows and the executable owner
             // remain live throughout the synchronous call; generated code cannot reenter execution or remap pages.
-            let exit = unsafe { entry(frame, access.pages().as_mut_ptr()) };
+            let exit = unsafe { entry(frame, access.pages().as_mut_ptr(), transfer_words) };
             match exit {
                 0 => {}
                 6 => return Ok(CompiledExit::GuestFault),
@@ -201,32 +228,37 @@ impl CompiledExecutor for NativeExecutor {
     }
 }
 
-fn create_module() -> Result<ModuleOwner> {
-    let builder = JITBuilder::with_flags(&[("enable_verifier", "false")], default_libcall_names())
+fn create_module(optimize: bool) -> Result<ModuleOwner> {
+    let level = if optimize { "speed_and_size" } else { "none" };
+    let builder = JITBuilder::with_flags(&[("enable_verifier", "false"), ("opt_level", level)], default_libcall_names())
         .map_err(|error| WieError::FatalError(format!("Creating native ARM AOT compiler: {error}")))?;
     Ok(ModuleOwner(Some(JITModule::new(builder))))
 }
 
 fn compile(request: CompileRequest, cache: bool) -> Result<Vec<(ModuleOwner, Vec<PendingRegion>)>> {
-    request
+    let batches: Vec<_> = request
         .coalesced_regions()
         .flatten()
         .enumerate()
         .par_bridge()
         .try_fold(
-            || None,
-            |compiler: Option<Compiler>, (index, region)| -> Result<_> {
-                let mut compiler = match compiler {
+            || [None, None],
+            |mut compilers: [Option<Compiler>; 2], (index, region)| -> Result<_> {
+                // Optimize repeated guest work. Straight-line fragments use Cranelift's faster preparation path.
+                let flow = region.ir.control_flow();
+                let optimize = flow.has_backedge;
+                let slot = &mut compilers[usize::from(optimize)];
+                let compiler = match slot {
                     Some(compiler) => compiler,
                     None => {
-                        let module = create_module()?;
+                        let module = create_module(optimize)?;
                         let context = module.0.as_ref().unwrap().make_context();
-                        Compiler {
+                        slot.insert(Compiler {
                             module,
                             context,
                             builder_context: FunctionBuilderContext::new(),
                             regions: Vec::new(),
-                        }
+                        })
                     }
                 };
                 let (function, manifest) = compile_region(
@@ -234,6 +266,7 @@ fn compile(request: CompileRequest, cache: bool) -> Result<Vec<(ModuleOwner, Vec
                     &mut compiler.context,
                     &mut compiler.builder_context,
                     region.ir,
+                    flow,
                 )?;
                 let code = if cache {
                     let code = compiler.context.compiled_code().unwrap();
@@ -250,12 +283,14 @@ fn compile(request: CompileRequest, cache: bool) -> Result<Vec<(ModuleOwner, Vec
                     manifest,
                     code,
                 });
-                Ok(Some(compiler))
+                Ok(compilers)
             },
         )
-        .filter_map(|compiler| compiler.transpose())
-        .map(|compiler| -> Result<_> {
-            let mut compiler = compiler?;
+        .collect::<Result<_>>()?;
+    batches
+        .into_par_iter()
+        .flat_map_iter(|batch| batch.into_iter().flatten())
+        .map(|mut compiler| -> Result<_> {
             compiler
                 .module
                 .0
@@ -275,7 +310,7 @@ fn restore(mut owner: ModuleOwner, bytes: &[u8], key: &[u8; 32], images: &[CodeI
     }
     let module = owner.0.as_mut().unwrap();
     let mut signature = module.make_signature();
-    signature.params.extend([AbiParam::new(module.isa().pointer_type()); 2]);
+    signature.params.extend([AbiParam::new(module.isa().pointer_type()); 3]);
     signature.returns.push(AbiParam::new(types::I32));
     let mut regions = Vec::with_capacity(cached.len());
     for (index, region) in cached.into_iter().enumerate() {
@@ -303,16 +338,17 @@ fn compile_region(
     context: &mut Context,
     builder_context: &mut FunctionBuilderContext,
     mut ir: RegionIr,
+    flow: RegionFlow,
 ) -> Result<(FuncId, ManifestRegion)> {
     module.clear_context(context);
     let pointer = module.isa().pointer_type();
-    context.func.signature.params.extend([AbiParam::new(pointer), AbiParam::new(pointer)]);
+    context.func.signature.params.extend([AbiParam::new(pointer); 3]);
     context.func.signature.returns.push(AbiParam::new(types::I32));
     let function = module
         .declare_anonymous_function(&context.func.signature)
         .map_err(|error| WieError::FatalError(format!("Declaring native ARM AOT region: {error}")))?;
     context.func.name = UserFuncName::user(0, function.as_u32());
-    codegen::emit_region(&mut ir, context, builder_context, module.isa())?;
+    codegen::emit_region(&mut ir, flow, context, builder_context, module.isa())?;
     module
         .define_function(function, context)
         .map_err(|error| WieError::FatalError(format!("Compiling native ARM AOT region: {error}")))?;
@@ -425,7 +461,7 @@ mod tests {
         }
 
         fn word_range(&mut self, _: u32, _: u32) -> Option<(&mut [u8], &mut [u8])> {
-            panic!("native memory operations must not call host helpers")
+            panic!("native transfers use the borrowed page directory")
         }
     }
 
@@ -464,10 +500,16 @@ mod tests {
     fn persistent_preparation_restores_without_decoding_and_rebuilds_rejected_entries() {
         let bytes: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
         let calls = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
-        let images: Arc<[_]> = [CodeImage {
-            address: 0x1000,
-            bytes: vec![0; 12],
-        }]
+        let images: Arc<[_]> = [
+            CodeImage {
+                address: 0x1000,
+                bytes: vec![0; 16],
+            },
+            CodeImage {
+                address: 0x8000,
+                bytes: vec![0; 4],
+            },
+        ]
         .into();
         for attempt in 0..5 {
             let hit = attempt == 1;
@@ -482,7 +524,7 @@ mod tests {
                 fail: attempt == 4,
             };
             let mut executor = NativeExecutor::new(Some(Box::new(cache)));
-            let mut instructions = region(0x1000, &[&[(0x1000, 4), (0x1004, 4), (0x1008, 4)]]);
+            let mut instructions = region(0x1000, &[&[(0x1000, 4), (0x1004, 4), (0x1008, 4), (0x100c, 4)]]);
             for (instruction, operation) in instructions.ir.blocks[0].instructions.iter_mut().zip([
                 Operation::Alu {
                     op: AluOp::Add,
@@ -517,11 +559,19 @@ mod tests {
                     },
                     set_flags: true,
                 },
+                Operation::MultipleTransfer {
+                    base: Reg::new(4),
+                    registers: 0x8005,
+                    increment: true,
+                    before: false,
+                    write_back: true,
+                    load: false,
+                },
             ]) {
                 instruction.operation = operation;
             }
             let mut input = request(
-                [Some(instructions)]
+                [Some(region(0x8000, &[&[(0x8000, 4)]])), Some(instructions)]
                     .into_iter()
                     .inspect(move |_| assert!(!hit, "persistent hit must not advance the decoder")),
             );
@@ -530,10 +580,11 @@ mod tests {
                 input.max_region_blocks += 1;
             }
             let artifact = block_on(executor.prepare(input)).unwrap();
-            assert_eq!(artifact.regions.len(), 1);
-            assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x1000, 0x1004, 0x1008]);
-            assert_eq!(artifact.regions[0].manifest.code_ranges.len(), 1);
-            assert_eq!(artifact.regions[0].manifest.code_ranges[0], 0x1000..0x100c);
+            assert_eq!(artifact.regions.len(), 2);
+            assert_eq!(artifact.regions[0].manifest.instruction_pcs, [0x8000]);
+            assert_eq!(artifact.regions[1].manifest.instruction_pcs, [0x1000, 0x1004, 0x1008, 0x100c]);
+            assert_eq!(artifact.regions[1].manifest.code_ranges.len(), 1);
+            assert_eq!(artifact.regions[1].manifest.code_ranges[0], 0x1000..0x1010);
             let mut access = Access {
                 pages: (0..0x10000)
                     .map(|_| MemoryPage::default())
@@ -550,12 +601,24 @@ mod tests {
             };
             frame.regs[15] = 0x1000;
             frame.regs[0] = u32::MAX;
-            let handle = artifact.regions[0].handle;
+            let handle = artifact.regions[1].handle;
+            frame.regs[4] = 0xffff_fff9;
+            access.pages[0xffff].bytes = Some(Box::new([0x55; 0x10000]));
+            assert!(executor.execute(handle, &mut frame, &mut access).unwrap() == CompiledExit::GuestFault);
+            assert_eq!((frame.regs[15], frame.fault_address, frame.regs[4]), (0x100c, 1, 0xffff_fff9));
+            assert_eq!(&access.pages[0xffff].bytes.as_ref().unwrap()[0xfff8..], &[0x55; 8]);
+            access.pages[0].bytes = Some(Box::new([0; 0x10000]));
             assert!(executor.execute(handle, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
-            assert_eq!(frame.regs[15], 0x100c);
+            assert_eq!((frame.regs[15], frame.regs[4]), (0x1010, 5));
+            assert_eq!(&access.pages[0xffff].bytes.as_ref().unwrap()[0xfff8..], &[0, 0, 0, 0, 0, 0, 0, 0x80]);
+            assert_eq!(&access.pages[0].bytes.as_ref().unwrap()[..4], &0x1018u32.to_le_bytes());
             assert_eq!(&frame.regs[..4], [0, 0x8000_0000, 0x8000_0000, 0]);
             assert_eq!(frame.cpsr, 0x8000_001f);
             executor.release(handle);
+            frame.regs[15] = 0x8000;
+            assert!(executor.execute(artifact.regions[0].handle, &mut frame, &mut access).unwrap() == CompiledExit::Dispatch);
+            assert_eq!(frame.regs[15], 0x8004);
+            executor.release(artifact.regions[0].handle);
             assert!(executor.modules.lock().compiled.is_empty());
             if !hit {
                 completion.recv_timeout(Duration::from_secs(5)).unwrap();

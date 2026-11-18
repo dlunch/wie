@@ -285,23 +285,7 @@ impl ExecutionAccess for MemoryAccess<'_> {
         if !address.is_multiple_of(4) {
             return None;
         }
-        let start = address as usize / PAGE_SIZE;
-        let offset = (address & PAGE_MASK) as usize;
-        let len = words as usize * 4;
-        let first_len = len.min(PAGE_SIZE - offset);
-        if first_len == len {
-            let page = self.memory.pages[start].bytes.as_mut()?;
-            return Some((&mut page[offset..offset + len], &mut []));
-        }
-        let end = address.wrapping_add((words - 1) * 4) as usize / PAGE_SIZE;
-        let (first, second) = if start < end {
-            let (lower, upper) = self.memory.pages.split_at_mut(end);
-            (lower[start].bytes.as_mut()?, upper[0].bytes.as_mut()?)
-        } else {
-            let (lower, upper) = self.memory.pages.split_at_mut(start);
-            (upper[0].bytes.as_mut()?, lower[end].bytes.as_mut()?)
-        };
-        Some((&mut first[offset..], &mut second[..len - first_len]))
+        MemoryPage::transfer_range(&mut self.memory.pages, address, words).ok()
     }
 }
 

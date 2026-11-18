@@ -132,6 +132,33 @@ pub struct MemoryPage {
     pub bytes: Option<Box<[u8; 0x10000]>>,
 }
 
+impl MemoryPage {
+    /// Admit both parts of a 1..=16 word transfer before exposing any bytes.
+    /// Word accesses align down; a fault identifies the original guest address.
+    pub fn transfer_range(pages: &mut [Self; 0x10000], address: u32, words: u32) -> core::result::Result<(&mut [u8], &mut [u8]), u32> {
+        let start = (address >> 16) as usize;
+        let offset = (address & 0xfffc) as usize;
+        let len = words as usize * 4;
+        let first_len = len.min(0x10000 - offset);
+        if first_len == len {
+            let page = pages[start].bytes.as_mut().ok_or(address)?;
+            return Ok((&mut page[offset..offset + len], &mut []));
+        }
+        let last = address.wrapping_add((words - 1) * 4);
+        let end = (last >> 16) as usize;
+        let (first, second) = if start < end {
+            let (lower, upper) = pages.split_at_mut(end);
+            (&mut lower[start], &mut upper[0])
+        } else {
+            let (lower, upper) = pages.split_at_mut(start);
+            (&mut upper[0], &mut lower[end])
+        };
+        let first = first.bytes.as_mut().ok_or(address)?;
+        let second = second.bytes.as_mut().ok_or(last)?;
+        Ok((&mut first[offset..], &mut second[..len - first_len]))
+    }
+}
+
 pub trait ExecutionAccess {
     /// Looks up current code for a dispatcher transfer.
     fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle>;

@@ -1,16 +1,16 @@
 use core::mem::{offset_of, size_of};
 
-use cranelift_codegen::ir::{Endianness, InstBuilder, MemFlagsData, Value, condcodes::IntCC, types};
+use cranelift_codegen::ir::{AbiParam, Endianness, InstBuilder, MemFlagsData, Signature, Value, condcodes::IntCC, types};
 
 use wie_core_arm_aot::{
     MemoryPage,
     ir::{self, Instruction, MemoryOperand, Operation, Reg, Width},
 };
 
-use super::Emitter;
+use super::{Emitter, NextPc};
 
 impl Emitter<'_> {
-    pub(super) fn emit_memory(&mut self, instruction: &Instruction) -> Option<Value> {
+    pub(super) fn emit_memory(&mut self, instruction: &Instruction) -> Option<NextPc> {
         match &instruction.operation {
             Operation::Load {
                 destination,
@@ -202,10 +202,41 @@ impl Emitter<'_> {
         }
     }
 
-    fn transfer_words(&mut self, address: Value, registers: u16, load: bool) -> Option<Value> {
+    fn transfer_words(&mut self, address: Value, registers: u16, load: bool) -> Option<NextPc> {
         let count = registers.count_ones();
         if count == 0 {
             return None;
+        }
+        // Frame-backed regions can share the transfer loop without spilling guest
+        // registers around a call. The executor supplies the address at run time.
+        if self.status.is_none() && count > 1 {
+            let signature = *self.transfer_signature.get_or_insert_with(|| {
+                let mut signature = Signature::new(self.builder.func.signature.call_conv);
+                signature.params.extend([AbiParam::new(self.ptr_type); 2]);
+                signature.params.extend([AbiParam::new(types::I32); 3]);
+                signature.returns.push(AbiParam::new(types::I64));
+                self.builder.import_signature(signature)
+            });
+            let descriptor = self.builder.ins().iconst(types::I32, i64::from(registers) | (i64::from(load) << 16));
+            let pc = self.builder.ins().iconst(types::I32, i64::from(self.pc));
+            let store_pc = if !load && registers & 0x8000 != 0 {
+                self.builder
+                    .ins()
+                    .iconst(types::I32, i64::from(self.pc.wrapping_add(if self.thumb { 4 } else { 12 })))
+            } else {
+                pc
+            };
+            let call = self
+                .builder
+                .ins()
+                .call_indirect(signature, self.transfer, &[self.frame, self.pages, address, descriptor, store_pc]);
+            let result = self.builder.inst_results(call)[0];
+            let value = self.builder.ins().ireduce(types::I32, result);
+            let fault = self.builder.ins().ushr_imm_s(result, 32);
+            let next = self.builder.create_block();
+            self.builder.ins().brif(fault, self.fault, &[pc.into(), value.into()], next, &[]);
+            self.builder.switch_to_block(next);
+            return (load && registers & 0x8000 != 0).then(|| self.pc_write(value, true));
         }
         // At most 16 aligned words span two pages; admit both before any guest access.
         let first_pointer = self.guest_pointer(address, &Width::Word);
