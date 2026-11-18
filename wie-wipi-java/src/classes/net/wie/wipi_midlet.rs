@@ -29,7 +29,11 @@ impl WIPIMIDlet {
                     MethodAccessFlags::PUBLIC,
                 ),
             ],
-            fields: vec![JavaFieldProto::new("jlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::PRIVATE)],
+            fields: vec![
+                JavaFieldProto::new("jlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::PRIVATE),
+                // Keep lifecycle state on the bridge to preserve native Jlet subclass field offsets.
+                JavaFieldProto::new("destroyed", "Z", FieldAccessFlags::PRIVATE),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }
@@ -82,10 +86,6 @@ impl WIPIMIDlet {
         tracing::debug!("net.wie.WIPIMIDlet::destroyApp({this:?}, {unconditional:?})");
 
         let jlet = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
-        let _: () = jvm
-            .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (unconditional,))
-            .await?;
-
-        Ok(())
+        Jlet::destroy(jvm, this, jlet, unconditional).await
     }
 }

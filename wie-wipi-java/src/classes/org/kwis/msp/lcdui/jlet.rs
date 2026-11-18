@@ -8,7 +8,10 @@ use rustjava_runtime::classes::java::lang::String;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
-use crate::classes::org::kwis::msp::lcdui::{Display, EventQueue};
+use crate::classes::{
+    net::wie::WIPIMIDlet,
+    org::kwis::msp::lcdui::{Display, EventQueue},
+};
 
 // class org.kwis.msp.lcdui.Jlet
 pub struct Jlet;
@@ -171,16 +174,22 @@ impl Jlet {
     async fn notify_destroyed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({this:?})");
 
-        let midlet: ClassInstanceRef<MIDlet> = jvm
+        let midlet: ClassInstanceRef<WIPIMIDlet> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;")
             .await?;
         let _: () = jvm.invoke_virtual(&midlet, "net/wie/WIPIMIDlet", "notifyDestroyed", "()V", ()).await?;
 
-        let _: () = jvm
-            .invoke_virtual(&this, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (false,))
-            .await?;
+        Self::destroy(jvm, midlet, this, false).await
+    }
 
-        Ok(())
+    pub async fn destroy(jvm: &Jvm, mut midlet: ClassInstanceRef<WIPIMIDlet>, jlet: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()> {
+        if jvm.get_field::<bool>(&midlet, "net/wie/WIPIMIDlet", "destroyed", "Z").await? {
+            return Ok(());
+        }
+        // WIPI enters Destroyed before calling the app, which may notify again during cleanup.
+        jvm.put_field(&mut midlet, "net/wie/WIPIMIDlet", "destroyed", "Z", true).await?;
+        jvm.invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (unconditional,))
+            .await
     }
 
     pub async fn midlet(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MIDlet>> {

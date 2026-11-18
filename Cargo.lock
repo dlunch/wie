@@ -8009,6 +8009,7 @@ dependencies = [
  "wie-backend",
  "wie-jvm-support",
  "wie-midp",
+ "wie-wipi-java",
 ]
 
 [[package]]
