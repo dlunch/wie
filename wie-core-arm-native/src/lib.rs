@@ -313,12 +313,37 @@ fn restore(mut owner: ModuleOwner, bytes: &[u8], key: &[u8; 32], images: &[CodeI
     signature.params.extend([AbiParam::new(module.isa().pointer_type()); 3]);
     signature.returns.push(AbiParam::new(types::I32));
     let mut regions = Vec::with_capacity(cached.len());
-    for (index, region) in cached.into_iter().enumerate() {
+    // Cranelift starts a page-rounded mapping if the next function won't fit.
+    // Fill its tail with smaller functions while retaining the manifest's original indices.
+    let page = region::page::size();
+    let alignment = cached
+        .iter()
+        .map(|region| region.alignment as usize)
+        .max()
+        .unwrap()
+        .max(module.isa().function_alignment().minimum as usize)
+        .max(module.isa().symbol_alignment() as usize);
+    let mut pending: BTreeMap<_, _> = cached
+        .into_iter()
+        .enumerate()
+        .map(|(index, region)| ((region.code.len().next_multiple_of(alignment), index), region))
+        .collect();
+    let mut remaining = 0usize;
+    while !pending.is_empty() {
+        let fits = pending.range(..=(remaining, usize::MAX)).next_back().map(|(&key, _)| key);
+        let ((size, index), region) = if let Some(key) = fits {
+            pending.remove_entry(&key).unwrap()
+        } else {
+            let ((size, index), region) = pending.pop_last().unwrap();
+            remaining = size.next_multiple_of(page);
+            ((size, index), region)
+        };
+        remaining -= size;
         let function = module
             .declare_anonymous_function(&signature)
             .map_err(|error| WieError::FatalError(format!("Declaring cached native ARM AOT region: {error}")))?;
         module
-            .define_function_bytes(function, u64::from(region.alignment), region.code, &[])
+            .define_function_bytes(function, alignment as u64, region.code, &[])
             .map_err(|error| WieError::FatalError(format!("Loading native ARM AOT region: {error}")))?;
         regions.push(PendingRegion {
             index,

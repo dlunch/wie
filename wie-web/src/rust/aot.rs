@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeSet, format, rc::Rc, vec::Vec};
+use alloc::{boxed::Box, format, rc::Rc, vec::Vec};
 use core::cell::RefCell;
 
 use futures::channel::oneshot;
@@ -9,7 +9,7 @@ use wasm_bindgen_futures::{JsFuture, spawn_local};
 use wie_core_arm_aot::{
     CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RunFrame,
     cache,
-    manifest::{decode_manifest_region, encode_manifest_region, validate_manifest_region},
+    manifest::{InstructionOwnership, decode_manifest_region, encode_manifest_region, validate_manifest_region},
 };
 
 use wie_core_arm_wasm::{Compiler, WasmArtifact};
@@ -156,7 +156,7 @@ async fn prepare_module(request: CompileRequest, module: u32) -> Result<(Compile
                 cache::decode_header(&header, record.length() as usize, &cache_key).ok_or_else(|| JsValue::from_str("invalid cached artifact"))?;
             let manifest = record.subarray(manifest.start as u32, manifest.end as u32).to_vec();
             let mut manifest = manifest.as_slice();
-            let mut owned = BTreeSet::new();
+            let mut owned = InstructionOwnership::default();
             let mut regions = Vec::new();
             while !manifest.is_empty() {
                 preparation_checkpoint(&mut group_started).await?;

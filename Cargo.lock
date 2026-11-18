@@ -7850,6 +7850,7 @@ dependencies = [
  "futures",
  "nom",
  "rayon",
+ "region",
  "sha2",
  "spin",
  "tracing",
