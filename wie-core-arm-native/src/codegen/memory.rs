@@ -19,7 +19,7 @@ impl Emitter<'_> {
                 signed,
             } => {
                 let (effective, writeback) = self.memory_address(address);
-                let pointer = self.guest_pointer(effective, width);
+                let pointer = self.scalar_pointer(address, effective, width);
                 let value = self.load_memory(pointer, width, *signed);
                 let next = if *destination == Reg::PC {
                     Some(self.pc_write(value, true))
@@ -34,7 +34,7 @@ impl Emitter<'_> {
             }
             Operation::Store { value, address, width } => {
                 let (effective, writeback) = self.memory_address(address);
-                let pointer = self.guest_pointer(effective, width);
+                let pointer = self.scalar_pointer(address, effective, width);
                 let value = if *value == ir::Value::Register(Reg::PC) {
                     self.builder
                         .ins()
@@ -120,20 +120,51 @@ impl Emitter<'_> {
         (if address.pre_index { writeback } else { base }, writeback)
     }
 
+    fn scalar_pointer(&mut self, operand: &MemoryOperand, address: Value, width: &Width) -> Value {
+        // Directory entries are stable until native code returns. A hoisted lookup
+        // must only fault if control reaches this particular guest access.
+        if let Some((unmapped, word)) = operand
+            .effective_base_register()
+            .and_then(|reg| self.translated[usize::from(reg.index())])
+        {
+            self.guard_page(unmapped, address);
+            let mask = match width {
+                Width::Word => return word,
+                Width::Half => 2,
+                Width::Byte => 3,
+            };
+            let offset = self.builder.ins().band_imm_s(address, mask);
+            let offset = self.builder.ins().uextend(self.ptr_type, offset);
+            return self.builder.ins().iadd(word, offset);
+        }
+        self.guest_pointer(address, width)
+    }
+
     fn guest_pointer(&mut self, address: Value, width: &Width) -> Value {
+        let page = self.page_pointer(address);
+        let unmapped = self.builder.ins().icmp_imm_s(IntCC::Equal, page, 0);
+        self.guard_page(unmapped, address);
+        self.offset_pointer(page, address, width)
+    }
+
+    pub fn page_pointer(&mut self, address: Value) -> Value {
         let page = self.builder.ins().ushr_imm_s(address, 16);
         let page = self.builder.ins().uextend(self.ptr_type, page);
         let offset = self.builder.ins().imul_imm_s(page, size_of::<MemoryPage>() as i64);
         let entry = self.builder.ins().iadd(self.pages, offset);
-        let pointer = self
-            .builder
+        self.builder
             .ins()
-            .load(self.ptr_type, MemFlagsData::trusted(), entry, offset_of!(MemoryPage, bytes) as i32);
-        let unmapped = self.builder.ins().icmp_imm_s(IntCC::Equal, pointer, 0);
+            .load(self.ptr_type, MemFlagsData::trusted(), entry, offset_of!(MemoryPage, bytes) as i32)
+    }
+
+    fn guard_page(&mut self, unmapped: Value, address: Value) {
         let next = self.builder.create_block();
         let pc = self.builder.ins().iconst(types::I32, i64::from(self.pc));
         self.builder.ins().brif(unmapped, self.fault, &[pc.into(), address.into()], next, &[]);
         self.builder.switch_to_block(next);
+    }
+
+    pub fn offset_pointer(&mut self, pointer: Value, address: Value, width: &Width) -> Value {
         // Guest accesses are naturally aligned; keep host accesses within the backing page.
         let mask = match width {
             Width::Byte => 0xffff,

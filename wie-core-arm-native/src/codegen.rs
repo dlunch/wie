@@ -6,11 +6,13 @@ use cranelift_codegen::{
     ir::{Block, InstBuilder, MemFlagsData, Type, Value, condcodes::IntCC, types},
     isa::TargetIsa,
 };
-use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch};
+use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch, Variable};
 
 use wie_core_arm_aot::{
     CompiledExit, RunFrame,
-    ir::{self, AluOp, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount},
+    ir::{
+        self, AluOp, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, RegisterUsage, Shift, ShiftAmount, Width,
+    },
 };
 use wie_util::{Result, WieError};
 
@@ -136,6 +138,9 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
         .map(|instruction| (instruction.pc.get(), builder.create_block()))
         .collect();
     let mut emitter = Emitter {
+        registers: [GuestRegister::Frame; 16],
+        translated: [None; 16],
+        status: None,
         builder,
         frame,
         pages,
@@ -147,10 +152,60 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
         dispatch,
         fault,
     };
+    let mut usage = RegisterUsage::default();
+    let mut has_backedge = false;
+    let mut outgoing_branches = 0;
+    for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
+        usage.observe(&instruction.operation);
+        if instruction.operation.writes_pc() {
+            match &instruction.operation {
+                Operation::Branch {
+                    target: BranchTarget::Address(target),
+                    exchange: false,
+                    ..
+                } if emitter.entries.contains_key(&target.get()) => {
+                    has_backedge |= target.get() <= instruction.pc.get();
+                }
+                _ => outgoing_branches += 1,
+            }
+        }
+    }
+    // Every PC is an external entry. Carry mutable values across those joins for
+    // loops with at most one outgoing branch; coalesced fragments otherwise pay for the
+    // phi arguments on paths that leave before reusing the register.
+    let cache_loop = has_backedge && outgoing_branches <= 1;
+    for index in 0..15 {
+        let reads = usage.reads[index];
+        let writes = usage.writes[index];
+        if writes == 0 && reads > 1 {
+            let base = emitter.load_frame(offset_of!(RunFrame, regs) + index * size_of::<u32>());
+            emitter.registers[index] = GuestRegister::Invariant(base);
+            if usage.scalar_bases[index] > 1 {
+                let page = emitter.page_pointer(base);
+                let unmapped = emitter.builder.ins().icmp_imm_s(IntCC::Equal, page, 0);
+                let pointer = emitter.offset_pointer(page, base, &Width::Word);
+                emitter.translated[index] = Some((unmapped, pointer));
+            }
+        } else if cache_loop && writes != 0 && reads + writes > 2 {
+            // Amortize the entry load and the exit store.
+            let value = emitter.load_frame(offset_of!(RunFrame, regs) + index * size_of::<u32>());
+            let var = emitter.builder.declare_var(types::I32);
+            emitter.builder.def_var(var, value);
+            emitter.registers[index] = GuestRegister::Local(var);
+        }
+    }
+    let cpsr = emitter.load_frame(offset_of!(RunFrame, cpsr));
+    if cache_loop {
+        emitter.status = Some(StatusVariables {
+            control: emitter.builder.declare_var(types::I32),
+            nzcv: core::array::from_fn(|_| emitter.builder.declare_var(types::I32)),
+        });
+        emitter.set_cpsr_bits(u32::MAX, cpsr);
+    }
     let pc = emitter.load_frame(offset_of!(RunFrame, regs) + 15 * size_of::<u32>());
     let shift = if ir.entry.thumb { 1 } else { 2 };
     let index = emitter.builder.ins().ushr_imm_s(pc, shift);
-    emitter.boundaries(pc);
+    emitter.boundaries(pc, cpsr);
     let low = emitter.builder.ins().band_imm_s(pc, (1 << shift) - 1);
     let unaligned = emitter.builder.ins().icmp_imm_s(IntCC::NotEqual, low, 0);
     emitter.guard(unaligned);
@@ -182,7 +237,7 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
         } else {
             None
         };
-        let next = emitter.operation(instruction, flags_live != 0);
+        let next = emitter.operation(instruction, flags_live);
         let fixed = match &instruction.operation {
             // Internal edges preserve the entry mode; control-field writes must recheck it.
             Operation::WriteCpsr { mask, .. } if mask & 0x0100_003f != 0 => None,
@@ -214,16 +269,43 @@ pub(crate) fn emit_region(ir: &mut RegionIr, context: &mut Context, builder_cont
             emitter.store_register(&Reg::PC, pc);
             emitter.store_frame(offset_of!(RunFrame, fault_address), address);
         }
-        let value = emitter.builder.ins().iconst(types::I32, exit as i64);
-        emitter.builder.ins().return_(&[value]);
+        // No generated instruction calls the host. Both pages of a split transfer
+        // are checked before it starts, so the fault edge still has the completed prefix.
+        for (index, register) in emitter.registers.into_iter().enumerate() {
+            if let GuestRegister::Local(var) = register {
+                let value = emitter.builder.use_var(var);
+                emitter.store_frame(offset_of!(RunFrame, regs) + index * size_of::<u32>(), value);
+            }
+        }
+        if emitter.status.is_some() {
+            let cpsr = emitter.cpsr();
+            emitter.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+        }
+        let reason = emitter.builder.ins().iconst(types::I32, exit as i64);
+        emitter.builder.ins().return_(&[reason]);
     }
     emitter.builder.seal_all_blocks();
     emitter.builder.finalize(isa.frontend_config());
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum GuestRegister {
+    Frame,
+    Invariant(Value),
+    Local(Variable),
+}
+
+struct StatusVariables {
+    control: Variable,
+    nzcv: [Variable; 4],
+}
+
 struct Emitter<'a> {
     builder: FunctionBuilder<'a>,
+    registers: [GuestRegister; 16],
+    translated: [Option<(Value, Value)>; 16],
+    status: Option<StatusVariables>,
     frame: Value,
     pages: Value,
     ptr_type: Type,
@@ -250,12 +332,22 @@ impl Emitter<'_> {
                 .ins()
                 .iconst(types::I32, i64::from(self.pc.wrapping_add(if self.thumb { 4 } else { 8 })))
         } else {
-            self.load_frame(offset_of!(RunFrame, regs) + usize::from(register.index()) * size_of::<u32>())
+            let index = usize::from(register.index());
+            match self.registers[index] {
+                GuestRegister::Invariant(value) => value,
+                GuestRegister::Local(var) => self.builder.use_var(var),
+                GuestRegister::Frame => self.load_frame(offset_of!(RunFrame, regs) + index * size_of::<u32>()),
+            }
         }
     }
 
     fn store_register(&mut self, register: &Reg, value: Value) {
-        self.store_frame(offset_of!(RunFrame, regs) + usize::from(register.index()) * size_of::<u32>(), value);
+        let index = usize::from(register.index());
+        if let GuestRegister::Local(var) = self.registers[index] {
+            self.builder.def_var(var, value);
+        } else {
+            self.store_frame(offset_of!(RunFrame, regs) + index * size_of::<u32>(), value);
+        }
     }
 
     fn value(&mut self, value: &ir::Value) -> Value {
@@ -266,7 +358,53 @@ impl Emitter<'_> {
     }
 
     fn cpsr(&mut self) -> Value {
-        self.load_frame(offset_of!(RunFrame, cpsr))
+        let Some(status) = &self.status else {
+            return self.load_frame(offset_of!(RunFrame, cpsr));
+        };
+        let mut cpsr = self.builder.use_var(status.control);
+        for (index, flag) in status.nzcv.into_iter().enumerate() {
+            let value = self.builder.use_var(flag);
+            let bits = self.builder.ins().ishl_imm_s(value, 28 + index as i64);
+            cpsr = self.builder.ins().bor(cpsr, bits);
+        }
+        cpsr
+    }
+
+    fn flag(&mut self, bit: u8) -> Value {
+        if let Some(status) = &self.status {
+            return self.builder.use_var(status.nzcv[usize::from(bit - 28)]);
+        }
+        let cpsr = self.load_frame(offset_of!(RunFrame, cpsr));
+        let value = self.builder.ins().ushr_imm_s(cpsr, i64::from(bit));
+        self.builder.ins().band_imm_s(value, 1)
+    }
+
+    // The caller has already masked the replacement bits.
+    fn set_cpsr_bits(&mut self, mask: u32, bits: Value) {
+        if let Some(status) = &self.status {
+            let control_mask = mask & 0x0fff_ffff;
+            if control_mask != 0 {
+                let mut control = self.builder.ins().band_imm_s(bits, i64::from(control_mask));
+                if control_mask != 0x0fff_ffff {
+                    let previous = self.builder.use_var(status.control);
+                    let kept = self.builder.ins().band_imm_s(previous, i64::from(!control_mask));
+                    control = self.builder.ins().bor(kept, control);
+                }
+                self.builder.def_var(status.control, control);
+            }
+            for (index, flag) in status.nzcv.into_iter().enumerate() {
+                if mask & (1 << (28 + index)) != 0 {
+                    let shifted = self.builder.ins().ushr_imm_s(bits, 28 + index as i64);
+                    let bit = self.builder.ins().band_imm_s(shifted, 1);
+                    self.builder.def_var(flag, bit);
+                }
+            }
+        } else {
+            let previous = self.load_frame(offset_of!(RunFrame, cpsr));
+            let kept = self.builder.ins().band_imm_s(previous, i64::from(!mask));
+            let cpsr = self.builder.ins().bor(kept, bits);
+            self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+        }
     }
 
     fn guard(&mut self, condition: Value) {
@@ -275,10 +413,9 @@ impl Emitter<'_> {
         self.builder.switch_to_block(next);
     }
 
-    fn boundaries(&mut self, pc: Value) {
+    fn boundaries(&mut self, pc: Value, cpsr: Value) {
         let low = self.builder.ins().icmp_imm_s(IntCC::UnsignedLessThan, pc, 0x1000);
         self.guard(low);
-        let cpsr = self.cpsr();
         let mode = self.builder.ins().band_imm_s(cpsr, 0x0100_003f);
         let changed = self.builder.ins().icmp_imm_s(IntCC::NotEqual, mode, i64::from(self.mode));
         self.guard(changed);
@@ -304,10 +441,7 @@ impl Emitter<'_> {
         if exchange {
             let thumb = self.builder.ins().band_imm_s(value, 1);
             let bit = self.builder.ins().ishl_imm_s(thumb, 5);
-            let cpsr = self.cpsr();
-            let cpsr = self.builder.ins().band_imm_s(cpsr, !0x20);
-            let cpsr = self.builder.ins().bor(cpsr, bit);
-            self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+            self.set_cpsr_bits(0x20, bit);
             let thumb_mask = self.builder.ins().iconst(types::I32, -2);
             let arm_mask = self.builder.ins().iconst(types::I32, -4);
             let mask = self.builder.ins().select(thumb, thumb_mask, arm_mask);
@@ -371,9 +505,7 @@ impl Emitter<'_> {
             return (result, carry);
         }
         if operand.shift == Shift::Rrx {
-            let cpsr = self.cpsr();
-            let carry = self.builder.ins().ushr_imm_s(cpsr, 29);
-            let carry = self.builder.ins().band_imm_s(carry, 1);
+            let carry = self.flag(29);
             let high = self.builder.ins().ishl_imm_s(carry, 31);
             let low = self.builder.ins().ushr_imm_s(value, 1);
             let result = self.builder.ins().bor(high, low);
@@ -433,43 +565,46 @@ impl Emitter<'_> {
             Shift::Rrx => unreachable!(),
         };
         let carry = shifted_carry.map(|shifted_carry| {
-            let cpsr = self.cpsr();
-            let carry = self.builder.ins().ushr_imm_s(cpsr, 29);
-            let carry = self.builder.ins().band_imm_s(carry, 1);
+            let carry = self.flag(29);
             let unchanged = self.builder.ins().icmp_imm_s(IntCC::Equal, amount, 0);
             self.builder.ins().select(unchanged, carry, shifted_carry)
         });
         (result, carry)
     }
 
-    fn set_flags(&mut self, result: Value, carry: Option<Value>, overflow: Option<Value>) {
-        let high = if self.builder.func.dfg.value_type(result) == types::I64 {
-            let high = self.builder.ins().ushr_imm_s(result, 32);
-            self.builder.ins().ireduce(types::I32, high)
-        } else {
-            result
-        };
-        let negative = self.builder.ins().band_imm_s(high, 0x8000_0000);
-        let zero = self.builder.ins().icmp_imm_s(IntCC::Equal, result, 0);
-        let zero = self.builder.ins().uextend(types::I32, zero);
-        let zero = self.builder.ins().ishl_imm_s(zero, 30);
-        let mut flags = self.builder.ins().bor(negative, zero);
-        let mut mask = 0xc000_0000_u32;
-        for (value, bit) in [(carry, 29), (overflow, 28)] {
+    fn set_flags(&mut self, live: u8, result: Value, carry: Option<Value>, overflow: Option<Value>) {
+        let negative = (live & 8 != 0).then(|| {
+            if self.builder.func.dfg.value_type(result) == types::I64 {
+                let bit = self.builder.ins().ushr_imm_s(result, 63);
+                self.builder.ins().ireduce(types::I32, bit)
+            } else {
+                self.builder.ins().ushr_imm_s(result, 31)
+            }
+        });
+        let zero = (live & 4 != 0).then(|| {
+            let bit = self.builder.ins().icmp_imm_s(IntCC::Equal, result, 0);
+            self.builder.ins().uextend(types::I32, bit)
+        });
+        let mut flags = None;
+        for (index, value) in [overflow, carry, zero, negative].into_iter().enumerate() {
             if let Some(value) = value {
-                let value = self.builder.ins().ishl_imm_s(value, bit);
-                flags = self.builder.ins().bor(flags, value);
-                mask |= 1 << bit;
+                if let Some(status) = &self.status {
+                    self.builder.def_var(status.nzcv[index], value);
+                } else {
+                    let value = self.builder.ins().ishl_imm_s(value, 28 + index as i64);
+                    flags = Some(match flags {
+                        Some(previous) => self.builder.ins().bor(previous, value),
+                        None => value,
+                    });
+                }
             }
         }
-        let cpsr = self.cpsr();
-        let preserved = self.builder.ins().band_imm_s(cpsr, i64::from(!mask));
-        let cpsr = self.builder.ins().bor(preserved, flags);
-        self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+        if let Some(flags) = flags {
+            self.set_cpsr_bits(u32::from(live) << 28, flags);
+        }
     }
 
     fn condition(&mut self, condition: &Condition) -> Value {
-        let cpsr = self.cpsr();
         let result = match condition {
             Condition::Eq | Condition::Ne | Condition::Cs | Condition::Cc | Condition::Mi | Condition::Pl | Condition::Vs | Condition::Vc => {
                 let bit = match condition {
@@ -478,14 +613,15 @@ impl Emitter<'_> {
                     Condition::Vs | Condition::Vc => 28,
                     _ => 31,
                 };
-                let bit = self.builder.ins().band_imm_s(cpsr, 1_i64 << bit);
-                self.builder.ins().icmp_imm_s(IntCC::NotEqual, bit, 0)
+                self.flag(bit)
             }
             Condition::Hi | Condition::Ls => {
+                let cpsr = self.cpsr();
                 let flags = self.builder.ins().band_imm_s(cpsr, 0x6000_0000);
                 self.builder.ins().icmp_imm_s(IntCC::Equal, flags, 0x2000_0000)
             }
             Condition::Ge | Condition::Lt | Condition::Gt | Condition::Le => {
+                let cpsr = self.cpsr();
                 let shifted = self.builder.ins().ishl_imm_s(cpsr, 3);
                 let mut flags = self.builder.ins().bxor(cpsr, shifted);
                 if matches!(condition, Condition::Gt | Condition::Le) {
@@ -506,7 +642,7 @@ impl Emitter<'_> {
         }
     }
 
-    fn operation(&mut self, instruction: &Instruction, flags_live: bool) -> Option<Value> {
+    fn operation(&mut self, instruction: &Instruction, flags_live: u8) -> Option<Value> {
         match &instruction.operation {
             Operation::Alu {
                 op,
@@ -515,7 +651,7 @@ impl Emitter<'_> {
                 right,
                 set_flags,
             } => {
-                let set_flags = *set_flags && flags_live;
+                let set_flags = *set_flags && flags_live != 0;
                 if destination.is_none() && !set_flags {
                     return None;
                 }
@@ -524,14 +660,10 @@ impl Emitter<'_> {
                     && let Some(value) = op.constant_result(left, right)
                 {
                     if set_flags {
+                        let mask = u32::from(flags_live) << 28;
                         let flags = (value & 0x8000_0000) | (u32::from(value == 0) << 30) | (carry.unwrap_or(0) << 29);
-                        let cpsr = self.cpsr();
-                        let preserved = self
-                            .builder
-                            .ins()
-                            .band_imm_s(cpsr, if carry.is_some() { 0x1fff_ffff } else { 0x3fff_ffff });
-                        let cpsr = self.builder.ins().bor_imm_s(preserved, i64::from(flags));
-                        self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+                        let bits = self.builder.ins().iconst(types::I32, i64::from(flags & mask));
+                        self.set_cpsr_bits(mask, bits);
                     }
                     if let Some(destination) = destination {
                         let value = self.builder.ins().iconst(types::I32, i64::from(value));
@@ -543,7 +675,7 @@ impl Emitter<'_> {
                     return None;
                 }
                 let mut left = self.value(left);
-                let set_carry = set_flags && matches!(op, AluOp::And | AluOp::Xor | AluOp::Or | AluOp::Move | AluOp::BitClear | AluOp::Not);
+                let set_carry = flags_live & 2 != 0 && matches!(op, AluOp::And | AluOp::Xor | AluOp::Or | AluOp::Move | AluOp::BitClear | AluOp::Not);
                 let (mut right, shifted_carry) = self.operand(right, set_carry);
                 let mut carry = shifted_carry;
                 let mut overflow = None;
@@ -553,25 +685,28 @@ impl Emitter<'_> {
                             swap(&mut left, &mut right);
                         }
                         let subtract = *op != AluOp::Add;
-                        if set_flags {
-                            let (result, overflow_bit) = if subtract {
+                        let result = if flags_live & 1 != 0 {
+                            let (result, bit) = if subtract {
                                 self.builder.ins().ssub_overflow(left, right)
                             } else {
                                 self.builder.ins().sadd_overflow(left, right)
                             };
-                            let carry_bit = if subtract {
-                                self.builder.ins().icmp(IntCC::UnsignedGreaterThanOrEqual, left, right)
-                            } else {
-                                self.builder.ins().icmp(IntCC::UnsignedLessThan, result, left)
-                            };
-                            carry = Some(self.builder.ins().uextend(types::I32, carry_bit));
-                            overflow = Some(self.builder.ins().uextend(types::I32, overflow_bit));
+                            overflow = Some(self.builder.ins().uextend(types::I32, bit));
                             result
                         } else if subtract {
                             self.builder.ins().isub(left, right)
                         } else {
                             self.builder.ins().iadd(left, right)
+                        };
+                        if flags_live & 2 != 0 {
+                            let bit = if subtract {
+                                self.builder.ins().icmp(IntCC::UnsignedGreaterThanOrEqual, left, right)
+                            } else {
+                                self.builder.ins().icmp(IntCC::UnsignedLessThan, result, left)
+                            };
+                            carry = Some(self.builder.ins().uextend(types::I32, bit));
                         }
+                        result
                     }
                     AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry => {
                         if *op == AluOp::ReverseSubCarry {
@@ -581,15 +716,18 @@ impl Emitter<'_> {
                         if subtract {
                             right = self.builder.ins().bnot(right);
                         }
-                        let cpsr = self.cpsr();
-                        let carry_in = self.builder.ins().ushr_imm_s(cpsr, 29);
-                        let carry_in = self.builder.ins().band_imm_s(carry_in, 1);
-                        let (sum, first_carry) = self.builder.ins().uadd_overflow(left, right);
-                        let (result, last_carry) = self.builder.ins().uadd_overflow(sum, carry_in);
-                        if set_flags {
-                            // Complementing the subtrahend gives ARM's no-borrow carry bit.
+                        let carry_in = self.flag(29);
+                        let result = if flags_live & 2 != 0 {
+                            let (sum, first_carry) = self.builder.ins().uadd_overflow(left, right);
+                            let (result, last_carry) = self.builder.ins().uadd_overflow(sum, carry_in);
                             let carry_out = self.builder.ins().bor(first_carry, last_carry);
                             carry = Some(self.builder.ins().uextend(types::I32, carry_out));
+                            result
+                        } else {
+                            let sum = self.builder.ins().iadd(left, right);
+                            self.builder.ins().iadd(sum, carry_in)
+                        };
+                        if flags_live & 1 != 0 {
                             let different_signs = self.builder.ins().bxor(left, right);
                             let same_signs = self.builder.ins().bnot(different_signs);
                             let changed_sign = self.builder.ins().bxor(left, result);
@@ -614,7 +752,7 @@ impl Emitter<'_> {
                     AluOp::CountLeadingZeros => self.builder.ins().clz(right),
                 };
                 if set_flags {
-                    self.set_flags(result, carry, overflow);
+                    self.set_flags(flags_live, result, carry, overflow);
                 }
                 if let Some(destination) = destination {
                     if *destination == Reg::PC {
@@ -636,8 +774,8 @@ impl Emitter<'_> {
                 let product = self.builder.ins().imul(left, right);
                 let result = self.builder.ins().iadd(product, accumulate);
                 self.store_register(destination, result);
-                if *set_flags && flags_live {
-                    self.set_flags(result, None, None);
+                if *set_flags && flags_live != 0 {
+                    self.set_flags(flags_live, result, None, None);
                 }
             }
             Operation::MultiplyLong {
@@ -677,8 +815,8 @@ impl Emitter<'_> {
                 let high_value = self.builder.ins().ireduce(types::I32, high_value);
                 self.store_register(low, low_value);
                 self.store_register(high, high_value);
-                if *set_flags && flags_live {
-                    self.set_flags(result, None, None);
+                if *set_flags && flags_live != 0 {
+                    self.set_flags(flags_live, result, None, None);
                 }
             }
             Operation::ReadCpsr { destination } => {
@@ -688,23 +826,15 @@ impl Emitter<'_> {
             Operation::WriteCpsr { value, mask } => {
                 let value = self.value(value);
                 let value = self.builder.ins().band_imm_s(value, i64::from(*mask));
-                let cpsr = self.cpsr();
-                let preserved = self.builder.ins().band_imm_s(cpsr, i64::from(!mask));
-                let cpsr = self.builder.ins().bor(preserved, value);
-                self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+                self.set_cpsr_bits(*mask, value);
             }
             Operation::Branch { target, link, exchange } => {
                 let next = match target {
                     BranchTarget::Address(address) => {
                         let thumb = if *exchange { address.get() & 1 != 0 } else { self.thumb };
                         if thumb != self.thumb {
-                            let cpsr = self.cpsr();
-                            let cpsr = if thumb {
-                                self.builder.ins().bor_imm_s(cpsr, 0x20)
-                            } else {
-                                self.builder.ins().band_imm_s(cpsr, !0x20)
-                            };
-                            self.store_frame(offset_of!(RunFrame, cpsr), cpsr);
+                            let bit = self.builder.ins().iconst(types::I32, if thumb { 0x20 } else { 0 });
+                            self.set_cpsr_bits(0x20, bit);
                         }
                         self.builder
                             .ins()
@@ -745,7 +875,7 @@ mod tests {
     };
     use wie_core_arm_aot::{
         RegionKey,
-        ir::{BasicBlock, MemoryAddress, Width},
+        ir::{BasicBlock, MemoryAddress},
     };
 
     use super::*;
@@ -801,6 +931,22 @@ mod tests {
                         size: 4,
                         condition: Condition::Always,
                         operation: Operation::Alu {
+                            op: AluOp::AddCarry,
+                            destination: Some(Reg::new(1)),
+                            left: ir::Value::Register(Reg::new(1)),
+                            right: Operand {
+                                value: ir::Value::Immediate(0),
+                                shift: Shift::Lsl,
+                                amount: ShiftAmount::Immediate(0),
+                            },
+                            set_flags: false,
+                        },
+                    },
+                    Instruction {
+                        pc: MemoryAddress::new(0x100c),
+                        size: 4,
+                        condition: Condition::Always,
+                        operation: Operation::Alu {
                             op: AluOp::Add,
                             destination: Some(Reg::new(1)),
                             left: ir::Value::Register(Reg::new(1)),
@@ -813,7 +959,7 @@ mod tests {
                         },
                     },
                     Instruction {
-                        pc: MemoryAddress::new(0x100c),
+                        pc: MemoryAddress::new(0x1010),
                         size: 4,
                         condition: Condition::Always,
                         operation: Operation::Branch {
@@ -883,7 +1029,7 @@ mod tests {
             }
             assert!(backedge, "fixed guest backedge must stay in native CFG");
             assert_eq!(calls, 0, "persistent native code must not call process-specific flag helpers");
-            assert_eq!(arithmetic_flags, 3, "the overwritten add flags must not be emitted");
+            assert_eq!(arithmetic_flags, 3, "the carry-only add must not compute signed overflow");
             let compiled = context.compile(isa.as_ref(), &mut ControlPlane::default()).unwrap();
             assert!(!compiled.code_buffer().is_empty());
             assert!(

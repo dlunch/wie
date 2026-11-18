@@ -2,7 +2,34 @@ use alloc::{vec, vec::Vec};
 
 use super::{AluOp, BasicBlock, BranchTarget, Condition, MemoryOperand, Operation, Reg, Shift, ShiftAmount, Value};
 
+#[derive(Default)]
+pub struct RegisterUsage {
+    pub reads: [u32; 16],
+    pub writes: [u32; 16],
+    pub scalar_bases: [u32; 16],
+}
+
+impl RegisterUsage {
+    pub fn observe(&mut self, operation: &Operation) {
+        operation.visit_registers(
+            |reg| self.reads[usize::from(reg.index())] += 1,
+            |reg| self.writes[usize::from(reg.index())] += 1,
+        );
+        if let Operation::Load { address, .. } | Operation::Store { address, .. } = operation
+            && let Some(reg) = address.effective_base_register()
+        {
+            self.scalar_bases[usize::from(reg.index())] += 1;
+        }
+    }
+}
+
 impl MemoryOperand {
+    /// The register alone supplies the effective address, independently of writeback.
+    pub fn effective_base_register(&self) -> Option<&Reg> {
+        let Value::Register(reg) = &self.base else { return None };
+        (!self.pre_index || self.offset.constant_value().is_some_and(|(offset, _)| offset == 0)).then_some(reg)
+    }
+
     /// Effective address and indexed base, with the guest's 32-bit wrapping arithmetic.
     pub fn constant_address(&self) -> Option<(u32, u32)> {
         let Value::Immediate(base) = self.base else { return None };

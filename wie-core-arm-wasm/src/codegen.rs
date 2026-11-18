@@ -12,7 +12,8 @@ use wasm_encoder::{
 };
 use wie_core_arm_aot::CompiledExit;
 use wie_core_arm_aot::ir::{
-    AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value, Width,
+    AluOp, BasicBlock, BranchTarget, Condition, Instruction, MemoryOperand, Operand, Operation, Reg, RegionIr, RegisterUsage, Shift, ShiftAmount,
+    Value, Width,
 };
 
 const LEFT: u32 = 2;
@@ -281,9 +282,7 @@ impl RegionLocals {
             thumb: ir.entry.thumb,
             ..Self::default()
         };
-        let mut reads = [0; 16];
-        let mut writes = [0; 16];
-        let mut base_uses = [0; 16];
+        let mut usage = RegisterUsage::default();
         let mut flag_writes = 0;
         let mut checkpoints = 1; // Common region exit.
         for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
@@ -291,18 +290,10 @@ impl RegionLocals {
             flag_writes += u32::from(written != 0);
             cache.flags_written |= u32::from(written) << 28;
             cache.flag_inputs |= u32::from(read | instruction.condition.flag_inputs()) << 28;
-            instruction
-                .operation
-                .visit_registers(|reg| reads[usize::from(reg.index())] += 1, |reg| writes[usize::from(reg.index())] += 1);
+            usage.observe(&instruction.operation);
             match instruction.operation {
                 Operation::DoubleTransfer { .. } | Operation::MultipleTransfer { .. } => checkpoints += 1,
-                Operation::Load { ref address, .. } | Operation::Store { ref address, .. } => {
-                    cache.retry_pages = true;
-                    if let Some(index) = scalar_base(address) {
-                        base_uses[index] += 1;
-                    }
-                }
-                Operation::Swap { .. } => cache.retry_pages = true,
+                Operation::Load { .. } | Operation::Store { .. } | Operation::Swap { .. } => cache.retry_pages = true,
                 _ => {}
             }
         }
@@ -314,16 +305,16 @@ impl RegionLocals {
         checkpoints += u32::from(cache.retry_pages);
         let mut next_local = FIRST_REGISTER;
         for index in 0..15 {
-            let writes = writes[index];
+            let writes = usage.writes[index];
             // Frame access costs five bytes; local access costs two. Each cached register needs
             // a seven-byte entry load. Each dirty register also costs seven bytes per checkpoint.
             let flush = if writes == 0 { 0 } else { 7 * checkpoints };
-            if 3 * (reads[index] + writes) > 7 + flush {
+            if 3 * (usage.reads[index] + writes) > 7 + flush {
                 cache.locals[index] = Some(next_local);
                 next_local += 1;
                 if writes != 0 {
                     cache.write_back |= 1 << index;
-                } else if base_uses[index] > checkpoints {
+                } else if usage.scalar_bases[index] > checkpoints {
                     // Reuse an invariant address when its accesses amortize translation,
                     // including reacquisition after word-range calls.
                     cache.translated[index] = Some(next_local);
@@ -909,11 +900,6 @@ fn memory_address(s: &mut InstructionSink<'_>, regs: &RegionLocals, address: &Me
     }
 }
 
-fn scalar_base(address: &MemoryOperand) -> Option<usize> {
-    let Value::Register(reg) = &address.base else { return None };
-    (!address.pre_index || address.offset.constant_value().is_some_and(|(offset, _)| offset == 0)).then(|| usize::from(reg.index()))
-}
-
 fn load_page(s: &mut InstructionSink<'_>, address: u32) {
     // Each directory entry is a four-byte nullable page pointer.
     s.local_get(PAGE_TABLE)
@@ -1345,7 +1331,9 @@ fn operation(s: &mut InstructionSink<'_>, transfers: &Transfers, regs: &RegionLo
                 memory_address(s, regs, address, instruction.pc.get(), regs.thumb);
                 None
             };
-            let translated = scalar_base(address).and_then(|index| regs.translated[index]);
+            let translated = address
+                .effective_base_register()
+                .and_then(|reg| regs.translated[usize::from(reg.index())]);
             let offset = scalar_address(s, width, exit_depth, literal, translated);
             if let Operation::Store { value: ref source, .. } = instruction.operation {
                 if *source == Value::Register(Reg::PC) {

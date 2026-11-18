@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 
 mod analysis;
+pub use analysis::RegisterUsage;
 
 use crate::RegionKey;
 
