@@ -40,11 +40,11 @@ impl Compiler {
             Some(None) => return Ok(false),
             region => region.flatten(),
         };
-        let Some(region) = region else {
+        let Some(mut region) = region else {
             self.artifact.chunks = self.builder.take().unwrap().assemble()?;
             return Ok(true);
         };
-        builder.add_region(&region.ir);
+        builder.add_region(&mut region.ir);
         let mut instruction_pcs: Vec<_> = region
             .ir
             .blocks
