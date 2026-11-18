@@ -62,6 +62,7 @@ impl BucketAllocator {
 
             tracing::info!("Bucket {slot_size} header size {header_len}");
 
+            core.map(header_address, header_len as u32)?;
             core.write_bytes(header_address, &vec![0xff; header_len])?;
         }
 
@@ -86,6 +87,7 @@ impl BucketAllocator {
                 let index = (offset + i) as u32;
                 let address = header_address + header_len as u32 + (index * 8 + bit) * slot_size as u32;
                 core.write_bytes(header_address + index, &[item & !(1 << bit)])?;
+                core.map(address, slot_size as u32)?;
 
                 return Ok(address);
             }
@@ -166,7 +168,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        core.map(0x40000000, 0x8000000)?;
 
         BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
 
@@ -226,7 +227,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        core.map(0x40000000, 0x1000000).unwrap();
 
         // 0x1000000 (16 MB) is far too small for the full bucket layout.
         assert!(BucketAllocator::init(&mut core, 0x40000000, 0x1000000).is_err());
@@ -240,7 +240,6 @@ mod tests {
             profile: None,
         })
         .unwrap();
-        core.map(0x40000000, 0x8000000)?;
 
         BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
 

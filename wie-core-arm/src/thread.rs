@@ -2,7 +2,7 @@ use wie_util::Result;
 
 use crate::{Allocator, ArmCore, context::ArmCoreContext};
 
-const STACK_SIZE: u32 = 0x100000; // 1 MB
+const STACK_SIZE: u32 = 0x10000; // 64 KB
 
 pub struct ThreadState {
     core: ArmCore,

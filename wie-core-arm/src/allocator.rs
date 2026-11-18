@@ -17,8 +17,8 @@ pub struct Allocator;
 
 impl Allocator {
     pub fn init(core: &mut ArmCore) -> Result<()> {
-        core.map(HEAP_BASE, HEAP_SIZE)?;
-
+        // The allocators commit heap pages as allocations reach them; mapping the whole heap up front
+        // would make every app pay for all of HEAP_SIZE in host memory.
         ListAllocator::init(core, HEAP_BASE, HEAP_SIZE / 2)?;
         BucketAllocator::init(core, HEAP_BASE + HEAP_SIZE / 2, HEAP_SIZE / 2)?;
 
@@ -52,9 +52,12 @@ impl Allocator {
 
 #[cfg(test)]
 mod tests {
-    use wie_util::Result;
+    use wie_util::{Result, read_generic};
 
-    use crate::{Allocator, ArmCore};
+    use crate::{
+        Allocator, ArmCore,
+        core::{HEAP_BASE, HEAP_SIZE},
+    };
 
     #[test]
     fn allocation_status_tracks_bucket_and_list_allocations() -> Result<()> {
@@ -64,6 +67,10 @@ mod tests {
             profile: None,
         })?;
         Allocator::init(&mut core)?;
+        assert!(
+            read_generic::<u32, _>(&core, HEAP_BASE + HEAP_SIZE / 4).is_err(),
+            "untouched heap stays uncommitted"
+        );
 
         let bucket = Allocator::alloc(&mut core, 12)?;
         let list = Allocator::alloc(&mut core, 1024)?;
