@@ -8,7 +8,10 @@ use rustjava_runtime::classes::java::lang::String;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
-use crate::classes::org::kwis::msp::lcdui::{Display, EventQueue};
+use crate::classes::{
+    net::wie::WIPIMIDlet,
+    org::kwis::msp::lcdui::{Display, EventQueue},
+};
 
 // class org.kwis.msp.lcdui.Jlet
 pub struct Jlet;
@@ -171,16 +174,22 @@ impl Jlet {
     async fn notify_destroyed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({this:?})");
 
-        let midlet: ClassInstanceRef<MIDlet> = jvm
+        let midlet: ClassInstanceRef<WIPIMIDlet> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;")
             .await?;
         let _: () = jvm.invoke_virtual(&midlet, "net/wie/WIPIMIDlet", "notifyDestroyed", "()V", ()).await?;
 
-        let _: () = jvm
-            .invoke_virtual(&this, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (false,))
-            .await?;
+        Self::destroy(jvm, midlet, this, false).await
+    }
 
-        Ok(())
+    pub async fn destroy(jvm: &Jvm, mut midlet: ClassInstanceRef<WIPIMIDlet>, jlet: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()> {
+        if jvm.get_field::<bool>(&midlet, "net/wie/WIPIMIDlet", "destroyed", "Z").await? {
+            return Ok(());
+        }
+        // WIPI enters Destroyed before calling the app, which may notify again during cleanup.
+        jvm.put_field(&mut midlet, "net/wie/WIPIMIDlet", "destroyed", "Z", true).await?;
+        jvm.invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (unconditional,))
+            .await
     }
 
     pub async fn midlet(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MIDlet>> {
@@ -190,5 +199,66 @@ impl Jlet {
     pub async fn display(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Display>> {
         jvm.get_field(this, "org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")
             .await
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::{boxed::Box, vec};
+
+    use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+
+    use test_utils::run_jvm_test;
+    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_util::Result;
+
+    use crate::get_protos;
+
+    use super::Jlet;
+
+    async fn destroy_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Jlet>, _unconditional: bool) -> JvmResult<()> {
+        let calls: i32 = jvm.get_static_field("test/NotifyingJlet", "calls", "I").await?;
+        assert_eq!(calls, 0, "destroyApp re-entered");
+        jvm.put_static_field("test/NotifyingJlet", "calls", "I", calls + 1).await?;
+
+        jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Jlet", "notifyDestroyed", "()V", ()).await
+    }
+
+    #[test]
+    fn destroy_app_runs_once_when_it_notifies_destroyed() -> Result<()> {
+        let jlet_proto = WieJavaClassProto {
+            name: "test/NotifyingJlet",
+            parent_class: Some("org/kwis/msp/lcdui/Jlet"),
+            interfaces: vec![],
+            methods: vec![JavaMethodProto::new("destroyApp", "(Z)V", destroy_app, MethodAccessFlags::PROTECTED)],
+            fields: vec![JavaFieldProto::new("calls", "I", FieldAccessFlags::STATIC)],
+            access_flags: ClassAccessFlags::PUBLIC,
+        };
+        run_jvm_test(
+            Box::new([wie_midp::get_protos().into(), get_protos().into(), Box::new([jlet_proto])]),
+            |jvm| async move {
+                for platform_requested in [false, true] {
+                    jvm.put_static_field("test/NotifyingJlet", "calls", "I", 0).await?;
+                    let midlet = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await?;
+                    let jlet = jvm.instantiate_class("test/NotifyingJlet").await?;
+                    let _: () = jvm.invoke_special(&jlet, "org/kwis/msp/lcdui/Jlet", "<init>", "()V", ()).await?;
+
+                    if platform_requested {
+                        let _: () = jvm
+                            .invoke_virtual(&midlet, "javax/microedition/midlet/MIDlet", "destroyApp", "(Z)V", (true,))
+                            .await?;
+                    } else {
+                        let _: () = jvm.invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "notifyDestroyed", "()V", ()).await?;
+                    }
+
+                    let calls: i32 = jvm.get_static_field("test/NotifyingJlet", "calls", "I").await?;
+                    assert_eq!(calls, 1);
+                }
+
+                Ok(())
+            },
+        )
     }
 }
