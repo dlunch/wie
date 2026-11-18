@@ -264,6 +264,7 @@ const fn field(offset: u64) -> MemArg {
 #[derive(Default)]
 struct RegionLocals {
     locals: [Option<u32>; 16],
+    translated: [Option<u32>; 16],
     write_back: u16,
     thumb: bool,
     flag_inputs: u32,
@@ -282,6 +283,7 @@ impl RegionLocals {
         };
         let mut reads = [0; 16];
         let mut writes = [0; 16];
+        let mut base_uses = [0; 16];
         let mut flag_writes = 0;
         let mut checkpoints = 1; // Common region exit.
         for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
@@ -294,7 +296,13 @@ impl RegionLocals {
                 .visit_registers(|reg| reads[usize::from(reg.index())] += 1, |reg| writes[usize::from(reg.index())] += 1);
             match instruction.operation {
                 Operation::DoubleTransfer { .. } | Operation::MultipleTransfer { .. } => checkpoints += 1,
-                Operation::Load { .. } | Operation::Store { .. } | Operation::Swap { .. } => cache.retry_pages = true,
+                Operation::Load { ref address, .. } | Operation::Store { ref address, .. } => {
+                    cache.retry_pages = true;
+                    if let Some(index) = scalar_base(address) {
+                        base_uses[index] += 1;
+                    }
+                }
+                Operation::Swap { .. } => cache.retry_pages = true,
                 _ => {}
             }
         }
@@ -315,6 +323,11 @@ impl RegionLocals {
                 next_local += 1;
                 if writes != 0 {
                     cache.write_back |= 1 << index;
+                } else if base_uses[index] > checkpoints {
+                    // Reuse an invariant address when its accesses amortize translation,
+                    // including reacquisition after word-range calls.
+                    cache.translated[index] = Some(next_local);
+                    next_local += 1;
                 }
             }
         }
@@ -366,7 +379,7 @@ fn compile_region(ir: &RegionIr, transfers: &Transfers) -> Function {
     }
     let regs = RegionLocals::for_region(ir);
     let extra = 2 * u32::from(regs.retry_pages);
-    let register_locals = regs.locals.iter().flatten().count() as u32;
+    let register_locals = regs.locals.iter().chain(&regs.translated).flatten().count() as u32;
     let mut function = Function::new([(8, ValType::I32), (1, ValType::I64), (7 + register_locals, ValType::I32)]);
     let mut s = function.instructions();
     for (index, local) in regs.locals.iter().enumerate() {
@@ -459,6 +472,15 @@ fn compile_region(ir: &RegionIr, transfers: &Transfers) -> Function {
         packed_cpsr(&mut s, regs.publish_mask);
         s.call(PUBLISH);
         s.local_get(1).call(PAGES).local_set(PAGE_TABLE);
+        for (&base, &translated) in regs.locals.iter().zip(&regs.translated) {
+            if let (Some(base), Some(translated)) = (base, translated) {
+                load_page(&mut s, base);
+                // Keep zero for an unmapped page. Only the instruction that uses it faults.
+                s.local_tee(translated).if_(BlockType::Empty);
+                s.local_get(translated).local_get(base).global_get(0).i32_and().i32_add();
+                s.local_set(translated).end();
+            }
+        }
         s.br(0).end().end();
     }
     s.unreachable().end();
@@ -887,7 +909,24 @@ fn memory_address(s: &mut InstructionSink<'_>, regs: &RegionLocals, address: &Me
     }
 }
 
-fn scalar_address(s: &mut InstructionSink<'_>, width: &Width, exit_depth: u32, address: Option<u32>) -> u64 {
+fn scalar_base(address: &MemoryOperand) -> Option<usize> {
+    let Value::Register(reg) = &address.base else { return None };
+    (!address.pre_index || address.offset.constant_value().is_some_and(|(offset, _)| offset == 0)).then(|| usize::from(reg.index()))
+}
+
+fn load_page(s: &mut InstructionSink<'_>, address: u32) {
+    // Each directory entry is a four-byte nullable page pointer.
+    s.local_get(PAGE_TABLE)
+        .local_get(address)
+        .i32_const(16)
+        .i32_shr_u()
+        .i32_const(2)
+        .i32_shl()
+        .i32_add()
+        .i32_load(field(0));
+}
+
+fn scalar_address(s: &mut InstructionSink<'_>, width: &Width, exit_depth: u32, address: Option<u32>, translated: Option<u32>) -> u64 {
     let alignment_mask = match width {
         Width::Byte => 0,
         Width::Half => 1,
@@ -904,18 +943,15 @@ fn scalar_address(s: &mut InstructionSink<'_>, width: &Width, exit_depth: u32, a
         s.local_set(LEFT);
     }
     s.local_get(PAGE_TABLE).i32_eqz().br_if(exit_depth - 3);
-    // Each directory entry is a four-byte nullable page pointer.
-    s.local_get(PAGE_TABLE);
+    if let Some(local) = translated {
+        s.local_get(local).i32_eqz().br_if(exit_depth);
+        s.local_get(local);
+        return 0;
+    }
     if let Some(address) = address {
-        s.i32_load(field(u64::from(address >> 16) * 4));
+        s.local_get(PAGE_TABLE).i32_load(field(u64::from(address >> 16) * 4));
     } else {
-        s.local_get(LEFT)
-            .i32_const(16)
-            .i32_shr_u()
-            .i32_const(2)
-            .i32_shl()
-            .i32_add()
-            .i32_load(field(0));
+        load_page(s, LEFT);
     }
     s.local_tee(PAGE_POINTER).i32_eqz().br_if(exit_depth);
     s.local_get(PAGE_POINTER);
@@ -1309,7 +1345,8 @@ fn operation(s: &mut InstructionSink<'_>, transfers: &Transfers, regs: &RegionLo
                 memory_address(s, regs, address, instruction.pc.get(), regs.thumb);
                 None
             };
-            let offset = scalar_address(s, width, exit_depth, literal);
+            let translated = scalar_base(address).and_then(|index| regs.translated[index]);
+            let offset = scalar_address(s, width, exit_depth, literal, translated);
             if let Operation::Store { value: ref source, .. } = instruction.operation {
                 if *source == Value::Register(Reg::PC) {
                     s.i32_const(instruction.pc.get().wrapping_add(12) as i32);
@@ -1470,7 +1507,7 @@ fn operation(s: &mut InstructionSink<'_>, transfers: &Transfers, regs: &RegionLo
             register_value(s, regs, address, instruction.pc.get(), regs.thumb);
             register_value(s, regs, source, instruction.pc.get(), regs.thumb);
             s.local_set(RIGHT);
-            scalar_address(s, width, exit_depth, None);
+            scalar_address(s, width, exit_depth, None, None);
             s.local_set(RANGE_FIRST);
             if matches!(width, Width::Word) {
                 s.local_get(RANGE_FIRST).i32_load(field(0)).local_set(RESULT);
@@ -1790,6 +1827,30 @@ mod tests {
                     operation,
                 });
             }
+        }
+        for operation in [
+            Operation::MultipleTransfer {
+                base: Reg::new(1),
+                registers: 1,
+                increment: true,
+                before: false,
+                write_back: false,
+                load: false,
+            },
+            Operation::Load {
+                address: address(1),
+                width: Width::Word,
+                signed: false,
+                destination: Reg::new(8),
+            },
+        ] {
+            let pc = 0x1000 + ir.blocks[0].instructions.len() as u32 * 2;
+            ir.blocks[0].instructions.push(Instruction {
+                pc: MemoryAddress::new(pc),
+                size: 2,
+                condition: Condition::Always,
+                operation,
+            });
         }
         builder.add_region(&mut ir);
         for (index, op) in [
@@ -2526,27 +2587,35 @@ for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x
     }
 }
 for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
-    const memory = new WebAssembly.Memory({initial: 2});
+    const memory = new WebAssembly.Memory({initial: 3});
     const table = directory(memory, address === null ? [] : [[address >>> 16, 65536]]);
     const frame = new Uint32Array(memory.buffer, 0, 20);
     frame[0] = 0x89abcdef; frame[1] = address ?? 0x3000;
-    frame[15] = 0x1000; frame[16] = 0x3f; frame[17] = 0x1012;
+    frame[15] = 0x1000; frame[16] = 0x3f; frame[17] = 0x1016;
     let pages = 0;
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory,
-        word_range() { throw new Error('unexpected word range'); },
+        word_range(access, guest, words) {
+            assert.equal(guest >>> 0, address); assert.equal(words, 1);
+            const view = new DataView(memory.buffer), offset = guest & 65535;
+            view.setUint32(table + (guest >>> 16) * 4, 131072, true);
+            view.setUint32(131072 + offset, 0x12345678, true);
+            frame[19] = 4;
+            return BigInt(65536 + offset);
+        },
         resolve() { throw new Error('unexpected resolve'); },
         pages() {
             pages++;
             return table;
         },
     }}).exports.dispatch;
-    const completed = address === null ? 0 : address === 0x3001 ? 3 : 9;
-    assert.equal(dispatch(0, 1, 1), completed === 9 ? 3 : 4);
-    assert.equal(pages, 1);
+    const completed = address === null ? 0 : address === 0x3001 ? 3 : 11;
+    assert.equal(dispatch(0, 1, 1), completed === 11 ? 3 : 4);
+    assert.equal(pages, completed === 11 ? 2 : 1);
     assert.equal(frame[15], 0x1000 + completed * 2);
-    const expected = [0xef, 0xffffffef, 0xcdef, 0xffffcdef, 0x89abcdef, 0x89abcdef];
-    assert.deepEqual(Array.from(frame.slice(2, 2 + completed / 3 * 2)), expected.slice(0, completed / 3 * 2));
+    const expected = [0xef, 0xffffffef, 0xcdef, 0xffffcdef, 0x89abcdef, 0x89abcdef, 0x12345678];
+    const loaded = completed === 11 ? 7 : completed === 3 ? 2 : 0;
+    assert.deepEqual(Array.from(frame.slice(2, 2 + loaded)), expected.slice(0, loaded));
 }
 {
     const memory = new WebAssembly.Memory({initial: 1});
