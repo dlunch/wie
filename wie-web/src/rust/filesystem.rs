@@ -8,6 +8,7 @@ use crate::indexed_db_store::{Store, StoreKey};
 
 const DB_NAME: &str = "wie_filesystem";
 const STORE_NAME: &str = "files";
+const DB_VERSION: u32 = 3;
 
 fn make_key(pid: &str, path: &str) -> StoreKey {
     StoreKey::Pair(pid.to_string(), path.to_string())
@@ -32,7 +33,7 @@ impl WebFilesystem {
         if let Some(store) = self.store.borrow().as_ref() {
             return store.clone();
         }
-        let store = Store::open(DB_NAME, STORE_NAME).await;
+        let store = Store::open(DB_NAME, STORE_NAME, Some(DB_VERSION)).await;
         *self.store.borrow_mut() = Some(store.clone());
         store
     }

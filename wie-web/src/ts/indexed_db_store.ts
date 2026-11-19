@@ -7,15 +7,20 @@ export class IndexedDBStore {
     this.store_name = store_name;
   }
 
-  public static open(db_name: string, store_name: string): Promise<IndexedDBStore> {
+  public static open(db_name: string, store_name: string, version?: number): Promise<IndexedDBStore> {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(db_name);
+      const request = indexedDB.open(db_name, version);
 
       request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
+        const db = request.result;
         if (!db.objectStoreNames.contains(store_name)) {
           db.createObjectStore(store_name);
+          return;
         }
+        // Only the filesystem is versioned: v1 keyed files by AID and v2 moved them under migrated_aid_; PIDs reach neither.
+        const store = request.transaction!.objectStore(store_name);
+        if (event.oldVersion < 2) store.clear();
+        else store.delete(IDBKeyRange.bound(["migrated_aid_"], ["migrated_aid`"], false, true));
       };
 
       request.onsuccess = (event) => {
