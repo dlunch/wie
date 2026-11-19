@@ -1,12 +1,12 @@
 use rusqlite::{Result, Transaction};
 
 // Index `n` upgrades a database from `user_version` n to n + 1.
-const UPGRADES: [fn(&Transaction) -> Result<()>; 2] = [rename_files_namespace, delete_aid_files];
+const UPGRADES: [fn(&Transaction) -> Result<()>; 2] = [v1_rename_files_namespace, v2_delete_aid_files];
 
 pub fn run(transaction: &Transaction) -> Result<()> {
     let initialized: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table')", [], |row| row.get(0))?;
     if !initialized {
-        create_initial(transaction)?;
+        v0_create_tables(transaction)?;
     }
     let version: usize = transaction.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     for upgrade in &UPGRADES[version..] {
@@ -15,7 +15,7 @@ pub fn run(transaction: &Transaction) -> Result<()> {
     transaction.pragma_update(None, "user_version", UPGRADES.len())
 }
 
-fn create_initial(transaction: &Transaction) -> Result<()> {
+fn v0_create_tables(transaction: &Transaction) -> Result<()> {
     transaction.execute_batch(
         "CREATE TABLE record_stores (
             pid TEXT NOT NULL,
@@ -40,7 +40,7 @@ fn create_initial(transaction: &Transaction) -> Result<()> {
     )
 }
 
-fn rename_files_namespace(transaction: &Transaction) -> Result<()> {
+fn v1_rename_files_namespace(transaction: &Transaction) -> Result<()> {
     transaction.execute_batch(
         "ALTER TABLE files RENAME COLUMN aid TO pid;
         UPDATE files SET pid = 'migrated_aid_' || pid;",
@@ -48,7 +48,7 @@ fn rename_files_namespace(transaction: &Transaction) -> Result<()> {
 }
 
 // AID-keyed saves are unreachable from PID namespaces.
-fn delete_aid_files(transaction: &Transaction) -> Result<()> {
+fn v2_delete_aid_files(transaction: &Transaction) -> Result<()> {
     transaction.execute_batch("DELETE FROM files WHERE pid GLOB 'migrated_aid_*';")
 }
 
@@ -59,14 +59,14 @@ mod tests {
 
     use crate::store::open;
 
-    use super::create_initial;
+    use super::v0_create_tables;
 
     #[test]
     fn upgrades_initial_schema_and_deletes_aid_files() {
         let root = tempdir().unwrap();
         let mut connection = Connection::open(root.path().join("state.sqlite")).unwrap();
         let transaction = connection.transaction().unwrap();
-        create_initial(&transaction).unwrap();
+        v0_create_tables(&transaction).unwrap();
         transaction.execute("INSERT INTO files VALUES ('00000000', 'save', X'00')", []).unwrap();
         transaction.commit().unwrap();
 
