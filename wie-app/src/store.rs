@@ -32,11 +32,19 @@ pub(crate) fn open(root: &Path) -> Result<Store> {
                 FOREIGN KEY (pid, name) REFERENCES record_stores(pid, name) ON DELETE CASCADE
             );
             CREATE TABLE files (
-                pid TEXT NOT NULL,
+                aid TEXT NOT NULL,
                 path TEXT NOT NULL,
                 data BLOB NOT NULL,
-                PRIMARY KEY (pid, path)
+                PRIMARY KEY (aid, path)
             );",
+        )?;
+    }
+    let version: u32 = transaction.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if version == 0 {
+        transaction.execute_batch(
+            "ALTER TABLE files RENAME COLUMN aid TO pid;
+            UPDATE files SET pid = 'migrated_aid_' || pid;
+            PRAGMA user_version = 1;",
         )?;
     }
     transaction.commit()?;

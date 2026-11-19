@@ -207,10 +207,32 @@ mod tests {
         assert_eq!(first.id, "PD00000000");
         assert_eq!(second.id, "PD00000001");
 
+        {
+            let store = store::open(root.path()).unwrap();
+            let connection = store.lock().unwrap();
+            assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 1);
+            connection
+                .execute_batch(
+                    "PRAGMA user_version = 0;
+                    ALTER TABLE files RENAME COLUMN pid TO aid;
+                    INSERT INTO files VALUES ('00000000', 'legacy', X'00FF');",
+                )
+                .unwrap();
+        }
+
         tauri::async_runtime::block_on(async {
             let store = store::open(root.path()).unwrap();
+            assert_eq!(
+                store
+                    .lock()
+                    .unwrap()
+                    .query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+                    .unwrap(),
+                1
+            );
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
+            assert!(filesystem.exists("migrated_aid_00000000", "legacy").await);
             for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
                 assert!(!repository.exists("save", id).await);
                 let mut database = repository.open("save", id).await;
@@ -397,6 +419,7 @@ mod tests {
             let store = store::open(restored.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
+            assert!(filesystem.exists("migrated_aid_00000000", "legacy").await);
             for (pid, record, file) in [
                 (&first.id, b"reset".as_slice(), b"\0\0r\0\0\0".as_slice()),
                 (&second.id, b"other".as_slice(), b"\0\0other".as_slice()),
