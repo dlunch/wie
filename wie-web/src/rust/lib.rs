@@ -7,7 +7,6 @@ mod database;
 mod filesystem;
 mod host;
 mod indexed_db_store;
-mod save_migration;
 mod util;
 mod window;
 
