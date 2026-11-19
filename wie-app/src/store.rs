@@ -41,11 +41,11 @@ pub(crate) fn open(root: &Path) -> Result<Store> {
     }
     let version: u32 = transaction.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version == 0 {
-        transaction.execute_batch(
-            "ALTER TABLE files RENAME COLUMN aid TO pid;
-            UPDATE files SET pid = 'migrated_aid_' || pid;
-            PRAGMA user_version = 1;",
-        )?;
+        // Files keyed by AID are unreachable under PID namespaces.
+        transaction.execute_batch("ALTER TABLE files RENAME COLUMN aid TO pid; DELETE FROM files;")?;
+    }
+    if version < 2 {
+        transaction.execute_batch("DELETE FROM files WHERE pid GLOB 'migrated_aid_*'; PRAGMA user_version = 2;")?;
     }
     transaction.commit()?;
     Ok(Arc::new(Mutex::new(connection)))
