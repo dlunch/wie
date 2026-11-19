@@ -1,3 +1,5 @@
+export type Upgrade = (db: IDBDatabase, transaction: IDBTransaction) => void;
+
 export class IndexedDBStore {
   private db: IDBDatabase;
   private store_name: string;
@@ -7,20 +9,13 @@ export class IndexedDBStore {
     this.store_name = store_name;
   }
 
-  public static open(db_name: string, store_name: string, version?: number): Promise<IndexedDBStore> {
+  // Index `n` upgrades a database from version n to n + 1.
+  public static open(db_name: string, store_name: string, upgrades: Upgrade[] = [db => db.createObjectStore(store_name)]): Promise<IndexedDBStore> {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(db_name, version);
+      const request = indexedDB.open(db_name, upgrades.length);
 
       request.onupgradeneeded = (event) => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(store_name)) {
-          db.createObjectStore(store_name);
-          return;
-        }
-        // Only the filesystem is versioned: v1 keyed files by AID and v2 moved them under migrated_aid_; PIDs reach neither.
-        const store = request.transaction!.objectStore(store_name);
-        if (event.oldVersion < 2) store.clear();
-        else store.delete(IDBKeyRange.bound(["migrated_aid_"], ["migrated_aid`"], false, true));
+        for (const upgrade of upgrades.slice(event.oldVersion)) upgrade(request.result, request.transaction!);
       };
 
       request.onsuccess = (event) => {

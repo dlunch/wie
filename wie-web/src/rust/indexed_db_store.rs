@@ -10,7 +10,7 @@ extern "C" {
     type IndexedDBStore;
 
     #[wasm_bindgen(static_method_of = IndexedDBStore)]
-    async fn open(db_name: &str, store_name: &str, version: Option<u32>) -> IndexedDBStore;
+    async fn open(db_name: &str, store_name: &str) -> IndexedDBStore;
 
     #[wasm_bindgen(method)]
     async fn get_all_keys(this: &IndexedDBStore) -> js_sys::Array;
@@ -23,6 +23,12 @@ extern "C" {
 
     #[wasm_bindgen(method)]
     async fn delete(this: &IndexedDBStore, key: &JsValue);
+}
+
+#[wasm_bindgen(module = "/src/ts/filesystem_store.ts")]
+extern "C" {
+    #[wasm_bindgen(js_name = openFilesystemStore)]
+    async fn open_filesystem_store() -> IndexedDBStore;
 }
 
 unsafe impl Sync for IndexedDBStore {}
@@ -54,10 +60,15 @@ impl Clone for Store {
 }
 
 impl Store {
-    pub async fn open(db_name: &str, store_name: &str, version: Option<u32>) -> Self {
+    pub async fn open(db_name: &str, store_name: &str) -> Self {
         let db_name = db_name.to_owned();
         let store_name = store_name.to_owned();
-        let js = run_js_future(async move { IndexedDBStore::open(&db_name, &store_name, version).await }).await;
+        let js = run_js_future(async move { IndexedDBStore::open(&db_name, &store_name).await }).await;
+        Self { js }
+    }
+
+    pub async fn open_filesystem() -> Self {
+        let js = run_js_future(async { open_filesystem_store().await }).await;
         Self { js }
     }
 
