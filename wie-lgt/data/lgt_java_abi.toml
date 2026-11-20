@@ -52,6 +52,9 @@ vtable = [
     { name = "skip", descriptor = "(J)J", index = 13 },
     { name = "available", descriptor = "()I", index = 14 },
     { name = "close", descriptor = "()V", index = 15 },
+    { name = "mark", descriptor = "(I)V", index = 16 },
+    { name = "reset", descriptor = "()V", index = 17 },
+    { name = "markSupported", descriptor = "()Z", index = 18 },
 ]
 
 [[class]]
@@ -92,11 +95,17 @@ name = "java/io/DataInputStream"
 vtable = [
     { name = "readFully", descriptor = "([B)V", index = 19 },
     { name = "readFully", descriptor = "([BII)V", index = 20 },
+    { name = "skipBytes", descriptor = "(I)I", index = 21 },
     { name = "readBoolean", descriptor = "()Z", index = 22 },
     { name = "readByte", descriptor = "()B", index = 23 },
     { name = "readUnsignedByte", descriptor = "()I", index = 24 },
     { name = "readShort", descriptor = "()S", index = 25 },
+    { name = "readUnsignedShort", descriptor = "()I", index = 26 },
+    { name = "readChar", descriptor = "()C", index = 27 },
     { name = "readInt", descriptor = "()I", index = 28 },
+    { name = "readLong", descriptor = "()J", index = 29 },
+    { name = "readFloat", descriptor = "()F", index = 30 },
+    { name = "readDouble", descriptor = "()D", index = 31 },
     { name = "readUTF", descriptor = "()Ljava/lang/String;", index = 32 },
 ]
 
@@ -124,8 +133,14 @@ name = "java/lang/StringBuffer"
 vtable = [
     { name = "append", descriptor = "(Ljava/lang/Object;)Ljava/lang/StringBuffer;", index = 17 },
     { name = "append", descriptor = "(Ljava/lang/String;)Ljava/lang/StringBuffer;", index = 18 },
+    { name = "append", descriptor = "([C)Ljava/lang/StringBuffer;", index = 19 },
+    { name = "append", descriptor = "([CII)Ljava/lang/StringBuffer;", index = 20 },
+    { name = "append", descriptor = "(Z)Ljava/lang/StringBuffer;", index = 21 },
     { name = "append", descriptor = "(C)Ljava/lang/StringBuffer;", index = 22 },
     { name = "append", descriptor = "(I)Ljava/lang/StringBuffer;", index = 23 },
+    { name = "append", descriptor = "(J)Ljava/lang/StringBuffer;", index = 24 },
+    { name = "append", descriptor = "(F)Ljava/lang/StringBuffer;", index = 25 },
+    { name = "append", descriptor = "(D)Ljava/lang/StringBuffer;", index = 26 },
     { name = "delete", descriptor = "(II)Ljava/lang/StringBuffer;", index = 27 },
 ]
 
