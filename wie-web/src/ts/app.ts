@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Settings, createIcons } from "lucide";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Minus, Settings, createIcons } from "lucide";
 
 import { recordPageView } from "./analytics";
 import type { LibraryApp, PlayerSession, Wie } from "./backend";
@@ -25,12 +25,15 @@ const KEY_MAP: Record<string, string> = {
   Enter: "OK",
   NumpadEnter: "OK",
   Space: "OK",
+  ShiftLeft: "SOFT1",
+  ShiftRight: "SOFT2",
 };
 const icons = {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Minus,
   Settings,
 };
 
