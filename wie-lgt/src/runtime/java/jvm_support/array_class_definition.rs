@@ -1,7 +1,8 @@
 use alloc::{borrow::Cow, boxed::Box, format, string::String};
 use core::fmt::{self, Debug, Formatter};
 
-use jvm::{ArrayClassDefinition, ClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResult};
+use jvm::{ArrayClassDefinition, ClassDefinition, ClassInstance, Jvm, Result as JvmResult};
+use jvm_types::JavaType;
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::array_element_size;

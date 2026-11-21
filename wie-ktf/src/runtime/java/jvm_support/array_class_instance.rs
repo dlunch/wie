@@ -4,7 +4,8 @@ use core::{
     hash::{Hash, Hasher},
 };
 
-use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
+use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, Field, JavaValue, Result as JvmResult};
+use jvm_types::JavaType;
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::{decode_array_values, encode_array_values};

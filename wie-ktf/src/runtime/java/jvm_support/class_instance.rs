@@ -5,9 +5,9 @@ use core::{
     iter,
     mem::size_of,
 };
-use jvm_types::FieldAccessFlags;
 
-use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
+use jvm::{ClassDefinition, ClassInstance, Field, JavaValue, Result as JvmResult};
+use jvm_types::{FieldAccessFlags, JavaType};
 use wipi_types::ktf::java::{JavaClassInstance as RawJavaClassInstance, JavaFieldDefinition as RawJavaField};
 
 use wie_core_arm::{Allocator, ArmCore};

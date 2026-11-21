@@ -9,7 +9,8 @@ use core::{
     mem::size_of,
 };
 
-use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResult};
+use jvm::{ArrayClassDefinition, ClassInstance, Jvm, Result as JvmResult};
+use jvm_types::JavaType;
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
