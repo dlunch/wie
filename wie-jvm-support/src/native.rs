@@ -1,6 +1,7 @@
 use alloc::{boxed::Box, vec::Vec};
 
-use jvm::{ClassInstance, JavaType, JavaValue};
+use jvm::{ClassInstance, JavaValue};
+use jvm_types::JavaType;
 
 pub trait NativeJavaValueCodec {
     fn object_from_raw(&self, raw: u32) -> Box<dyn ClassInstance>;

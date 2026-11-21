@@ -8,9 +8,9 @@ use alloc::{
 };
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
-use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm::{JavaError, JavaValue, Jvm, Method, Result as JvmResult};
 use jvm_class_proto::JavaMethodProto;
-use jvm_types::MethodAccessFlags;
+use jvm_types::{JavaType, MethodAccessFlags};
 use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
 
 use wie_core_arm::{
