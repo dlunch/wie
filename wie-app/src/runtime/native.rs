@@ -70,6 +70,8 @@ pub(crate) async fn key_event(state: State<'_, AppState>, session_id: u64, key: 
         "#" => KeyCode::HASH,
         "*" => KeyCode::STAR,
         "CLR" => KeyCode::CLEAR,
+        "SOFT1" => KeyCode::LEFT_SOFT_KEY,
+        "SOFT2" => KeyCode::RIGHT_SOFT_KEY,
         _ => return Err(format!("Unknown key: {key}")),
     };
     let runtime = state.runtime.lock().unwrap();

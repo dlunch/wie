@@ -39,9 +39,10 @@ const main = async () => {
     output.prepend(canvas);
   } else {
     output.className = "native-preparation";
-    const keypadTopRow = document.querySelector(".button-container p")!;
-    keypadTopRow.prepend(document.getElementById("back-to-library")!);
-    keypadTopRow.append(document.getElementById("app-settings")!);
+    // Soft keys fill the top row, so the toolbar buttons flank CLR where a handset has its call and end keys.
+    const keypadClearRow = document.querySelector(".button-container p:nth-child(4)")!;
+    keypadClearRow.prepend(document.getElementById("back-to-library")!);
+    keypadClearRow.append(document.getElementById("app-settings")!);
   }
 
   if (native) {
