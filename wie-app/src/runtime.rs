@@ -24,7 +24,6 @@ use wie_backend::Instant as GuestInstant;
 
 use crate::{
     library::{Library, LibraryApp},
-    save_migration,
     settings::{Settings, SettingsStore},
     store::{self, Store},
 };
@@ -194,7 +193,6 @@ pub async fn start_app(app: AppHandle, state: State<'_, AppState>, id: String, e
                 return Err("An app is already running".to_owned());
             }
             let (metadata, bytes) = library.read_archive(&id).map_err(|error| error.to_string())?;
-            save_migration::run(&state.store, &metadata.id, &metadata.filename, &bytes).map_err(|error| error.to_string())?;
             let platform = determine_file_type(&metadata.filename, &bytes).map_err(|error| error.to_string())?.name();
             let app_id = metadata.id.clone();
             let app_context = Context::Other(
