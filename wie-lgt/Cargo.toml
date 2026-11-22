@@ -17,8 +17,8 @@ spin = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 
-chrono = { version = "^0.4", default-features = false, features = ["alloc"] }
 elf = { version = "^0.8" }
+jiff = { version = "^1.0", default-features = false }
 
 jvm = { workspace = true }
 jvm-class-proto = { workspace = true }
