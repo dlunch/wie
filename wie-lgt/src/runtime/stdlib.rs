@@ -1,9 +1,9 @@
 use alloc::{format, string::String};
-use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::{
     cmp::{Ordering, min},
     iter::from_fn,
 };
+use jiff::{Timestamp, tz::Offset};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
@@ -407,8 +407,8 @@ async fn localtime(core: &mut ArmCore, _: &mut (), ptr_time: u32) -> Result<u32>
     let time: u32 = read_generic(core, ptr_time)?;
 
     // TODO kst only for now
-    let kst = FixedOffset::east_opt(9 * 3600).unwrap();
-    let dt: DateTime<FixedOffset> = kst.timestamp_opt(time as _, 0).unwrap();
+    let kst = Offset::constant(9);
+    let dt = kst.to_datetime(Timestamp::from_second(time.into()).unwrap());
 
     // TODO tm struct
     write_generic(core, result, dt.second() as u32)?;
@@ -417,10 +417,10 @@ async fn localtime(core: &mut ArmCore, _: &mut (), ptr_time: u32) -> Result<u32>
     write_generic(core, result + 0x0c, dt.day() as u32)?;
     write_generic(core, result + 0x10, (dt.month() as u32) - 1)?; // months since January
     write_generic(core, result + 0x14, (dt.year() as u32) - 1900)?; // years since 1900
-    write_generic(core, result + 0x18, dt.weekday().num_days_from_sunday() as u32)?; // days since Sunday
-    write_generic(core, result + 0x1c, dt.ordinal() as u32)?; // days since January 1
+    write_generic(core, result + 0x18, dt.weekday().to_sunday_zero_offset() as u32)?; // days since Sunday
+    write_generic(core, result + 0x1c, dt.day_of_year() as u32)?; // days since January 1
     write_generic(core, result + 0x20, 0u32)?; // DST flag
-    write_generic(core, result + 0x24, kst.local_minus_utc() as u32)?; // timezone offset in seconds
+    write_generic(core, result + 0x24, kst.seconds() as u32)?; // timezone offset in seconds
     write_generic(core, result + 0x28, 0u32)?; // timezone abbreviation ptr
 
     Ok(result)
