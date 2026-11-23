@@ -1670,6 +1670,7 @@ mod test {
                     ),
                 ],
                 fields: vec![
+                    JavaFieldProto::new("selectedIndex", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("count", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("lastCommand", "Ljavax/microedition/lcdui/Command;", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("lastDisplayable", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PUBLIC),
@@ -1689,6 +1690,19 @@ mod test {
             command: ClassInstanceRef<Command>,
             displayable: ClassInstanceRef<Displayable>,
         ) -> JvmResult<()> {
+            if jvm.is_instance(&**displayable, "javax/microedition/lcdui/List") {
+                let selected: i32 = jvm
+                    .invoke_virtual(&displayable, "javax/microedition/lcdui/List", "getSelectedIndex", "()I", ())
+                    .await?;
+                jvm.put_field(
+                    &mut this,
+                    "javax/microedition/lcdui/TestRecordingCommandListener",
+                    "selectedIndex",
+                    "I",
+                    selected,
+                )
+                .await?;
+            }
             let count: i32 = jvm
                 .get_field(&this, "javax/microedition/lcdui/TestRecordingCommandListener", "count", "I")
                 .await?;
@@ -2120,6 +2134,112 @@ mod test {
                 .count();
             assert!(bright_title_pixels > 20, "wrapped title rows must contain visible glyph pixels");
 
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn implicit_list_scrolls_and_dispatches_the_focused_choice() -> Result<()> {
+        run_jvm_test(test_protos(), |jvm| async move {
+            const LIST: &str = "javax/microedition/lcdui/List";
+            const DISPLAY: &str = "javax/microedition/lcdui/Display";
+            const LISTENER: &str = "javax/microedition/lcdui/TestRecordingCommandListener";
+            let title = JavaLangString::from_rust_string(&jvm, "Menu").await?;
+            let list = jvm.new_class(LIST, "(Ljava/lang/String;I)V", (title, 3)).await?;
+            let listener = jvm.new_class(LISTENER, "()V", ()).await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &list,
+                    LIST,
+                    "setCommandListener",
+                    "(Ljavax/microedition/lcdui/CommandListener;)V",
+                    (listener.clone(),),
+                )
+                .await?;
+            let display: ClassInstanceRef<Display> = jvm.new_class(DISPLAY, "()V", ()).await?.into();
+            let _: () = jvm
+                .invoke_virtual(
+                    &display,
+                    DISPLAY,
+                    "setCurrent",
+                    "(Ljavax/microedition/lcdui/Displayable;)V",
+                    (list.clone(),),
+                )
+                .await?;
+
+            // Only the last entry has text, so its glyphs prove that scrolling exposed that row.
+            let viewport_height: i32 = jvm.invoke_virtual(&list, LIST, "getHeight", "()I", ()).await?;
+            let tall_image: ClassInstanceRef<Image> = jvm
+                .invoke_static(
+                    "javax/microedition/lcdui/Image",
+                    "createImage",
+                    "(II)Ljavax/microedition/lcdui/Image;",
+                    (1, viewport_height + 1),
+                )
+                .await?;
+            for index in 0..20 {
+                let text = JavaLangString::from_rust_string(&jvm, if index == 19 { "Last entry" } else { "" }).await?;
+                let image = if index == 18 { tall_image.clone() } else { None.into() };
+                let _: i32 = jvm
+                    .invoke_virtual(
+                        &list,
+                        LIST,
+                        "append",
+                        "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I",
+                        (text, image),
+                    )
+                    .await?;
+            }
+            let _: () = jvm.invoke_virtual(&list, LIST, "setSelectedIndex", "(IZ)V", (18, true)).await?;
+            send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::DOWN).await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&list, LIST, "getSelectedIndex", "()I", ()).await?,
+                18,
+                "page through the tall row first"
+            );
+            send_key(&jvm, &display, KeyboardEventType::KeyRepeated, MIDPKeyCode::DOWN).await?;
+            let _: () = jvm.invoke_virtual(&display, DISPLAY, "handlePaintEvent", "()V", ()).await?;
+            let mut graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_static(DISPLAY, "getScreenGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+                .await?;
+            let image = Graphics::image(&jvm, &mut graphics).await?;
+            let pixels = Image::image(&jvm, &image).await?;
+            assert!(
+                (150..240).any(|y| (16..120).any(|x| {
+                    let pixel = pixels.get_pixel(x, y);
+                    (pixel.r, pixel.g, pixel.b) == (0x17, 0x21, 0x2b)
+                })),
+                "last entry text should be visible"
+            );
+            assert_eq!(jvm.get_field::<i32>(&listener, LISTENER, "count", "I").await?, 0);
+            let default: ClassInstanceRef<Command> = jvm.get_static_field(LIST, "SELECT_COMMAND", "Ljavax/microedition/lcdui/Command;").await?;
+            let custom = make_command(&jvm, "Open", 8, 1).await?;
+            for expected in [&default, &custom] {
+                if expected.identity() == custom.identity() {
+                    let _: () = jvm
+                        .invoke_virtual(
+                            &list,
+                            LIST,
+                            "setSelectCommand",
+                            "(Ljavax/microedition/lcdui/Command;)V",
+                            (custom.clone(),),
+                        )
+                        .await?;
+                }
+                send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::FIRE).await?;
+                let received: ClassInstanceRef<Command> = jvm
+                    .get_field(&listener, LISTENER, "lastCommand", "Ljavax/microedition/lcdui/Command;")
+                    .await?;
+                let target: ClassInstanceRef<Displayable> = jvm
+                    .get_field(&listener, LISTENER, "lastDisplayable", "Ljavax/microedition/lcdui/Displayable;")
+                    .await?;
+                assert_eq!(received.identity(), expected.identity());
+                assert_eq!(target.identity(), list.identity());
+                assert_eq!(jvm.get_field::<i32>(&listener, LISTENER, "selectedIndex", "I").await?, 19);
+            }
+            let _: () = jvm.invoke_virtual(&list, LIST, "deleteAll", "()V", ()).await?;
+            send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::LEFT_SOFT_KEY).await?;
+            assert_eq!(jvm.get_field::<i32>(&listener, LISTENER, "count", "I").await?, 2);
             Ok(())
         })
     }
