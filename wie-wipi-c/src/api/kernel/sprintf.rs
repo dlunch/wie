@@ -6,8 +6,10 @@ const MAX_WIDTH: usize = 4096;
 
 pub fn sprintf(context: &(impl ByteRead + ?Sized), format_bytes: &[u8], args: impl Iterator<Item = Result<u32>>) -> Result<Vec<u8>> {
     let format_string = encoding_rs::EUC_KR.decode(format_bytes).0;
-    let result = self::format(&format_string, args, &mut |ptr| {
-        let bytes = read_null_terminated_string_bytes(context, ptr)?;
+    let result = self::format(&format_string, args, &mut |ptr, precision| {
+        // precision counts guest bytes, not decoded characters
+        let mut bytes = read_null_terminated_string_bytes(context, ptr)?;
+        bytes.truncate(precision);
 
         Ok(encoding_rs::EUC_KR.decode(&bytes).0.into_owned())
     })?;
@@ -15,7 +17,7 @@ pub fn sprintf(context: &(impl ByteRead + ?Sized), format_bytes: &[u8], args: im
     Ok(encoding_rs::EUC_KR.encode(&result).0.into_owned())
 }
 
-fn format(format: &str, args: impl Iterator<Item = Result<u32>>, read_string: &mut dyn FnMut(u32) -> Result<String>) -> Result<String> {
+fn format(format: &str, args: impl Iterator<Item = Result<u32>>, read_string: &mut dyn FnMut(u32, usize) -> Result<String>) -> Result<String> {
     let mut result = String::with_capacity(format.len());
     let mut chars = format.chars();
     let mut arg_iter = args;
@@ -29,6 +31,7 @@ fn format(format: &str, args: impl Iterator<Item = Result<u32>>, read_string: &m
         let mut spec = String::from("%");
         let mut flag = None;
         let mut width = None;
+        let mut precision = None;
         let mut longs = 0u32;
         loop {
             let Some(c) = chars.next() else {
@@ -74,7 +77,7 @@ fn format(format: &str, args: impl Iterator<Item = Result<u32>>, read_string: &m
                         break;
                     }
 
-                    result += &read_string(ptr)?;
+                    result += &read_string(ptr, precision.unwrap_or(usize::MAX))?;
                     break;
                 }
                 'c' => {
@@ -96,6 +99,11 @@ fn format(format: &str, args: impl Iterator<Item = Result<u32>>, read_string: &m
                     break;
                 }
                 'l' => longs += 1,
+                '.' => precision = Some(0),
+                '*' if precision.is_some() => precision = Some(next_arg(&mut arg_iter)? as usize),
+                '0'..='9' if precision.is_some() => {
+                    precision = precision.map(|x: usize| x.saturating_mul(10).saturating_add(c.to_digit(10).unwrap() as usize))
+                }
                 '0' if width.is_none() => flag = Some('0'),
                 '0'..='9' => width = Some(width.unwrap_or(0).saturating_mul(10).saturating_add(c.to_digit(10).unwrap() as usize)),
                 _ => {
@@ -153,7 +161,7 @@ mod test {
     }
 
     fn format(format_string: &str, args: &[u32]) -> Result<String> {
-        super::format(format_string, args.iter().copied().map(Ok), &mut |_| Ok("stub".to_string()))
+        super::format(format_string, args.iter().copied().map(Ok), &mut |_, _| Ok("stub".to_string()))
     }
 
     #[test]
@@ -234,10 +242,14 @@ mod test {
         memory.bytes[0x40..0x40 + guest_string.len()].copy_from_slice(&guest_string);
         memory.bytes[0x40 + guest_string.len()] = 0;
 
-        let format = encoding_rs::EUC_KR.encode("안녕 %s %c %d %u %x").0;
-        let result = super::sprintf(&memory, &format, [0x40, b'A' as u32, (-7i32) as u32, 42, 0xbeef].into_iter().map(Ok))?;
+        let format = encoding_rs::EUC_KR.encode("안녕 %s %c %d %u %x %.2s %.*s").0;
+        let result = super::sprintf(
+            &memory,
+            &format,
+            [0x40, b'A' as u32, (-7i32) as u32, 42, 0xbeef, 0x40, 4, 0x40].into_iter().map(Ok),
+        )?;
 
-        let expected = "안녕 세계 A -7 42 beef";
+        let expected = "안녕 세계 A -7 42 beef 세 세계";
         assert_eq!(encoding_rs::EUC_KR.decode(&result).0, expected);
         assert_eq!(result, encoding_rs::EUC_KR.encode(expected).0.into_owned());
 
