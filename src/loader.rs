@@ -104,7 +104,7 @@ pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>
         FileType::Skt if lowercase_filename.ends_with(".zip") => Box::new(SktEmulator::from_archive(platform, extract_zip(&bytes)?)?),
         FileType::Ktf => {
             let id = &filename[..filename.len() - 4];
-            Box::new(KtfEmulator::from_jar(platform, filename, bytes, id, id, None, options)?)
+            Box::new(KtfEmulator::from_jar(platform, filename, bytes, id, id, options)?)
         }
         FileType::Lgt => {
             let id = &filename[..filename.len() - 4];
