@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::VecDeque};
+use alloc::{boxed::Box, collections::VecDeque, string::String};
 use core::pin::Pin;
 
 use wie_util::Result;
@@ -72,8 +72,20 @@ pub enum Event {
     Keydown(KeyCode),
     Keyup(KeyCode),
     Keyrepeat(KeyCode),
-    Timer { due: Instant, callback: TimerCallback },
-    Notify { r#type: i32, param1: i32, param2: i32 }, // wipi notifyEvent
+    /// Text carried by a press and release of the given key.
+    TextInput {
+        key: KeyCode,
+        text: String,
+    },
+    Timer {
+        due: Instant,
+        callback: TimerCallback,
+    },
+    Notify {
+        r#type: i32,
+        param1: i32,
+        param2: i32,
+    }, // wipi notifyEvent
 }
 
 impl Event {
@@ -92,6 +104,8 @@ impl Event {
 #[derive(Default)]
 pub struct EventQueue {
     input_events: VecDeque<Event>,
+    text_events: VecDeque<(KeyCode, String)>,
+    text_input: Option<String>,
     events: VecDeque<Event>,
 }
 
@@ -101,6 +115,10 @@ impl EventQueue {
     }
 
     pub fn push(&mut self, event: Event) {
+        if let Event::TextInput { key, text } = event {
+            self.text_events.push_back((key, text));
+            return;
+        }
         if matches!(event, Event::Keydown(_) | Event::Keyup(_) | Event::Keyrepeat(_)) {
             self.input_events.push_back(event);
             return;
@@ -114,9 +132,25 @@ impl EventQueue {
         self.events.push_back(event);
     }
 
-    /// Keyboard input takes priority; events at the same priority remain FIFO.
+    /// Takes the text carried by the most recently delivered key press.
+    pub fn take_text_input(&mut self) -> Option<String> {
+        self.text_input.take()
+    }
+
+    /// Text follows queued releases and precedes the next press.
     pub fn pop(&mut self) -> Option<Event> {
-        self.input_events.pop_front().or_else(|| self.events.pop_front())
+        if !matches!(self.input_events.front(), Some(Event::Keyup(_)))
+            && let Some((key, text)) = self.text_events.pop_front()
+        {
+            self.text_input = Some(text);
+            self.input_events.push_front(Event::Keyup(key));
+            return Some(Event::Keydown(key));
+        }
+        let event = self.input_events.pop_front().or_else(|| self.events.pop_front());
+        if matches!(event, Some(Event::Keydown(_))) {
+            self.text_input = None;
+        }
+        event
     }
 }
 
@@ -158,8 +192,17 @@ mod tests {
             param1: 2,
             param2: 3,
         });
+        queue.push(Event::Keyup(KeyCode::CLEAR));
         queue.push(Event::Keydown(KeyCode::OK));
+        queue.push(Event::TextInput {
+            key: KeyCode::NUM2,
+            text: "a".into(),
+        });
+        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::CLEAR))));
+        assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
+        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::NUM2))));
         assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::OK))));
+        assert!(queue.take_text_input().is_none());
         queue.push(Event::Keyup(KeyCode::OK));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::OK))));
         assert!(matches!(queue.pop(), Some(Event::Timer { due, .. }) if due.raw() == 10));

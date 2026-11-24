@@ -90,7 +90,7 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
+    use test_utils::{TestPlatform, run_jvm_test_with_system};
     use wipi_types::{
         ktf::wipic::{WIPICGraphicsInterface, WIPICInterface},
         wipic::WIPICFramebuffer,
@@ -105,8 +105,7 @@ mod tests {
     #[test]
     fn native_input_commits_host_text_one_character_per_key_press() -> Result<()> {
         // EUC-KR has no emoji, so only the Hangul and ASCII characters can be committed.
-        let clock = TestClock::new();
-        let platform = TestPlatform::with_clock(clock.clone()).with_text_input("😀가a나");
+        let platform = TestPlatform::new().with_text_input("😀가a나😀");
         run_jvm_test_with_system(Box::new([]), Box::new(platform), |jvm, system| async move {
             let mut core = ArmCore::new(Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
@@ -153,17 +152,12 @@ mod tests {
                     assert!(committed[expected.len()..].iter().all(|byte| *byte == 0xab));
                     assert_eq!(read_generic::<[u8; 8], _>(&core, buffer + 12).unwrap(), [0xcd; 8]);
                 }
-                // A full field ignores the follow-up. Deliver the end markers before opening the next edit.
-                assert!(matches!(system.event_queue().pop(), Some(Event::Keydown(KeyCode::NUM2))));
-                assert!(matches!(system.event_queue().pop(), Some(Event::Keyup(KeyCode::NUM2))));
-                clock.advance(1000);
-                // Both the completed batch and the abandoned batch have queued a marker.
-                for _ in 0..2 {
-                    let Some(Event::Timer { callback, .. }) = system.event_queue().pop() else {
-                        panic!("expected IM end marker")
-                    };
-                    callback().await.unwrap();
-                }
+                // A full field ignores the continuation before the next physical press opens a fresh editor.
+                let mut queue = system.event_queue();
+                queue.push(Event::Keydown(KeyCode::NUM2));
+                assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
+                assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::NUM2))));
+                assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
             }
             Ok(())
         })
