@@ -12,7 +12,7 @@ use rustjava_runtime::classes::java::{lang::String, util::Vector};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::{
-    javax::microedition::lcdui::{Font, Graphics, Image, Item},
+    javax::microedition::lcdui::{Font, Graphics, Image, Item, List},
     net::wie::{ChoiceElement, MIDPKeyCode},
 };
 
@@ -53,6 +53,12 @@ impl ChoiceGroup {
                     "(Ljava/lang/String;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
                     Self::init_with_elements,
                     MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Ljavax/microedition/lcdui/List;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
+                    Self::init_for_list,
+                    MethodAccessFlags::empty(),
                 ),
                 JavaMethodProto::new("size", "()I", Self::size, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getString", "(I)Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
@@ -140,7 +146,7 @@ impl ChoiceGroup {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::<init>({this:?}, {label:?}, {choice_type})");
 
-        let string_elements = jvm.instantiate_array("[Ljava/lang/String;", 0).await?;
+        let string_elements = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/ChoiceGroup",
@@ -154,7 +160,7 @@ impl ChoiceGroup {
     async fn init_with_elements(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         label: ClassInstanceRef<String>,
         choice_type: i32,
         string_elements: ClassInstanceRef<Array<ClassInstanceRef<String>>>,
@@ -165,6 +171,38 @@ impl ChoiceGroup {
         if !matches!(choice_type, 1 | 2 | 4) {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid ChoiceGroup type").await);
         }
+        Self::initialize(jvm, this, label, choice_type, string_elements, image_elements).await
+    }
+
+    async fn init_for_list(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        list: ClassInstanceRef<List>,
+        choice_type: i32,
+        strings: ClassInstanceRef<Array<ClassInstanceRef<String>>>,
+        images: ClassInstanceRef<Array<ClassInstanceRef<Image>>>,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.ChoiceGroup::<init>({this:?}, {list:?}, {choice_type}, {strings:?}, {images:?})");
+        Self::initialize(jvm, this.clone(), None.into(), choice_type, strings, images).await?;
+        jvm.invoke_virtual(
+            &this,
+            "javax/microedition/lcdui/Item",
+            "setOwner",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (list,),
+        )
+        .await
+    }
+
+    async fn initialize(
+        jvm: &Jvm,
+        mut this: ClassInstanceRef<Self>,
+        label: ClassInstanceRef<String>,
+        choice_type: i32,
+        string_elements: ClassInstanceRef<Array<ClassInstanceRef<String>>>,
+        image_elements: ClassInstanceRef<Array<ClassInstanceRef<Image>>>,
+    ) -> JvmResult<()> {
         if string_elements.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "String element array is null").await);
         }
@@ -254,7 +292,7 @@ impl ChoiceGroup {
         Ok(-1)
     }
 
-    async fn select_only(jvm: &Jvm, this: &ClassInstanceRef<Self>, selected_index: i32) -> JvmResult<bool> {
+    async fn select_only(jvm: &Jvm, this: &mut ClassInstanceRef<Self>, selected_index: i32) -> JvmResult<bool> {
         let elements: ClassInstanceRef<Vector> = jvm
             .get_field(this, "javax/microedition/lcdui/ChoiceGroup", "elements", "Ljava/util/Vector;")
             .await?;
@@ -269,6 +307,14 @@ impl ChoiceGroup {
                     .await?;
                 changed = true;
             }
+        }
+        if jvm
+            .get_field::<i32>(this, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I")
+            .await?
+            == 3
+        {
+            jvm.put_field(this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", selected_index)
+                .await?;
         }
         Ok(changed)
     }
@@ -873,7 +919,7 @@ impl ChoiceGroup {
             }
             old_selected != selected
         } else if selected {
-            Self::select_only(jvm, &this, index).await?
+            Self::select_only(jvm, &mut this, index).await?
         } else {
             false
         };
@@ -918,7 +964,7 @@ impl ChoiceGroup {
             }
         } else if size > 0 {
             let selected_index = flags.iter().position(|selected| *selected).unwrap_or(0) as i32;
-            changed = Self::select_only(jvm, &this, selected_index).await?;
+            changed = Self::select_only(jvm, &mut this, selected_index).await?;
         }
         Self::normalize_highlight(jvm, &mut this).await?;
         if changed {
@@ -1207,7 +1253,7 @@ impl ChoiceGroup {
             top = bottom;
             bottom += Self::element_row_height(jvm, &content, (width - inset * 2).max(0), fit_policy).await?;
         }
-        let mut bounds = jvm.instantiate_array("[I", 2).await?;
+        let mut bounds = jvm.instantiate_array("I", 2).await?;
         jvm.store_array(&mut bounds, 0, [top, bottom]).await?;
         Ok(bounds.into())
     }
@@ -1273,7 +1319,7 @@ impl ChoiceGroup {
                 return Ok(Item::INPUT_HANDLED);
             }
             if key == MIDPKeyCode::FIRE as i32 {
-                let changed = Self::select_only(jvm, &this, highlighted_index).await?;
+                let changed = Self::select_only(jvm, &mut this, highlighted_index).await?;
                 jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "popupOpen", "Z", false)
                     .await?;
                 Self::normalize_highlight(jvm, &mut this).await?;
@@ -1306,8 +1352,12 @@ impl ChoiceGroup {
             if new_highlight < 0 || new_highlight >= size {
                 return Ok(0);
             }
-            jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", new_highlight)
-                .await?;
+            if choice_type == 3 {
+                Self::select_only(jvm, &mut this, new_highlight).await?;
+            } else {
+                jvm.put_field(&mut this, "javax/microedition/lcdui/ChoiceGroup", "highlightedIndex", "I", new_highlight)
+                    .await?;
+            }
             let _: () = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
                 .await?;
@@ -1325,7 +1375,7 @@ impl ChoiceGroup {
         } else if selected {
             false
         } else {
-            Self::select_only(jvm, &this, highlighted_index).await?
+            Self::select_only(jvm, &mut this, highlighted_index).await?
         };
         if changed {
             let _: () = jvm
@@ -1361,7 +1411,7 @@ mod test {
         images: Option<&[ClassInstanceRef<Image>]>,
     ) -> JvmResult<ClassInstanceRef<ChoiceGroup>> {
         let mut string_array: ClassInstanceRef<Array<ClassInstanceRef<String>>> =
-            jvm.instantiate_array("[Ljava/lang/String;", texts.len()).await?.into();
+            jvm.instantiate_array("Ljava/lang/String;", texts.len()).await?.into();
         let mut strings = Vec::with_capacity(texts.len());
         for text in texts {
             strings.push(ClassInstanceRef::<String>::from(JavaLangString::from_rust_string(jvm, text).await?));
@@ -1370,7 +1420,7 @@ mod test {
 
         let image_array: ClassInstanceRef<Array<ClassInstanceRef<Image>>> = if let Some(images) = images {
             let mut image_array: ClassInstanceRef<Array<ClassInstanceRef<Image>>> =
-                jvm.instantiate_array("[Ljavax/microedition/lcdui/Image;", images.len()).await?.into();
+                jvm.instantiate_array("Ljavax/microedition/lcdui/Image;", images.len()).await?.into();
             jvm.store_array(&mut image_array, 0, images.to_vec()).await?;
             image_array
         } else {
@@ -1526,6 +1576,38 @@ mod test {
                 2
             );
             assert_eq!(jvm.load_array::<bool>(&flags, 0, 3).await?, [true, true, false]);
+
+            let list = jvm
+                .new_class("javax/microedition/lcdui/List", "(Ljava/lang/String;I)V", (None, 3))
+                .await?;
+            for (index, label) in ["first", "second"].into_iter().enumerate() {
+                let text = JavaLangString::from_rust_string(&jvm, label).await?;
+                let appended: i32 = jvm
+                    .invoke_virtual(
+                        &list,
+                        "javax/microedition/lcdui/Choice",
+                        "append",
+                        "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I",
+                        (text, None),
+                    )
+                    .await?;
+                assert_eq!(appended, index as i32);
+                let stored = jvm
+                    .invoke_virtual(
+                        &list,
+                        "javax/microedition/lcdui/Choice",
+                        "getString",
+                        "(I)Ljava/lang/String;",
+                        (appended,),
+                    )
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &stored).await?, label);
+            }
+            let invalid_list = jvm.new_class("javax/microedition/lcdui/List", "(Ljava/lang/String;I)V", (None, 4)).await;
+            let Err(JavaError::JavaException(exception)) = invalid_list else {
+                panic!("List accepted POPUP");
+            };
+            assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
 
             let invalid = choice_with_elements(&jvm, 3, &[], None).await;
             let Err(JavaError::JavaException(exception)) = invalid else {
