@@ -1,13 +1,14 @@
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::{Event, KeyCode};
-use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
+use wie_backend::{Event, Instant, KeyCode};
+use wie_util::{Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
 use wipi_types::wipic::WIPICWord;
 
 use crate::{
+    MethodBody, WIPICResult,
     context::WIPICContext,
     globals::{INPUT_MODES_PTR, INPUT_PENDING_PTR},
 };
@@ -52,7 +53,7 @@ pub async fn get_current_mode(_context: &mut dyn WIPICContext) -> Result<i32> {
     Ok(-1)
 }
 
-// Native games can poll keys about 100 ms apart. A same-key physical press has no distinct replay flag.
+// Native games can poll the next key on a later game tick, about 100 ms apart.
 const INPUT_IDLE_MS: u64 = 250;
 
 #[repr(C, packed)]
@@ -62,6 +63,26 @@ struct PendingInput {
     key: u32,
     offset: u32,
     size: u32,
+}
+
+struct EndInput(u32);
+
+#[async_trait::async_trait]
+impl MethodBody<WieError> for EndInput {
+    async fn call(&self, context: &mut dyn WIPICContext, _: Box<[u32]>) -> Result<WIPICResult> {
+        let input: PendingInput = read_generic(context, self.0)?;
+        let active = read_generic::<u32, _>(context, INPUT_PENDING_PTR)? == self.0;
+        let deadline = Instant::from_epoch_millis(input.deadline);
+        if active && context.system().platform().now() < deadline {
+            context.set_timer(deadline, Box::new(Self(self.0)));
+        } else {
+            if active {
+                write_generic(context, INPUT_PENDING_PTR, 0u32)?;
+            }
+            context.free_raw(self.0, input.size)?;
+        }
+        Ok(WIPICResult { results: Vec::new() })
+    }
 }
 
 pub async fn handle_input(
@@ -88,14 +109,14 @@ pub async fn handle_input(
     let mut input = PendingInput::zeroed();
     if pending != 0 {
         input = read_generic(context, pending)?;
-        if input.key != key || context.system().platform().now().raw() >= input.deadline {
-            context.free_raw(pending, input.size)?;
+        if input.key != key {
             write_generic(context, INPUT_PENDING_PTR, 0u32)?;
             pending = 0;
         }
     }
     let mut utf8 = [0; 4];
-    if pending == 0 {
+    let first = pending == 0;
+    if first {
         let Some(text) = context.system().platform().text_input("").await else {
             return Ok(0);
         };
@@ -127,15 +148,24 @@ pub async fn handle_input(
     write_generic(context, ptr_committed_size, len as i32)?;
     input.offset += len as u32;
     if input.offset == input.size - 1 {
-        context.free_raw(pending, input.size)?;
+        if first {
+            context.free_raw(pending, input.size)?;
+        }
         write_generic(context, INPUT_PENDING_PTR, 0u32)?;
     } else {
-        input.deadline = (context.system().platform().now() + INPUT_IDLE_MS).raw();
+        let deadline = context.system().platform().now() + INPUT_IDLE_MS;
+        input.deadline = deadline.raw();
         write_generic(context, pending, input)?;
         let key = KeyCode::parse(char::from(key as u8).encode_utf8(&mut utf8));
-        let mut queue = context.system().event_queue();
-        queue.push(Event::Keydown(key));
-        queue.push(Event::Keyup(key));
+        {
+            let mut queue = context.system().event_queue();
+            queue.push(Event::Keydown(key));
+            queue.push(Event::Keyup(key));
+        }
+        if first {
+            // shortcut: a physical press of the same key can overtake cleanup; revisit if replay events gain an identity.
+            context.set_timer(deadline, Box::new(EndInput(pending)));
+        }
     }
     Ok(1)
 }

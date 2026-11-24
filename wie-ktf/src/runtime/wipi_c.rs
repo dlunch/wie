@@ -153,10 +153,17 @@ mod tests {
                     assert!(committed[expected.len()..].iter().all(|byte| *byte == 0xab));
                     assert_eq!(read_generic::<[u8; 8], _>(&core, buffer + 12).unwrap(), [0xcd; 8]);
                 }
-                // A full field ignores the follow-up. The next edit starts after the idle deadline.
+                // A full field ignores the follow-up. Deliver the end markers before opening the next edit.
                 assert!(matches!(system.event_queue().pop(), Some(Event::Keydown(KeyCode::NUM2))));
                 assert!(matches!(system.event_queue().pop(), Some(Event::Keyup(KeyCode::NUM2))));
                 clock.advance(1000);
+                // Both the completed batch and the abandoned batch have queued a marker.
+                for _ in 0..2 {
+                    let Some(Event::Timer { callback, .. }) = system.event_queue().pop() else {
+                        panic!("expected IM end marker")
+                    };
+                    callback().await.unwrap();
+                }
             }
             Ok(())
         })
