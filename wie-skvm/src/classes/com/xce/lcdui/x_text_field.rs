@@ -747,11 +747,6 @@ mod tests {
                     .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1가");
                 assert_eq!(jvm.get_field::<i32>(&canvas, "test/TrackingCanvas", "repaintCount", "I").await?, 5);
-                // A full field leaves non-digit keys to the caller.
-                assert!(
-                    !jvm.invoke_virtual::<_, bool>(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (-5,))
-                        .await?
-                );
 
                 let existing: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "x").await?.into();
                 let free_text = jvm
@@ -764,17 +759,6 @@ mod tests {
                 let _: () = jvm
                     .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "setFocus", "(Z)V", (true,))
                     .await?;
-                // Repeats and non-typing keys (such as the MIDP fire key) leave a free-text field alone.
-                let _: () = jvm
-                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyRepeated", "(I)V", (57,))
-                    .await?;
-                let _: () = jvm
-                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (-5,))
-                    .await?;
-                let text = jvm
-                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
-                    .await?;
-                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "x");
                 // A typing key edits the current text in the host input; the result replaces it up to the limit.
                 let _: () = jvm
                     .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (57,))

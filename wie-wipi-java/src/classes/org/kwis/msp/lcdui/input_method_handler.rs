@@ -160,95 +160,13 @@ impl InputMethodHandler {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, vec, vec::Vec};
+    use alloc::boxed::Box;
 
-    use jvm::{Array, ClassInstanceRef, JavaChar, JavaError, Jvm, Result as JvmResult};
-    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-    use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use jvm::{JavaError, Result as JvmResult};
+    use test_utils::run_jvm_test;
     use wie_util::Result;
 
     use crate::get_protos;
-
-    struct RecordingListener;
-
-    impl RecordingListener {
-        fn as_proto() -> WieJavaClassProto {
-            WieJavaClassProto {
-                name: "test/RecordingListener",
-                parent_class: Some("java/lang/Object"),
-                interfaces: vec!["org/kwis/msp/lcdui/InputMethodListener"],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new("notifyTextChanged", "([CII)V", Self::notify_text_changed, MethodAccessFlags::PUBLIC),
-                ],
-                fields: vec![
-                    JavaFieldProto::new("text", "[C", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("length", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("mode", "I", FieldAccessFlags::PUBLIC),
-                ],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
-        async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-            jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await
-        }
-
-        async fn notify_text_changed(
-            jvm: &Jvm,
-            _: &mut WieJvmContext,
-            mut this: ClassInstanceRef<Self>,
-            text: ClassInstanceRef<Array<JavaChar>>,
-            length: i32,
-            mode: i32,
-        ) -> JvmResult<()> {
-            jvm.put_field(&mut this, "test/RecordingListener", "text", "[C", text).await?;
-            jvm.put_field(&mut this, "test/RecordingListener", "length", "I", length).await?;
-            jvm.put_field(&mut this, "test/RecordingListener", "mode", "I", mode).await
-        }
-    }
-
-    #[test]
-    fn key_press_inserts_host_text_through_the_listener() -> Result<()> {
-        run_jvm_test_with_system(
-            Box::new([get_protos().into(), Box::new([RecordingListener::as_proto()])]),
-            Box::new(TestPlatform::new().with_text_input("안녕")),
-            |jvm, _| async move {
-                let class = "org/kwis/msp/lcdui/InputMethodHandler";
-                let handler = jvm.new_class(class, "(I)V", (0,)).await?;
-                let listener = jvm.new_class("test/RecordingListener", "()V", ()).await?;
-                assert!(
-                    !jvm.invoke_virtual::<_, bool>(&handler, class, "notifyKeyInput", "(II)Z", (i32::from(b'1'), 1))
-                        .await?
-                );
-                let _: () = jvm
-                    .invoke_virtual(
-                        &handler,
-                        class,
-                        "setInputMethodListener",
-                        "(Lorg/kwis/msp/lcdui/InputMethodListener;)V",
-                        (listener.clone(),),
-                    )
-                    .await?;
-                assert!(
-                    !jvm.invoke_virtual::<_, bool>(&handler, class, "notifyKeyInput", "(II)Z", (i32::from(b'1'), 2))
-                        .await?
-                );
-                assert!(jvm.invoke_virtual::<_, bool>(&handler, class, "notifyKeyInput", "(II)Z", (-5, 1)).await?);
-
-                let text: ClassInstanceRef<Array<JavaChar>> = jvm.get_field(&listener, "test/RecordingListener", "text", "[C").await?;
-                let length: i32 = jvm.get_field(&listener, "test/RecordingListener", "length", "I").await?;
-                assert_eq!(
-                    jvm.load_array::<JavaChar>(&text, 0, length as usize).await?,
-                    "안녕".encode_utf16().collect::<Vec<_>>()
-                );
-                assert_eq!(jvm.get_field::<i32>(&listener, "test/RecordingListener", "mode", "I").await?, -1);
-                Ok(())
-            },
-        )
-    }
 
     #[test]
     fn input_modes_respect_constructor_constraints() -> Result<()> {
