@@ -106,12 +106,24 @@ impl Platform for WieCliPlatform {
     }
 }
 
+// Emulated APIs slice the number at fixed offsets, so only the lengths of real mobile numbers are accepted.
+fn parse_phone_number(value: &str) -> Result<String, String> {
+    if matches!(value.len(), 10 | 11) {
+        Ok(value.to_owned())
+    } else {
+        Err("phone number must be 10 or 11 characters long".into())
+    }
+}
+
 #[derive(Parser)]
 struct Args {
     #[arg(required_unless_present = "list_midi_devices")]
     filename: Option<String>,
     #[arg(long, default_value_t = false)]
     debug: bool,
+    /// Phone number reported to the application, 10 or 11 characters long.
+    #[arg(long, default_value_t = Options::default().phone_number, value_parser = parse_phone_number)]
+    phone_number: String,
     /// Write a flamegraph-folded sampling profile to this path (one line per
     /// flushed batch; `flamegraph.pl` aggregates duplicates).
     #[arg(long)]
@@ -120,7 +132,7 @@ struct Args {
     #[arg(long, value_name = "INDEX")]
     midi_device: Option<usize>,
     /// List available MIDI output devices and exit.
-    #[arg(long, conflicts_with_all = ["filename", "debug", "profile_out", "midi_device"])]
+    #[arg(long, conflicts_with_all = ["filename", "debug", "profile_out", "midi_device", "phone_number"])]
     list_midi_devices: bool,
 }
 
@@ -148,6 +160,7 @@ pub fn run() -> anyhow::Result<()> {
         directory: directories.cache_dir().join("native-aot"),
     });
     let options = Options {
+        phone_number: args.phone_number,
         enable_gdbserver: args.debug,
         aot: Some(Box::new(NativeExecutor::new(Some(cache)))),
         profile,
@@ -192,7 +205,7 @@ fn start(filename: &str, options: Options, midi_device: Option<usize>, data_dir:
 
         let jar_filename = jar_filename[jar_filename.rfind('/').unwrap_or(0) + 1..].to_owned();
 
-        Box::new(J2MEEmulator::from_jad_jar(platform, buf, jar_filename, jar)?)
+        Box::new(J2MEEmulator::from_jad_jar(platform, buf, jar_filename, jar, options)?)
     } else {
         set_app_context(filename, &buf);
         load_emulator(filename, buf, platform, options)?
@@ -338,6 +351,17 @@ mod tests {
     #[test]
     fn normal_run_requires_filename() {
         assert!(Args::try_parse_from(["wie"]).is_err());
+    }
+
+    #[test]
+    fn rejects_phone_number_of_wrong_length() {
+        assert!(Args::try_parse_from(["wie", "app.jar", "--phone-number", "010"]).is_err());
+        assert_eq!(
+            Args::try_parse_from(["wie", "app.jar", "--phone-number", "0111234567"])
+                .unwrap()
+                .phone_number,
+            "0111234567"
+        );
     }
 
     #[test]

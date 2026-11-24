@@ -478,11 +478,7 @@ mod tests {
     use crate::runtime::SVC_CATEGORY_STDLIB;
 
     fn stdlib_core() -> Result<ArmCore> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
+        let mut core = ArmCore::new(wie_backend::Options::default())?;
         Allocator::init(&mut core)?;
         core.map(0x10000, 0x10000)?;
         let mut context = core.save_context();
@@ -743,16 +739,8 @@ mod tests {
 
     #[test]
     fn random_state_is_shared_by_system_clones_and_process_local() -> Result<()> {
-        let mut first = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
-        let mut second = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
+        let mut first = ArmCore::new(wie_backend::Options::default())?;
+        let mut second = ArmCore::new(wie_backend::Options::default())?;
         let mut first_system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let mut second_system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let mut first_system_clone = first_system.clone();

@@ -162,12 +162,7 @@ mod tests {
 
     #[test]
     fn test_allocator() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 
         BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
 
@@ -221,12 +216,7 @@ mod tests {
 
     #[test]
     fn test_init_rejects_undersized_region() {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 
         // 0x1000000 (16 MB) is far too small for the full bucket layout.
         assert!(BucketAllocator::init(&mut core, 0x40000000, 0x1000000).is_err());
@@ -234,12 +224,7 @@ mod tests {
 
     #[test]
     fn test_allocator_small_sizes() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 
         BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
 

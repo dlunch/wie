@@ -213,9 +213,8 @@ impl WieWeb {
             let font = Font::try_from_vec(font_data)?;
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone(), host.clone(), exited.clone()));
             let options = Options {
-                enable_gdbserver: false,
                 aot: Some(Box::new(aot::WasmExecutor::default())),
-                profile: None,
+                ..Default::default()
             };
 
             let emulator = wie::load_emulator(filename, buf.to_vec(), platform, options)?;

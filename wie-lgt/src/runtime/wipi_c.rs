@@ -330,11 +330,7 @@ mod tests {
         let done = Arc::new(AtomicBool::new(false));
         let task_done = done.clone();
         system.spawn(async move || {
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })?;
+            let mut core = ArmCore::new(Options::default())?;
             Allocator::init(&mut core)?;
             let mut registers = core.save_context();
             registers.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;

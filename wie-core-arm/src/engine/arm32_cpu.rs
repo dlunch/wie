@@ -861,9 +861,8 @@ mod tests {
     fn preparation_waits_without_running_image_code() {
         let responses = Arc::new(Mutex::new(Responses::default()));
         let mut core = crate::ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
             aot: Some(Box::new(DeferredExecutor(responses.clone()))),
-            profile: None,
+            ..Default::default()
         })
         .unwrap();
         Allocator::init(&mut core).unwrap();

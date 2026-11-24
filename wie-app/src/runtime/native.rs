@@ -234,9 +234,8 @@ impl NativeSessionWorker {
                 bytes,
                 Box::new(platform),
                 Options {
-                    enable_gdbserver: false,
                     aot: Some(Box::new(NativeExecutor::new(cache))),
-                    profile: None,
+                    ..Default::default()
                 },
             )?;
             initialized.store(true, Ordering::Release);

@@ -51,9 +51,21 @@ pub struct ProfileSample {
 pub type ProfileCallback = Box<dyn FnMut(Vec<ProfileSample>) + Send + Sync>;
 
 pub struct Options {
+    pub phone_number: String,
     pub enable_gdbserver: bool,
     pub aot: Option<Box<dyn CompiledExecutor>>,
     pub profile: Option<ProfileCallback>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            phone_number: "01000000000".into(),
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        }
+    }
 }
 
 pub fn extract_zip(zip: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {

@@ -213,12 +213,7 @@ mod tests {
     #[test]
     fn indirect_allocations_clear_reused_payloads() -> Result<()> {
         run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })
-            .unwrap();
+            let mut core = ArmCore::new(Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
             let mut context = KtfWIPICContext::new(core, system, jvm);
 
@@ -246,11 +241,7 @@ mod tests {
         let mut system_task = system.clone();
 
         system.spawn(async move || {
-            let mut core = ArmCore::new(wie_backend::Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })?;
+            let mut core = ArmCore::new(wie_backend::Options::default())?;
             Allocator::init(&mut core)?;
             let mut caller = core.save_context();
             caller.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;

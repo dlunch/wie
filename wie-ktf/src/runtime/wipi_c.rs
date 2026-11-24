@@ -105,12 +105,7 @@ mod tests {
     #[test]
     fn native_input_commits_placeholder_within_buffer_capacity() -> Result<()> {
         run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })
-            .unwrap();
+            let mut core = ArmCore::new(Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
             let mut registers = core.save_context();
             registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
@@ -166,12 +161,7 @@ mod tests {
         });
         run_jvm_test_with_system(Box::new([]), Box::new(platform), |jvm, system| async move {
             system.platform().screen().resize(3, 2).unwrap();
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })
-            .unwrap();
+            let mut core = ArmCore::new(Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
             let mut registers = core.save_context();
             registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;

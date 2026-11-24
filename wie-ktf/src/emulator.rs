@@ -146,6 +146,7 @@ impl KtfEmulator {
     }
 
     fn load(platform: Box<dyn Platform>, jar_filename: &str, adf: KtfAdf, files: &BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
+        let phone_number = options.phone_number.clone();
         let mut core = ArmCore::new(options)?;
         let system = System::new(platform, &adf.pid, &adf.aid, KtfTaskRunner { core: core.clone() });
 
@@ -162,14 +163,17 @@ impl KtfEmulator {
         let mut core_clone = core.clone();
         let mut system_clone = system.clone();
         let jar_filename_clone = jar_filename.to_owned();
-        system.spawn(async move || Self::start(&mut core_clone, &mut system_clone, jar_filename_clone, adf).await);
+        system.spawn(async move || Self::start(&mut core_clone, &mut system_clone, jar_filename_clone, adf, &phone_number).await);
 
         Ok(Self { core, system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn start(core: &mut ArmCore, system: &mut System, jar_filename: String, adf: KtfAdf) -> Result<()> {
-        let properties = adf.slvl.iter().map(|x| ("wie.slvl", x.as_str())).collect::<Vec<_>>();
+    async fn start(core: &mut ArmCore, system: &mut System, jar_filename: String, adf: KtfAdf, phone_number: &str) -> Result<()> {
+        let mut properties = vec![("wie.phoneNumber", phone_number)];
+        if let Some(slvl) = &adf.slvl {
+            properties.push(("wie.slvl", slvl));
+        }
         let (jvm, class_loader) = KtfJvmSupport::init(core, system, Some(&jar_filename), &properties).await?;
         let clet_mode = is_clet_mode(&adf.mclass);
 
@@ -244,11 +248,7 @@ mod tests {
 
     #[test]
     fn switches_jvm_thread_context_between_tasks() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
+        let mut core = ArmCore::new(wie_backend::Options::default())?;
         Allocator::init(&mut core)?;
 
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });

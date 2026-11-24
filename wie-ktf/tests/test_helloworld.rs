@@ -49,11 +49,7 @@ pub fn test_helloworld() -> Result<()> {
 
         let archive = extract_zip(include_bytes!("data/helloworld_ktf.zip"))?;
         assert_eq!(KtfEmulator::archive_id(&archive).as_deref(), Some("PD000000"));
-        let options = Options {
-            enable_gdbserver: false,
-            aot,
-            profile: None,
-        };
+        let options = Options { aot, ..Default::default() };
         let mut emulator = if standalone_jar {
             let mut jar = extract_zip(&archive["00000000.jar"])?;
             jar.insert("META-INF/MANIFEST.MF".into(), b"MIDlet-1: Hello, /icon.png,\r\n Clet\r\n".to_vec());
@@ -89,30 +85,11 @@ fn test_unsupported_client_header() -> Result<()> {
         assert!(KtfEmulator::loadable_jar(&jar));
         archive.insert("00000000.jar".into(), jar.clone());
 
-        let result = KtfEmulator::from_jar(
-            Box::new(TestPlatform::new()),
-            "00000000.jar",
-            jar,
-            "",
-            "",
-            Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            },
-        );
+        let result = KtfEmulator::from_jar(Box::new(TestPlatform::new()), "00000000.jar", jar, "", "", Options::default());
         assert!(matches!(result, Err(WieError::FatalError(message)) if message == "Unsupported KTF client.bin format"));
 
         let zip = zip_files(&archive);
-        let result = KtfEmulator::from_archive(
-            Box::new(TestPlatform::new()),
-            archive,
-            Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            },
-        );
+        let result = KtfEmulator::from_archive(Box::new(TestPlatform::new()), archive, Options::default());
         assert!(matches!(result, Err(WieError::FatalError(message)) if message == "Unsupported KTF client.bin format"));
 
         let result = dump_image(&zip)

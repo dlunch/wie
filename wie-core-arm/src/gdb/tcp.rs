@@ -133,12 +133,7 @@ mod tests {
 
     #[test]
     fn remote_sessions_read_threads_step_interrupt_and_reattach() {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
@@ -248,12 +243,7 @@ mod tests {
 
     #[test]
     fn remote_step_actions_remain_bound_to_their_threads() {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);

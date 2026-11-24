@@ -101,7 +101,7 @@ pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>
     Ok(match file_type {
         FileType::Ktf if lowercase_filename.ends_with(".zip") => Box::new(KtfEmulator::from_archive(platform, extract_zip(&bytes)?, options)?),
         FileType::Lgt if lowercase_filename.ends_with(".zip") => Box::new(LgtEmulator::from_archive(platform, extract_zip(&bytes)?, options)?),
-        FileType::Skt if lowercase_filename.ends_with(".zip") => Box::new(SktEmulator::from_archive(platform, extract_zip(&bytes)?)?),
+        FileType::Skt if lowercase_filename.ends_with(".zip") => Box::new(SktEmulator::from_archive(platform, extract_zip(&bytes)?, options)?),
         FileType::Ktf => {
             let id = &filename[..filename.len() - 4];
             Box::new(KtfEmulator::from_jar(platform, filename, bytes, id, id, options)?)
@@ -112,8 +112,8 @@ pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>
         }
         FileType::Skt => {
             let id = &filename[..filename.len() - 4];
-            Box::new(SktEmulator::from_jar(platform, filename, bytes, id)?)
+            Box::new(SktEmulator::from_jar(platform, filename, bytes, id, options)?)
         }
-        FileType::J2me => Box::new(J2MEEmulator::from_jar(platform, filename, bytes)?),
+        FileType::J2me => Box::new(J2MEEmulator::from_jar(platform, filename, bytes, options)?),
     })
 }

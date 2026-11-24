@@ -67,12 +67,11 @@ pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWo
     let id_bytes = read_null_terminated_string_bytes(context, ptr_id)?;
     let id = encoding_rs::EUC_KR.decode(&id_bytes).0;
 
-    let value = match id.as_ref() {
+    let value: &str = match id.as_ref() {
         "RSSILEVEL" => "30",
         "BATTERYLEVEL" => "100",
         "PHONEMODEL" => "Emulator",
-        "PHONENUMBER" => "", // setting this causes some apps to fail authentication
-        "MIN" => "01000000000",
+        "PHONENUMBER" | "MIN" => &context.java_property("wie.phoneNumber").await?.unwrap_or_default(),
         "ANNUN_CALL" => "0",
         "ANNUN_SMS" => "0",
         "ANNUN_SILENT" => "0",
@@ -451,16 +450,20 @@ mod test {
     }
 
     #[futures_test::test]
-    async fn test_get_system_property_min() -> Result<()> {
+    async fn test_phone_number_properties() -> Result<()> {
         let mut context = TestContext::new();
-        let id = context.alloc_raw(16).unwrap();
-        let out = context.alloc_raw(16).unwrap();
+        let id = context.alloc_raw(16)?;
+        let out = context.alloc_raw(16)?;
 
-        write_null_terminated_string_bytes(&mut context, id, b"MIN").unwrap();
-
-        assert_eq!(get_system_property(&mut context, id, out, 16).await.unwrap(), 0);
-        let result = read_null_terminated_string_bytes(&context, out).unwrap();
-        assert_eq!(String::from_utf8(result).unwrap(), "01000000000");
+        for number in ["01087654321", ""] {
+            context.java_properties.insert("wie.phoneNumber", number.into());
+            for property in ["PHONENUMBER", "MIN"] {
+                write_null_terminated_string_bytes(&mut context, id, property.as_bytes())?;
+                write_null_terminated_string_bytes(&mut context, out, b"previous")?;
+                assert_eq!(get_system_property(&mut context, id, out, 16).await?, 0);
+                assert_eq!(read_null_terminated_string_bytes(&context, out)?, number.as_bytes());
+            }
+        }
 
         Ok(())
     }
