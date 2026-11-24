@@ -123,13 +123,13 @@ mod tests {
             let buffer = Allocator::alloc(&mut core, 24).unwrap();
             for function in [handle_input, graphics.handle_input] {
                 for (key, event, capacity, expected) in [
-                    (b'2', 2, 0i32, b"\xb0\xa1".as_slice()),
+                    (b'5', 2, 0i32, b"\xb0\xa1".as_slice()),
                     (b'2', 2, 4, b"a"),
                     (b'2', 2, 0, b"\xb3\xaa"),
                     (b'2', 3, 8, b""),
                     (b'2', 4, 8, b""),
                     (157, 2, 8, b""),
-                    (b'2', 2, 0, b"\xb0\xa1"),
+                    (b'5', 2, 0, b"\xb0\xa1"),
                 ] {
                     if matches!(expected, b"a" | b"\xb3\xaa") {
                         let mut queue = system.event_queue();
@@ -154,10 +154,10 @@ mod tests {
                 }
                 // A full field ignores the continuation before the next physical press opens a fresh editor.
                 let mut queue = system.event_queue();
-                queue.push(Event::Keydown(KeyCode::NUM2));
+                queue.push(Event::Keydown(KeyCode::NUM5));
                 assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
                 assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::NUM2))));
-                assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
+                assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM5))));
             }
             Ok(())
         })

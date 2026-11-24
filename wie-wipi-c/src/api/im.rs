@@ -1,4 +1,4 @@
-use wie_backend::{Event, KeyCode};
+use wie_backend::Event;
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_table};
 
 use wipi_types::wipic::WIPICWord;
@@ -83,11 +83,7 @@ pub async fn handle_input(
             continue;
         }
         if committed {
-            let key = KeyCode::parse(char::from(key as u8).encode_utf8(&mut utf8));
-            context.system().event_queue().push(Event::TextInput {
-                key,
-                text: text[offset..].into(),
-            });
+            context.system().event_queue().push(Event::TextInput(text[offset..].into()));
             break;
         }
         context.write_bytes(ptr_committed, &bytes)?;

@@ -210,7 +210,7 @@ impl EventQueue {
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
-                    Event::TextInput { .. } => unreachable!("the queue delivers text as key events"),
+                    Event::TextInput(_) => unreachable!("the queue delivers text as key events"),
                     Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
                     Event::Repaint => vec![EventQueueEvent::RepaintEvent as _, 1, 0, 0],
                     Event::Keydown(x) => vec![

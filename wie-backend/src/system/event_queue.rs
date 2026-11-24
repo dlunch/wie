@@ -64,6 +64,9 @@ impl KeyCode {
     }
 }
 
+// This key only prompts the application to request the next character.
+const TEXT_INPUT_KEY: KeyCode = KeyCode::NUM2;
+
 type TimerCallback = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
 pub enum Event {
@@ -72,11 +75,8 @@ pub enum Event {
     Keydown(KeyCode),
     Keyup(KeyCode),
     Keyrepeat(KeyCode),
-    /// Text carried by a press and release of the given key.
-    TextInput {
-        key: KeyCode,
-        text: String,
-    },
+    /// Text delivered through a key press and release.
+    TextInput(String),
     Timer {
         due: Instant,
         callback: TimerCallback,
@@ -104,7 +104,7 @@ impl Event {
 #[derive(Default)]
 pub struct EventQueue {
     input_events: VecDeque<Event>,
-    text_events: VecDeque<(KeyCode, String)>,
+    text_events: VecDeque<String>,
     text_input: Option<String>,
     events: VecDeque<Event>,
 }
@@ -115,8 +115,8 @@ impl EventQueue {
     }
 
     pub fn push(&mut self, event: Event) {
-        if let Event::TextInput { key, text } = event {
-            self.text_events.push_back((key, text));
+        if let Event::TextInput(text) = event {
+            self.text_events.push_back(text);
             return;
         }
         if matches!(event, Event::Keydown(_) | Event::Keyup(_) | Event::Keyrepeat(_)) {
@@ -140,11 +140,11 @@ impl EventQueue {
     /// Text follows queued releases and precedes the next press.
     pub fn pop(&mut self) -> Option<Event> {
         if !matches!(self.input_events.front(), Some(Event::Keyup(_)))
-            && let Some((key, text)) = self.text_events.pop_front()
+            && let Some(text) = self.text_events.pop_front()
         {
             self.text_input = Some(text);
-            self.input_events.push_front(Event::Keyup(key));
-            return Some(Event::Keydown(key));
+            self.input_events.push_front(Event::Keyup(TEXT_INPUT_KEY));
+            return Some(Event::Keydown(TEXT_INPUT_KEY));
         }
         let event = self.input_events.pop_front().or_else(|| self.events.pop_front());
         if matches!(event, Some(Event::Keydown(_))) {
@@ -194,10 +194,7 @@ mod tests {
         });
         queue.push(Event::Keyup(KeyCode::CLEAR));
         queue.push(Event::Keydown(KeyCode::OK));
-        queue.push(Event::TextInput {
-            key: KeyCode::NUM2,
-            text: "a".into(),
-        });
+        queue.push(Event::TextInput("a".into()));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::CLEAR))));
         assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::NUM2))));
