@@ -14,8 +14,8 @@ pub trait Platform: Send + Sync {
     fn write_stderr(&self, buf: &[u8]);
     fn exit(&self);
     fn vibrate(&self, duration_ms: u64, intensity: u8);
-    /// Asks the user for a line of text. `None` means the user cancelled.
-    async fn text_input(&self) -> Option<String>;
+    /// Asks the user to edit `initial` as a line of text. `None` means the user cancelled.
+    async fn text_input(&self, initial: &str) -> Option<String>;
 }
 
 /// Platform filesystem abstraction. Every method is scoped by `pid`;

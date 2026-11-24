@@ -106,7 +106,7 @@ impl InputMethodHandler {
         let text: Vec<u16> = context
             .system()
             .platform()
-            .text_input()
+            .text_input("")
             .await
             .unwrap_or_default()
             .encode_utf16()
@@ -117,7 +117,7 @@ impl InputMethodHandler {
         let length = text.len();
         let mut array = jvm.instantiate_array("C", length).await?;
         jvm.store_array(&mut array, 0, text).await?;
-        // -1 inserts the text at the listener's cursor.
+        // The listener owns the text being edited, so the host input starts empty and -1 inserts its result at the cursor.
         let _: () = jvm
             .invoke_virtual(
                 &listener,

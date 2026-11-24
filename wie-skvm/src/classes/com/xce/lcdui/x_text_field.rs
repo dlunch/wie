@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
@@ -174,19 +174,22 @@ impl XTextField {
             return Ok(());
         }
 
+        // Only the keypad characters (digits, * and #) type into the field; other keys belong to the app.
+        if !(32..=126).contains(&key_code) {
+            return Ok(());
+        }
         let constraints: i32 = jvm.get_field(&this, "com/xce/lcdui/XTextField", "constraints", "I").await?;
         // MIDP NUMERIC, PHONENUMBER, and DECIMAL fields take the typed character directly.
         if matches!(constraints & 0xffff, 2 | 3 | 5) {
-            if (32..=126).contains(&key_code) {
-                return Self::input_char(jvm, context, this, key_code as JavaChar).await;
-            }
-            return Ok(());
+            return Self::input_char(jvm, context, this, key_code as JavaChar).await;
         }
-        // The API has no begin-edit call, so any key press reaching a free-text field starts typing.
-        let text = context.system().platform().text_input().await.unwrap_or_default();
-        for character in text.encode_utf16() {
+        // The API has no begin-edit call, so a typing key on a free-text field opens the host input on the current text.
+        let text: ClassInstanceRef<String> = jvm.get_field(&this, "com/xce/lcdui/XTextField", "text", "Ljava/lang/String;").await?;
+        let initial = JavaLangString::to_rust_string(jvm, &text).await?;
+        if let Some(text) = context.system().platform().text_input(&initial).await {
+            let text: ClassInstanceRef<String> = JavaLangString::from_rust_string(jvm, &text).await?.into();
             let _: () = jvm
-                .invoke_virtual(&this, "com/xce/lcdui/XTextField", "inputChar", "(C)V", (character,))
+                .invoke_virtual(&this, "com/xce/lcdui/XTextField", "setText", "(Ljava/lang/String;)V", (text,))
                 .await?;
         }
         Ok(())
@@ -703,31 +706,36 @@ mod tests {
                         .await?
                 );
 
-                let empty: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "").await?.into();
+                let existing: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "x").await?.into();
                 let free_text = jvm
                     .new_class(
                         "com/xce/lcdui/XTextField",
                         "(Ljava/lang/String;IILjavax/microedition/lcdui/Canvas;)V",
-                        (empty, 2, 0, canvas),
+                        (existing, 3, 0, canvas),
                     )
                     .await?;
                 let _: () = jvm
                     .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "setFocus", "(Z)V", (true,))
                     .await?;
+                // Repeats and non-typing keys (such as the MIDP fire key) leave a free-text field alone.
                 let _: () = jvm
-                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyRepeated", "(I)V", (-5,))
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyRepeated", "(I)V", (57,))
                     .await?;
-                let text = jvm
-                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
-                    .await?;
-                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "");
                 let _: () = jvm
                     .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (-5,))
                     .await?;
                 let text = jvm
                     .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                     .await?;
-                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "가나");
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "x");
+                // A typing key edits the current text in the host input; the result replaces it up to the limit.
+                let _: () = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (57,))
+                    .await?;
+                let text = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "x가나");
 
                 Ok(())
             },

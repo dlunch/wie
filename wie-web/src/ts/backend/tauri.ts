@@ -101,10 +101,10 @@ export const initializeWie = async (): Promise<Wie> => {
       }
       let ended = false;
       let stopping: Promise<void> | undefined;
-      const events = new Channel<Exclude<SessionEvent, { type: "error" }> | { type: "textInput" }>(event => {
+      const events = new Channel<Exclude<SessionEvent, { type: "error" }> | { type: "textInput"; initial: string }>(event => {
         if (ended) return;
         if (event.type === "textInput") {
-          void requestTextInput()
+          void requestTextInput(event.initial)
             .then(text => send("text_input", { text }))
             .catch(error => onEvent({ type: "error", message: String(error), cause: error }));
           return;

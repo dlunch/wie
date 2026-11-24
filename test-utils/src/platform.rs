@@ -1,5 +1,6 @@
 use alloc::{
     boxed::Box,
+    format,
     string::{String, ToString},
     sync::Arc,
     vec::Vec,
@@ -173,8 +174,9 @@ impl Platform for TestPlatform {
 
     fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
 
-    async fn text_input(&self) -> Option<String> {
-        self.text_input.clone()
+    async fn text_input(&self, initial: &str) -> Option<String> {
+        // The simulated user types after the prefilled text.
+        self.text_input.as_ref().map(|typed| format!("{initial}{typed}"))
     }
 }
 

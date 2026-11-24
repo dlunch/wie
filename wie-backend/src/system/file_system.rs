@@ -290,7 +290,7 @@ mod tests {
 
         fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
 
-        async fn text_input(&self) -> Option<String> {
+        async fn text_input(&self, _initial: &str) -> Option<String> {
             None
         }
     }

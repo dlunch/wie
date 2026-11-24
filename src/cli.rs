@@ -106,8 +106,8 @@ impl Platform for WieCliPlatform {
         tracing::info!("vibrate({duration_ms}ms, {intensity}%) - not supported on this platform");
     }
 
-    async fn text_input(&self) -> Option<String> {
-        print!("text input> ");
+    async fn text_input(&self, initial: &str) -> Option<String> {
+        print!("text input [{initial}]> ");
         stdout().flush().ok()?;
         // shortcut: reading the terminal blocks the window loop, move it off-thread if the CLI must stay responsive.
         let mut line = String::new();

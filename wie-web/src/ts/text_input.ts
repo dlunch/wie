@@ -1,5 +1,5 @@
-// Resolves with the entered text, or null when the user dismisses the dialog.
-export const requestTextInput = (): Promise<string | null> => new Promise(resolve => {
+// Lets the user edit `initial`. Resolves with the result, or null when the user dismisses the dialog.
+export const requestTextInput = (initial: string): Promise<string | null> => new Promise(resolve => {
   const dialog = document.getElementById("text-input-dialog") as HTMLDialogElement;
   const input = document.getElementById("text-input") as HTMLInputElement;
   const viewport = window.visualViewport!;
@@ -7,7 +7,7 @@ export const requestTextInput = (): Promise<string | null> => new Promise(resolv
   // The on-screen keyboard shrinks only the visual viewport, so the docked bar is lifted above it.
   const dock = () => dialog.style.setProperty("--keyboard-inset", `${window.innerHeight - viewport.height - viewport.offsetTop}px`);
 
-  input.value = "";
+  input.value = initial;
   dialog.returnValue = "";
   viewport.addEventListener("resize", dock, { signal: closed.signal });
   viewport.addEventListener("scroll", dock, { signal: closed.signal });

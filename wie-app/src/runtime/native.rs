@@ -177,10 +177,10 @@ impl Platform for NativePlatform {
         let _ = (&self.app, duration_ms, intensity);
     }
 
-    async fn text_input(&self) -> Option<String> {
+    async fn text_input(&self, initial: &str) -> Option<String> {
         let (reply, text) = oneshot::channel();
         self.text_input.lock().unwrap().replace(reply);
-        self.events.send(SessionEvent::TextInput).ok()?;
+        self.events.send(SessionEvent::TextInput { initial: initial.to_owned() }).ok()?;
         text.await.ok().flatten()
     }
 }

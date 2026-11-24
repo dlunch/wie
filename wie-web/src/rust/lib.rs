@@ -47,7 +47,7 @@ extern "C" {
 #[wasm_bindgen(module = "text_input.ts")]
 extern "C" {
     #[wasm_bindgen(js_name = requestTextInput, catch)]
-    async fn request_text_input() -> Result<JsValue, JsValue>;
+    async fn request_text_input(initial: &str) -> Result<JsValue, JsValue>;
 }
 
 struct WieWebPlatform {
@@ -143,8 +143,9 @@ impl Platform for WieWebPlatform {
         navigator.vibrate_with_duration(duration);
     }
 
-    async fn text_input(&self) -> Option<String> {
-        run_js_future(async { request_text_input().await.ok()?.as_string() }).await
+    async fn text_input(&self, initial: &str) -> Option<String> {
+        let initial = initial.to_string();
+        run_js_future(async move { request_text_input(&initial).await.ok()?.as_string() }).await
     }
 }
 

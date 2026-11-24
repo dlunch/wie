@@ -132,10 +132,11 @@ impl TextComponentHandler {
             vec![key as JavaChar]
         } else {
             // The API has no begin-edit call, so any other key press reaching the handler starts typing.
+            // TextComponent cannot be read back, so the host input starts empty and its result is inserted.
             context
                 .system()
                 .platform()
-                .text_input()
+                .text_input("")
                 .await
                 .unwrap_or_default()
                 .encode_utf16()

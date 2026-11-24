@@ -50,7 +50,9 @@ pub enum SessionEvent {
     },
     #[cfg(not(target_os = "ios"))]
     #[serde(rename = "textInput")]
-    TextInput,
+    TextInput {
+        initial: String,
+    },
     Warning {
         message: String,
     },

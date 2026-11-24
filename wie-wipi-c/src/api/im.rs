@@ -62,8 +62,9 @@ pub async fn handle_input(
     let capacity: i32 = read_generic(context, ptr_committed_size)?;
     let mut committed = Vec::new();
     // The API has no begin-edit call, so any key press reaching the input method starts typing.
+    // The app owns the text being edited, so the host input starts empty and its result is appended.
     if event_type == 2
-        && let Some(text) = context.system().platform().text_input().await
+        && let Some(text) = context.system().platform().text_input("").await
     {
         let mut utf8 = [0; 4];
         for character in text.chars() {
