@@ -1322,6 +1322,11 @@ mod tests {
                 engines.compare_run(0x8000);
             }
         }
+        // Thumb: b.w forward; backward: movs r0,#42; bx lr; forward: b.w backward
+        let mut engines = Engines::new(&[0x00, 0xf0, 0x02, 0xb8, 0x2a, 0x20, 0x70, 0x47, 0xff, 0xf7, 0xfc, 0xbf]);
+        engines.reset(0x1001, 0x3f, &[]);
+        engines.compare_run(0x8000);
+        assert_eq!(engines.native.reg_read(ArmRegister::R0), 42);
         // Thumb: str r0,[r1]; svc #4. The SVC remains interpreter-owned.
         let mut engines = Engines::new(&[0x08, 0x60, 0x04, 0xdf]);
         engines.reset(0x1001, 0x3f, &[(ArmRegister::R0, 42), (ArmRegister::R1, 0x21000)]);
