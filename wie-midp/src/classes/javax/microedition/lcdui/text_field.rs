@@ -7,22 +7,6 @@ use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-const CONSTRAINTS: [(&str, i32); 13] = [
-    ("ANY", 0),
-    ("EMAILADDR", 1),
-    ("NUMERIC", 2),
-    ("PHONENUMBER", 3),
-    ("URL", 4),
-    ("DECIMAL", 5),
-    ("PASSWORD", 0x10000),
-    ("UNEDITABLE", 0x20000),
-    ("SENSITIVE", 0x40000),
-    ("NON_PREDICTIVE", 0x80000),
-    ("INITIAL_CAPS_WORD", 0x100000),
-    ("INITIAL_CAPS_SENTENCE", 0x200000),
-    ("CONSTRAINT_MASK", 0xffff),
-];
-
 // class javax.microedition.lcdui.TextField
 pub struct TextField;
 
@@ -41,10 +25,65 @@ impl TextField {
                     MethodAccessFlags::PUBLIC,
                 ),
             ],
-            fields: CONSTRAINTS
-                .iter()
-                .map(|(name, _)| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-                .collect(),
+            fields: vec![
+                JavaFieldProto::new("ANY", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new(
+                    "EMAILADDR",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "NUMERIC",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "PHONENUMBER",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new("URL", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new(
+                    "DECIMAL",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "PASSWORD",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "UNEDITABLE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "SENSITIVE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "NON_PREDICTIVE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "INITIAL_CAPS_WORD",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "INITIAL_CAPS_SENTENCE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "CONSTRAINT_MASK",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }
@@ -52,9 +91,26 @@ impl TextField {
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.TextField::<clinit>");
 
-        for (name, value) in CONSTRAINTS {
-            jvm.put_static_field("javax/microedition/lcdui/TextField", name, "I", value).await?;
-        }
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "ANY", "I", 0).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "EMAILADDR", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "NUMERIC", "I", 2).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "PHONENUMBER", "I", 3).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "URL", "I", 4).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "DECIMAL", "I", 5).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "PASSWORD", "I", 0x10000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "UNEDITABLE", "I", 0x20000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "SENSITIVE", "I", 0x40000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "NON_PREDICTIVE", "I", 0x80000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "INITIAL_CAPS_WORD", "I", 0x100000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "INITIAL_CAPS_SENTENCE", "I", 0x200000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "CONSTRAINT_MASK", "I", 0xffff)
+            .await?;
 
         Ok(())
     }

@@ -237,6 +237,38 @@ impl XTextField {
             .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
             .await?;
 
+        // The field draws its own box: light gray with a black border while focused, white with a
+        // light gray border otherwise, and black text inside it.
+        let focus: bool = jvm.get_field(&this, "com/xce/lcdui/XTextField", "focus", "Z").await?;
+        let (background, border) = if focus { (0xaaaaaa, 0x000000) } else { (0xffffff, 0xaaaaaa) };
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (background,))
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "fillRect",
+                "(IIII)V",
+                (x, y, width + 1, height + 1),
+            )
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (border,))
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "drawRect",
+                "(IIII)V",
+                (x, y, width, height),
+            )
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x000000,))
+            .await?;
+
         let _: () = jvm
             .invoke_virtual(
                 &graphics,
@@ -252,7 +284,7 @@ impl XTextField {
                 "javax/microedition/lcdui/Graphics",
                 "drawString",
                 "(Ljava/lang/String;III)V",
-                (text, x, y, 20),
+                (text, x + 1, y + 1, 20),
             )
             .await;
         let restore_result: JvmResult<()> = jvm
