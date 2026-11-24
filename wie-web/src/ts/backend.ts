@@ -9,7 +9,6 @@ export interface LibraryApp {
 }
 
 export interface Settings {
-  phoneNumber: string;
   midiVolume: number;
   pcmVolume: number;
   helpDismissed: boolean;

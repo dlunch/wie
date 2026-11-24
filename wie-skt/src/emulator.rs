@@ -135,17 +135,11 @@ impl SktEmulator {
         main_class_name: Option<String>,
         phone_number: &str,
     ) -> Result<()> {
-        // SK-VM exposes the eight-digit subscriber number without the domestic carrier prefix.
-        let subscriber_number =
-            if phone_number.starts_with("01") && matches!(phone_number.len(), 10 | 11) && phone_number.bytes().all(|b| b.is_ascii_digit()) {
-                format!("{:0>8}", &phone_number[3..])
-            } else {
-                phone_number.to_owned()
-            };
         let system_properties = [
             ("wie.phoneNumber", phone_number),
             ("MIN", phone_number),
-            ("m.MIN", subscriber_number.as_str()),
+            // The subscriber number without the three-digit carrier prefix.
+            ("m.MIN", &phone_number[3..]),
             ("m.COLOR", "7"),
             ("m.VENDER", "vender"),
             ("m.MODEL", "0"), // Stub model identifier.

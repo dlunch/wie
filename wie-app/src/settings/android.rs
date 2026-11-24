@@ -55,22 +55,20 @@ pub(super) async fn write(app: &AppHandle, settings: Settings) -> Result<()> {
     let (vm, helper) = helper(app).await?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut env = vm.attach_current_thread()?;
-        let result = (|| -> Result<()> {
-            let phone_number = env.new_string(&settings.phone_number)?;
-            env.call_method(
+        let result = env
+            .call_method(
                 helper.as_obj(),
                 "write",
-                "(Ljava/lang/String;FFZZ)V",
+                "(FFZZ)V",
                 &[
-                    JValue::Object(&phone_number),
                     JValue::Float(settings.midi_volume),
                     JValue::Float(settings.pcm_volume),
                     JValue::Bool(settings.help_dismissed.into()),
                     JValue::Bool(settings.welcome_seen.into()),
                 ],
-            )?;
-            Ok(())
-        })();
+            )
+            .map(|_| ())
+            .map_err(Into::into);
         finish_jni(&mut env, result).context("Android settings write failed")
     })
     .await?

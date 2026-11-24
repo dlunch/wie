@@ -203,7 +203,6 @@ impl WieWeb {
         buf: &[u8],
         canvas: HtmlCanvasElement,
         font_data: Vec<u8>,
-        phone_number: String,
         audio_player: AudioPlayer,
         host: Option<WasmHost>,
     ) -> Result<WieWeb, JsError> {
@@ -214,10 +213,8 @@ impl WieWeb {
             let font = Font::try_from_vec(font_data)?;
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone(), host.clone(), exited.clone()));
             let options = Options {
-                phone_number,
-                enable_gdbserver: false,
                 aot: Some(Box::new(aot::WasmExecutor::default())),
-                profile: None,
+                ..Default::default()
             };
 
             let emulator = wie::load_emulator(filename, buf.to_vec(), platform, options)?;

@@ -15,9 +15,6 @@ pub(super) fn read(root: &Path) -> Result<Settings> {
     }
     let mut settings = Settings::default();
     if file.has_group("Settings") {
-        if file.has_key("Settings", "phoneNumber")? {
-            settings.phone_number = file.string("Settings", "phoneNumber")?.to_string();
-        }
         for (key, volume) in [("midiVolume", &mut settings.midi_volume), ("pcmVolume", &mut settings.pcm_volume)] {
             if file.has_key("Settings", key)? {
                 let value = file.double("Settings", key)?;
@@ -40,7 +37,6 @@ pub(super) fn read(root: &Path) -> Result<Settings> {
 pub(super) fn write(root: &Path, settings: &Settings) -> Result<()> {
     settings.validate()?;
     let file = KeyFile::new();
-    file.set_string("Settings", "phoneNumber", &settings.phone_number);
     file.set_double("Settings", "midiVolume", settings.midi_volume.into());
     file.set_double("Settings", "pcmVolume", settings.pcm_volume.into());
     file.set_boolean("Settings", "helpDismissed", settings.help_dismissed);
@@ -75,7 +71,6 @@ mod tests {
         assert!(!root.exists());
 
         let settings = Settings {
-            phone_number: String::new(),
             midi_volume: 0.25,
             pcm_volume: 0.75,
             help_dismissed: true,
@@ -86,7 +81,6 @@ mod tests {
         assert_eq!(
             serde_json::to_value(read(&root).unwrap()).unwrap(),
             serde_json::json!({
-                "phoneNumber": "",
                 "midiVolume": 0.25,
                 "pcmVolume": 0.75,
                 "helpDismissed": true,
@@ -99,11 +93,11 @@ mod tests {
             for invalid in [
                 Settings {
                     midi_volume: volume,
-                    ..Settings::default()
+                    ..settings
                 },
                 Settings {
                     pcm_volume: volume,
-                    ..Settings::default()
+                    ..settings
                 },
             ] {
                 assert!(write(&root, &invalid).is_err());
@@ -124,7 +118,6 @@ mod tests {
         }
         fs::write(&path, "[Settings]\nwelcomeSeen=true\n").unwrap();
         let partial = read(&root).unwrap();
-        assert_eq!(partial.phone_number, defaults.phone_number);
         assert_eq!(partial.midi_volume, 0.5);
         assert_eq!(partial.pcm_volume, 0.5);
         assert!(!partial.help_dismissed);

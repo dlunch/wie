@@ -44,7 +44,6 @@ export const initializeWie = async (): Promise<Wie> => {
     },
     async readSettings() {
       return {
-        phoneNumber: configStore.get("phoneNumber"),
         midiVolume: configStore.get("midiVolume"),
         pcmVolume: configStore.get("pcmVolume"),
         helpDismissed: configStore.get("helpDismissed"),
@@ -52,7 +51,6 @@ export const initializeWie = async (): Promise<Wie> => {
       };
     },
     async writeSettings(settings) {
-      configStore.set("phoneNumber", settings.phoneNumber);
       configStore.set("midiVolume", settings.midiVolume);
       configStore.set("pcmVolume", settings.pcmVolume);
       configStore.set("helpDismissed", settings.helpDismissed);
@@ -72,7 +70,7 @@ export const initializeWie = async (): Promise<Wie> => {
       const fontData = new Uint8Array(await fontResponse.arrayBuffer());
       setMasterVolume(settings.midiVolume);
       setPcmVolume(settings.pcmVolume);
-      return startWasmSession(app.id, app.filename, archive, fontData, settings.phoneNumber, onEvent);
+      return startWasmSession(app.id, app.filename, archive, fontData, onEvent);
     },
   };
   return backend;

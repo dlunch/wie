@@ -50,10 +50,6 @@ pub struct ProfileSample {
 /// more when the runtime shuts down to drain anything still in the buffer.
 pub type ProfileCallback = Box<dyn FnMut(Vec<ProfileSample>) + Send + Sync>;
 
-pub fn default_phone_number() -> String {
-    "01000000000".into()
-}
-
 pub struct Options {
     pub phone_number: String,
     pub enable_gdbserver: bool,
@@ -64,7 +60,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            phone_number: default_phone_number(),
+            phone_number: "01000000000".into(),
             enable_gdbserver: false,
             aot: None,
             profile: None,

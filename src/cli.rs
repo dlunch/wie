@@ -22,9 +22,7 @@ use sentry::{Hub, protocol::Context};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie::{determine_file_type, extract_app_metadata, load_emulator};
-use wie_backend::{
-    AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen, default_phone_number,
-};
+use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen};
 use wie_core_arm_native::NativeExecutor;
 use wie_j2me::J2MEEmulator;
 
@@ -115,7 +113,7 @@ struct Args {
     #[arg(long, default_value_t = false)]
     debug: bool,
     /// Phone number reported to the application. An empty string is allowed.
-    #[arg(long, default_value_t = default_phone_number())]
+    #[arg(long, default_value_t = Options::default().phone_number)]
     phone_number: String,
     /// Write a flamegraph-folded sampling profile to this path (one line per
     /// flushed batch; `flamegraph.pl` aggregates duplicates).

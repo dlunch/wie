@@ -37,19 +37,17 @@ impl HandsetProperty {
 
     async fn get_system_property(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<String>> {
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
-        if name == "PHONENUMBER" {
-            tracing::debug!("org.kwis.msp.handset.HandsetProperty::getSystemProperty({name})");
-            let key = JavaLangString::from_rust_string(jvm, "wie.phoneNumber").await?;
-            return jvm
-                .invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (key,))
-                .await;
-        }
-
-        tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({name})");
+        tracing::debug!("org.kwis.msp.handset.HandsetProperty::getSystemProperty({name})");
 
         let value = match name.as_ref() {
             "VIBRATORLEVEL" => "0",
             "VOLUMELEVEL" => "100",
+            "PHONENUMBER" => {
+                let key = JavaLangString::from_rust_string(jvm, "wie.phoneNumber").await?;
+                return jvm
+                    .invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (key,))
+                    .await;
+            }
             _ => "",
         };
 
