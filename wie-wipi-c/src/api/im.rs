@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
 
-use wie_backend::KeyCode;
+use bytemuck::{Pod, Zeroable};
+
+use wie_backend::{Event, KeyCode};
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
 use wipi_types::wipic::WIPICWord;
@@ -50,6 +52,18 @@ pub async fn get_current_mode(_context: &mut dyn WIPICContext) -> Result<i32> {
     Ok(-1)
 }
 
+// Native games can poll keys about 100 ms apart. A same-key physical press has no distinct replay flag.
+const INPUT_IDLE_MS: u64 = 250;
+
+#[repr(C, packed)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct PendingInput {
+    deadline: u64,
+    key: u32,
+    offset: u32,
+    size: u32,
+}
+
 pub async fn handle_input(
     context: &mut dyn WIPICContext,
     key: WIPICWord,
@@ -71,14 +85,17 @@ pub async fn handle_input(
     }
 
     let mut pending: u32 = read_generic(context, INPUT_PENDING_PTR)?;
-    let mut utf8 = [0; 4];
-    if !context.system().event_queue().take_replayed_press() {
-        // A physical press starts a new edit even if the app ignored our last replay at its length limit.
-        if pending != 0 {
-            let size: u32 = read_generic(context, pending)?;
-            context.free_raw(pending, size)?;
+    let mut input = PendingInput::zeroed();
+    if pending != 0 {
+        input = read_generic(context, pending)?;
+        if input.key != key || context.system().platform().now().raw() >= input.deadline {
+            context.free_raw(pending, input.size)?;
             write_generic(context, INPUT_PENDING_PTR, 0u32)?;
+            pending = 0;
         }
+    }
+    let mut utf8 = [0; 4];
+    if pending == 0 {
         let Some(text) = context.system().platform().text_input("").await else {
             return Ok(0);
         };
@@ -92,27 +109,33 @@ pub async fn handle_input(
         if encoded.is_empty() {
             return Ok(0);
         }
-        // The allocation size and read offset precede the NUL-terminated EUC-KR text.
-        let size = 8 + encoded.len() as u32 + 1;
-        pending = context.alloc_raw(size)?;
-        write_generic(context, pending, [size, 8])?;
-        write_null_terminated_string_bytes(context, pending + 8, &encoded)?;
+        let offset = size_of::<PendingInput>() as u32;
+        input = PendingInput {
+            deadline: 0,
+            key,
+            offset,
+            size: offset + encoded.len() as u32 + 1,
+        };
+        pending = context.alloc_raw(input.size)?;
+        write_null_terminated_string_bytes(context, pending + input.offset, &encoded)?;
         write_generic(context, INPUT_PENDING_PTR, pending)?;
     }
 
-    let [size, offset]: [u32; 2] = read_generic(context, pending)?;
-    let bytes: [u8; 2] = read_generic(context, pending + offset)?;
+    let bytes: [u8; 2] = read_generic(context, pending + input.offset)?;
     let len = if bytes[0].is_ascii() { 1 } else { 2 };
     context.write_bytes(ptr_committed, &bytes[..len])?;
     write_generic(context, ptr_committed_size, len as i32)?;
-    let next = offset + len as u32;
-    if next == size - 1 {
-        context.free_raw(pending, size)?;
+    input.offset += len as u32;
+    if input.offset == input.size - 1 {
+        context.free_raw(pending, input.size)?;
         write_generic(context, INPUT_PENDING_PTR, 0u32)?;
     } else {
-        write_generic(context, pending + 4, next)?;
+        input.deadline = (context.system().platform().now() + INPUT_IDLE_MS).raw();
+        write_generic(context, pending, input)?;
         let key = KeyCode::parse(char::from(key as u8).encode_utf8(&mut utf8));
-        context.system().event_queue().replay_key(key);
+        let mut queue = context.system().event_queue();
+        queue.push(Event::Keydown(key));
+        queue.push(Event::Keyup(key));
     }
     Ok(1)
 }

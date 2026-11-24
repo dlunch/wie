@@ -90,7 +90,7 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    use test_utils::{TestPlatform, run_jvm_test_with_system};
+    use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
     use wipi_types::{
         ktf::wipic::{WIPICGraphicsInterface, WIPICInterface},
         wipic::WIPICFramebuffer,
@@ -105,7 +105,8 @@ mod tests {
     #[test]
     fn native_input_commits_host_text_one_character_per_key_press() -> Result<()> {
         // EUC-KR has no emoji, so only the Hangul and ASCII characters can be committed.
-        let platform = TestPlatform::new().with_text_input("😀가a나");
+        let clock = TestClock::new();
+        let platform = TestPlatform::with_clock(clock.clone()).with_text_input("😀가a나");
         run_jvm_test_with_system(Box::new([]), Box::new(platform), |jvm, system| async move {
             let mut core = ArmCore::new(Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
@@ -122,23 +123,19 @@ mod tests {
             let graphics: WIPICGraphicsInterface = read_generic(&core, interfaces.graphics_interface).unwrap();
             let buffer = Allocator::alloc(&mut core, 24).unwrap();
             for function in [handle_input, graphics.handle_input] {
-                for _ in 0..2 {
-                    system.event_queue().push(Event::Keydown(KeyCode::NUM2));
-                }
                 for (key, event, capacity, expected) in [
-                    // One character per press, whatever size the app declares.
-                    (b'2', 2, 8i32, b"\xb0\xa1".as_slice()),
+                    (b'2', 2, 0i32, b"\xb0\xa1".as_slice()),
                     (b'2', 2, 4, b"a"),
                     (b'2', 2, 0, b"\xb3\xaa"),
-                    (b'2', 2, 8, b"\xb0\xa1"),
                     (b'2', 3, 8, b""),
                     (b'2', 4, 8, b""),
                     (157, 2, 8, b""),
+                    (b'2', 2, 0, b"\xb0\xa1"),
                 ] {
-                    if !expected.is_empty() {
+                    if matches!(expected, b"a" | b"\xb3\xaa") {
                         let mut queue = system.event_queue();
-                        let press = core::iter::from_fn(|| queue.pop()).find(|event| matches!(event, Event::Keydown(_)));
-                        assert!(matches!(press, Some(Event::Keydown(KeyCode::NUM2))));
+                        assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
+                        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::NUM2))));
                     }
                     write_generic(&mut core, buffer, [0xabu8; 8]).unwrap();
                     write_generic(&mut core, buffer + 8, capacity).unwrap();
@@ -156,8 +153,10 @@ mod tests {
                     assert!(committed[expected.len()..].iter().all(|byte| *byte == 0xab));
                     assert_eq!(read_generic::<[u8; 8], _>(&core, buffer + 12).unwrap(), [0xcd; 8]);
                 }
-                // A full field ignores this replay. The next physical press must begin a fresh edit.
+                // A full field ignores the follow-up. The next edit starts after the idle deadline.
                 assert!(matches!(system.event_queue().pop(), Some(Event::Keydown(KeyCode::NUM2))));
+                assert!(matches!(system.event_queue().pop(), Some(Event::Keyup(KeyCode::NUM2))));
+                clock.advance(1000);
             }
             Ok(())
         })
