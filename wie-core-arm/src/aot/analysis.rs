@@ -158,9 +158,25 @@ fn decode_thumb(bytes: &[u8], pc: u32) -> Option<(u8, Condition, Operation)> {
     };
     let mut set_flags = true;
     match raw {
-        // BL/BLX (immediate), prefix and suffix decoded as one instruction.
+        // BL/BLX (immediate) and B.W, prefix and suffix decoded as one instruction.
         raw if raw & 0xf800 == 0xf000 => {
             let suffix = u16::from_le_bytes(*bytes.get(2..)?.first_chunk()?);
+            // B.W is the Thumb-2 encoding T4 (ARM DDI 0406C, A8.8.18); I1 and I2 are stored relative to the sign bit.
+            if suffix & 0xd000 == 0x9000 {
+                let sign = u32::from(raw >> 10) & 1;
+                let i1 = !(u32::from(suffix >> 13) ^ sign) & 1;
+                let i2 = !(u32::from(suffix >> 11) ^ sign) & 1;
+                let offset = (sign << 24) | (i1 << 23) | (i2 << 22) | (u32::from(raw & 0x03ff) << 12) | (u32::from(suffix & 0x07ff) << 1);
+                return Some((
+                    4,
+                    Condition::Always,
+                    Operation::Branch {
+                        target: BranchTarget::Address(MemoryAddress::new(pc.wrapping_add(4).wrapping_add_signed((offset << 7) as i32 >> 7))),
+                        link: None,
+                        exchange: false,
+                    },
+                ));
+            }
             let exchange = match suffix & 0xf800 {
                 0xf800 => false,                   // BL
                 0xe800 if suffix & 1 == 0 => true, // BLX
@@ -869,18 +885,20 @@ mod tests {
             );
             for instruction in &block.instructions {
                 assert_eq!(instruction.pc.get() % if entry.thumb { 2 } else { 4 }, 0);
-                let size = if entry.thumb
-                    && !matches!(
-                        instruction.operation,
-                        Operation::Branch {
-                            target: BranchTarget::Address(_),
-                            link: Some(_),
-                            ..
-                        }
-                    ) {
-                    2
-                } else {
-                    4
+                let size = match instruction.operation {
+                    _ if !entry.thumb => 4,
+                    Operation::Branch {
+                        target: BranchTarget::Address(_),
+                        link: Some(_),
+                        ..
+                    } => 4,
+                    // B and B.W decode to the same operation with different sizes.
+                    Operation::Branch {
+                        target: BranchTarget::Address(_),
+                        link: None,
+                        ..
+                    } => instruction.size,
+                    _ => 2,
                 };
                 assert_eq!(instruction.size, size);
                 assert!(pcs.insert(instruction.pc.get()));
@@ -1962,6 +1980,30 @@ mod tests {
             assert!(decoded_pc.get() == 0x1000 && decoded_link.get() == 0x1005);
             assert!(actual_target == target && actual_exchange == exchange);
             assert!(thumb(&[prefix, suffix], 0x1002).is_none());
+        }
+        for (prefix, suffix, target) in [
+            (0xf000, 0xb802, 0x1008),
+            (0xf7ff, 0xbffe, 0x1000),
+            (0xf000, 0x9800, 0x80_1004), // I1 set
+            (0xf000, 0xb000, 0x40_1004), // I2 set
+            (0xf7b7, 0xbf6f, 0xfffb_8ee2),
+        ] {
+            let ir = thumb(&[prefix, suffix], 0x1000).unwrap();
+            let Instruction {
+                size: 4,
+                condition: Condition::Always,
+                operation:
+                    Operation::Branch {
+                        target: BranchTarget::Address(ref actual_target),
+                        link: None,
+                        exchange: false,
+                    },
+                ..
+            } = ir.blocks[0].instructions[0]
+            else {
+                panic!("unexpected decoded instruction")
+            };
+            assert_eq!(actual_target.get(), target);
         }
         // The conditional branch targets the BL suffix before the prefix is discovered.
         let ir = thumb(&[0xd000, 0xf000, 0xf801, 0x3001, 0x4770], 0x1000).unwrap();
