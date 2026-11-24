@@ -24,6 +24,7 @@ const main = async () => {
       "Failed to fetch",
       "Load failed",
       "Response body loading was aborted",
+      "ResizeObserver loop limit exceeded",
     ],
   });
   const native = isTauri();
