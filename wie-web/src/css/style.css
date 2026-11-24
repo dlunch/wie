@@ -810,6 +810,34 @@ svg {
   margin-top: 24px;
 }
 
+.text-input-dialog form {
+  display: flex;
+  gap: 8px;
+}
+
+.text-input-dialog input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  color: var(--fg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  /* iOS zooms the page when a focused input uses a smaller font. */
+  font-size: 16px;
+}
+
+/* Touch devices dock the input bar to the top edge of the on-screen keyboard. */
+@media (pointer: coarse) {
+  .text-input-dialog {
+    width: 100%;
+    max-width: none;
+    margin: auto 0 var(--keyboard-inset, 0px);
+    border-radius: 0;
+  }
+}
+
 .help-dialog table {
   width: 100%;
   border-collapse: collapse;

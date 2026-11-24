@@ -44,6 +44,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
   const playerWarning = document.getElementById("player-warning") as HTMLElement;
   const backToLibrary = document.getElementById("back-to-library") as HTMLButtonElement;
   const appSettings = document.getElementById("app-settings") as HTMLButtonElement;
+  const textInputDialog = document.getElementById("text-input-dialog") as HTMLDialogElement;
   const buttons = playerView.querySelectorAll<HTMLButtonElement>("button[data-key]");
 
   const abortController = new AbortController();
@@ -70,6 +71,7 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
     ending = true;
     clearTimeout(warningTimer);
     abortController.abort();
+    textInputDialog.close();
     inputs.clear();
     updateControls();
     try {
@@ -111,6 +113,8 @@ export const runApp = (backend: Wie, app: LibraryApp, settings: SettingsControll
     settings.open();
   }, { signal: abortController.signal });
   window.addEventListener("blur", releaseKeys, { signal: abortController.signal });
+  // The key that opened the text input would otherwise stay held while the dialog covers the keypad.
+  textInputDialog.addEventListener("focusin", releaseKeys, { signal: abortController.signal });
   window.addEventListener("pagehide", () => { void finish(); }, { signal: abortController.signal });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) releaseKeys();

@@ -103,8 +103,10 @@ mod tests {
     use super::{SVC_CATEGORY_WIPIC, WIPICKernelMethodId, WIPICTableId, register_wipic_svc_handler};
 
     #[test]
-    fn native_input_commits_placeholder_within_buffer_capacity() -> Result<()> {
-        run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
+    fn native_input_commits_host_text_within_buffer_capacity() -> Result<()> {
+        // EUC-KR has no emoji, so only the Hangul and ASCII characters can be committed.
+        let platform = TestPlatform::new().with_text_input("😀가a나");
+        run_jvm_test_with_system(Box::new([]), Box::new(platform), |jvm, system| async move {
             let mut core = ArmCore::new(Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
             let mut registers = core.save_context();
@@ -121,12 +123,12 @@ mod tests {
             let buffer = Allocator::alloc(&mut core, 24).unwrap();
             for function in [handle_input, graphics.handle_input] {
                 for (key, event, capacity, expected) in [
-                    (b'2', 2, 8i32, b"temp".as_slice()),
-                    (b'2', 2, 2, b"te"),
+                    (b'2', 2, 8i32, b"\xb0\xa1a\xb3\xaa".as_slice()),
+                    (b'2', 2, 4, b"\xb0\xa1a"),
                     (b'2', 2, 0, b""),
                     (b'2', 3, 8, b""),
                     (b'2', 4, 8, b""),
-                    (157, 2, 8, b""),
+                    (157, 2, 8, b"\xb0\xa1a\xb3\xaa"),
                 ] {
                     write_generic(&mut core, buffer, [0xabu8; 8]).unwrap();
                     write_generic(&mut core, buffer + 8, capacity).unwrap();

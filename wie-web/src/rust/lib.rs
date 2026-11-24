@@ -34,6 +34,7 @@ use self::{
     database::DatabaseRepository,
     filesystem::WebFilesystem,
     host::WasmHost,
+    util::run_js_future,
     window::WindowImpl,
 };
 
@@ -41,6 +42,12 @@ use self::{
 extern "C" {
     #[wasm_bindgen(js_name = recordPanic)]
     fn record_panic(message: &str);
+}
+
+#[wasm_bindgen(module = "text_input.ts")]
+extern "C" {
+    #[wasm_bindgen(js_name = requestTextInput, catch)]
+    async fn request_text_input() -> Result<JsValue, JsValue>;
 }
 
 struct WieWebPlatform {
@@ -75,6 +82,7 @@ impl WieWebPlatform {
     }
 }
 
+#[async_trait::async_trait]
 impl Platform for WieWebPlatform {
     fn font(&self) -> &Font {
         &self.font
@@ -133,6 +141,10 @@ impl Platform for WieWebPlatform {
         }
         let duration = core::cmp::min(duration_ms, u32::MAX as u64) as u32;
         navigator.vibrate_with_duration(duration);
+    }
+
+    async fn text_input(&self) -> Option<String> {
+        run_js_future(async { request_text_input().await.ok()?.as_string() }).await
     }
 }
 

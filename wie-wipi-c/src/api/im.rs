@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_table};
 
 use wipi_types::wipic::WIPICWord;
@@ -53,24 +55,35 @@ pub async fn handle_input(
     ptr_composing: WIPICWord,
     ptr_composing_size: WIPICWord,
 ) -> Result<i32> {
-    tracing::warn!(
-        "stub MC_imHandleInput({key:#x}, {event_type}, {ptr_committed:#x}, {ptr_committed_size:#x}, {ptr_composing:#x}, {ptr_composing_size:#x})"
+    tracing::debug!(
+        "MC_imHandleInput({key:#x}, {event_type}, {ptr_committed:#x}, {ptr_committed_size:#x}, {ptr_composing:#x}, {ptr_composing_size:#x})"
     );
 
     let capacity: i32 = read_generic(context, ptr_committed_size)?;
-    // shortcut: numeric key presses commit a placeholder until text input is implemented.
-    let size = if event_type == 2 && (u32::from(b'0')..=u32::from(b'9')).contains(&key) {
-        capacity.clamp(0, 4)
-    } else {
-        0
-    };
-    if size > 0 {
-        context.write_bytes(ptr_committed, &b"temp"[..size as usize])?;
+    let mut committed = Vec::new();
+    // The API has no begin-edit call, so any key press reaching the input method starts typing.
+    if event_type == 2
+        && let Some(text) = context.system().platform().text_input().await
+    {
+        let mut utf8 = [0; 4];
+        for character in text.chars() {
+            let (encoded, _, unmappable) = encoding_rs::EUC_KR.encode(character.encode_utf8(&mut utf8));
+            if unmappable {
+                continue;
+            }
+            if committed.len() + encoded.len() > capacity.max(0) as usize {
+                break;
+            }
+            committed.extend_from_slice(&encoded);
+        }
     }
-    write_generic(context, ptr_committed_size, size)?;
+    if !committed.is_empty() {
+        context.write_bytes(ptr_committed, &committed)?;
+    }
+    write_generic(context, ptr_committed_size, committed.len() as i32)?;
     write_generic(context, ptr_composing_size, 0i32)?;
 
-    Ok(i32::from(size > 0))
+    Ok(i32::from(!committed.is_empty()))
 }
 
 #[cfg(test)]

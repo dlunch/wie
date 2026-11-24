@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use futures::channel::oneshot;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, ipc::Channel};
 
 use wie::load_emulator;
 use wie_backend::{
@@ -34,6 +34,7 @@ pub(super) enum Command {
     Key(KeyCode, bool),
     ReleaseKeys,
     Volumes(f32, f32),
+    TextInput(Option<String>),
     #[cfg(mobile)]
     Suspend(bool),
     Stop,
@@ -96,8 +97,24 @@ pub(crate) async fn release_keys(state: State<'_, AppState>, session_id: u64) ->
     Ok(())
 }
 
+#[tauri::command]
+pub async fn text_input(state: State<'_, AppState>, session_id: u64, text: Option<String>) -> Result<(), String> {
+    let runtime = state.runtime.lock().unwrap();
+    if let Some(session) = &runtime.session
+        && session.id == session_id
+        && let Some(commands) = &session.commands
+    {
+        let _ = commands.send(Command::TextInput(text));
+    }
+    Ok(())
+}
+
+type TextInputReply = Arc<Mutex<Option<oneshot::Sender<Option<String>>>>>;
+
 struct NativePlatform {
     app: AppHandle,
+    events: Channel<SessionEvent>,
+    text_input: TextInputReply,
     screen: NativeScreen,
     audio: NativeAudioSink,
     database: DatabaseRepository,
@@ -107,6 +124,7 @@ struct NativePlatform {
     font: Font,
 }
 
+#[async_trait::async_trait]
 impl Platform for NativePlatform {
     fn font(&self) -> &Font {
         &self.font
@@ -157,6 +175,13 @@ impl Platform for NativePlatform {
         }
         #[cfg(desktop)]
         let _ = (&self.app, duration_ms, intensity);
+    }
+
+    async fn text_input(&self) -> Option<String> {
+        let (reply, text) = oneshot::channel();
+        self.text_input.lock().unwrap().replace(reply);
+        self.events.send(SessionEvent::TextInput).ok()?;
+        text.await.ok().flatten()
     }
 }
 
@@ -218,8 +243,11 @@ impl NativeSessionWorker {
                 None
             }
         };
+        let text_input = TextInputReply::default();
         let platform = NativePlatform {
             app,
+            events: events.clone(),
+            text_input: text_input.clone(),
             screen: NativeScreen::new(view.clone(), 240, 320, redraw.clone()),
             audio: audio.sink(),
             database: DatabaseRepository { store: store.clone() },
@@ -271,6 +299,11 @@ impl NativeSessionWorker {
                             }
                         }
                         Command::Volumes(midi, pcm) => audio.set_volumes(midi, pcm)?,
+                        Command::TextInput(text) => {
+                            if let Some(reply) = text_input.lock().unwrap().take() {
+                                let _ = reply.send(text);
+                            }
+                        }
                         #[cfg(mobile)]
                         Command::Suspend(suspended) => {
                             for (key, _) in keys.drain() {

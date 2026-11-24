@@ -12,6 +12,7 @@ commands.allow = [
     "start_app",
     "key_event",
     "release_keys",
+    "text_input",
     "guest_storage",
     "guest_audio",
     "guest_vibrate",

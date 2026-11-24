@@ -174,15 +174,33 @@ impl XTextField {
             return Ok(());
         }
 
-        if (32..=126).contains(&key_code) {
-            return Self::input_char(jvm, context, this, key_code as JavaChar).await;
+        let constraints: i32 = jvm.get_field(&this, "com/xce/lcdui/XTextField", "constraints", "I").await?;
+        // MIDP NUMERIC, PHONENUMBER, and DECIMAL fields take the typed character directly.
+        if matches!(constraints & 0xffff, 2 | 3 | 5) {
+            if (32..=126).contains(&key_code) {
+                return Self::input_char(jvm, context, this, key_code as JavaChar).await;
+            }
+            return Ok(());
+        }
+        // The API has no begin-edit call, so any key press reaching a free-text field starts typing.
+        let text = context.system().platform().text_input().await.unwrap_or_default();
+        for character in text.encode_utf16() {
+            let _: () = jvm
+                .invoke_virtual(&this, "com/xce/lcdui/XTextField", "inputChar", "(C)V", (character,))
+                .await?;
         }
         Ok(())
     }
 
     async fn key_repeated(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.XTextField::keyRepeated({this:?}, {key_code})");
-        Self::key_pressed(jvm, context, this, key_code).await
+
+        // A held key must not reopen the host text input, so only directly typed fields repeat.
+        let constraints: i32 = jvm.get_field(&this, "com/xce/lcdui/XTextField", "constraints", "I").await?;
+        if matches!(constraints & 0xffff, 2 | 3 | 5) {
+            return Self::key_pressed(jvm, context, this, key_code).await;
+        }
+        Ok(())
     }
 
     async fn key_released(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
@@ -297,7 +315,7 @@ mod tests {
     use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use rustjava_runtime::classes::java::lang::String;
-    use test_utils::run_jvm_test;
+    use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_midp::classes::javax::microedition::lcdui::{Canvas, Graphics, Image};
 
@@ -505,7 +523,7 @@ mod tests {
 
     #[test]
     fn text_state_input_limit_and_repaint_work_as_one_flow() {
-        let result = run_jvm_test(
+        let result = run_jvm_test_with_system(
             Box::new([
                 wie_midp::get_protos().into(),
                 [
@@ -519,14 +537,15 @@ mod tests {
                 ]
                 .into(),
             ]),
-            |jvm| async move {
+            Box::new(TestPlatform::new().with_text_input("가나다")),
+            |jvm, _| async move {
                 let canvas: ClassInstanceRef<Canvas> = jvm.new_class("test/TrackingCanvas", "()V", ()).await?.into();
                 let initial: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "abc").await?.into();
                 let field: ClassInstanceRef<XTextField> = jvm
                     .new_class(
                         "com/xce/lcdui/XTextField",
                         "(Ljava/lang/String;IILjavax/microedition/lcdui/Canvas;)V",
-                        (initial, 5, 0, canvas.clone()),
+                        (initial, 5, 2, canvas.clone()),
                     )
                     .await?
                     .into();
@@ -666,6 +685,49 @@ mod tests {
                     .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1");
                 assert_eq!(jvm.get_field::<i32>(&canvas, "test/TrackingCanvas", "repaintCount", "I").await?, 4);
+
+                // Any key on a free-text field asks the host for text and inserts what fits.
+                jvm.put_field(&mut component, "com/xce/lcdui/XTextField", "constraints", "I", 0).await?;
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (-5,))
+                        .await?
+                );
+                let text = jvm
+                    .invoke_virtual(&component, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1가");
+                assert_eq!(jvm.get_field::<i32>(&canvas, "test/TrackingCanvas", "repaintCount", "I").await?, 5);
+                // A full field leaves non-digit keys to the caller.
+                assert!(
+                    !jvm.invoke_virtual::<_, bool>(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (-5,))
+                        .await?
+                );
+
+                let empty: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "").await?.into();
+                let free_text = jvm
+                    .new_class(
+                        "com/xce/lcdui/XTextField",
+                        "(Ljava/lang/String;IILjavax/microedition/lcdui/Canvas;)V",
+                        (empty, 2, 0, canvas),
+                    )
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "setFocus", "(Z)V", (true,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyRepeated", "(I)V", (-5,))
+                    .await?;
+                let text = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "");
+                let _: () = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (-5,))
+                    .await?;
+                let text = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "가나");
 
                 Ok(())
             },

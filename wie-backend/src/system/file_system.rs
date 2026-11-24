@@ -256,6 +256,7 @@ mod tests {
     struct StubPlatform {
         fs: StubFilesystem,
     }
+    #[async_trait::async_trait]
     impl Platform for StubPlatform {
         fn font(&self) -> &Font {
             unimplemented!()
@@ -288,6 +289,10 @@ mod tests {
         fn exit(&self) {}
 
         fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
+
+        async fn text_input(&self) -> Option<String> {
+            None
+        }
     }
 
     fn setup() -> FilesystemOverlay {
