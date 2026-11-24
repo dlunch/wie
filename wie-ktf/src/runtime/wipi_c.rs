@@ -129,7 +129,7 @@ mod tests {
                     (b'2', 3, 8, b""),
                     (b'2', 4, 8, b""),
                     (157, 2, 8, b""),
-                    (b'5', 2, 0, b"\xb0\xa1"),
+                    (b'#', 2, 0, b"\xb0\xa1"),
                 ] {
                     if matches!(expected, b"a" | b"\xb3\xaa") {
                         let mut queue = system.event_queue();

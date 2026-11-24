@@ -1,4 +1,4 @@
-use wie_backend::Event;
+use wie_backend::{Event, KeyCode};
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_table};
 
 use wipi_types::wipic::WIPICWord;
@@ -60,6 +60,9 @@ pub async fn handle_input(
 
     write_generic(context, ptr_committed_size, 0i32)?;
     write_generic(context, ptr_composing_size, 0i32)?;
+    // This key only prompts the application to request the next character.
+    const TEXT_INPUT_KEY: KeyCode = KeyCode::NUM2;
+
     // KTF and LGT deliver presses as 2 and 502. Host edits leave no composing character to flush.
     if !matches!(event_type, 2 | 502) || !matches!(u8::try_from(key), Ok(b'#' | b'*' | b'0'..=b'9')) {
         return Ok(0);
@@ -83,7 +86,10 @@ pub async fn handle_input(
             continue;
         }
         if committed {
-            context.system().event_queue().push(Event::TextInput(text[offset..].into()));
+            context.system().event_queue().push(Event::TextInput {
+                key: TEXT_INPUT_KEY,
+                text: text[offset..].into(),
+            });
             break;
         }
         context.write_bytes(ptr_committed, &bytes)?;
