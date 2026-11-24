@@ -13,18 +13,12 @@ use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System, extract_
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
 
-pub struct JarMetadata {
-    pub title: String,
-    pub main_class_name: String,
-    pub icon: Option<Vec<u8>>,
-}
-
 pub struct J2MEEmulator {
     system: System,
 }
 
 impl J2MEEmulator {
-    pub fn jar_metadata(jar: &[u8]) -> Result<Option<JarMetadata>> {
+    pub fn jar_metadata(jar: &[u8]) -> Result<Option<(String, Option<Vec<u8>>)>> {
         let files = extract_zip(jar)?;
         let Some((_, manifest)) = files.iter().find(|(path, _)| path.eq_ignore_ascii_case("META-INF/MANIFEST.MF")) else {
             return Ok(None);
@@ -40,11 +34,7 @@ impl J2MEEmulator {
             files.get(descriptor.icon.trim_start_matches('/')).cloned()
         };
 
-        Ok(Some(JarMetadata {
-            title: descriptor.name,
-            main_class_name: descriptor.main_class_name,
-            icon,
-        }))
+        Ok(Some((descriptor.name, icon)))
     }
 
     pub fn from_jad_jar(platform: Box<dyn Platform>, jad: Vec<u8>, jar_filename: String, jar: Vec<u8>) -> Result<Self> {
@@ -237,7 +227,8 @@ mod tests {
             writer.start_file(path, SimpleFileOptions::default()).unwrap();
             writer.write_all(manifest).unwrap();
             let jar = writer.finish().unwrap().into_inner();
-            assert_eq!(J2MEEmulator::jar_metadata(&jar).unwrap().unwrap().title, "App title");
+            let (title, _) = J2MEEmulator::jar_metadata(&jar).unwrap().unwrap();
+            assert_eq!(title, "App title");
 
             for filename in ["original.jar", "renamed.jar"] {
                 let emulator = J2MEEmulator::from_jar(Box::new(TestPlatform::new()), filename, jar.clone()).unwrap();

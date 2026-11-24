@@ -84,10 +84,10 @@ pub fn extract_app_metadata(filename: &str, bytes: &[u8], file_type: FileType) -
                 .zip(SktEmulator::archive_title(&files))
                 .map(|(id, title)| (id, title, SktEmulator::archive_icon(&files)))
         }
-        FileType::J2me => J2MEEmulator::jar_metadata(bytes)?.map(|metadata| (metadata.title.clone(), metadata.title, metadata.icon)),
+        FileType::J2me => J2MEEmulator::jar_metadata(bytes)?.map(|(title, icon)| (title.clone(), title, icon)),
         _ => {
             let id = &filename[..filename.len() - 4];
-            J2MEEmulator::jar_metadata(bytes)?.map(|metadata| (id.to_owned(), metadata.title, metadata.icon))
+            J2MEEmulator::jar_metadata(bytes)?.map(|(title, icon)| (id.to_owned(), title, icon))
         }
     };
     let (id, title, icon) = metadata.ok_or_else(|| anyhow::anyhow!("App metadata does not contain an ID, title or entry point"))?;
@@ -104,9 +104,7 @@ pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>
         FileType::Skt if lowercase_filename.ends_with(".zip") => Box::new(SktEmulator::from_archive(platform, extract_zip(&bytes)?)?),
         FileType::Ktf => {
             let id = &filename[..filename.len() - 4];
-            // A standalone JAR has no ADF, so its manifest is the only source of the entry point.
-            let main_class_name = J2MEEmulator::jar_metadata(&bytes)?.map(|metadata| metadata.main_class_name);
-            Box::new(KtfEmulator::from_jar(platform, filename, bytes, id, id, main_class_name, options)?)
+            Box::new(KtfEmulator::from_jar(platform, filename, bytes, id, id, options)?)
         }
         FileType::Lgt => {
             let id = &filename[..filename.len() - 4];

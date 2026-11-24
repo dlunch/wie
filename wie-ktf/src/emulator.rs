@@ -6,7 +6,7 @@ use bytemuck::Zeroable;
 use futures::future::poll_fn;
 use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner};
+use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, write_generic};
@@ -78,22 +78,27 @@ impl KtfEmulator {
         Self::load(platform, &jar_filename, adf, &files, options)
     }
 
-    pub fn from_jar(
-        platform: Box<dyn Platform>,
-        jar_filename: &str,
-        jar: Vec<u8>,
-        pid: &str,
-        aid: &str,
-        main_class_name: Option<String>,
-        options: Options,
-    ) -> Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, pid: &str, aid: &str, options: Options) -> Result<Self> {
+        // A standalone JAR has no ADF, so the MIDlet-1 attribute of its manifest names the entry point.
+        // Manifest lines longer than 72 bytes continue on the next line after a leading space.
+        let manifest = extract_zip(&jar)?
+            .into_iter()
+            .find(|(path, _)| path.eq_ignore_ascii_case("META-INF/MANIFEST.MF"))
+            .map(|(_, data)| String::from_utf8_lossy(&data).replace("\r\n ", "").replace("\n ", ""))
+            .unwrap_or_default();
+        let mclass = manifest
+            .lines()
+            .find_map(|line| line.strip_prefix("MIDlet-1:")?.split(',').nth(2))
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
         let adf = KtfAdf {
             name: String::new(),
             aid: aid.to_owned(),
             pid: pid.to_owned(),
-            mclass: main_class_name.unwrap_or_default(),
+            mclass,
             display_size: None,
             slvl: None,
         };

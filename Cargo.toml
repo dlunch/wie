@@ -162,5 +162,3 @@ wie-core-arm-native = { workspace = true, optional = true }
 
 [dev-dependencies]
 futures-test = { workspace = true }
-test-utils = { workspace = true }
-zip = { workspace = true }
