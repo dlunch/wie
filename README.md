@@ -2,6 +2,10 @@
 
 [Homepage](https://wie-site.dlunch.net) | [Try in browser](https://wie.dlunch.net)
 
+<a href="https://play.google.com/store/apps/details?id=net.dlunch.wie">
+  <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="48" alt="Get WIE on Google Play">
+</a>
+
 A standalone emulator for old mobile apps based on WIPI, SKVM or J2ME.
 
 This project is dedicated to digital preservation and educational research. Our goal is to revive the legacy of classic mobile apps and allow them to be experienced in modern environments.
