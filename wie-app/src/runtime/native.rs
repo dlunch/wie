@@ -234,6 +234,7 @@ impl NativeSessionWorker {
                 bytes,
                 Box::new(platform),
                 Options {
+                    phone_number: settings.phone_number,
                     enable_gdbserver: false,
                     aot: Some(Box::new(NativeExecutor::new(cache))),
                     profile: None,

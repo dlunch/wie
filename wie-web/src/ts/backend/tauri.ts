@@ -57,7 +57,7 @@ export const initializeWie = async (): Promise<Wie> => {
             report(event);
           }
         });
-        const started = await invoke<{ sessionId: number; filename: string; bytes: number[] } | null>("start_app", { id, events });
+        const started = await invoke<{ sessionId: number; filename: string; bytes: number[]; phoneNumber: string } | null>("start_app", { id, events });
         if (started === null) {
           report({ type: "stopped", failed: true });
           return;
@@ -76,7 +76,9 @@ export const initializeWie = async (): Promise<Wie> => {
           const font = new Uint8Array(await fontResponse.arrayBuffer());
           if (ended) return;
           if (startupError !== undefined) throw startupError;
-          const startedSession = wasm.startWasmSession(id, started.filename, new Uint8Array(started.bytes), font, report, host, lifecycle!.suspended);
+          const startedSession = wasm.startWasmSession(
+            id, started.filename, new Uint8Array(started.bytes), font, started.phoneNumber, report, host, lifecycle!.suspended,
+          );
           session = startedSession;
           let stopping: Promise<void> | undefined;
           return {

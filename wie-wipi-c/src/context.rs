@@ -82,7 +82,14 @@ impl ResultConverter<()> for () {
 
 #[cfg(test)]
 pub mod test {
-    use alloc::{boxed::Box, collections::VecDeque, format, string::String, sync::Arc, vec::Vec};
+    use alloc::{
+        boxed::Box,
+        collections::{BTreeMap, VecDeque},
+        format,
+        string::String,
+        sync::Arc,
+        vec::Vec,
+    };
 
     use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
@@ -101,6 +108,7 @@ pub mod test {
         last_alloc: usize,
         system: Option<System>,
         resources: Vec<(String, Vec<u8>)>,
+        pub java_properties: BTreeMap<&'static str, String>,
         pub functions: Vec<(WIPICWord, Arc<WIPICMethodBody>)>,
         pub function_calls: Vec<(WIPICWord, Vec<WIPICWord>)>,
         pub timers: VecDeque<(Instant, WIPICMethodBody)>,
@@ -115,6 +123,7 @@ pub mod test {
                 last_alloc: TEST_ALLOC_START,
                 system: None,
                 resources: Vec::new(),
+                java_properties: BTreeMap::new(),
                 functions: Vec::new(),
                 function_calls: Vec::new(),
                 timers: VecDeque::new(),
@@ -128,6 +137,7 @@ pub mod test {
                 last_alloc: TEST_ALLOC_START,
                 system: Some(system),
                 resources: Vec::new(),
+                java_properties: BTreeMap::new(),
                 functions: Vec::new(),
                 function_calls: Vec::new(),
                 timers: VecDeque::new(),
@@ -180,8 +190,8 @@ pub mod test {
             todo!()
         }
 
-        async fn java_property(&self, _name: &str) -> Result<Option<String>> {
-            Ok(None)
+        async fn java_property(&self, name: &str) -> Result<Option<String>> {
+            Ok(self.java_properties.get(name).cloned())
         }
 
         async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {

@@ -31,11 +31,7 @@ pub async fn dump_image(zip: &[u8]) -> Result<Vec<u8>> {
     validate_client_bin(&data)?;
     let bss_size = parse_bss_size(&client_bin_name)?;
 
-    let mut core = ArmCore::new(wie_backend::Options {
-        enable_gdbserver: false,
-        aot: None,
-        profile: None,
-    })?;
+    let mut core = ArmCore::new(wie_backend::Options::default())?;
     Allocator::init(&mut core)?;
 
     let buf_slot: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));

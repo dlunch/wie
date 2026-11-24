@@ -157,12 +157,7 @@ mod tests {
 
     #[test]
     fn test_allocator() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 
         ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
         let address = ListAllocator::alloc(&mut core, 0x40000000, 0x1000, 4)?;
@@ -174,12 +169,7 @@ mod tests {
 
     #[test]
     fn test_coalesce_adjacent_free_blocks() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 
         ListAllocator::init(&mut core, 0x40000000, 0x400)?;
         let a = ListAllocator::alloc(&mut core, 0x40000000, 0x400, 0x100)?;
@@ -197,12 +187,7 @@ mod tests {
 
     #[test]
     fn test_double_free_returns_error() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 
         ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
         let address = ListAllocator::alloc(&mut core, 0x40000000, 0x1000, 4)?;
@@ -217,12 +202,7 @@ mod tests {
 
     #[test]
     fn test_corrupted_canary_returns_error() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })
-        .unwrap();
+        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 
         ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
         let address = ListAllocator::alloc(&mut core, 0x40000000, 0x1000, 4)?;

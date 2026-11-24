@@ -4,6 +4,8 @@ use tauri::AppHandle;
 #[cfg(target_os = "linux")]
 use tauri::Manager;
 
+use wie_backend::default_phone_number;
+
 #[cfg_attr(target_os = "android", path = "settings/android.rs")]
 #[cfg_attr(target_vendor = "apple", path = "settings/apple.rs")]
 #[cfg_attr(target_os = "linux", path = "settings/linux.rs")]
@@ -13,6 +15,8 @@ mod platform;
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    #[serde(default = "default_phone_number")]
+    pub phone_number: String,
     pub midi_volume: f32,
     pub pcm_volume: f32,
     pub help_dismissed: bool,
@@ -22,6 +26,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            phone_number: default_phone_number(),
             midi_volume: 0.5,
             pcm_volume: 0.5,
             help_dismissed: false,

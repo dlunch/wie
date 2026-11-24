@@ -12,7 +12,7 @@ use encoding_rs::EUC_KR;
 use jvm::{Result as JvmResult, runtime::JavaLangString};
 
 use wie_backend::{
-    DefaultTaskRunner, Emulator, Event, Platform, System,
+    DefaultTaskRunner, Emulator, Event, Options, Platform, System,
     canvas::{decode_res, encode_png},
     extract_zip,
 };
@@ -24,7 +24,7 @@ pub struct SktEmulator {
 }
 
 impl SktEmulator {
-    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> Result<Self> {
+    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
         let msd_file = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
         let msd = SktMsd::parse(msd_file.0, msd_file.1);
 
@@ -32,10 +32,18 @@ impl SktEmulator {
 
         let jar_filename = msd_file.0.replace(".msd", ".jar");
 
-        Self::load(platform, &jar_filename, &msd.id, Some(msd.main_class), msd.properties, &files)
+        Self::load(
+            platform,
+            &jar_filename,
+            &msd.id,
+            Some(msd.main_class),
+            msd.properties,
+            &files,
+            options.phone_number,
+        )
     }
 
-    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str) -> Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, options: Options) -> Result<Self> {
         let (_, manifest) = extract_zip(&jar)?
             .into_iter()
             .find(|(path, _)| path.eq_ignore_ascii_case("META-INF/MANIFEST.MF"))
@@ -46,7 +54,7 @@ impl SktEmulator {
         let main_class_name = (!msd.main_class.is_empty()).then_some(msd.main_class);
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, id, main_class_name, msd.properties, &files)
+        Self::load(platform, jar_filename, id, main_class_name, msd.properties, &files, options.phone_number)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -103,6 +111,7 @@ impl SktEmulator {
         main_class_name: Option<String>,
         properties: BTreeMap<String, String>,
         files: &BTreeMap<String, Vec<u8>>,
+        phone_number: String,
     ) -> Result<Self> {
         let system = System::new(platform, id, id, DefaultTaskRunner);
 
@@ -113,7 +122,7 @@ impl SktEmulator {
         let mut system_clone = system.clone();
         let jar_filename_clone = jar_filename.to_owned();
 
-        system.spawn(async move || Self::do_start(&mut system_clone, jar_filename_clone, properties, main_class_name).await);
+        system.spawn(async move || Self::do_start(&mut system_clone, jar_filename_clone, properties, main_class_name, &phone_number).await);
 
         Ok(Self { system })
     }
@@ -124,10 +133,19 @@ impl SktEmulator {
         jar_filename: String,
         properties: BTreeMap<String, String>,
         main_class_name: Option<String>,
+        phone_number: &str,
     ) -> Result<()> {
+        // SK-VM exposes the eight-digit subscriber number without the domestic carrier prefix.
+        let subscriber_number =
+            if phone_number.starts_with("01") && matches!(phone_number.len(), 10 | 11) && phone_number.bytes().all(|b| b.is_ascii_digit()) {
+                format!("{:0>8}", &phone_number[3..])
+            } else {
+                phone_number.to_owned()
+            };
         let system_properties = [
-            ("MIN", "01000000000"),
-            ("m.MIN", "00000000"),
+            ("wie.phoneNumber", phone_number),
+            ("MIN", phone_number),
+            ("m.MIN", subscriber_number.as_str()),
             ("m.COLOR", "7"),
             ("m.VENDER", "vender"),
             ("m.MODEL", "0"), // Stub model identifier.

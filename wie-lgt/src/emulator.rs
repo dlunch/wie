@@ -6,6 +6,7 @@ use alloc::{
     collections::BTreeMap,
     format,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 
@@ -126,6 +127,7 @@ impl LgtEmulator {
         files: &BTreeMap<String, Vec<u8>>,
         options: Options,
     ) -> Result<Self> {
+        let phone_number = options.phone_number.clone();
         let mut core = ArmCore::new(options)?;
         let system = System::new(platform, &app_info.pid, &app_info.aid, LgtTaskRunner { core: core.clone() });
 
@@ -142,14 +144,17 @@ impl LgtEmulator {
         // the same way, or an entrypoint stored as `P/<name>.jar` names an entry that does not exist.
         let jar_filename = jar_filename.trim_start_matches("P/").to_owned();
 
-        system.spawn(async move || Self::do_start(&mut core_clone, &mut system_clone, jar_filename, app_info).await);
+        system.spawn(async move || Self::do_start(&mut core_clone, &mut system_clone, jar_filename, app_info, &phone_number).await);
 
         Ok(Self { core, system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, app_info: LgtAppInfo) -> Result<()> {
-        let properties = app_info.slvl.iter().map(|x| ("wie.slvl", x.as_str())).collect::<Vec<_>>();
+    async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, app_info: LgtAppInfo, phone_number: &str) -> Result<()> {
+        let mut properties = vec![("wie.phoneNumber", phone_number)];
+        if let Some(slvl) = &app_info.slvl {
+            properties.push(("wie.slvl", slvl));
+        }
         let jvm = LgtJvmSupport::init(core, system, Some(&jar_filename), &properties).await?;
 
         let class_loader = match JavaLangClassLoader::get_system_class_loader(&jvm).await {
@@ -253,11 +258,7 @@ mod tests {
 
     #[test]
     fn exception_frames_are_restored_per_thread() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
+        let mut core = ArmCore::new(wie_backend::Options::default())?;
         Allocator::init(&mut core)?;
         let runner = LgtTaskRunner { core: core.clone() };
 

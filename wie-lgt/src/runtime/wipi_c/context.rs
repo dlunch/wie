@@ -198,11 +198,7 @@ mod tests {
         let system_task = system.clone();
 
         system.spawn(async move || {
-            let mut core = ArmCore::new(wie_backend::Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })?;
+            let mut core = ArmCore::new(wie_backend::Options::default())?;
             Allocator::init(&mut core)?;
             let mut caller = core.save_context();
             caller.sp = Allocator::alloc(&mut core, 0x100)? + 0x100;

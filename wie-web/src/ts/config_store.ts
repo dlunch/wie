@@ -2,6 +2,7 @@ import type { LanguagePreference } from "./i18n";
 
 const defaults = {
   language: "system" as LanguagePreference,
+  phoneNumber: "01000000000",
   midiVolume: 0.5,
   pcmVolume: 0.5,
   helpDismissed: false,

@@ -9,7 +9,7 @@ use alloc::{
 
 use jvm::{Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System, extract_zip};
+use wie_backend::{DefaultTaskRunner, Emulator, Event, Options, Platform, System, extract_zip};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
 
@@ -37,14 +37,14 @@ impl J2MEEmulator {
         Ok(Some((descriptor.name, icon)))
     }
 
-    pub fn from_jad_jar(platform: Box<dyn Platform>, jad: Vec<u8>, jar_filename: String, jar: Vec<u8>) -> Result<Self> {
+    pub fn from_jad_jar(platform: Box<dyn Platform>, jad: Vec<u8>, jar_filename: String, jar: Vec<u8>, options: Options) -> Result<Self> {
         let descriptor = J2MEDescriptor::parse(&jad);
 
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
-        Self::load(platform, &jar_filename, descriptor, &files)
+        Self::load(platform, &jar_filename, descriptor, &files, options.phone_number)
     }
 
-    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>) -> Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, options: Options) -> Result<Self> {
         let contents = extract_zip(&jar)?;
         let (_, manifest) = contents
             .iter()
@@ -53,10 +53,16 @@ impl J2MEEmulator {
         let descriptor = J2MEDescriptor::parse(manifest);
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, descriptor, &files)
+        Self::load(platform, jar_filename, descriptor, &files, options.phone_number)
     }
 
-    fn load(platform: Box<dyn Platform>, jar_filename: &str, descriptor: J2MEDescriptor, files: &BTreeMap<String, Vec<u8>>) -> Result<Self> {
+    fn load(
+        platform: Box<dyn Platform>,
+        jar_filename: &str,
+        descriptor: J2MEDescriptor,
+        files: &BTreeMap<String, Vec<u8>>,
+        phone_number: String,
+    ) -> Result<Self> {
         if descriptor.name.is_empty() || descriptor.main_class_name.is_empty() {
             return Err(WieError::FatalError("MIDlet-1 name or main class not found".into()));
         }
@@ -69,18 +75,33 @@ impl J2MEEmulator {
         let mut system_clone = system.clone();
         let jar_filename = jar_filename.to_owned();
 
-        system.spawn(async move || Self::do_start(&mut system_clone, jar_filename, descriptor.properties, descriptor.main_class_name).await);
+        system.spawn(async move || {
+            Self::do_start(
+                &mut system_clone,
+                jar_filename,
+                descriptor.properties,
+                descriptor.main_class_name,
+                &phone_number,
+            )
+            .await
+        });
 
         Ok(J2MEEmulator { system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(system: &mut System, jar_filename: String, properties: BTreeMap<String, String>, main_class_name: String) -> Result<()> {
+    async fn do_start(
+        system: &mut System,
+        jar_filename: String,
+        properties: BTreeMap<String, String>,
+        main_class_name: String,
+        phone_number: &str,
+    ) -> Result<()> {
         let properties = properties
             .into_iter()
             .map(|(k, v)| (format!("wie.appProperty.{k}"), v))
             .collect::<Vec<_>>();
-        let properties = [("microedition.platform", "wie")]
+        let properties = [("microedition.platform", "wie"), ("wie.phoneNumber", phone_number)]
             .into_iter()
             .chain(properties.iter().map(|(k, v)| (k.as_ref(), v.as_ref())))
             .collect::<Vec<_>>();
@@ -231,11 +252,17 @@ mod tests {
             assert_eq!(title, "App title");
 
             for filename in ["original.jar", "renamed.jar"] {
-                let emulator = J2MEEmulator::from_jar(Box::new(TestPlatform::new()), filename, jar.clone()).unwrap();
+                let emulator = J2MEEmulator::from_jar(Box::new(TestPlatform::new()), filename, jar.clone(), Default::default()).unwrap();
                 assert_eq!(emulator.system.pid(), "App title");
                 assert_eq!(emulator.system.aid(), "App title");
-                let emulator =
-                    J2MEEmulator::from_jad_jar(Box::new(TestPlatform::new()), manifest.to_vec(), filename.to_string(), jar.clone()).unwrap();
+                let emulator = J2MEEmulator::from_jad_jar(
+                    Box::new(TestPlatform::new()),
+                    manifest.to_vec(),
+                    filename.to_string(),
+                    jar.clone(),
+                    Default::default(),
+                )
+                .unwrap();
                 assert_eq!(emulator.system.pid(), "App title");
                 assert_eq!(emulator.system.aid(), "App title");
             }

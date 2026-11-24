@@ -976,12 +976,7 @@ mod tests {
     #[test]
     fn destroying_an_image_releases_its_guest_allocations() -> Result<()> {
         run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
-            let mut core = ArmCore::new(wie_backend::Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })
-            .unwrap();
+            let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
             init_process_state(&mut core, 240, 320).unwrap();
             let mut context = LgtWIPICContext::new(core.clone(), system, jvm);
@@ -1044,12 +1039,7 @@ mod tests {
     #[test]
     fn context_queries_write_values_and_exclusive_clip_bounds() -> Result<()> {
         run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
-            let mut core = ArmCore::new(wie_backend::Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: None,
-            })
-            .unwrap();
+            let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
             let mut context = LgtWIPICContext::new(core, system, jvm);
             let graphics = context.alloc_raw(size_of::<LgtGraphicsContext>() as u32).unwrap();
@@ -1082,11 +1072,7 @@ mod tests {
 
     #[test]
     fn process_state_initializes_once_for_the_clet_lifecycle() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
+        let mut core = ArmCore::new(wie_backend::Options::default())?;
         Allocator::init(&mut core)?;
 
         init_process_state(&mut core, 240, 320)?;
@@ -1107,11 +1093,7 @@ mod tests {
 
     #[test]
     fn display_properties_update_physical_display_state() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        })?;
+        let mut core = ArmCore::new(wie_backend::Options::default())?;
         Allocator::init(&mut core)?;
 
         set_display_property(&mut core, &mut (), 0, 0x64, 240, 0).now_or_never().unwrap()?;
@@ -1153,12 +1135,7 @@ mod tests {
     fn screen_geometry_is_stable_before_and_after_raw_pointer_access() -> Result<()> {
         for (use_annunciator, app_y) in [(1, 24u32), (0, 0)] {
             run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), move |jvm, system| async move {
-                let mut core = ArmCore::new(wie_backend::Options {
-                    enable_gdbserver: false,
-                    aot: None,
-                    profile: None,
-                })
-                .unwrap();
+                let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
                 Allocator::init(&mut core).unwrap();
                 init_process_state(&mut core, 240, 320).unwrap();
                 set_use_annunciator(&mut core, use_annunciator).unwrap();

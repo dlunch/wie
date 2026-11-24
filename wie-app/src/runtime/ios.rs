@@ -143,6 +143,7 @@ async fn dispatch_storage(request: StorageRequest, store: &Store) -> Value {
 pub(crate) struct WebApp {
     pub session_id: u64,
     pub filename: String,
+    pub phone_number: String,
     pub bytes: Vec<u8>,
 }
 
@@ -166,7 +167,13 @@ pub(crate) async fn guest_vibrate(state: State<'_, AppState>, session_id: u64, d
 
 impl SessionWorker {
     pub(super) fn prepare(self, session_id: u64, filename: String, bytes: Vec<u8>) -> (StartedApp, Self) {
-        (WebApp { session_id, filename, bytes }, self)
+        let app = WebApp {
+            session_id,
+            filename,
+            bytes,
+            phone_number: self.settings.phone_number.clone(),
+        };
+        (app, self)
     }
 
     pub(super) fn run(self, commands: Receiver<Command>, started: oneshot::Sender<()>) -> Result<()> {

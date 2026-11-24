@@ -15,6 +15,7 @@ export const startWasmSession = (
   filename: string,
   archive: Uint8Array,
   font: Uint8Array,
+  phoneNumber: string,
   onEvent: (event: SessionEvent) => void,
   host?: EmulatorHost,
   suspended = false,
@@ -28,7 +29,7 @@ export const startWasmSession = (
   const audio = host?.audio ?? new AudioPlayer();
   let emulator: WieWeb;
   try {
-    emulator = new WieWeb(filename, archive, canvas, font, audio, host);
+    emulator = new WieWeb(filename, archive, canvas, font, phoneNumber, audio, host);
   } catch (error) {
     audio.dispose();
     throw rustPanic ?? error;

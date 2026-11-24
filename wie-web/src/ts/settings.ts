@@ -1,4 +1,4 @@
-import { Languages, Music2, Volume2, X, createIcons } from "lucide";
+import { Languages, Music2, Phone, Volume2, X, createIcons } from "lucide";
 
 import type { Settings, Wie } from "./backend";
 import { getLocale, setLanguagePreference, t, type LanguagePreference } from "./i18n";
@@ -11,6 +11,7 @@ export interface SettingsController {
 
 export const initializeSettings = async (backend: Wie): Promise<SettingsController> => {
   const dialog = document.getElementById("settings-dialog") as HTMLDialogElement;
+  const phoneNumber = document.getElementById("phone-number") as HTMLInputElement;
   const midiSlider = document.getElementById("volume-midi") as HTMLInputElement;
   const pcmSlider = document.getElementById("volume-pcm") as HTMLInputElement;
   const languageSelects = document.querySelectorAll<HTMLSelectElement>(".language-preference");
@@ -35,6 +36,13 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
     },
   };
 
+  phoneNumber.value = values.phoneNumber;
+  phoneNumber.addEventListener("change", () => {
+    void settings.set("phoneNumber", phoneNumber.value).catch(error => {
+      phoneNumber.value = values.phoneNumber;
+      window.alert(t("settingsSaveFailed", { error: String(error) }));
+    });
+  });
   midiSlider.value = String(values.midiVolume * 100);
   pcmSlider.value = String(values.pcmVolume * 100);
   for (const [slider, key] of [[midiSlider, "midiVolume"], [pcmSlider, "pcmVolume"]] as const) {
@@ -59,7 +67,7 @@ export const initializeSettings = async (backend: Wie): Promise<SettingsControll
       }
     });
   }
-  createIcons({ icons: { Languages, Music2, Volume2, X }, root: dialog });
+  createIcons({ icons: { Languages, Music2, Phone, Volume2, X }, root: dialog });
 
   return settings;
 };
