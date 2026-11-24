@@ -174,6 +174,20 @@ impl XTextField {
             return Ok(());
         }
 
+        // 8 is the clear key: it deletes the last character.
+        if key_code == 8 {
+            let text: ClassInstanceRef<String> = jvm.get_field(&this, "com/xce/lcdui/XTextField", "text", "Ljava/lang/String;").await?;
+            let length: i32 = jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await?;
+            if length > 0 {
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&text, "java/lang/String", "substring", "(II)Ljava/lang/String;", (0, length - 1))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&this, "com/xce/lcdui/XTextField", "setText", "(Ljava/lang/String;)V", (text,))
+                    .await?;
+            }
+            return Ok(());
+        }
         // Only the keypad characters (digits, * and #) type into the field; other keys belong to the app.
         if !(32..=126).contains(&key_code) {
             return Ok(());
@@ -195,14 +209,10 @@ impl XTextField {
         Ok(())
     }
 
-    async fn key_repeated(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
+    async fn key_repeated(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.XTextField::keyRepeated({this:?}, {key_code})");
 
-        // A held key must not reopen the host text input, so only directly typed fields repeat.
-        let constraints: i32 = jvm.get_field(&this, "com/xce/lcdui/XTextField", "constraints", "I").await?;
-        if matches!(constraints & 0xffff, 2 | 3 | 5) {
-            return Self::key_pressed(jvm, context, this, key_code).await;
-        }
+        // The text input handler ignores key repeats, so a held key types its character once.
         Ok(())
     }
 
@@ -617,7 +627,12 @@ mod tests {
                 let text: ClassInstanceRef<String> = jvm
                     .invoke_virtual(&field, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                     .await?;
-                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abcde");
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abcdf");
+                let _: () = jvm.invoke_virtual(&field, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (8,)).await?;
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abcd");
                 assert!(
                     jvm.invoke_virtual::<_, bool>(&field, "com/xce/lcdui/XTextField", "hasFocus", "()Z", ())
                         .await?
