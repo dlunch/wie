@@ -92,6 +92,8 @@ impl Event {
 #[derive(Default)]
 pub struct EventQueue {
     input_events: VecDeque<Event>,
+    replay: Option<KeyCode>,
+    replayed_press: bool,
     events: VecDeque<Event>,
 }
 
@@ -114,9 +116,28 @@ impl EventQueue {
         self.events.push_back(event);
     }
 
-    /// Keyboard input takes priority; events at the same priority remain FIFO.
+    pub fn replay_key(&mut self, key: KeyCode) {
+        self.replay = Some(key);
+    }
+
+    pub fn take_replayed_press(&mut self) -> bool {
+        core::mem::take(&mut self.replayed_press)
+    }
+
+    /// Keyboard input takes priority. An input-method replay follows queued releases and precedes the next press.
     pub fn pop(&mut self) -> Option<Event> {
-        self.input_events.pop_front().or_else(|| self.events.pop_front())
+        if !matches!(self.input_events.front(), Some(Event::Keyup(_)))
+            && let Some(key) = self.replay.take()
+        {
+            self.replayed_press = true;
+            self.input_events.push_front(Event::Keyup(key));
+            return Some(Event::Keydown(key));
+        }
+        let event = self.input_events.pop_front().or_else(|| self.events.pop_front());
+        if matches!(event, Some(Event::Keydown(_))) {
+            self.replayed_press = false;
+        }
+        event
     }
 }
 

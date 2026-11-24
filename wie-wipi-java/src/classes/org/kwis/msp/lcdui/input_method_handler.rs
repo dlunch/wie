@@ -88,7 +88,6 @@ impl InputMethodHandler {
     async fn notify_key_input(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32, kind: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.InputMethodHandler::notifyKeyInput({this:?}, {key_code}, {kind})");
 
-        // The API has no begin-edit call, so any key press reaching the input method starts typing.
         if kind != 1 {
             return Ok(false);
         }

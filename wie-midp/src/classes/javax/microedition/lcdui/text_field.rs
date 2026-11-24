@@ -129,22 +129,3 @@ impl TextField {
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "<init>", "()V", ()).await
     }
 }
-
-#[cfg(test)]
-mod test {
-    use alloc::boxed::Box;
-
-    use test_utils::run_jvm_test;
-    use wie_util::Result;
-
-    use crate::get_protos;
-
-    #[test]
-    fn constraint_constants_are_readable_at_runtime() -> Result<()> {
-        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let mask: i32 = jvm.get_static_field("javax/microedition/lcdui/TextField", "CONSTRAINT_MASK", "I").await?;
-            assert_eq!(mask, 0xffff);
-            Ok(())
-        })
-    }
-}

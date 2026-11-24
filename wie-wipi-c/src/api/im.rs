@@ -1,10 +1,14 @@
 use alloc::vec::Vec;
 
-use wie_util::{Result, read_generic, write_generic, write_null_terminated_table};
+use wie_backend::KeyCode;
+use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
 use wipi_types::wipic::WIPICWord;
 
-use crate::{context::WIPICContext, globals::INPUT_MODES_PTR};
+use crate::{
+    context::WIPICContext,
+    globals::{INPUT_MODES_PTR, INPUT_PENDING_PTR},
+};
 
 const INPUT_MODES: [&[u8]; 4] = [b"EN/L\0", b"EN/S\0", b"KO\0", b"N123\0"];
 
@@ -59,32 +63,58 @@ pub async fn handle_input(
         "MC_imHandleInput({key:#x}, {event_type}, {ptr_committed:#x}, {ptr_committed_size:#x}, {ptr_composing:#x}, {ptr_composing_size:#x})"
     );
 
-    let capacity: i32 = read_generic(context, ptr_committed_size)?;
-    let mut committed = Vec::new();
-    // The API has no begin-edit call, so any key press reaching the input method starts typing.
-    // The app owns the text being edited, so the host input starts empty and its result is appended.
-    if event_type == 2
-        && let Some(text) = context.system().platform().text_input("").await
-    {
-        let mut utf8 = [0; 4];
-        for character in text.chars() {
-            let (encoded, _, unmappable) = encoding_rs::EUC_KR.encode(character.encode_utf8(&mut utf8));
-            if unmappable {
-                continue;
-            }
-            if committed.len() + encoded.len() > capacity.max(0) as usize {
-                break;
-            }
-            committed.extend_from_slice(&encoded);
-        }
-    }
-    if !committed.is_empty() {
-        context.write_bytes(ptr_committed, &committed)?;
-    }
-    write_generic(context, ptr_committed_size, committed.len() as i32)?;
+    write_generic(context, ptr_committed_size, 0i32)?;
     write_generic(context, ptr_composing_size, 0i32)?;
+    // KTF and LGT deliver presses as 2 and 502. Host edits leave no composing character to flush.
+    if !matches!(event_type, 2 | 502) || !matches!(u8::try_from(key), Ok(b'#' | b'*' | b'0'..=b'9')) {
+        return Ok(0);
+    }
 
-    Ok(i32::from(!committed.is_empty()))
+    let mut pending: u32 = read_generic(context, INPUT_PENDING_PTR)?;
+    let mut utf8 = [0; 4];
+    if !context.system().event_queue().take_replayed_press() {
+        // A physical press starts a new edit even if the app ignored our last replay at its length limit.
+        if pending != 0 {
+            let size: u32 = read_generic(context, pending)?;
+            context.free_raw(pending, size)?;
+            write_generic(context, INPUT_PENDING_PTR, 0u32)?;
+        }
+        let Some(text) = context.system().platform().text_input("").await else {
+            return Ok(0);
+        };
+        let mut encoded = Vec::new();
+        for character in text.chars().filter(|&character| character != '\0') {
+            let (bytes, _, unmappable) = encoding_rs::EUC_KR.encode(character.encode_utf8(&mut utf8));
+            if !unmappable {
+                encoded.extend_from_slice(&bytes);
+            }
+        }
+        if encoded.is_empty() {
+            return Ok(0);
+        }
+        // The allocation size and read offset precede the NUL-terminated EUC-KR text.
+        let size = 8 + encoded.len() as u32 + 1;
+        pending = context.alloc_raw(size)?;
+        write_generic(context, pending, [size, 8])?;
+        write_null_terminated_string_bytes(context, pending + 8, &encoded)?;
+        write_generic(context, INPUT_PENDING_PTR, pending)?;
+    }
+
+    let [size, offset]: [u32; 2] = read_generic(context, pending)?;
+    let bytes: [u8; 2] = read_generic(context, pending + offset)?;
+    let len = if bytes[0].is_ascii() { 1 } else { 2 };
+    context.write_bytes(ptr_committed, &bytes[..len])?;
+    write_generic(context, ptr_committed_size, len as i32)?;
+    let next = offset + len as u32;
+    if next == size - 1 {
+        context.free_raw(pending, size)?;
+        write_generic(context, INPUT_PENDING_PTR, 0u32)?;
+    } else {
+        write_generic(context, pending + 4, next)?;
+        let key = KeyCode::parse(char::from(key as u8).encode_utf8(&mut utf8));
+        context.system().event_queue().replay_key(key);
+    }
+    Ok(1)
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@ use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::{Canvas, Graphics};
+use wie_midp::classes::net::wie::MIDPKeyCode;
 
 // class com.xce.lcdui.XTextField
 pub struct XTextField;
@@ -174,8 +175,7 @@ impl XTextField {
             return Ok(());
         }
 
-        // 8 is the clear key: it deletes the last character.
-        if key_code == 8 {
+        if key_code == MIDPKeyCode::CLEAR as i32 {
             let text: ClassInstanceRef<String> = jvm.get_field(&this, "com/xce/lcdui/XTextField", "text", "Ljava/lang/String;").await?;
             let length: i32 = jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await?;
             if length > 0 {
@@ -188,7 +188,6 @@ impl XTextField {
             }
             return Ok(());
         }
-        // Only the keypad characters (digits, * and #) type into the field; other keys belong to the app.
         if !(32..=126).contains(&key_code) {
             return Ok(());
         }
@@ -197,7 +196,6 @@ impl XTextField {
         if matches!(constraints & 0xffff, 2 | 3 | 5) {
             return Self::input_char(jvm, context, this, key_code as JavaChar).await;
         }
-        // The API has no begin-edit call, so a typing key on a free-text field opens the host input on the current text.
         let text: ClassInstanceRef<String> = jvm.get_field(&this, "com/xce/lcdui/XTextField", "text", "Ljava/lang/String;").await?;
         let initial = JavaLangString::to_rust_string(jvm, &text).await?;
         if let Some(text) = context.system().platform().text_input(&initial).await {

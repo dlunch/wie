@@ -5,6 +5,7 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::net::wie::MIDPKeyCode;
 
 use super::TextComponent;
 
@@ -105,13 +106,13 @@ impl TextComponentHandler {
         let constraints: i32 = jvm
             .invoke_virtual(&component, "com/xce/lcdui/TextComponent", "getConstraints", "()I", ())
             .await?;
-        let digit = (48..=57).contains(&key);
+        let digit = (MIDPKeyCode::KEY_NUM0 as i32..=MIDPKeyCode::KEY_NUM9 as i32).contains(&key);
         if constraints & 0x20000 != 0 {
-            return Ok(key == 8 || digit);
+            return Ok(key == MIDPKeyCode::CLEAR as i32 || digit);
         }
 
         let size: i32 = jvm.invoke_virtual(&component, "com/xce/lcdui/TextComponent", "size", "()I", ()).await?;
-        if key == 8 {
+        if key == MIDPKeyCode::CLEAR as i32 {
             if size > 0 {
                 let _: () = jvm.invoke_virtual(&component, "com/xce/lcdui/TextComponent", "delete", "()V", ()).await?;
                 let _: () = jvm
@@ -131,7 +132,6 @@ impl TextComponentHandler {
         let text: Vec<JavaChar> = if numeric {
             vec![key as JavaChar]
         } else {
-            // The API has no begin-edit call, so any other key press reaching the handler starts typing.
             // TextComponent cannot be read back, so the host input starts empty and its result is inserted.
             context
                 .system()
