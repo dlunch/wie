@@ -312,6 +312,19 @@ pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICIndirectP
     Ok(())
 }
 
+pub fn context_clip(gctx: &WIPICGraphicsContext, bounds: Clip) -> Clip {
+    if gctx.mask & 1 == 0 {
+        return bounds;
+    }
+    let [left, top, right, bottom] = gctx.clip.map(|value| i32::from(value as i16));
+    Clip {
+        x: left,
+        y: top,
+        width: (right - left).max(0) as u32,
+        height: (bottom - top).max(0) as u32,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn draw_image(
     context: &mut dyn WIPICContext,
@@ -336,22 +349,15 @@ pub async fn draw_image(
     let gctx: WIPICGraphicsContext = read_generic(context, graphics_context)?;
 
     let src_image = image_buffer(context, &image)?;
-    let clip = if gctx.mask & 1 != 0 {
-        let [left, top, right, bottom] = gctx.clip.map(|value| i32::from(value as i16));
-        Clip {
-            x: left,
-            y: top,
-            width: (right - left).max(0) as u32,
-            height: (bottom - top).max(0) as u32,
-        }
-    } else {
+    let clip = context_clip(
+        &gctx,
         Clip {
             x: dx,
             y: dy,
             width: w as u32,
             height: h as u32,
-        }
-    };
+        },
+    );
 
     primitives::draw_image(context, &framebuffer, dx, dy, w as u32, h as u32, &*src_image, sx, sy, clip)
 }
