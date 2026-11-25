@@ -156,8 +156,8 @@ mod tests {
                 let mut queue = system.event_queue();
                 queue.push(Event::Keydown(KeyCode::NUM5));
                 assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM2))));
-                assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::NUM2))));
                 assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::NUM5))));
+                assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::NUM2))));
             }
             Ok(())
         })

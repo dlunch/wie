@@ -89,6 +89,14 @@ pub enum Event {
 }
 
 impl Event {
+    fn priority(&self) -> u8 {
+        match self {
+            Self::TextInput { .. } => 0,
+            Self::Keydown(_) | Self::Keyup(_) | Self::Keyrepeat(_) => 1,
+            _ => 2,
+        }
+    }
+
     pub fn timer<F, Fut>(due: Instant, callback: F) -> Self
     where
         F: FnOnce() -> Fut + Send + Sync + 'static,
@@ -103,10 +111,10 @@ impl Event {
 
 #[derive(Default)]
 pub struct EventQueue {
-    input_events: VecDeque<Event>,
-    text_events: VecDeque<(KeyCode, String)>,
-    text_input: Option<String>,
     events: VecDeque<Event>,
+    // The app receives only the key and may ask for its text later.
+    // Keep it until the app takes it or another press is delivered.
+    text_input: Option<String>,
 }
 
 impl EventQueue {
@@ -115,21 +123,15 @@ impl EventQueue {
     }
 
     pub fn push(&mut self, event: Event) {
-        if let Event::TextInput { key, text } = event {
-            self.text_events.push_back((key, text));
-            return;
-        }
-        if matches!(event, Event::Keydown(_) | Event::Keyup(_) | Event::Keyrepeat(_)) {
-            self.input_events.push_back(event);
-            return;
-        }
         if matches!(event, Event::Redraw) && self.events.iter().any(|event| matches!(event, Event::Redraw)) {
             return;
         }
         if matches!(event, Event::Repaint) && self.events.iter().any(|event| matches!(event, Event::Repaint)) {
             return;
         }
-        self.events.push_back(event);
+        let priority = event.priority();
+        let index = self.events.partition_point(|queued| queued.priority() <= priority);
+        self.events.insert(index, event);
     }
 
     /// Takes the text carried by the most recently delivered key press.
@@ -137,20 +139,17 @@ impl EventQueue {
         self.text_input.take()
     }
 
-    /// Text follows queued releases and precedes the next press.
     pub fn pop(&mut self) -> Option<Event> {
-        if !matches!(self.input_events.front(), Some(Event::Keyup(_)))
-            && let Some((key, text)) = self.text_events.pop_front()
-        {
+        let event = self.events.pop_front()?;
+        if let Event::TextInput { key, text } = event {
             self.text_input = Some(text);
-            self.input_events.push_front(Event::Keyup(key));
+            self.push(Event::Keyup(key));
             return Some(Event::Keydown(key));
         }
-        let event = self.input_events.pop_front().or_else(|| self.events.pop_front());
-        if matches!(event, Some(Event::Keydown(_))) {
+        if matches!(event, Event::Keydown(_)) {
             self.text_input = None;
         }
-        event
+        Some(event)
     }
 }
 
@@ -198,11 +197,11 @@ mod tests {
             key: KeyCode::STAR,
             text: "a".into(),
         });
-        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::CLEAR))));
         assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::STAR))));
-        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::STAR))));
+        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::CLEAR))));
         assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::OK))));
         assert!(queue.take_text_input().is_none());
+        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::STAR))));
         queue.push(Event::Keyup(KeyCode::OK));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::OK))));
         assert!(matches!(queue.pop(), Some(Event::Timer { due, .. }) if due.raw() == 10));
