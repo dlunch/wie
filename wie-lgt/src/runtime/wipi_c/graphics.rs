@@ -1,5 +1,5 @@
 use alloc::vec;
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 
 use bytemuck::{Pod, Zeroable};
 use wipi_types::{
@@ -316,15 +316,27 @@ fn read_image(context: &dyn WIPICContext, ptr_image: WIPICIndirectPtr) -> Result
     read_record(context, WIPICIndirectPtr(image.ptr_image))
 }
 
+pub fn drawing_target(context: &dyn WIPICContext, screen: WIPICIndirectPtr, graphics: WIPICWord) -> Result<(FrameBuffer, Clip, [i32; 2])> {
+    let fb = resolve_framebuffer(context, screen)?;
+    let gc = resolve_context(context, &fb, graphics)?;
+    Ok((fb.framebuffer, gc.clip, [gc.translation_x, gc.translation_y]))
+}
+
 pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, kind: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({kind:#x})");
     if kind != 0 {
         return Err(WieError::FatalError(alloc::format!("Unsupported LGT screen kind {kind}")));
     }
 
+    let slot = screen_framebuffer_slot(context)?;
+    Ok(WIPICIndirectPtr(read_generic(context, slot)?))
+}
+
+pub fn screen_framebuffer_slot(context: &mut dyn WIPICContext) -> Result<u32> {
     let (ptr_state, mut state) = state(context)?;
+    let slot = ptr_state + offset_of!(LgtGraphicsState, ptr_screen_wrapper) as u32;
     if state.ptr_screen_wrapper != 0 {
-        return Ok(WIPICIndirectPtr(state.ptr_screen_wrapper));
+        return Ok(slot);
     }
 
     let app_y = application_y(&state);
@@ -343,7 +355,7 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, kind: WIPICW
             owned_image: 0,
             ptr_graphics: ptr_screen_view.0,
             ptr_image: 0,
-            screen_kind: kind,
+            screen_kind: 0,
         },
     )?;
 
@@ -351,7 +363,7 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, kind: WIPICW
     write_generic(context, ptr_state, state)?;
     resize_presentation(context, state.physical_width, state.physical_height)?;
 
-    Ok(ptr_wrapper)
+    Ok(slot)
 }
 
 pub async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, width: i32, height: i32) -> Result<WIPICIndirectPtr> {
@@ -970,7 +982,10 @@ mod tests {
         get_framebuffer_height, get_framebuffer_pointer, get_image_framebuffer, get_screen_framebuffer, init_context, init_process_state,
         normalize_context, presentation_image, set_context, set_display_property, set_use_annunciator,
     };
-    use crate::runtime::wipi_c::context::LgtWIPICContext;
+    use crate::runtime::{
+        SVC_CATEGORY_WIPIC,
+        wipi_c::{context::LgtWIPICContext, register_wipic_svc_handler},
+    };
     use wie_backend::canvas::{ArgbPixel, Image, PixelType, VecImageBuffer};
 
     #[test]
@@ -1139,7 +1154,11 @@ mod tests {
                 Allocator::init(&mut core).unwrap();
                 init_process_state(&mut core, 240, 320).unwrap();
                 set_use_annunciator(&mut core, use_annunciator).unwrap();
-                let mut context = LgtWIPICContext::new(core, system, jvm);
+                register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
+                let mut registers = core.save_context();
+                registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
+                core.restore_context(&registers);
+                let mut context = LgtWIPICContext::new(core.clone(), system, jvm);
                 let info = context.alloc_raw(size_of::<WIPICDisplayInfo>() as u32).unwrap();
                 get_display_info(&mut context, 0, info).await.unwrap();
                 let before: WIPICDisplayInfo = read_generic(&context, info).unwrap();
@@ -1158,6 +1177,23 @@ mod tests {
                 context.write_bytes(pixels + app_y * bpl, &vec![0x5a; (height * bpl) as usize]).unwrap();
                 // A full native draw must leave the next heap allocation intact.
                 context.free(following).unwrap();
+
+                // A text widget at (0, 0) paints below the annunciator in the physical framebuffer.
+                let mut svc = async |id: u32, args: &[u32]| {
+                    let method = core.make_svc_stub(SVC_CATEGORY_WIPIC, id).unwrap();
+                    core.run_function::<u32>(method, args).await.unwrap()
+                };
+                let app = svc(0x320, &[]).await;
+                context.write_bytes(info, b"TextComponent\0").unwrap();
+                let class = svc(0x321, &[info]).await;
+                let cc = svc(0x322, &[app, class]).await;
+                let gc = context.alloc_raw(size_of::<LgtGraphicsContext>() as u32).unwrap();
+                init_context(&mut context, gc).await.unwrap();
+                svc(0x329, &[cc, 0, 0, 10, 10, 3]).await;
+                svc(0x330, &[cc, 0xff0000]).await;
+                svc(0x325, &[cc, gc]).await;
+                assert_eq!(read_generic::<u16, _>(&context, pixels + app_y * bpl).unwrap(), 0xf800);
+                svc(0x323, &[cc]).await;
                 Ok(())
             })?;
         }

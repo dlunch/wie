@@ -1,9 +1,15 @@
+use alloc::vec::Vec;
+
 use wie_backend::{Event, KeyCode};
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_table};
 
 use wipi_types::wipic::WIPICWord;
 
-use crate::{context::WIPICContext, globals::INPUT_MODES_PTR};
+use crate::{
+    api::uic,
+    context::WIPICContext,
+    globals::{INPUT_MODES_PTR, UIC_INPUT_COMPONENT},
+};
 
 const INPUT_MODES: [&[u8]; 4] = [b"EN/L\0", b"EN/S\0", b"KO\0", b"N123\0"];
 
@@ -60,6 +66,14 @@ pub async fn handle_input(
 
     write_generic(context, ptr_committed_size, 0i32)?;
     write_generic(context, ptr_composing_size, 0i32)?;
+    let component: u32 = read_generic(context, UIC_INPUT_COMPONENT)?;
+    if component != 0 {
+        if component != u32::MAX {
+            write_generic(context, UIC_INPUT_COMPONENT, 0u32)?;
+            uic::edit_text(context, component).await?;
+        }
+        return Ok(0);
+    }
     // This key only prompts the application to request the next character.
     const TEXT_INPUT_KEY: KeyCode = KeyCode::NUM2;
 
@@ -97,6 +111,22 @@ pub async fn handle_input(
         committed = true;
     }
     Ok(i32::from(committed))
+}
+
+pub fn encode_input(text: &str, capacity: usize) -> Vec<u8> {
+    let mut committed = Vec::new();
+    let mut utf8 = [0; 4];
+    for character in text.chars().filter(|&character| character != '\0') {
+        let (encoded, _, unmappable) = encoding_rs::EUC_KR.encode(character.encode_utf8(&mut utf8));
+        if unmappable {
+            continue;
+        }
+        if committed.len() + encoded.len() > capacity {
+            break;
+        }
+        committed.extend_from_slice(&encoded);
+    }
+    committed
 }
 
 #[cfg(test)]

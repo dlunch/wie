@@ -2,6 +2,7 @@ use alloc::{boxed::Box, string::ToString, vec};
 
 mod context;
 pub(super) mod graphics;
+mod uic;
 
 use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
 use wipi_types::lgt::CletFunctions;
@@ -12,7 +13,7 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{fs, graphics as shared_graphics, im, kernel, media, misc, net, serial, term_res, uic, util},
+    api::{fs, graphics as shared_graphics, im, kernel, media, misc, net, serial, term_res, uic as shared_uic, util},
 };
 
 use context::LgtWIPICContext;
@@ -114,22 +115,31 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::GetCurrentMode => im::get_current_mode.into_body(),
         WIPICSvcId::HandleInput => im::handle_input.into_body(),
         WIPICSvcId::UicCreateApplicationContext => uic::create_application_context.into_body(),
-        WIPICSvcId::UicGetClass => uic::get_class.into_body(),
-        WIPICSvcId::UicCreate => uic::create.into_body(),
-        WIPICSvcId::UicDestroy => uic::destroy.into_body(),
+        WIPICSvcId::UicGetClass => shared_uic::get_class.into_body(),
+        WIPICSvcId::UicCreate => shared_uic::create.into_body(),
+        WIPICSvcId::UicDestroy => shared_uic::destroy.into_body(),
+        WIPICSvcId::UicRepaint => shared_uic::repaint.into_body(),
         WIPICSvcId::UicPaint => uic::paint.into_body(),
-        WIPICSvcId::UicHandleEvent => uic::handle_event.into_body(),
-        WIPICSvcId::UicConfigure => uic::configure.into_body(),
-        WIPICSvcId::UicSetEnable => uic::set_enable.into_body(),
-        WIPICSvcId::UicSetFgColor => uic::set_fg_color.into_body(),
-        WIPICSvcId::UicSetBgColor => uic::set_bg_color.into_body(),
-        WIPICSvcId::UicSetLabelAlignment => uic::set_label_alignment.into_body(),
-        WIPICSvcId::UicGetTime => uic::get_time.into_body(),
-        WIPICSvcId::UicInsertText => uic::insert_text.into_body(),
-        WIPICSvcId::UicDeleteText => uic::delete_text.into_body(),
-        WIPICSvcId::UicSetMaxTextSize => uic::set_max_text_size.into_body(),
-        WIPICSvcId::UicGetTextSize => uic::get_text_size.into_body(),
-        WIPICSvcId::UicGetText => uic::get_text.into_body(),
+        WIPICSvcId::UicGetClassName => shared_uic::get_class_name.into_body(),
+        WIPICSvcId::UicIsInstance => shared_uic::is_instance.into_body(),
+        WIPICSvcId::UicHandleEvent => shared_uic::handle_event.into_body(),
+        WIPICSvcId::UicConfigure => shared_uic::configure.into_body(),
+        WIPICSvcId::UicGetGeometry => shared_uic::get_geometry.into_body(),
+        WIPICSvcId::UicSetEnable => shared_uic::set_enable.into_body(),
+        WIPICSvcId::UicSetCallback => shared_uic::set_callback.into_body(),
+        WIPICSvcId::UicSetEventHandler => shared_uic::set_event_handler.into_body(),
+        WIPICSvcId::UicSetFont => shared_uic::set_font.into_body(),
+        WIPICSvcId::UicGetFont => shared_uic::get_font.into_body(),
+        WIPICSvcId::UicSetFgColor => shared_uic::set_fg_color.into_body(),
+        WIPICSvcId::UicSetBgColor => shared_uic::set_bg_color.into_body(),
+        WIPICSvcId::UicSetLabelAlignment => shared_uic::set_label_alignment.into_body(),
+        WIPICSvcId::UicGetTime => shared_uic::get_time.into_body(),
+        WIPICSvcId::UicInsertText => shared_uic::insert_text.into_body(),
+        WIPICSvcId::UicDeleteText => shared_uic::delete_text.into_body(),
+        WIPICSvcId::UicGetMaxTextSize => shared_uic::get_max_text_size.into_body(),
+        WIPICSvcId::UicSetMaxTextSize => shared_uic::set_max_text_size.into_body(),
+        WIPICSvcId::UicGetTextSize => shared_uic::get_text_size.into_body(),
+        WIPICSvcId::UicGetText => shared_uic::get_text.into_body(),
         WIPICSvcId::FsOpen => fs::open.into_body(),
         WIPICSvcId::FsRead => fs::read.into_body(),
         WIPICSvcId::FsWrite => fs::write.into_body(),
