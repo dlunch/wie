@@ -1,7 +1,8 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, string::String};
 
 use crate::{audio_sink::AudioSink, canvas::Font, database::DatabaseRepository, screen::Screen, time::Instant};
 
+#[async_trait::async_trait]
 pub trait Platform: Send + Sync {
     fn font(&self) -> &Font;
     fn screen(&self) -> &dyn Screen;
@@ -13,6 +14,8 @@ pub trait Platform: Send + Sync {
     fn write_stderr(&self, buf: &[u8]);
     fn exit(&self);
     fn vibrate(&self, duration_ms: u64, intensity: u8);
+    /// Asks the user to edit `initial` as a line of text. `None` means the user cancelled.
+    async fn text_input(&self, initial: &str) -> Option<String>;
 }
 
 /// Platform filesystem abstraction. Every method is scoped by `pid`;

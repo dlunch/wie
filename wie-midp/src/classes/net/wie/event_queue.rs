@@ -210,14 +210,27 @@ impl EventQueue {
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
+                    Event::TextInput { key, text } => {
+                        *context.system().dispatched_text() = Some(text);
+                        context.system().event_queue().push(Event::Keyup(key));
+                        vec![
+                            EventQueueEvent::KeyEvent as _,
+                            KeyboardEventType::KeyPressed as _,
+                            MIDPKeyCode::from_key_code(key) as _,
+                            0,
+                        ]
+                    }
                     Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
                     Event::Repaint => vec![EventQueueEvent::RepaintEvent as _, 1, 0, 0],
-                    Event::Keydown(x) => vec![
-                        EventQueueEvent::KeyEvent as _,
-                        KeyboardEventType::KeyPressed as _,
-                        MIDPKeyCode::from_key_code(x) as _,
-                        0,
-                    ],
+                    Event::Keydown(x) => {
+                        *context.system().dispatched_text() = None;
+                        vec![
+                            EventQueueEvent::KeyEvent as _,
+                            KeyboardEventType::KeyPressed as _,
+                            MIDPKeyCode::from_key_code(x) as _,
+                            0,
+                        ]
+                    }
                     Event::Keyup(x) => vec![
                         EventQueueEvent::KeyEvent as _,
                         KeyboardEventType::KeyReleased as _,
@@ -435,7 +448,7 @@ mod test {
         get_protos,
     };
 
-    use super::{EventQueue, EventQueueEvent};
+    use super::{EventQueue, EventQueueEvent, KeyboardEventType};
 
     struct IdleCallback;
 
@@ -654,25 +667,32 @@ mod test {
                     )
                     .await?;
                 system.event_queue().push(Event::Redraw);
-                system.event_queue().push(Event::Keydown(KeyCode::NUM1));
-                system.event_queue().push(Event::Keyup(KeyCode::NUM1));
+                for text in ["ab", "b"] {
+                    system.event_queue().push(Event::TextInput {
+                        key: KeyCode::NUM1,
+                        text: text.into(),
+                    });
+                }
                 let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
-                let _: () = jvm
-                    .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
-                    .await?;
-                assert_eq!(jvm.load_array::<i32>(&event, 0, 1).await?, [EventQueueEvent::KeyEvent as i32]);
-                assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
-                let _: () = jvm
-                    .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
-                    .await?;
-                assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [EventQueueEvent::KeyEvent as i32, 2, 49, 0]);
-                assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
-
+                for text in ["ab", "b"] {
+                    for kind in [KeyboardEventType::KeyPressed, KeyboardEventType::KeyReleased] {
+                        let _: () = jvm
+                            .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                            .await?;
+                        assert_eq!(
+                            jvm.load_array::<i32>(&event, 0, 4).await?,
+                            [EventQueueEvent::KeyEvent as i32, kind as i32, 49, 0]
+                        );
+                        assert_eq!(system.dispatched_text().as_deref(), Some(text));
+                        assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
+                    }
+                }
                 system.event_queue().push(Event::Keydown(KeyCode::NUM2));
                 let _: () = jvm
                     .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [EventQueueEvent::KeyEvent as i32, 1, 50, 0]);
+                assert!(system.dispatched_text().is_none());
                 assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
 
                 system.event_queue().push(Event::Keydown(KeyCode::NUM3));

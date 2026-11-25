@@ -1,10 +1,11 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::net::wie::MIDPKeyCode;
 
 use super::TextComponent;
 
@@ -93,12 +94,8 @@ impl TextComponentHandler {
         Ok(())
     }
 
-    async fn key_pressed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<bool> {
+    async fn key_pressed(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<bool> {
         tracing::debug!("com.xce.lcdui.TextComponentHandler::keyPressed({this:?}, {key})");
-        if !matches!(key, 8 | 48..=57) {
-            tracing::warn!("stub com.xce.lcdui.TextComponentHandler::keyPressed unsupported key {key}");
-            return Ok(false);
-        }
 
         let component: ClassInstanceRef<TextComponent> = jvm
             .get_field(&this, "com/xce/lcdui/TextComponentHandler", "component", "Lcom/xce/lcdui/TextComponent;")
@@ -109,25 +106,48 @@ impl TextComponentHandler {
         let constraints: i32 = jvm
             .invoke_virtual(&component, "com/xce/lcdui/TextComponent", "getConstraints", "()I", ())
             .await?;
+        let digit = (MIDPKeyCode::KEY_NUM0 as i32..=MIDPKeyCode::KEY_NUM9 as i32).contains(&key);
         if constraints & 0x20000 != 0 {
-            return Ok(true);
+            return Ok(key == MIDPKeyCode::CLEAR as i32 || digit);
         }
 
         let size: i32 = jvm.invoke_virtual(&component, "com/xce/lcdui/TextComponent", "size", "()I", ()).await?;
-        if key == 8 {
-            if size == 0 {
-                return Ok(true);
+        if key == MIDPKeyCode::CLEAR as i32 {
+            if size > 0 {
+                let _: () = jvm.invoke_virtual(&component, "com/xce/lcdui/TextComponent", "delete", "()V", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&component, "com/xce/lcdui/TextComponent", "repaint", "()V", ())
+                    .await?;
             }
-            let _: () = jvm.invoke_virtual(&component, "com/xce/lcdui/TextComponent", "delete", "()V", ()).await?;
+            return Ok(true);
+        }
+        let max_size: i32 = jvm
+            .invoke_virtual(&component, "com/xce/lcdui/TextComponent", "getMaxSize", "()I", ())
+            .await?;
+        // MIDP NUMERIC, PHONENUMBER, and DECIMAL fields take digits directly and leave other keys to the caller.
+        let numeric = matches!(constraints & 0xffff, 2 | 3 | 5);
+        if size >= max_size || (numeric && !digit) {
+            return Ok(digit);
+        }
+        let text: Vec<JavaChar> = if numeric {
+            vec![key as JavaChar]
         } else {
-            let max_size: i32 = jvm
-                .invoke_virtual(&component, "com/xce/lcdui/TextComponent", "getMaxSize", "()I", ())
-                .await?;
-            if size >= max_size {
-                return Ok(true);
-            }
+            // TextComponent cannot be read back, so the host input starts empty and its result is inserted.
+            context
+                .system()
+                .platform()
+                .text_input("")
+                .await
+                .unwrap_or_default()
+                .encode_utf16()
+                .collect()
+        };
+        if text.is_empty() {
+            return Ok(digit);
+        }
+        for character in text.into_iter().take((max_size - size) as usize) {
             let _: () = jvm
-                .invoke_virtual(&component, "com/xce/lcdui/TextComponent", "insert", "(C)V", (key as JavaChar,))
+                .invoke_virtual(&component, "com/xce/lcdui/TextComponent", "insert", "(C)V", (character,))
                 .await?;
         }
         let _: () = jvm

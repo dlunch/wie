@@ -8,7 +8,7 @@ use core::str;
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
     fs::{self, File},
-    io::{LineWriter, Write, stderr},
+    io::{LineWriter, Write, stderr, stdin, stdout},
     path::{Path, PathBuf},
     sync::{Mutex, mpsc::Sender, mpsc::channel},
     thread,
@@ -57,6 +57,7 @@ impl WieCliPlatform {
     }
 }
 
+#[async_trait::async_trait]
 impl Platform for WieCliPlatform {
     fn font(&self) -> &Font {
         &self.font
@@ -103,6 +104,15 @@ impl Platform for WieCliPlatform {
 
     fn vibrate(&self, duration_ms: u64, intensity: u8) {
         tracing::info!("vibrate({duration_ms}ms, {intensity}%) - not supported on this platform");
+    }
+
+    async fn text_input(&self, initial: &str) -> Option<String> {
+        print!("text input [{initial}]> ");
+        stdout().flush().ok()?;
+        // shortcut: reading the terminal blocks the window loop, move it off-thread if the CLI must stay responsive.
+        let mut line = String::new();
+        stdin().read_line(&mut line).ok()?;
+        Some(line.trim_end_matches(['\r', '\n']).to_owned())
     }
 }
 

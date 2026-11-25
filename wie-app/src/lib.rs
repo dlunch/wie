@@ -97,6 +97,8 @@ pub fn run() {
             runtime::platform::key_event,
             #[cfg(not(target_os = "ios"))]
             runtime::platform::release_keys,
+            #[cfg(not(target_os = "ios"))]
+            runtime::platform::text_input,
             #[cfg(target_os = "ios")]
             runtime::platform::guest_storage,
             #[cfg(target_os = "ios")]

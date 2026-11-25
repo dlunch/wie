@@ -1,12 +1,13 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::{Canvas, Graphics};
+use wie_midp::classes::net::wie::MIDPKeyCode;
 
 // class com.xce.lcdui.XTextField
 pub struct XTextField;
@@ -174,15 +175,43 @@ impl XTextField {
             return Ok(());
         }
 
-        if (32..=126).contains(&key_code) {
+        if key_code == MIDPKeyCode::CLEAR as i32 {
+            let text: ClassInstanceRef<String> = jvm.get_field(&this, "com/xce/lcdui/XTextField", "text", "Ljava/lang/String;").await?;
+            let length: i32 = jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await?;
+            if length > 0 {
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&text, "java/lang/String", "substring", "(II)Ljava/lang/String;", (0, length - 1))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&this, "com/xce/lcdui/XTextField", "setText", "(Ljava/lang/String;)V", (text,))
+                    .await?;
+            }
+            return Ok(());
+        }
+        if !(32..=126).contains(&key_code) {
+            return Ok(());
+        }
+        let constraints: i32 = jvm.get_field(&this, "com/xce/lcdui/XTextField", "constraints", "I").await?;
+        // MIDP NUMERIC, PHONENUMBER, and DECIMAL fields take the typed character directly.
+        if matches!(constraints & 0xffff, 2 | 3 | 5) {
             return Self::input_char(jvm, context, this, key_code as JavaChar).await;
+        }
+        let text: ClassInstanceRef<String> = jvm.get_field(&this, "com/xce/lcdui/XTextField", "text", "Ljava/lang/String;").await?;
+        let initial = JavaLangString::to_rust_string(jvm, &text).await?;
+        if let Some(text) = context.system().platform().text_input(&initial).await {
+            let text: ClassInstanceRef<String> = JavaLangString::from_rust_string(jvm, &text).await?.into();
+            let _: () = jvm
+                .invoke_virtual(&this, "com/xce/lcdui/XTextField", "setText", "(Ljava/lang/String;)V", (text,))
+                .await?;
         }
         Ok(())
     }
 
-    async fn key_repeated(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
+    async fn key_repeated(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.XTextField::keyRepeated({this:?}, {key_code})");
-        Self::key_pressed(jvm, context, this, key_code).await
+
+        // The text input handler ignores key repeats, so a held key types its character once.
+        Ok(())
     }
 
     async fn key_released(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
@@ -216,6 +245,38 @@ impl XTextField {
             .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
             .await?;
 
+        // The field draws its own box: light gray with a black border while focused, white with a
+        // light gray border otherwise, and black text inside it.
+        let focus: bool = jvm.get_field(&this, "com/xce/lcdui/XTextField", "focus", "Z").await?;
+        let (background, border) = if focus { (0xaaaaaa, 0x000000) } else { (0xffffff, 0xaaaaaa) };
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (background,))
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "fillRect",
+                "(IIII)V",
+                (x, y, width + 1, height + 1),
+            )
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (border,))
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "drawRect",
+                "(IIII)V",
+                (x, y, width, height),
+            )
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x000000,))
+            .await?;
+
         let _: () = jvm
             .invoke_virtual(
                 &graphics,
@@ -231,7 +292,7 @@ impl XTextField {
                 "javax/microedition/lcdui/Graphics",
                 "drawString",
                 "(Ljava/lang/String;III)V",
-                (text, x, y, 20),
+                (text, x + 1, y + 1, 20),
             )
             .await;
         let restore_result: JvmResult<()> = jvm
@@ -297,7 +358,7 @@ mod tests {
     use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use rustjava_runtime::classes::java::lang::String;
-    use test_utils::run_jvm_test;
+    use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_midp::classes::javax::microedition::lcdui::{Canvas, Graphics, Image};
 
@@ -505,7 +566,7 @@ mod tests {
 
     #[test]
     fn text_state_input_limit_and_repaint_work_as_one_flow() {
-        let result = run_jvm_test(
+        let result = run_jvm_test_with_system(
             Box::new([
                 wie_midp::get_protos().into(),
                 [
@@ -519,14 +580,15 @@ mod tests {
                 ]
                 .into(),
             ]),
-            |jvm| async move {
+            Box::new(TestPlatform::new().with_text_input("가나다")),
+            |jvm, _| async move {
                 let canvas: ClassInstanceRef<Canvas> = jvm.new_class("test/TrackingCanvas", "()V", ()).await?.into();
                 let initial: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "abc").await?.into();
                 let field: ClassInstanceRef<XTextField> = jvm
                     .new_class(
                         "com/xce/lcdui/XTextField",
                         "(Ljava/lang/String;IILjavax/microedition/lcdui/Canvas;)V",
-                        (initial, 5, 0, canvas.clone()),
+                        (initial, 5, 2, canvas.clone()),
                     )
                     .await?
                     .into();
@@ -563,7 +625,12 @@ mod tests {
                 let text: ClassInstanceRef<String> = jvm
                     .invoke_virtual(&field, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                     .await?;
-                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abcde");
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abcdf");
+                let _: () = jvm.invoke_virtual(&field, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (8,)).await?;
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abcd");
                 assert!(
                     jvm.invoke_virtual::<_, bool>(&field, "com/xce/lcdui/XTextField", "hasFocus", "()Z", ())
                         .await?
@@ -666,6 +733,38 @@ mod tests {
                     .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1");
                 assert_eq!(jvm.get_field::<i32>(&canvas, "test/TrackingCanvas", "repaintCount", "I").await?, 4);
+
+                // Any key on a free-text field asks the host for text and inserts what fits.
+                jvm.put_field(&mut component, "com/xce/lcdui/XTextField", "constraints", "I", 0).await?;
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (-5,))
+                        .await?
+                );
+                let text = jvm
+                    .invoke_virtual(&component, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1가");
+                assert_eq!(jvm.get_field::<i32>(&canvas, "test/TrackingCanvas", "repaintCount", "I").await?, 5);
+
+                let existing: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "x").await?.into();
+                let free_text = jvm
+                    .new_class(
+                        "com/xce/lcdui/XTextField",
+                        "(Ljava/lang/String;IILjavax/microedition/lcdui/Canvas;)V",
+                        (existing, 3, 0, canvas),
+                    )
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "setFocus", "(Z)V", (true,))
+                    .await?;
+                // A typing key edits the current text in the host input; the result replaces it up to the limit.
+                let _: () = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (57,))
+                    .await?;
+                let text = jvm
+                    .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
+                assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "x가나");
 
                 Ok(())
             },

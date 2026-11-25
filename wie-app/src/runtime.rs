@@ -48,6 +48,11 @@ pub enum SessionEvent {
         #[serde(rename = "guestTimeMs")]
         guest_time_ms: u64,
     },
+    #[cfg(not(target_os = "ios"))]
+    #[serde(rename = "textInput")]
+    TextInput {
+        initial: String,
+    },
     Warning {
         message: String,
     },

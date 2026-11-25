@@ -1,5 +1,6 @@
 use alloc::{
     boxed::Box,
+    format,
     string::{String, ToString},
     sync::Arc,
     vec::Vec,
@@ -47,6 +48,7 @@ pub struct TestPlatform {
     db: Arc<MemoryDatabaseRepository>,
     font: Font,
     clock: Option<TestClock>,
+    text_input: Option<String>,
 }
 
 impl Default for TestPlatform {
@@ -65,6 +67,7 @@ impl TestPlatform {
             db: Arc::new(MemoryDatabaseRepository::default()),
             font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
             clock: None,
+            text_input: None,
         }
     }
 
@@ -80,6 +83,7 @@ impl TestPlatform {
             db: Arc::new(MemoryDatabaseRepository::default()),
             font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
             clock: None,
+            text_input: None,
         }
     }
 
@@ -92,6 +96,7 @@ impl TestPlatform {
             db: Arc::new(MemoryDatabaseRepository::default()),
             font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
             clock: Some(clock),
+            text_input: None,
         }
     }
 
@@ -100,6 +105,11 @@ impl TestPlatform {
         T: Fn(AudioCommand) + Sync + Send + 'static,
     {
         self.audio_handler = Some(Arc::new(audio_handler));
+        self
+    }
+
+    pub fn with_text_input(mut self, text: &str) -> Self {
+        self.text_input = Some(text.to_string());
         self
     }
 
@@ -117,6 +127,7 @@ impl TestPlatform {
     }
 }
 
+#[async_trait::async_trait]
 impl Platform for TestPlatform {
     fn font(&self) -> &Font {
         &self.font
@@ -162,6 +173,11 @@ impl Platform for TestPlatform {
     }
 
     fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
+
+    async fn text_input(&self, initial: &str) -> Option<String> {
+        // The simulated user types after the prefilled text.
+        self.text_input.as_ref().map(|typed| format!("{initial}{typed}"))
+    }
 }
 
 type DatabaseKey = (String, String);

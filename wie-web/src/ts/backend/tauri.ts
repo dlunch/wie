@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { LibraryApp, SessionEvent, Wie } from "../backend";
+import { requestTextInput } from "../text_input";
 import { TauriHost, type HostEvent, type HostLifecycle } from "./tauri-host";
 import type { WasmSession } from "./wasm";
 
@@ -100,8 +101,14 @@ export const initializeWie = async (): Promise<Wie> => {
       }
       let ended = false;
       let stopping: Promise<void> | undefined;
-      const events = new Channel<Exclude<SessionEvent, { type: "error" }>>(event => {
+      const events = new Channel<Exclude<SessionEvent, { type: "error" }> | { type: "textInput"; initial: string }>(event => {
         if (ended) return;
+        if (event.type === "textInput") {
+          void requestTextInput(event.initial)
+            .then(text => send("text_input", { text }))
+            .catch(error => onEvent({ type: "error", message: String(error), cause: error }));
+          return;
+        }
         if (event.type === "stopped") ended = true;
         onEvent(event);
       });

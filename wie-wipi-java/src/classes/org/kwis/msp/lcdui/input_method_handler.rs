@@ -1,10 +1,12 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+
+use wie_midp::classes::net::wie::KeyboardEventType;
 
 use crate::classes::org::kwis::msp::lcdui::InputMethodListener;
 
@@ -85,11 +87,10 @@ impl InputMethodHandler {
         Ok(true)
     }
 
-    async fn notify_key_input(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32, kind: i32) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::notifyKeyInput({this:?}, {key_code}, {kind})");
+    async fn notify_key_input(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32, kind: i32) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.lcdui.InputMethodHandler::notifyKeyInput({this:?}, {key_code}, {kind})");
 
-        // shortcut: numeric key presses commit a placeholder until text input is implemented.
-        if kind != 1 || !(i32::from(b'0')..=i32::from(b'9')).contains(&key_code) {
+        if kind != KeyboardEventType::KeyPressed as i32 {
             return Ok(false);
         }
         let listener: ClassInstanceRef<InputMethodListener> = jvm
@@ -103,15 +104,28 @@ impl InputMethodHandler {
         if listener.is_null() {
             return Ok(false);
         }
-        let mut text = jvm.instantiate_array("C", 4).await?;
-        jvm.store_array(&mut text, 0, "temp".encode_utf16()).await?;
+        let text: Vec<u16> = context
+            .system()
+            .platform()
+            .text_input("")
+            .await
+            .unwrap_or_default()
+            .encode_utf16()
+            .collect();
+        if text.is_empty() {
+            return Ok(false);
+        }
+        let length = text.len();
+        let mut array = jvm.instantiate_array("C", length).await?;
+        jvm.store_array(&mut array, 0, text).await?;
+        // The listener owns the text being edited, so the host input starts empty and -1 inserts its result at the cursor.
         let _: () = jvm
             .invoke_virtual(
                 &listener,
                 "org/kwis/msp/lcdui/InputMethodListener",
                 "notifyTextChanged",
                 "([CII)V",
-                (text, 4, -1),
+                (array, length as i32, -1),
             )
             .await?;
 
