@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 use wie_backend::{Emulator, Options, Platform, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
@@ -94,11 +96,18 @@ pub fn extract_app_metadata(filename: &str, bytes: &[u8], file_type: FileType) -
     Ok(AppMetadata { id, title, icon })
 }
 
-// Phone numbers for apps that only run on a handset reporting that number, keyed by PID.
-const APP_PHONE_NUMBERS: [(&str, &str); 1] = [
-    // Downloads its game data again unless the handset has no phone number.
-    ("PD005362", ""),
-];
+const APPS_TOML: &str = include_str!("../data/apps.toml");
+
+#[derive(Deserialize)]
+struct Apps {
+    app: Vec<App>,
+}
+
+#[derive(Deserialize)]
+struct App {
+    pid: String,
+    phone_number: String,
+}
 
 pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>, mut options: Options) -> anyhow::Result<Box<dyn Emulator>> {
     let filename = filename.rsplit(['/', '\\']).next().unwrap();
@@ -111,10 +120,12 @@ pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>
         FileType::Skt => SktEmulator::archive_id(files),
         FileType::J2me => None,
     });
-    options.phone_number = options.phone_number.or_else(|| {
-        let (_, number) = APP_PHONE_NUMBERS.iter().find(|(id, _)| pid.as_deref() == Some(id))?;
-        Some((*number).to_owned())
-    });
+    if options.phone_number.is_none()
+        && let Some(pid) = pid
+    {
+        let apps: Apps = toml::from_str(APPS_TOML).expect("parse data/apps.toml");
+        options.phone_number = apps.app.into_iter().find(|app| app.pid == pid).map(|app| app.phone_number);
+    }
     Ok(match (file_type, files) {
         (FileType::Ktf, Some(files)) => Box::new(KtfEmulator::from_archive(platform, files, options)?),
         (FileType::Lgt, Some(files)) => Box::new(LgtEmulator::from_archive(platform, files, options)?),

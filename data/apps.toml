@@ -1,0 +1,6 @@
+# Settings for apps that only run on a handset in a particular state, keyed by PID.
+
+[[app]]
+# Downloads its game data again unless the handset has no phone number.
+pid = "PD005362"
+phone_number = ""
