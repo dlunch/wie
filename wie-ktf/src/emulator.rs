@@ -6,7 +6,7 @@ use bytemuck::Zeroable;
 use futures::future::poll_fn;
 use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
+use wie_backend::{DEFAULT_PHONE_NUMBER, Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, write_generic};
@@ -146,7 +146,7 @@ impl KtfEmulator {
     }
 
     fn load(platform: Box<dyn Platform>, jar_filename: &str, adf: KtfAdf, files: &BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
-        let phone_number = options.phone_number.clone();
+        let phone_number = options.phone_number.clone().unwrap_or_else(|| DEFAULT_PHONE_NUMBER.into());
         let mut core = ArmCore::new(options)?;
         let system = System::new(platform, &adf.pid, &adf.aid, KtfTaskRunner { core: core.clone() });
 

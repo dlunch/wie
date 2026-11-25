@@ -117,11 +117,12 @@ impl Platform for WieCliPlatform {
 }
 
 // Emulated APIs slice the number at fixed offsets, so only the lengths of real mobile numbers are accepted.
+// An empty number is a handset without one.
 fn parse_phone_number(value: &str) -> Result<String, String> {
-    if matches!(value.len(), 10 | 11) {
+    if matches!(value.len(), 0 | 10 | 11) {
         Ok(value.to_owned())
     } else {
-        Err("phone number must be 10 or 11 characters long".into())
+        Err("phone number must be empty or 10 or 11 characters long".into())
     }
 }
 
@@ -131,9 +132,9 @@ struct Args {
     filename: Option<String>,
     #[arg(long, default_value_t = false)]
     debug: bool,
-    /// Phone number reported to the application, 10 or 11 characters long.
-    #[arg(long, default_value_t = Options::default().phone_number, value_parser = parse_phone_number)]
-    phone_number: String,
+    /// Phone number reported to the application, empty or 10 or 11 characters long.
+    #[arg(long, value_parser = parse_phone_number)]
+    phone_number: Option<String>,
     /// Write a flamegraph-folded sampling profile to this path (one line per
     /// flushed batch; `flamegraph.pl` aggregates duplicates).
     #[arg(long)]
@@ -366,12 +367,15 @@ mod tests {
     #[test]
     fn rejects_phone_number_of_wrong_length() {
         assert!(Args::try_parse_from(["wie", "app.jar", "--phone-number", "010"]).is_err());
-        assert_eq!(
-            Args::try_parse_from(["wie", "app.jar", "--phone-number", "0111234567"])
-                .unwrap()
-                .phone_number,
-            "0111234567"
-        );
+        for number in ["0111234567", ""] {
+            assert_eq!(
+                Args::try_parse_from(["wie", "app.jar", "--phone-number", number])
+                    .unwrap()
+                    .phone_number
+                    .as_deref(),
+                Some(number)
+            );
+        }
     }
 
     #[test]

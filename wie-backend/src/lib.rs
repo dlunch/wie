@@ -50,22 +50,15 @@ pub struct ProfileSample {
 /// more when the runtime shuts down to drain anything still in the buffer.
 pub type ProfileCallback = Box<dyn FnMut(Vec<ProfileSample>) + Send + Sync>;
 
+pub const DEFAULT_PHONE_NUMBER: &str = "01000000000";
+
+#[derive(Default)]
 pub struct Options {
-    pub phone_number: String,
+    /// `None` reports `DEFAULT_PHONE_NUMBER`.
+    pub phone_number: Option<String>,
     pub enable_gdbserver: bool,
     pub aot: Option<Box<dyn CompiledExecutor>>,
     pub profile: Option<ProfileCallback>,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            phone_number: "01000000000".into(),
-            enable_gdbserver: false,
-            aot: None,
-            profile: None,
-        }
-    }
 }
 
 pub fn extract_zip(zip: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {

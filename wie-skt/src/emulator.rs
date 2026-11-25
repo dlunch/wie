@@ -12,7 +12,7 @@ use encoding_rs::EUC_KR;
 use jvm::{Result as JvmResult, runtime::JavaLangString};
 
 use wie_backend::{
-    DefaultTaskRunner, Emulator, Event, Options, Platform, System,
+    DEFAULT_PHONE_NUMBER, DefaultTaskRunner, Emulator, Event, Options, Platform, System,
     canvas::{decode_res, encode_png},
     extract_zip,
 };
@@ -111,7 +111,7 @@ impl SktEmulator {
         main_class_name: Option<String>,
         properties: BTreeMap<String, String>,
         files: &BTreeMap<String, Vec<u8>>,
-        phone_number: String,
+        phone_number: Option<String>,
     ) -> Result<Self> {
         let system = System::new(platform, id, id, DefaultTaskRunner);
 
@@ -121,6 +121,7 @@ impl SktEmulator {
 
         let mut system_clone = system.clone();
         let jar_filename_clone = jar_filename.to_owned();
+        let phone_number = phone_number.unwrap_or_else(|| DEFAULT_PHONE_NUMBER.into());
 
         system.spawn(async move || Self::do_start(&mut system_clone, jar_filename_clone, properties, main_class_name, &phone_number).await);
 
@@ -138,8 +139,8 @@ impl SktEmulator {
         let system_properties = [
             ("wie.phoneNumber", phone_number),
             ("MIN", phone_number),
-            // The subscriber number without the three-digit carrier prefix.
-            ("m.MIN", &phone_number[3..]),
+            // The subscriber number without the three-digit carrier prefix; a handset may have no number.
+            ("m.MIN", phone_number.get(3..).unwrap_or_default()),
             ("m.COLOR", "7"),
             ("m.VENDER", "vender"),
             ("m.MODEL", "0"), // Stub model identifier.

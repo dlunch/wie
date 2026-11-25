@@ -17,7 +17,7 @@ use jvm::{
     runtime::{JavaIoInputStream, JavaLangClassLoader},
 };
 
-use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
+use wie_backend::{DEFAULT_PHONE_NUMBER, Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, write_generic};
@@ -127,7 +127,7 @@ impl LgtEmulator {
         files: &BTreeMap<String, Vec<u8>>,
         options: Options,
     ) -> Result<Self> {
-        let phone_number = options.phone_number.clone();
+        let phone_number = options.phone_number.clone().unwrap_or_else(|| DEFAULT_PHONE_NUMBER.into());
         let mut core = ArmCore::new(options)?;
         let system = System::new(platform, &app_info.pid, &app_info.aid, LgtTaskRunner { core: core.clone() });
 
