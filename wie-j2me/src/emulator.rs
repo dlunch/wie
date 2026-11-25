@@ -9,7 +9,7 @@ use alloc::{
 
 use jvm::{Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{DefaultTaskRunner, Emulator, Event, Options, Platform, System, extract_zip};
+use wie_backend::{DEFAULT_PHONE_NUMBER, DefaultTaskRunner, Emulator, Event, Options, Platform, System, extract_zip};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
 
@@ -61,7 +61,7 @@ impl J2MEEmulator {
         jar_filename: &str,
         descriptor: J2MEDescriptor,
         files: &BTreeMap<String, Vec<u8>>,
-        phone_number: String,
+        phone_number: Option<String>,
     ) -> Result<Self> {
         if descriptor.name.is_empty() || descriptor.main_class_name.is_empty() {
             return Err(WieError::FatalError("MIDlet-1 name or main class not found".into()));
@@ -74,6 +74,7 @@ impl J2MEEmulator {
 
         let mut system_clone = system.clone();
         let jar_filename = jar_filename.to_owned();
+        let phone_number = phone_number.unwrap_or_else(|| DEFAULT_PHONE_NUMBER.into());
 
         system.spawn(async move || {
             Self::do_start(

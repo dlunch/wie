@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 use wie_backend::{Emulator, Options, Platform, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
@@ -94,26 +96,52 @@ pub fn extract_app_metadata(filename: &str, bytes: &[u8], file_type: FileType) -
     Ok(AppMetadata { id, title, icon })
 }
 
-pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>, options: Options) -> anyhow::Result<Box<dyn Emulator>> {
+const APPS_TOML: &str = include_str!("../data/apps.toml");
+
+#[derive(Deserialize)]
+struct Apps {
+    app: Vec<App>,
+}
+
+#[derive(Deserialize)]
+struct App {
+    pid: String,
+    phone_number: String,
+}
+
+pub fn load_emulator(filename: &str, bytes: Vec<u8>, platform: Box<dyn Platform>, mut options: Options) -> anyhow::Result<Box<dyn Emulator>> {
     let filename = filename.rsplit(['/', '\\']).next().unwrap();
     let lowercase_filename = filename.to_ascii_lowercase();
     let file_type = determine_file_type(filename, &bytes)?;
-    Ok(match file_type {
-        FileType::Ktf if lowercase_filename.ends_with(".zip") => Box::new(KtfEmulator::from_archive(platform, extract_zip(&bytes)?, options)?),
-        FileType::Lgt if lowercase_filename.ends_with(".zip") => Box::new(LgtEmulator::from_archive(platform, extract_zip(&bytes)?, options)?),
-        FileType::Skt if lowercase_filename.ends_with(".zip") => Box::new(SktEmulator::from_archive(platform, extract_zip(&bytes)?, options)?),
-        FileType::Ktf => {
+    let files = lowercase_filename.ends_with(".zip").then(|| extract_zip(&bytes)).transpose()?;
+    let pid = files.as_ref().and_then(|files| match file_type {
+        FileType::Ktf => KtfEmulator::archive_id(files),
+        FileType::Lgt => LgtEmulator::archive_id(files),
+        FileType::Skt => SktEmulator::archive_id(files),
+        FileType::J2me => None,
+    });
+    if options.phone_number.is_none()
+        && let Some(pid) = pid
+    {
+        let apps: Apps = toml::from_str(APPS_TOML).expect("parse data/apps.toml");
+        options.phone_number = apps.app.into_iter().find(|app| app.pid == pid).map(|app| app.phone_number);
+    }
+    Ok(match (file_type, files) {
+        (FileType::Ktf, Some(files)) => Box::new(KtfEmulator::from_archive(platform, files, options)?),
+        (FileType::Lgt, Some(files)) => Box::new(LgtEmulator::from_archive(platform, files, options)?),
+        (FileType::Skt, Some(files)) => Box::new(SktEmulator::from_archive(platform, files, options)?),
+        (FileType::Ktf, None) => {
             let id = &filename[..filename.len() - 4];
             Box::new(KtfEmulator::from_jar(platform, filename, bytes, id, id, options)?)
         }
-        FileType::Lgt => {
+        (FileType::Lgt, None) => {
             let id = &filename[..filename.len() - 4];
             Box::new(LgtEmulator::from_jar(platform, filename, bytes, id, id, None, options)?)
         }
-        FileType::Skt => {
+        (FileType::Skt, None) => {
             let id = &filename[..filename.len() - 4];
             Box::new(SktEmulator::from_jar(platform, filename, bytes, id, options)?)
         }
-        FileType::J2me => Box::new(J2MEEmulator::from_jar(platform, filename, bytes, options)?),
+        (FileType::J2me, _) => Box::new(J2MEEmulator::from_jar(platform, filename, bytes, options)?),
     })
 }
