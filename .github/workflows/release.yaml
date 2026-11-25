@@ -638,3 +638,33 @@ jobs:
 
       - name: Publish GitHub release
         run: bash .github/scripts/release/publish.sh
+
+      - name: Write Google Play release notes
+        if: needs.context.outputs.channel == 'stable'
+        run: |
+          mkdir play-whatsnew
+          body=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+          # Google Play limits release notes to 500 characters per language.
+          notes=$(sed -n '/ by @dependabot/d; s/^\* \(.*\) by @.* in https.*$/- \1/p' <<< "$body" \
+            | awk '{ n += length($0) + 1; if (n > 500) exit; print }')
+          if [ -n "$notes" ]; then
+            printf '%s\n' "$notes" | tee play-whatsnew/whatsnew-en-US > play-whatsnew/whatsnew-ko-KR
+          fi
+
+      - name: Authenticate to Google Cloud
+        id: google_auth
+        if: needs.context.outputs.channel == 'stable'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
+
+      - name: Upload Android bundle to Google Play
+        if: needs.context.outputs.channel == 'stable'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ steps.google_auth.outputs.credentials_file_path }}
+          packageName: net.dlunch.wie
+          releaseFiles: release-assets/*.aab
+          tracks: internal
+          whatsNewDirectory: play-whatsnew
