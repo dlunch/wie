@@ -651,11 +651,19 @@ jobs:
             printf '%s\n' "$notes" | tee play-whatsnew/whatsnew-en-US > play-whatsnew/whatsnew-ko-KR
           fi
 
+      - name: Authenticate to Google Cloud
+        id: google_auth
+        if: needs.context.outputs.channel == 'stable'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
+
       - name: Upload Android bundle to Google Play
         if: needs.context.outputs.channel == 'stable'
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJson: ${{ steps.google_auth.outputs.credentials_file_path }}
           packageName: net.dlunch.wie
           releaseFiles: release-assets/*.aab
           tracks: internal
