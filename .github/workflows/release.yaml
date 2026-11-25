@@ -456,6 +456,15 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: bash .github/scripts/release/configure-android-release.sh
 
+      - name: Restore Gradle cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('wie-app/gen/android/**/build.gradle.kts', 'wie-app/gen/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
       - name: Build signed Android packages
         uses: tauri-apps/tauri-action@v1
         env:
@@ -470,6 +479,15 @@ jobs:
           args: >-
             --config '${{ needs.context.outputs.tauri_config }}'
             --target aarch64 --apk --aab --ci
+
+      - name: Save Gradle cache
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('wie-app/gen/android/**/build.gradle.kts', 'wie-app/gen/android/gradle/wrapper/gradle-wrapper.properties') }}
 
       - name: Upload native debug information
         env:
