@@ -8,7 +8,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::org::kwis::msp::{
     lcdui::{Display, Graphics},
-    lwc::ContainerComponent,
+    lwc::{Component, ContainerComponent},
 };
 
 // class org.kwis.msp.lwc.ProxyCard
@@ -184,8 +184,11 @@ impl ProxyCard {
         let component: ClassInstanceRef<ContainerComponent> = jvm
             .get_field(&this, "org/kwis/msp/lwc/ProxyCard", "cmp", "Lorg/kwis/msp/lwc/ContainerComponent;")
             .await?;
-        jvm.invoke_virtual(&component, "org/kwis/msp/lwc/Component", "keyNotify", "(II)Z", (r#type, chr))
-            .await
+        let handled: bool = jvm
+            .invoke_virtual(&component, "org/kwis/msp/lwc/Component", "processEvent", "(IIII)Z", (3, r#type, chr, 0))
+            .await?;
+        // CardCanvas continues to the card below when a card returns true.
+        Ok(!handled)
     }
 
     async fn pointer_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: i32, x: i32, y: i32) -> JvmResult<bool> {
@@ -197,10 +200,9 @@ impl ProxyCard {
     async fn show_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ProxyCard::showNotify({this:?}, {show})");
 
-        let component: ClassInstanceRef<ContainerComponent> = jvm
+        let component: ClassInstanceRef<Component> = jvm
             .get_field(&this, "org/kwis/msp/lwc/ProxyCard", "cmp", "Lorg/kwis/msp/lwc/ContainerComponent;")
             .await?;
-        jvm.invoke_virtual(&component, "org/kwis/msp/lwc/Component", "showNotify", "(Z)V", (show,))
-            .await
+        ContainerComponent::notify_visibility(jvm, component, show).await
     }
 }

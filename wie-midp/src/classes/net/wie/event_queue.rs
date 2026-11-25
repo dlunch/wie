@@ -203,8 +203,19 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::getNextEvent({this:?}, {event:?})");
 
+        while !Self::poll_event(jvm, context, &this, &mut event).await? {}
+        Ok(())
+    }
+
+    /// Returns false after an idle wait so a nested loop can check its exit condition.
+    pub async fn poll_event(
+        jvm: &Jvm,
+        context: &mut WieJvmContext,
+        this: &ClassInstanceRef<Self>,
+        event: &mut ClassInstanceRef<Array<i32>>,
+    ) -> JvmResult<bool> {
         let mut pending_timer_events = Vec::new();
-        loop {
+        let received = loop {
             let now = context.system().platform().now();
             let maybe_event = context.system().event_queue().pop();
 
@@ -260,12 +271,12 @@ impl EventQueue {
                     Event::Notify { r#type, param1, param2 } => vec![EventQueueEvent::NotifyEvent as i32, r#type, param1, param2],
                 };
 
-                jvm.store_array(&mut event, 0, event_data).await?;
+                jvm.store_array(event, 0, event_data).await?;
 
-                break;
+                break true;
             } else {
                 let events = jvm
-                    .get_field(&this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
+                    .get_field(this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
                     .await?;
                 let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
                 if count > 0 {
@@ -283,17 +294,15 @@ impl EventQueue {
                 Self::dispatch_callbacks(jvm, context, this.clone()).await?;
                 context.system().sleep(16).await; // TODO we need to wait for events
 
-                for event in pending_timer_events.drain(..) {
-                    context.system().event_queue().push(event);
-                }
+                break false;
             }
-        }
+        };
 
         for event in pending_timer_events {
             context.system().event_queue().push(event);
         }
 
-        Ok(())
+        Ok(received)
     }
 
     async fn dispatch_event(
