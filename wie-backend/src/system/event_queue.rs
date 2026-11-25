@@ -112,9 +112,6 @@ impl Event {
 #[derive(Default)]
 pub struct EventQueue {
     events: VecDeque<Event>,
-    // The app receives only the key and may ask for its text later.
-    // Keep it until the app takes it or another press is delivered.
-    text_input: Option<String>,
 }
 
 impl EventQueue {
@@ -134,22 +131,8 @@ impl EventQueue {
         self.events.insert(index, event);
     }
 
-    /// Takes the text carried by the most recently delivered key press.
-    pub fn take_text_input(&mut self) -> Option<String> {
-        self.text_input.take()
-    }
-
     pub fn pop(&mut self) -> Option<Event> {
-        let event = self.events.pop_front()?;
-        if let Event::TextInput { key, text } = event {
-            self.text_input = Some(text);
-            self.push(Event::Keyup(key));
-            return Some(Event::Keydown(key));
-        }
-        if matches!(event, Event::Keydown(_)) {
-            self.text_input = None;
-        }
-        Some(event)
+        self.events.pop_front()
     }
 }
 
@@ -197,11 +180,9 @@ mod tests {
             key: KeyCode::STAR,
             text: "a".into(),
         });
-        assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::STAR))));
+        assert!(matches!(queue.pop(), Some(Event::TextInput { key: KeyCode::STAR, text }) if text == "a"));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::CLEAR))));
         assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::OK))));
-        assert!(queue.take_text_input().is_none());
-        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::STAR))));
         queue.push(Event::Keyup(KeyCode::OK));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::OK))));
         assert!(matches!(queue.pop(), Some(Event::Timer { due, .. }) if due.raw() == 10));

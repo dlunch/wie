@@ -68,7 +68,7 @@ pub async fn handle_input(
         return Ok(0);
     }
 
-    let continuation = context.system().event_queue().take_text_input();
+    let continuation = context.system().dispatched_text().take();
     let text = match continuation {
         Some(text) => text,
         None => {

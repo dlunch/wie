@@ -31,6 +31,9 @@ pub struct System {
     platform: Arc<Box<dyn Platform>>,
     filesystem: FilesystemOverlay,
     event_queue: Arc<RwLock<EventQueue>>,
+    // The app receives only the key and may ask for its text later.
+    // Keep it until the app takes it or another press is delivered.
+    dispatched_text: Arc<RwLock<Option<String>>>,
     audio: Arc<RwLock<Audio>>,
     task_runner: Arc<dyn TaskRunner>,
     random_state: Arc<RwLock<u32>>,
@@ -51,6 +54,7 @@ impl System {
             filesystem: FilesystemOverlay::new(platform.clone(), pid),
             platform,
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
+            dispatched_text: Default::default(),
             audio: Arc::new(RwLock::new(Audio::new(audio_sink))),
             task_runner: Arc::new(task_runner),
             random_state: Arc::new(RwLock::new(1)),
@@ -111,6 +115,10 @@ impl System {
 
     pub fn audio(&self) -> RwLockWriteGuard<'_, Audio> {
         self.audio.as_ref().write()
+    }
+
+    pub fn dispatched_text(&self) -> RwLockWriteGuard<'_, Option<String>> {
+        self.dispatched_text.write()
     }
 
     pub fn event_queue(&self) -> RwLockWriteGuard<'_, EventQueue> {

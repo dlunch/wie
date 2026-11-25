@@ -170,6 +170,7 @@ impl EventQueue {
             ],
             fields: vec![
                 JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("pendingKeyRelease", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
@@ -198,27 +199,46 @@ impl EventQueue {
     async fn get_next_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
-        this: ClassInstanceRef<Self>,
+        mut this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::getNextEvent({this:?}, {event:?})");
 
         let mut pending_timer_events = Vec::new();
         loop {
+            let release: i32 = jvm.get_field(&this, "net/wie/EventQueue", "pendingKeyRelease", "I").await?;
+            if release != 0 {
+                jvm.put_field(&mut this, "net/wie/EventQueue", "pendingKeyRelease", "I", 0).await?;
+                jvm.store_array(
+                    &mut event,
+                    0,
+                    vec![EventQueueEvent::KeyEvent as i32, KeyboardEventType::KeyReleased as i32, release, 0],
+                )
+                .await?;
+                break;
+            }
             let now = context.system().platform().now();
             let maybe_event = context.system().event_queue().pop();
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
-                    Event::TextInput { .. } => unreachable!("the queue delivers text as key events"),
+                    Event::TextInput { key, text } => {
+                        let code = MIDPKeyCode::from_key_code(key) as i32;
+                        jvm.put_field(&mut this, "net/wie/EventQueue", "pendingKeyRelease", "I", code).await?;
+                        *context.system().dispatched_text() = Some(text);
+                        vec![EventQueueEvent::KeyEvent as _, KeyboardEventType::KeyPressed as _, code, 0]
+                    }
                     Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
                     Event::Repaint => vec![EventQueueEvent::RepaintEvent as _, 1, 0, 0],
-                    Event::Keydown(x) => vec![
-                        EventQueueEvent::KeyEvent as _,
-                        KeyboardEventType::KeyPressed as _,
-                        MIDPKeyCode::from_key_code(x) as _,
-                        0,
-                    ],
+                    Event::Keydown(x) => {
+                        *context.system().dispatched_text() = None;
+                        vec![
+                            EventQueueEvent::KeyEvent as _,
+                            KeyboardEventType::KeyPressed as _,
+                            MIDPKeyCode::from_key_code(x) as _,
+                            0,
+                        ]
+                    }
                     Event::Keyup(x) => vec![
                         EventQueueEvent::KeyEvent as _,
                         KeyboardEventType::KeyReleased as _,

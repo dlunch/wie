@@ -6,6 +6,8 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+use wie_midp::classes::net::wie::KeyboardEventType;
+
 use crate::classes::org::kwis::msp::lcdui::InputMethodListener;
 
 // class org.kwis.msp.lcdui.InputMethodHandler
@@ -88,7 +90,7 @@ impl InputMethodHandler {
     async fn notify_key_input(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32, kind: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.InputMethodHandler::notifyKeyInput({this:?}, {key_code}, {kind})");
 
-        if kind != 1 {
+        if kind != KeyboardEventType::KeyPressed as i32 {
             return Ok(false);
         }
         let listener: ClassInstanceRef<InputMethodListener> = jvm
