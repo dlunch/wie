@@ -170,7 +170,6 @@ impl EventQueue {
             ],
             fields: vec![
                 JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("pendingKeyRelease", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
@@ -199,34 +198,27 @@ impl EventQueue {
     async fn get_next_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::getNextEvent({this:?}, {event:?})");
 
         let mut pending_timer_events = Vec::new();
         loop {
-            let release: i32 = jvm.get_field(&this, "net/wie/EventQueue", "pendingKeyRelease", "I").await?;
-            if release != 0 {
-                jvm.put_field(&mut this, "net/wie/EventQueue", "pendingKeyRelease", "I", 0).await?;
-                jvm.store_array(
-                    &mut event,
-                    0,
-                    vec![EventQueueEvent::KeyEvent as i32, KeyboardEventType::KeyReleased as i32, release, 0],
-                )
-                .await?;
-                break;
-            }
             let now = context.system().platform().now();
             let maybe_event = context.system().event_queue().pop();
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
                     Event::TextInput { key, text } => {
-                        let code = MIDPKeyCode::from_key_code(key) as i32;
-                        jvm.put_field(&mut this, "net/wie/EventQueue", "pendingKeyRelease", "I", code).await?;
                         *context.system().dispatched_text() = Some(text);
-                        vec![EventQueueEvent::KeyEvent as _, KeyboardEventType::KeyPressed as _, code, 0]
+                        context.system().event_queue().push(Event::Keyup(key));
+                        vec![
+                            EventQueueEvent::KeyEvent as _,
+                            KeyboardEventType::KeyPressed as _,
+                            MIDPKeyCode::from_key_code(key) as _,
+                            0,
+                        ]
                     }
                     Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
                     Event::Repaint => vec![EventQueueEvent::RepaintEvent as _, 1, 0, 0],
@@ -675,23 +667,27 @@ mod test {
                     )
                     .await?;
                 system.event_queue().push(Event::Redraw);
-                system.event_queue().push(Event::Keydown(KeyCode::NUM2));
-                system.event_queue().push(Event::TextInput {
-                    key: KeyCode::NUM1,
-                    text: "ab".into(),
-                });
-                let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
-                for kind in [KeyboardEventType::KeyPressed, KeyboardEventType::KeyReleased] {
-                    let _: () = jvm
-                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
-                        .await?;
-                    assert_eq!(
-                        jvm.load_array::<i32>(&event, 0, 4).await?,
-                        [EventQueueEvent::KeyEvent as i32, kind as i32, 49, 0]
-                    );
-                    assert_eq!(system.dispatched_text().as_deref(), Some("ab"));
-                    assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
+                for text in ["ab", "b"] {
+                    system.event_queue().push(Event::TextInput {
+                        key: KeyCode::NUM1,
+                        text: text.into(),
+                    });
                 }
+                let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
+                for text in ["ab", "b"] {
+                    for kind in [KeyboardEventType::KeyPressed, KeyboardEventType::KeyReleased] {
+                        let _: () = jvm
+                            .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                            .await?;
+                        assert_eq!(
+                            jvm.load_array::<i32>(&event, 0, 4).await?,
+                            [EventQueueEvent::KeyEvent as i32, kind as i32, 49, 0]
+                        );
+                        assert_eq!(system.dispatched_text().as_deref(), Some(text));
+                        assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
+                    }
+                }
+                system.event_queue().push(Event::Keydown(KeyCode::NUM2));
                 let _: () = jvm
                     .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;

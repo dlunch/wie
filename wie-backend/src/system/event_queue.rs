@@ -91,8 +91,8 @@ pub enum Event {
 impl Event {
     fn priority(&self) -> u8 {
         match self {
-            Self::TextInput { .. } => 0,
-            Self::Keydown(_) | Self::Keyup(_) | Self::Keyrepeat(_) => 1,
+            Self::Keydown(_) | Self::Keyup(_) | Self::Keyrepeat(_) => 0,
+            Self::TextInput { .. } => 1,
             _ => 2,
         }
     }
@@ -180,11 +180,11 @@ mod tests {
             key: KeyCode::STAR,
             text: "a".into(),
         });
-        assert!(matches!(queue.pop(), Some(Event::TextInput { key: KeyCode::STAR, text }) if text == "a"));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::CLEAR))));
         assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::OK))));
         queue.push(Event::Keyup(KeyCode::OK));
         assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::OK))));
+        assert!(matches!(queue.pop(), Some(Event::TextInput { key: KeyCode::STAR, text }) if text == "a"));
         assert!(matches!(queue.pop(), Some(Event::Timer { due, .. }) if due.raw() == 10));
         assert!(matches!(
             queue.pop(),
