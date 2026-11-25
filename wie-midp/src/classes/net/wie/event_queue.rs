@@ -456,7 +456,7 @@ mod test {
         get_protos,
     };
 
-    use super::{EventQueue, EventQueueEvent};
+    use super::{EventQueue, EventQueueEvent, KeyboardEventType};
 
     struct IdleCallback;
 
@@ -675,25 +675,28 @@ mod test {
                     )
                     .await?;
                 system.event_queue().push(Event::Redraw);
-                system.event_queue().push(Event::Keydown(KeyCode::NUM1));
-                system.event_queue().push(Event::Keyup(KeyCode::NUM1));
-                let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
-                let _: () = jvm
-                    .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
-                    .await?;
-                assert_eq!(jvm.load_array::<i32>(&event, 0, 1).await?, [EventQueueEvent::KeyEvent as i32]);
-                assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
-                let _: () = jvm
-                    .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
-                    .await?;
-                assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [EventQueueEvent::KeyEvent as i32, 2, 49, 0]);
-                assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
-
                 system.event_queue().push(Event::Keydown(KeyCode::NUM2));
+                system.event_queue().push(Event::TextInput {
+                    key: KeyCode::NUM1,
+                    text: "ab".into(),
+                });
+                let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
+                for kind in [KeyboardEventType::KeyPressed, KeyboardEventType::KeyReleased] {
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    assert_eq!(
+                        jvm.load_array::<i32>(&event, 0, 4).await?,
+                        [EventQueueEvent::KeyEvent as i32, kind as i32, 49, 0]
+                    );
+                    assert_eq!(system.dispatched_text().as_deref(), Some("ab"));
+                    assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
+                }
                 let _: () = jvm
                     .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [EventQueueEvent::KeyEvent as i32, 1, 50, 0]);
+                assert!(system.dispatched_text().is_none());
                 assert_eq!(jvm.get_field::<i32>(&callback, "net/wie/RecurringCallback", "count", "I").await?, 0);
 
                 system.event_queue().push(Event::Keydown(KeyCode::NUM3));

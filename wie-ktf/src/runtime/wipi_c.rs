@@ -90,95 +90,17 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    use jvm::ClassInstanceRef;
     use test_utils::{TestPlatform, run_jvm_test_with_system};
-    use wie_midp::classes::net::wie::EventQueue;
     use wipi_types::{
         ktf::wipic::{WIPICGraphicsInterface, WIPICInterface},
         wipic::WIPICFramebuffer,
     };
 
-    use wie_backend::{Event, KeyCode, Options};
+    use wie_backend::Options;
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::{Result, read_generic, write_generic};
 
     use super::{SVC_CATEGORY_WIPIC, WIPICKernelMethodId, WIPICTableId, register_wipic_svc_handler};
-
-    #[test]
-    fn native_input_commits_host_text_one_character_per_key_press() -> Result<()> {
-        // EUC-KR has no emoji, so only the Hangul and ASCII characters can be committed.
-        let platform = TestPlatform::new().with_text_input("😀가a나😀");
-        run_jvm_test_with_system(
-            Box::new([Box::new([EventQueue::as_proto()])]),
-            Box::new(platform),
-            |jvm, system| async move {
-                let queue: ClassInstanceRef<EventQueue> = jvm
-                    .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
-                    .await?;
-                let event = jvm.instantiate_array("I", 4).await?;
-                let next_key = async || {
-                    let _: () = jvm
-                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
-                        .await
-                        .unwrap();
-                    jvm.load_array::<i32>(&event, 1, 2).await.unwrap()
-                };
-                let mut core = ArmCore::new(Options::default()).unwrap();
-                Allocator::init(&mut core).unwrap();
-                let mut registers = core.save_context();
-                registers.sp = Allocator::alloc(&mut core, 0x100).unwrap() + 0x100;
-                core.restore_context(&registers);
-                register_wipic_svc_handler(&mut core, &system, &jvm).unwrap();
-                let get_interfaces = core
-                    .make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::Kernel.function_id(WIPICKernelMethodId::Reserved1))
-                    .unwrap();
-                let interfaces: u32 = core.run_function(get_interfaces, &[]).await.unwrap();
-                let interfaces: WIPICInterface = read_generic(&core, interfaces).unwrap();
-                let handle_input: u32 = read_generic(&core, interfaces.interface_3).unwrap();
-                let graphics: WIPICGraphicsInterface = read_generic(&core, interfaces.graphics_interface).unwrap();
-                let buffer = Allocator::alloc(&mut core, 24).unwrap();
-                for function in [handle_input, graphics.handle_input] {
-                    for (key, event, capacity, expected) in [
-                        (b'5', 2, 0i32, b"\xb0\xa1".as_slice()),
-                        (b'2', 2, 4, b"a"),
-                        (b'2', 2, 0, b"\xb3\xaa"),
-                        (b'2', 3, 8, b""),
-                        (b'2', 4, 8, b""),
-                        (157, 2, 8, b""),
-                        (b'#', 2, 0, b"\xb0\xa1"),
-                    ] {
-                        if matches!(expected, b"a" | b"\xb3\xaa") {
-                            assert_eq!(next_key().await, [1, i32::from(key)]);
-                        }
-                        write_generic(&mut core, buffer, [0xabu8; 8]).unwrap();
-                        write_generic(&mut core, buffer + 8, capacity).unwrap();
-                        write_generic(&mut core, buffer + 12, [0xcdu8; 8]).unwrap();
-                        write_generic(&mut core, buffer + 20, 8i32).unwrap();
-                        let handled: u32 = core
-                            .run_function(function, &[u32::from(key), event, buffer, buffer + 8, buffer + 12, buffer + 20])
-                            .await
-                            .unwrap();
-                        if matches!(expected, b"a" | b"\xb3\xaa") {
-                            assert_eq!(next_key().await, [2, i32::from(key)]);
-                        }
-                        assert_eq!(handled, u32::from(!expected.is_empty()));
-                        assert_eq!(read_generic::<i32, _>(&core, buffer + 8).unwrap(), expected.len() as i32);
-                        assert_eq!(read_generic::<i32, _>(&core, buffer + 20).unwrap(), 0);
-                        let committed: [u8; 8] = read_generic(&core, buffer).unwrap();
-                        assert_eq!(&committed[..expected.len()], expected);
-                        assert!(committed[expected.len()..].iter().all(|byte| *byte == 0xab));
-                        assert_eq!(read_generic::<[u8; 8], _>(&core, buffer + 12).unwrap(), [0xcd; 8]);
-                    }
-                    // A full field ignores the continuation before the next physical press opens a fresh editor.
-                    system.event_queue().push(Event::Keydown(KeyCode::NUM5));
-                    assert_eq!(next_key().await, [1, 50]);
-                    assert_eq!(next_key().await, [2, 50]);
-                    assert_eq!(next_key().await, [1, 53]);
-                }
-                Ok(())
-            },
-        )
-    }
 
     #[test]
     fn native_screen_flush_presents_guest_framebuffer() -> Result<()> {

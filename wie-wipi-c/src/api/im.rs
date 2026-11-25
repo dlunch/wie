@@ -101,11 +101,15 @@ pub async fn handle_input(
 
 #[cfg(test)]
 mod tests {
-    use wie_util::{Result, read_null_terminated_string_bytes, read_null_terminated_table};
+    use alloc::boxed::Box;
+
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, Event, KeyCode, System};
+    use wie_util::{Result, read_generic, read_null_terminated_string_bytes, read_null_terminated_table, write_generic};
 
     use crate::context::test::TestContext;
 
-    use super::{get_support_mode_count, get_supported_modes};
+    use super::{get_support_mode_count, get_supported_modes, handle_input};
 
     #[futures_test::test]
     async fn input_mode_queries_reuse_valid_guest_strings() -> Result<()> {
@@ -120,6 +124,38 @@ mod tests {
             assert_eq!(read_null_terminated_string_bytes(&context, pointer)?, name);
         }
         assert_eq!(get_supported_modes(&mut context).await?, modes);
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn typing_commits_one_character_per_press() -> Result<()> {
+        let platform = TestPlatform::new().with_text_input("😀가a");
+        let system = System::new(Box::new(platform), "test-pid", "test-aid", DefaultTaskRunner);
+        let mut context = TestContext::with_system(system.clone());
+        for (key, event, expected) in [
+            (b'5', 2, b"\xb0\xa1".as_slice()),
+            (b'2', 502, b"a"),
+            (b'2', 3, b""),
+            (b'2', 4, b""),
+            (0x9d, 2, b""), // MH_IMA_FLUSH
+            (0xf0, 2, b""), // MH_KEY_CLEAR
+        ] {
+            write_generic(&mut context, 0x1000, [0xccccccccu32, 0, 0xcccccccc, 1])?;
+            let handled = handle_input(&mut context, key.into(), event, 0x1000, 0x1004, 0x1008, 0x100c).await?;
+            assert_eq!(handled, i32::from(!expected.is_empty()));
+            let bytes: [u8; 4] = read_generic(&context, 0x1000)?;
+            assert_eq!(&bytes[..expected.len()], expected);
+            assert_eq!(bytes[expected.len()], 0xcc);
+            assert_eq!(read_generic::<[u32; 3], _>(&context, 0x1004)?, [expected.len() as u32, 0xcccccccc, 0]);
+            if key == b'5' {
+                let Some(Event::TextInput { key: KeyCode::NUM2, text }) = system.event_queue().pop() else {
+                    panic!("expected a text continuation");
+                };
+                assert_eq!(text, "a");
+                *system.dispatched_text() = Some(text);
+            }
+        }
+        assert!(system.event_queue().pop().is_none());
         Ok(())
     }
 }
