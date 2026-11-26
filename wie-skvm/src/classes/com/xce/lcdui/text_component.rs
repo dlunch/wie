@@ -1,36 +1,50 @@
-use alloc::vec;
+use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-
-use wie_jvm_support::WieJavaClassProto;
+use wie_jvm_support::WieJvmContext;
 
 // interface com.xce.lcdui.TextComponent
+#[java_class(name = "com/xce/lcdui/TextComponent", public, interface, abstract)]
 pub struct TextComponent;
 
+#[java_methods]
 impl TextComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/lcdui/TextComponent",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new_abstract("clear", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("delete", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getCaretPosition", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getConstraints", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getMaxSize", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("insert", "(C)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("moveCursor", "(I)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("repaint", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("repaintIM", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("replace", "(C)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("setCaretPosition", "(I)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("setCaretVisible", "(Z)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("size", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn clear(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn delete(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn get_caret_position(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn get_constraints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn get_max_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn insert(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, character: JavaChar) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn move_cursor(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, direction: i32) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn repaint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(name = "repaintIM", public)]
+    async fn repaint_im(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn replace(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, character: JavaChar) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn set_caret_position(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, position: i32) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn set_caret_visible(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, visible: bool) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32>;
 }

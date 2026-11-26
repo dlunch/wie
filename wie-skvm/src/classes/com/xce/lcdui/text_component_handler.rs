@@ -1,58 +1,31 @@
 use alloc::{vec, vec::Vec};
 
 use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::net::wie::MIDPKeyCode;
 
 use super::TextComponent;
 
 // class com.xce.lcdui.TextComponentHandler
-pub struct TextComponentHandler;
+#[java_class(name = "com/xce/lcdui/TextComponentHandler", public, abstract)]
+pub struct TextComponentHandler {
+    #[field(private, static)]
+    instance: ClassInstanceRef<Self>,
+    #[field(private)]
+    component: ClassInstanceRef<TextComponent>,
+}
 
+#[java_methods]
 impl TextComponentHandler {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/lcdui/TextComponentHandler",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getTextComponentHandler",
-                    "()Lcom/xce/lcdui/TextComponentHandler;",
-                    Self::get_handler,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setTextComponent",
-                    "(Lcom/xce/lcdui/TextComponent;)V",
-                    Self::set_component,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("clear", "()V", Self::clear, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("keyPressed", "(I)Z", Self::key_pressed, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("keyReleased", "(I)Z", Self::key_released, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "instance",
-                    "Lcom/xce/lcdui/TextComponentHandler;",
-                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
-                ),
-                JavaFieldProto::new("component", "Lcom/xce/lcdui/TextComponent;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.TextComponentHandler::<init>({this:?})");
         jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await
     }
 
+    #[method(name = "getTextComponentHandler", public, static)]
     async fn get_handler(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::debug!("com.xce.lcdui.TextComponentHandler::getTextComponentHandler()");
         let instance: ClassInstanceRef<Self> = jvm
@@ -72,6 +45,7 @@ impl TextComponentHandler {
         Ok(instance.into())
     }
 
+    #[method(name = "setTextComponent", public)]
     async fn set_component(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -89,11 +63,13 @@ impl TextComponentHandler {
         .await
     }
 
+    #[method(public)]
     async fn clear(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub com.xce.lcdui.TextComponentHandler::clear({this:?})");
         Ok(())
     }
 
+    #[method(public)]
     async fn key_pressed(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<bool> {
         tracing::debug!("com.xce.lcdui.TextComponentHandler::keyPressed({this:?}, {key})");
 
@@ -156,6 +132,7 @@ impl TextComponentHandler {
         Ok(true)
     }
 
+    #[method(public)]
     async fn key_released(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<bool> {
         tracing::warn!("stub com.xce.lcdui.TextComponentHandler::keyReleased({this:?}, {key})");
         Ok(false)

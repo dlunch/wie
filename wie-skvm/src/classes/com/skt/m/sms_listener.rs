@@ -1,26 +1,21 @@
-use alloc::vec;
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use wie_jvm_support::WieJvmContext;
 
-use wie_jvm_support::WieJavaClassProto;
+use super::SMSMessage;
 
 // interface com.skt.m.SMSListener
+#[java_class(name = "com/skt/m/SMSListener", public, interface, abstract)]
 pub struct SMSListener;
 
+#[java_methods]
 impl SMSListener {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/SMSListener",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract(
-                "onMessage",
-                "(Lcom/skt/m/SMSMessage;)V",
-                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn on_message(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        message: ClassInstanceRef<SMSMessage>,
+    ) -> JvmResult<()>;
 }

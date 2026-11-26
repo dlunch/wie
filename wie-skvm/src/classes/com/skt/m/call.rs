@@ -1,58 +1,30 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class com.skt.m.Call
+#[java_class(name = "com/skt/m/Call", public, final)]
 pub struct Call;
 
+#[java_methods]
 impl Call {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/Call",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "connect",
-                    "(Ljava/lang/String;)Z",
-                    Self::connect,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "disconnect",
-                    "()Z",
-                    Self::disconnect,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "isSupported",
-                    "()Z",
-                    Self::is_supported,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(public, static)]
     async fn connect(_jvm: &Jvm, _context: &mut WieJvmContext, phone_number: ClassInstanceRef<String>) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.Call::connect({phone_number:?})");
 
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn disconnect(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.Call::disconnect()");
 
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn is_supported(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.Call::isSupported()");
 

@@ -1,46 +1,25 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::com::xce::io::x_file::{FILE_JAR, NORMAL, READ, READ_RESOURCE, READ_WRITE, SEEK_CUR, SEEK_SET, STDIN, STDSTREAM, XFile};
 
 // class com.xce.io.FileInputStream
-pub struct FileInputStream;
+#[java_class(name = "com/xce/io/FileInputStream", extends = "java/io/InputStream", public)]
+pub struct FileInputStream {
+    #[field(private)]
+    file: ClassInstanceRef<XFile>,
+    #[field(private)]
+    markPosition: i32,
+    #[field(private)]
+    marked: bool,
+}
 
+#[java_methods]
 impl FileInputStream {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/io/FileInputStream",
-            parent_class: Some("java/io/InputStream"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init_with_fd, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Lcom/xce/io/XFile;)V", Self::init_with_file, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("mark", "(I)V", Self::mark, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("markSupported", "()Z", Self::mark_supported, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("read", "()I", Self::read_byte, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("read", "([B)I", Self::read_array_full, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("read", "([BII)I", Self::read_array, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("reset", "()V", Self::reset, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("skip", "(J)J", Self::skip, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("file", "Lcom/xce/io/XFile;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("markPosition", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("marked", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::<init>({this:?}, {name:?})");
 
@@ -56,6 +35,7 @@ impl FileInputStream {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_fd(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, fd: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::<init>({this:?}, {fd})");
 
@@ -71,6 +51,7 @@ impl FileInputStream {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_file(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -102,6 +83,7 @@ impl FileInputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn available(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.FileInputStream::available({this:?})");
 
@@ -111,6 +93,7 @@ impl FileInputStream {
         Ok(available)
     }
 
+    #[method(public)]
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::close({this:?})");
 
@@ -120,6 +103,7 @@ impl FileInputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn mark(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, read_limit: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::mark({this:?}, {read_limit})");
 
@@ -142,10 +126,12 @@ impl FileInputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn mark_supported(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         Ok(true)
     }
 
+    #[method(name = "read", public)]
     async fn read_byte(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.FileInputStream::read({this:?})");
 
@@ -162,6 +148,7 @@ impl FileInputStream {
         Ok(byte[0] as u8 as i32)
     }
 
+    #[method(name = "read", public)]
     async fn read_array_full(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -179,6 +166,7 @@ impl FileInputStream {
             .await
     }
 
+    #[method(name = "read", public)]
     async fn read_array(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -208,6 +196,7 @@ impl FileInputStream {
         Ok(if read == 0 { -1 } else { read })
     }
 
+    #[method(public)]
     async fn reset(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::reset({this:?})");
 
@@ -234,6 +223,7 @@ impl FileInputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn skip(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, count: i64) -> JvmResult<i64> {
         tracing::debug!("com.xce.io.FileInputStream::skip({this:?}, {count})");
 

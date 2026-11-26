@@ -1,46 +1,25 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 use jvm::{Array, ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class net.wie.WieAudioClip
-pub struct WieAudioClip;
+#[java_class(name = "net/wie/WieAudioClip", implements("com/skt/m/AudioClip"), public)]
+pub struct WieAudioClip {
+    #[field(private)]
+    audioHandle: i32,
+    #[field(private)]
+    playing: bool,
+    #[field(private)]
+    generation: i64,
+}
 
+#[java_methods]
 impl WieAudioClip {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/WieAudioClip",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec!["com/skt/m/AudioClip"],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("open", "([BII)V", Self::open, MethodAccessFlags::PUBLIC | MethodAccessFlags::SYNCHRONIZED),
-                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC | MethodAccessFlags::SYNCHRONIZED),
-                JavaMethodProto::new("loop", "()V", Self::r#loop, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("pause", "()V", Self::pause, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("play", "()V", Self::play, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("resume", "()V", Self::resume, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("stop", "()V", Self::stop, MethodAccessFlags::PUBLIC | MethodAccessFlags::SYNCHRONIZED),
-                JavaMethodProto::new(
-                    "playback",
-                    "(Z)V",
-                    Self::playback,
-                    MethodAccessFlags::PRIVATE | MethodAccessFlags::SYNCHRONIZED,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("audioHandle", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("playing", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("generation", "J", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("net.wie.WieAudioClip::<init>({this:?}, {name:?})");
 
@@ -48,6 +27,7 @@ impl WieAudioClip {
         jvm.put_field(&mut this, "net/wie/WieAudioClip", "audioHandle", "I", -1).await
     }
 
+    #[method(public, synchronized)]
     async fn open(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -89,16 +69,19 @@ impl WieAudioClip {
         jvm.put_field(&mut this, "net/wie/WieAudioClip", "audioHandle", "I", handle as i32).await
     }
 
+    #[method(public)]
     async fn play(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WieAudioClip::play({this:?})");
         jvm.invoke_special(&this, "net/wie/WieAudioClip", "playback", "(Z)V", (false,)).await
     }
 
+    #[method(public)]
     async fn r#loop(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WieAudioClip::loop({this:?})");
         jvm.invoke_special(&this, "net/wie/WieAudioClip", "playback", "(Z)V", (true,)).await
     }
 
+    #[method(private, synchronized)]
     async fn playback(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, repeat: bool) -> JvmResult<()> {
         tracing::debug!("net.wie.WieAudioClip::playback({this:?}, {repeat})");
 
@@ -140,18 +123,21 @@ impl WieAudioClip {
         }
     }
 
+    #[method(public)]
     async fn pause(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub net.wie.WieAudioClip::pause({this:?})");
 
         Ok(())
     }
 
+    #[method(public)]
     async fn resume(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub net.wie.WieAudioClip::resume({this:?})");
 
         Ok(())
     }
 
+    #[method(public, synchronized)]
     async fn stop(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WieAudioClip::stop({this:?})");
 
@@ -167,6 +153,7 @@ impl WieAudioClip {
         Ok(())
     }
 
+    #[method(public, synchronized)]
     async fn close(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WieAudioClip::close({this:?})");
 

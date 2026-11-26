@@ -2,35 +2,23 @@ use alloc::vec;
 
 use bytemuck::cast_slice;
 use encoding_rs::{CoderResult, EUC_KR};
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class com.xce.io.ByteToCharConverter
-pub struct ByteToCharConverter;
+#[java_class(name = "com/xce/io/ByteToCharConverter", public, abstract)]
+pub struct ByteToCharConverter {
+    #[field(protected)]
+    buf: ClassInstanceRef<Array<i8>>,
+    #[field(protected)]
+    blen: i32,
+}
 
+#[java_methods]
 impl ByteToCharConverter {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/io/ByteToCharConverter",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("flush", "([CII)I", Self::flush, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new_abstract("convert", "([BII[CII)I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getNumberOfChars", "([BII)I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-            ],
-            fields: vec![
-                JavaFieldProto::new("buf", "[B", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("blen", "I", FieldAccessFlags::PROTECTED),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.ByteToCharConverter::<init>({this:?})");
 
@@ -40,6 +28,30 @@ impl ByteToCharConverter {
         Ok(())
     }
 
+    #[method(public)]
+    async fn convert(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        input: ClassInstanceRef<Array<i8>>,
+        input_offset: i32,
+        input_length: i32,
+        output: ClassInstanceRef<Array<JavaChar>>,
+        output_offset: i32,
+        output_length: i32,
+    ) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn get_number_of_chars(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        input: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+        length: i32,
+    ) -> JvmResult<i32>;
+
+    #[method(descriptor = "([CII)I", public)]
     async fn flush(
         jvm: &Jvm,
         _context: &mut WieJvmContext,

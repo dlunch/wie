@@ -1,38 +1,21 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::com::xce::io::x_file::{NORMAL, READ_WRITE, SEEK_END, SEEK_SET, STDERR, STDOUT, STDSTREAM, WRITE, XFile};
 
 // class com.xce.io.FileOutputStream
-pub struct FileOutputStream;
+#[java_class(name = "com/xce/io/FileOutputStream", extends = "java/io/OutputStream", public)]
+pub struct FileOutputStream {
+    #[field(protected)]
+    file: ClassInstanceRef<XFile>,
+}
 
+#[java_methods]
 impl FileOutputStream {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/io/FileOutputStream",
-            parent_class: Some("java/io/OutputStream"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init_with_fd, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;Z)V", Self::init_with_truncate, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Lcom/xce/io/XFile;)V", Self::init_with_file, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("flush", "()V", Self::flush, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("write", "([BII)V", Self::write_array, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("write", "(I)V", Self::write, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![JavaFieldProto::new("file", "Lcom/xce/io/XFile;", FieldAccessFlags::PROTECTED)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileOutputStream::<init>({this:?}, {name:?})");
 
@@ -43,6 +26,7 @@ impl FileOutputStream {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_truncate(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -78,6 +62,7 @@ impl FileOutputStream {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_fd(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, fd: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileOutputStream::<init>({this:?}, {fd})");
 
@@ -93,6 +78,7 @@ impl FileOutputStream {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_file(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -123,6 +109,7 @@ impl FileOutputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn write(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, byte: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileOutputStream::write({this:?}, {byte:?})");
 
@@ -134,6 +121,7 @@ impl FileOutputStream {
         Ok(())
     }
 
+    #[method(name = "write", public)]
     async fn write_array(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -163,6 +151,7 @@ impl FileOutputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileOutputStream::close({this:?})");
 
@@ -172,6 +161,7 @@ impl FileOutputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn flush(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileOutputStream::flush({this:?})");
 

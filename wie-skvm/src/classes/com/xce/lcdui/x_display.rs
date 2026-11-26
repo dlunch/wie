@@ -1,67 +1,32 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
 use wie_backend::canvas::Color;
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
 // class com.xce.lcdui.XDisplay
-pub struct XDisplay;
+#[java_class(name = "com/xce/lcdui/XDisplay", public)]
+pub struct XDisplay {
+    #[field(public, static, final)]
+    IMG_COPY: i32,
+    #[field(public, static, final)]
+    IMG_AND: i32,
+    #[field(public, static, final)]
+    IMG_OR: i32,
+    #[field(public, static, final)]
+    IMG_XOR: i32,
+    #[field(public, static)]
+    width: i32,
+    #[field(public, static)]
+    height: i32,
+    #[field(public, static)]
+    height2: i32,
+}
 
+#[java_methods]
 impl XDisplay {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/lcdui/XDisplay",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("refresh", "(IIII)V", Self::refresh, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "drawImageEx",
-                    "(Ljavax/microedition/lcdui/Graphics;Ljavax/microedition/lcdui/Image;IILjavax/microedition/lcdui/Image;IIIII)V",
-                    Self::draw_image_ex,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "copyLCD",
-                    "(Ljavax/microedition/lcdui/Graphics;Ljavax/microedition/lcdui/Image;IIII)V",
-                    Self::copy_lcd,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "IMG_COPY",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "IMG_AND",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "IMG_OR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "IMG_XOR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("width", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("height", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("height2", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.XDisplay::<clinit>()");
 
@@ -78,6 +43,7 @@ impl XDisplay {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn refresh(jvm: &Jvm, context: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.XDisplay::refresh({x}, {y}, {width}, {height})");
 
@@ -93,6 +59,7 @@ impl XDisplay {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(public, static)]
     async fn draw_image_ex(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -188,6 +155,7 @@ impl XDisplay {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(name = "copyLCD", public, static)]
     async fn copy_lcd(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -206,15 +174,22 @@ impl XDisplay {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, sync::Arc};
+    use alloc::{boxed::Box, sync::Arc, vec};
     use core::sync::atomic::{AtomicU32, Ordering};
 
+    use jvm_class_proto::{java_class, java_methods};
     use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
     use crate::classes::com::xce::lcdui::Toolkit;
 
     use super::*;
+
+    #[java_class(name = "test/RefreshMidlet", extends = "javax/microedition/midlet/MIDlet", public)]
+    struct RefreshMidlet;
+
+    #[java_methods]
+    impl RefreshMidlet {}
 
     #[test]
     fn image_regions_apply_modes_translation_clipping_and_overlap() {
@@ -422,14 +397,6 @@ mod tests {
 
     #[test]
     fn toolkit_graphics_survives_midlet_startup_and_refresh_preserves_pending_repaint() {
-        let midlet_proto = WieJavaClassProto {
-            name: "test/RefreshMidlet",
-            parent_class: Some("javax/microedition/midlet/MIDlet"),
-            interfaces: vec![],
-            methods: vec![],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         let paints = Arc::new(AtomicU32::new(0));
         let observed_paints = paints.clone();
         let platform = TestPlatform::with_paint_handler(move |image| {
@@ -440,7 +407,7 @@ mod tests {
         run_jvm_test_with_system(
             Box::new([
                 wie_midp::get_protos().into(),
-                [XDisplay::as_proto(), Toolkit::as_proto(), midlet_proto].into(),
+                [XDisplay::as_proto(), Toolkit::as_proto(), RefreshMidlet::as_proto()].into(),
             ]),
             Box::new(platform),
             move |jvm, _system| async move {

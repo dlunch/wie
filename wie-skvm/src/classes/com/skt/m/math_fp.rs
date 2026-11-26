@@ -1,11 +1,10 @@
-use alloc::{format, string::String as RustString, vec};
+use alloc::{format, string::String as RustString};
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 const SCALE: i64 = 1_000_000_000;
 const HALF: i64 = SCALE / 2;
@@ -16,73 +15,21 @@ const TAU: i64 = 6_283_185_308;
 const LN_2: i64 = 693_147_181;
 
 // class com.skt.m.MathFP
-pub struct MathFP;
+#[java_class(name = "com/skt/m/MathFP", public, final)]
+pub struct MathFP {
+    #[field(public, static, final)]
+    E: i64,
+    #[field(public, static, final)]
+    MAX_VALUE: i64,
+    #[field(public, static, final)]
+    MIN_VALUE: i64,
+    #[field(public, static, final)]
+    PI: i64,
+}
 
+#[java_methods]
 impl MathFP {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/MathFP",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("abs", "(J)J", Self::abs, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("acos", "(J)J", Self::acos, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("add", "(JJ)J", Self::add, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("asin", "(J)J", Self::asin, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("atan", "(J)J", Self::atan, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("cos", "(J)J", Self::cos, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("divide", "(JJ)J", Self::divide, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("exp", "(J)J", Self::exp, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("log", "(J)J", Self::log, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("max", "(JJ)J", Self::max, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("min", "(JJ)J", Self::min, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("multiply", "(JJ)J", Self::multiply, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("parseFP", "(J)J", Self::parse_fp, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "parseFPString",
-                    "(Ljava/lang/String;)J",
-                    Self::parse_fp_string,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("pow", "(JJ)J", Self::pow, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("round", "(J)J", Self::round, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("sin", "(J)J", Self::sin, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("sqrt", "(J)J", Self::sqrt, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("sub", "(JJ)J", Self::sub, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("tan", "(J)J", Self::tan, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("toLong", "(J)J", Self::to_long, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "toStringE",
-                    "(J)Ljava/lang/String;",
-                    Self::to_string_e,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "toStringLF",
-                    "(JI)Ljava/lang/String;",
-                    Self::to_string_lf,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("E", "J", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-                JavaFieldProto::new(
-                    "MAX_VALUE",
-                    "J",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "MIN_VALUE",
-                    "J",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("PI", "J", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.skt.m.MathFP::<clinit>()");
 
@@ -92,30 +39,37 @@ impl MathFP {
         jvm.put_static_field("com/skt/m/MathFP", "PI", "J", PI).await
     }
 
+    #[method(public, static)]
     async fn abs(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(value.saturating_abs())
     }
 
+    #[method(public, static)]
     async fn acos(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(HALF_PI.saturating_sub(Self::asin_fixed(value)))
     }
 
+    #[method(public, static)]
     async fn add(_jvm: &Jvm, _context: &mut WieJvmContext, a: i64, b: i64) -> JvmResult<i64> {
         Ok(a.saturating_add(b))
     }
 
+    #[method(public, static)]
     async fn asin(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::asin_fixed(value))
     }
 
+    #[method(public, static)]
     async fn atan(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::atan_fixed(value))
     }
 
+    #[method(public, static)]
     async fn cos(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::sin_fixed(value as i128 + HALF_PI as i128))
     }
 
+    #[method(public, static)]
     async fn divide(jvm: &Jvm, _context: &mut WieJvmContext, a: i64, b: i64) -> JvmResult<i64> {
         match Self::fixed_div(a, b) {
             Some(value) => Ok(value),
@@ -123,30 +77,37 @@ impl MathFP {
         }
     }
 
+    #[method(public, static)]
     async fn exp(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::exp_fixed(value))
     }
 
+    #[method(public, static)]
     async fn log(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::log_fixed(value))
     }
 
+    #[method(public, static)]
     async fn max(_jvm: &Jvm, _context: &mut WieJvmContext, a: i64, b: i64) -> JvmResult<i64> {
         Ok(a.max(b))
     }
 
+    #[method(public, static)]
     async fn min(_jvm: &Jvm, _context: &mut WieJvmContext, a: i64, b: i64) -> JvmResult<i64> {
         Ok(a.min(b))
     }
 
+    #[method(public, static)]
     async fn multiply(_jvm: &Jvm, _context: &mut WieJvmContext, a: i64, b: i64) -> JvmResult<i64> {
         Ok(Self::fixed_mul(a, b))
     }
 
+    #[method(name = "parseFP", public, static)]
     async fn parse_fp(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::saturating_i128_to_i64(value as i128 * SCALE as i128))
     }
 
+    #[method(name = "parseFPString", public, static)]
     async fn parse_fp_string(jvm: &Jvm, _context: &mut WieJvmContext, value: ClassInstanceRef<String>) -> JvmResult<i64> {
         tracing::debug!("com.skt.m.MathFP::parseFPString({value:?})");
 
@@ -261,6 +222,7 @@ impl MathFP {
         Ok(raw)
     }
 
+    #[method(public, static)]
     async fn pow(_jvm: &Jvm, _context: &mut WieJvmContext, base: i64, exponent: i64) -> JvmResult<i64> {
         if exponent == 0 {
             return Ok(SCALE);
@@ -280,23 +242,28 @@ impl MathFP {
         }
     }
 
+    #[method(public, static)]
     async fn round(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         let rounded = (value as i128 + HALF as i128).div_euclid(SCALE as i128) * SCALE as i128;
         Ok(Self::saturating_i128_to_i64(rounded))
     }
 
+    #[method(public, static)]
     async fn sin(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::sin_fixed(value as i128))
     }
 
+    #[method(public, static)]
     async fn sqrt(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(Self::sqrt_fixed(value))
     }
 
+    #[method(public, static)]
     async fn sub(_jvm: &Jvm, _context: &mut WieJvmContext, a: i64, b: i64) -> JvmResult<i64> {
         Ok(a.saturating_sub(b))
     }
 
+    #[method(public, static)]
     async fn tan(jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         let sin = Self::sin_fixed(value as i128);
         let cos = Self::sin_fixed(value as i128 + HALF_PI as i128);
@@ -306,10 +273,12 @@ impl MathFP {
         }
     }
 
+    #[method(public, static)]
     async fn to_long(_jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<i64> {
         Ok(value / SCALE)
     }
 
+    #[method(public, static)]
     async fn to_string_e(jvm: &Jvm, _context: &mut WieJvmContext, value: i64) -> JvmResult<ClassInstanceRef<String>> {
         let magnitude = value.unsigned_abs();
         let result = if magnitude == 0 {
@@ -328,6 +297,7 @@ impl MathFP {
         Ok(JavaLangString::from_rust_string(jvm, &result).await?.into())
     }
 
+    #[method(name = "toStringLF", public, static)]
     async fn to_string_lf(jvm: &Jvm, _context: &mut WieJvmContext, value: i64, precision: i32) -> JvmResult<ClassInstanceRef<String>> {
         if !(0..=9).contains(&precision) {
             return Err(jvm
