@@ -62,9 +62,9 @@ impl Font {
         Ok(())
     }
 
-    #[method(descriptor = "()I", public)]
-    async fn get_height(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Font::getHeight");
+    #[method(public)]
+    async fn get_height(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::getHeight({this:?})");
 
         Ok(Self::HEIGHT) // TODO: hardcoded
     }

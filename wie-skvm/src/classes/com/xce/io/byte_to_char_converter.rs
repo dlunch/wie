@@ -51,7 +51,7 @@ impl ByteToCharConverter {
         length: i32,
     ) -> JvmResult<i32>;
 
-    #[method(descriptor = "([CII)I", public)]
+    #[method(public)]
     async fn flush(
         jvm: &Jvm,
         _context: &mut WieJvmContext,

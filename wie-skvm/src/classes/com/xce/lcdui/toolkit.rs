@@ -8,6 +8,8 @@ use rustjava_runtime::classes::java::lang::String;
 use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::lcdui::{Font, Graphics, Image};
 
+use super::MIDPRes;
+
 // class com.xce.lcdui.Toolkit
 #[java_class(name = "com/xce/lcdui/Toolkit", public)]
 pub struct Toolkit {
@@ -47,8 +49,8 @@ pub struct Toolkit {
     ext: ClassInstanceRef<String>,
     #[field(public, static)]
     iconsDir: ClassInstanceRef<String>,
-    #[field(descriptor = "Lcom/xce/lcdui/MIDPRes;", public, static)]
-    MIDP_RES: ClassInstanceRef<()>,
+    #[field(public, static)]
+    MIDP_RES: ClassInstanceRef<MIDPRes>,
     #[field(private, static)]
     titleImg: ClassInstanceRef<Image>,
     #[field(private, static)]

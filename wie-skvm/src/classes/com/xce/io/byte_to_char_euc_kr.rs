@@ -21,7 +21,7 @@ impl ByteToCharEucKr {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[method(descriptor = "([BII[CII)I", public)]
+    #[method(public)]
     async fn convert(
         jvm: &Jvm,
         _context: &mut WieJvmContext,

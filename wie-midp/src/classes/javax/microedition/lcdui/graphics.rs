@@ -2,7 +2,7 @@ use alloc::{boxed::Box, string::String as RustString, vec::Vec};
 
 use bytemuck::cast_vec;
 use jvm::{Array, ClassInstanceRef, JavaChar, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{TypeConverter, java_class, java_methods};
+use jvm_class_proto::{JavaDescriptor, TypeConverter, java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::canvas::{ArgbPixel, Canvas as BackendCanvas, Clip, PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
@@ -30,6 +30,12 @@ impl TypeConverter<Anchor> for Anchor {
 
     fn from_rust(_: &Jvm, rust: Anchor) -> JavaValue {
         rust.bits().into()
+    }
+}
+
+impl JavaDescriptor for Anchor {
+    fn descriptor() -> RustString {
+        "I".into()
     }
 }
 
@@ -408,7 +414,7 @@ impl Graphics {
         Ok(())
     }
 
-    #[method(descriptor = "(CIII)V", public)]
+    #[method(public)]
     async fn draw_char(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -444,7 +450,7 @@ impl Graphics {
         Ok(())
     }
 
-    #[method(descriptor = "([CIIIII)V", public)]
+    #[method(public)]
     async fn draw_chars(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -483,7 +489,7 @@ impl Graphics {
         Ok(())
     }
 
-    #[method(descriptor = "(Ljava/lang/String;III)V", public)]
+    #[method(public)]
     async fn draw_string(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -522,7 +528,7 @@ impl Graphics {
         Ok(())
     }
 
-    #[method(descriptor = "(Ljava/lang/String;IIIII)V", public)]
+    #[method(public)]
     async fn draw_substring(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -583,7 +589,7 @@ impl Graphics {
         Ok(())
     }
 
-    #[method(descriptor = "(Ljavax/microedition/lcdui/Image;III)V", public)]
+    #[method(public)]
     async fn draw_image(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -632,7 +638,7 @@ impl Graphics {
         Ok(())
     }
 
-    #[method(descriptor = "(Ljavax/microedition/lcdui/Image;IIIIIIII)V", public)]
+    #[method(public)]
     async fn draw_region(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -988,7 +994,7 @@ impl Graphics {
         Ok(0) // SOLID
     }
 
-    #[method(descriptor = "(IIIIIII)V", public)]
+    #[method(public)]
     async fn copy_area(
         jvm: &Jvm,
         _: &mut WieJvmContext,
