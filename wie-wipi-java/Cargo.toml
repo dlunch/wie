@@ -14,7 +14,6 @@ tracing = { workspace = true }
 
 jvm = { workspace = true }
 jvm-class-proto = { workspace = true }
-jvm-types = { workspace = true }
 rustjava-runtime = { workspace = true }
 
 wie-backend = { workspace = true }
