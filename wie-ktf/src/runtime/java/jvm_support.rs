@@ -20,12 +20,12 @@ use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, Result as JvmRe
 use rustjava_runtime::classes::java::util::{Enumeration, jar::JarEntry};
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmSupport;
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
-use wie_util::{Result, WieError, read_generic, read_null_terminated_table, write_generic};
+use wie_util::{Result, WieError, read_generic, write_generic};
 
-use wipi_types::ktf::InitParam2;
+use wipi_types::ktf::java::JavaClass as RawJavaClass;
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -38,8 +38,7 @@ pub use self::{
     array_class_definition::JavaArrayClassDefinition,
     class_definition::JavaClassDefinition,
     class_instance::JavaClassInstance,
-    method::{JavaMethod, JavaMethodResult},
-    vtable::JavaVtable,
+    method::{JavaMethod, JavaMethodResult, JavaMethodRunResult},
 };
 
 pub type KtfJvmWord = u32;
@@ -47,20 +46,27 @@ pub type KtfJvmWord = u32;
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct KtfJvmThreadContext {
-    unk: [u32; 8],
+    unk: [u32; 7],
+    stack_limit: u32,
     current_java_exception_handler: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct KtfJvmSupportContext {
-    ptr_vtables_base: u32,
+    pub ptr_class_base: u32,
+    ptr_next_class: u32,
     ptr_current_jvm_thread_context: u32,
     /// Nonzero once native root tables are ready and callback-local references can be released.
     pub ptr_visit_gc_root: u32,
 }
 
 pub const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
+
+// Instance headers hold a signed 27-bit class offset from the class base,
+// so the base and host-defined classes are placed near the app image.
+const CLASS_AREA_BASE: u32 = 0x2000000;
+const CLASS_AREA_SIZE: u32 = 0x100000;
 
 pub struct KtfJvmSupport;
 
@@ -71,19 +77,16 @@ impl KtfJvmSupport {
         jar_name: Option<&str>,
         properties: &[(&str, &str)],
     ) -> Result<(Jvm, Box<dyn ClassInstance>)> {
-        let jvm_context = InitParam2 {
-            unk1: 0,
-            unk2: 0,
-            unk3: 0,
-            ptr_java_vtables: [0; 128],
-        };
-        let ptr_jvm_context = Allocator::alloc(core, size_of::<InitParam2>() as u32)?;
-        write_generic(core, ptr_jvm_context, jvm_context)?;
-
+        core.map(CLASS_AREA_BASE, CLASS_AREA_SIZE)?;
         write_generic(
             core,
-            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_vtables_base) as u32,
-            ptr_jvm_context + 12,
+            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_class_base) as u32,
+            CLASS_AREA_BASE,
+        )?;
+        write_generic(
+            core,
+            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_next_class) as u32,
+            CLASS_AREA_BASE,
         )?;
 
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
@@ -157,7 +160,7 @@ impl KtfJvmSupport {
                 (
                     system_class_loader,
                     binary_name,
-                    ptr_jvm_context as i32,
+                    CLASS_AREA_BASE as i32,
                     (SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_current_jvm_thread_context) as u32) as i32,
                 ),
             )
@@ -206,23 +209,15 @@ impl KtfJvmSupport {
         }
     }
 
-    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClassDefinition) -> Result<u32> {
-        // TODO remove context
+    pub fn alloc_class(core: &mut ArmCore) -> Result<u32> {
         let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
-        let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
+        write_generic(
+            core,
+            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_next_class) as u32,
+            context_data.ptr_next_class + size_of::<RawJavaClass>() as u32,
+        )?;
 
-        let ptr_vtable = class.ptr_vtable()?;
-
-        for (index, &current_ptr_vtable) in ptr_vtables.iter().enumerate() {
-            if ptr_vtable == current_ptr_vtable {
-                return Ok(index as _);
-            }
-        }
-
-        let index = ptr_vtables.len();
-        write_generic(core, context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32, ptr_vtable)?;
-
-        Ok(index as _)
+        Ok(context_data.ptr_next_class)
     }
 
     pub fn current_java_exception_handler(core: &mut ArmCore) -> Result<u32> {
@@ -269,16 +264,19 @@ mod test {
     };
 
     use wie_backend::{DefaultTaskRunner, System};
-    use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
+    use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, EmulatedFunction};
     use wie_jvm_support::native::encode_method_arguments;
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
-    use crate::runtime::java::{JavaSvcFunctions, handle_java_svc, interface::get_wipi_jb_interface};
+    use crate::runtime::java::{
+        JavaSvcFunctions, handle_java_svc,
+        interface::{get_wipi_jb_interface, java_throw_instance},
+    };
 
     use super::{
         ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, KtfClassLoader,
-        KtfJvmSupport, KtfJvmThreadContext, name::JavaFullName, value::JavaValueCodec,
+        KtfJvmSupport, KtfJvmSupportContext, KtfJvmThreadContext, SUPPORT_CONTEXT_BASE, name::JavaFullName, value::JavaValueCodec,
     };
 
     use test_utils::{TestClock, TestPlatform};
@@ -438,21 +436,25 @@ mod test {
             // Native allocations must not accumulate in a long-lived JVM caller.
             let _caller = jvm.push_native_frame(&[]);
             let allocate = core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaArrayNew)?;
+            let byte_array_class = KtfJvmSupport::class_definition_raw(&*jvm.resolve_class("[B").await.unwrap().definition)?;
             let ptr_interface = get_wipi_jb_interface(&mut core)?;
             let interface: WIPIJBInterface = read_generic(&core, ptr_interface)?;
             for (entry, args) in [
-                (allocate, vec![u32::from(b'B'), 16]),
-                (interface.fn_java_jump_1, vec![u32::from(b'B'), allocate]),
-                (interface.fn_java_jump_2, vec![u32::from(b'B'), 16, allocate]),
-                (interface.fn_java_jump_3, vec![u32::from(b'B'), 16, 0, allocate]),
+                (allocate, vec![byte_array_class, 16]),
+                (interface.fn_java_jump_1, vec![byte_array_class, allocate]),
+                (interface.fn_java_jump_2, vec![byte_array_class, 16, allocate]),
+                (interface.fn_java_jump_3, vec![byte_array_class, 16, 0, allocate]),
             ] {
                 let array: u32 = core.run_function(entry, &args).await?;
                 jvm.collect_garbage().unwrap();
                 assert!(!Allocator::is_allocated(&core, array, instance_size)?);
             }
 
-            let array: u32 = core.run_function(allocate, &[u32::from(b'B'), 16]).await?;
+            let array: u32 = core.run_function(allocate, &[byte_array_class, 16]).await?;
             let raw: RawJavaClassInstance = read_generic(&core, array)?;
+            let header: u32 = read_generic(&core, raw.ptr_fields)?;
+            let support: KtfJvmSupportContext = read_generic(&core, SUPPORT_CONTEXT_BASE)?;
+            assert_eq!(support.ptr_class_base.wrapping_add_signed(header as i32 >> 5), raw.ptr_class);
             let mut registers = core.save_context();
             registers.r4 = raw.ptr_fields + 9;
             core.restore_context(&registers);
@@ -790,7 +792,7 @@ mod test {
             }
             // KTF AOT callers can use the native argument-buffer ABI even when
             // the host implementation's Java prototype is not marked native.
-            let result: u32 = core.run_function(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await?;
+            let result: u32 = core.run_function(raw.fn_body_native_or_exception_table, &[ptr_args]).await?;
             let result: Box<dyn jvm::ClassInstance> = Box::new(JavaClassInstance::from_raw(result, &core));
             jvm.collect_garbage().unwrap();
             assert_eq!(JavaLangString::to_rust_string(&jvm, &result).await.unwrap(), "화장");
@@ -805,7 +807,7 @@ mod test {
             );
 
             write_generic(&mut core, ptr_args + 4, (-1i32) as u32)?;
-            let result = core.run_function::<u32>(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await;
+            let result = core.run_function::<u32>(raw.fn_body_native_or_exception_table, &[ptr_args]).await;
             assert!(matches!(result, Err(WieError::JavaException(_))));
             Allocator::free(&mut core, ptr_args, words.len() as u32 * 4)?;
 
@@ -837,6 +839,8 @@ mod test {
         system.spawn(async move || {
             let (jvm, mut core) = init_jvm(&mut system_clone).await?;
             let runtime = jvm.new_class("java/lang/Runtime", "()V", ()).await.unwrap();
+            let pi: f64 = jvm.get_static_field("java/lang/Math", "PI", "D").await.unwrap();
+            assert_eq!(pi, core::f64::consts::PI);
             let mut source = jvm.instantiate_array("I", 4).await.unwrap();
             let mut destination = jvm.instantiate_array("I", 4).await.unwrap();
             jvm.store_array(&mut source, 0, vec![11i32, 22, 33, 44]).await.unwrap();
@@ -887,6 +891,18 @@ mod test {
                     }
                 }
 
+                if name == "currentTimeMillis" {
+                    let ptr_interface = get_wipi_jb_interface(&mut core)?;
+                    let interface: WIPIJBInterface = read_generic(&core, ptr_interface)?;
+                    let ptr_data = Allocator::alloc(&mut core, 8)?;
+                    let result: u32 = core
+                        .run_function(interface.fn_call_native, &[raw.fn_body_native_or_exception_table, ptr_data])
+                        .await?;
+                    assert_eq!(result, ptr_data);
+                    let words: [u32; 2] = read_generic(&core, ptr_data)?;
+                    assert_eq!(words.to_vec(), expected);
+                }
+
                 if name == "arraycopy" {
                     core.load(&[0x55, 0x24, 0x00, 0xe8], 0x10000, 0x1000)?; // movs r4, #0x55; undefined
                     let mut faulting_method = raw;
@@ -922,6 +938,10 @@ mod test {
             core.restore_context(&context);
             let exception = Box::new(JavaClassInstance::from_raw(*ptr_exception, core));
             JavaMethod::handle_exception(core, jvm, exception).await
+        }
+
+        async fn throw_instance(core: &mut ArmCore, jvm: &mut Jvm) -> Result<JavaMethodResult> {
+            EmulatedFunction::call(&java_throw_instance, core, jvm).await
         }
 
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
@@ -1060,6 +1080,8 @@ mod test {
                 .await
                 .unwrap();
 
+            core.register_svc_handler(6, throw_instance, &jvm)?;
+            let throw_instance = core.make_svc_stub(6, 0u32)?;
             core.register_svc_handler(5, throw_from_nested_call, &(jvm, ptr_exception))?;
             let throwing = core.make_svc_stub(5, 0u32)?;
             let ptr_interface = get_wipi_jb_interface(&mut core)?;
@@ -1075,6 +1097,7 @@ mod test {
                 (interface.fn_java_jump_2, vec![0, 0, throwing]),
                 (interface.fn_java_jump_3, vec![0, 0, 0, throwing]),
                 (interface.fn_call_native, vec![throwing, 0x10500]),
+                (interface.fn_java_jump_2, vec![ptr_exception, 0, throw_instance]),
             ] {
                 let result: u32 = core.run_function(entry, &args).await?;
                 assert_eq!(result, caller.r4);

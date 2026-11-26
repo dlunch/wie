@@ -63,7 +63,7 @@ pub fn test_helloworld() -> Result<()> {
         }
 
         let stdout_str = String::from_utf8(stdout.lock().unwrap().clone()).unwrap();
-        assert_eq!(stdout_str, "Hello, world!");
+        assert_eq!(stdout_str, "Hello, world! 2024\n");
     }
 
     assert!(executed.load(Ordering::Relaxed), "hello-world must execute native instructions");
@@ -80,7 +80,7 @@ fn test_unsupported_client_header() -> Result<()> {
     ] {
         let mut archive = extract_zip(include_bytes!("data/helloworld_ktf.zip"))?;
         let mut jar = extract_zip(&archive["00000000.jar"])?;
-        *jar.get_mut("client.bin12").unwrap() = header.to_vec();
+        *jar.get_mut("client.bin36").unwrap() = header.to_vec();
         let jar = zip_files(&jar);
         assert!(KtfEmulator::loadable_jar(&jar));
         archive.insert("00000000.jar".into(), jar.clone());

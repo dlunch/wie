@@ -40,6 +40,7 @@ impl JavaMethod {
         core: &mut ArmCore,
         jvm: &Jvm,
         ptr_class: u32,
+        class_name: &str,
         proto: JavaMethodProto<C>,
         context: Context,
         java_functions: JavaSvcFunctions,
@@ -57,7 +58,7 @@ impl JavaMethod {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
 
         let access_flags = proto.access_flags;
-        let (fn_body, fn_body_native) = Self::register_java_method(core, jvm, ptr_raw, proto, context, java_functions)?;
+        let (fn_body, fn_body_native) = Self::register_java_method(core, jvm, ptr_raw, class_name, proto, context, java_functions)?;
 
         write_generic(
             core,
@@ -68,7 +69,7 @@ impl JavaMethod {
                 fn_body_native_or_exception_table: fn_body_native,
                 ptr_name,
                 exception_table_count: 0,
-                unk3: 0,
+                frame_size: 0,
                 index_in_vtable: 0, // to be filled later
                 access_flags: access_flags.bits(),
                 unk6: 0,
@@ -111,20 +112,6 @@ impl JavaMethod {
         let codec = JavaValueCodec::new(&self.core);
         let raw_args = encode_method_arguments(&codec, &args);
 
-        struct JavaMethodRunResult {
-            result: u32,
-            result_high: u32,
-        }
-
-        impl wie_core_arm::RunFunctionResult<JavaMethodRunResult> for JavaMethodRunResult {
-            fn get(core: &ArmCore) -> Self {
-                let result = core.read_param(0).unwrap();
-                let result_high = core.read_param(1).unwrap();
-
-                Self { result, result_high }
-            }
-        }
-
         let access_flags = MethodAccessFlags::from_bits_truncate(raw.access_flags);
 
         // Re-enters `run_function` if a Java catch handler matches the current ARM frame —
@@ -166,7 +153,7 @@ impl JavaMethod {
             }
 
             tracing::trace!("Calling native method: {:#x}", raw.fn_body_native_or_exception_table);
-            let result = run_with_unwind(&mut core, raw.fn_body_native_or_exception_table, vec![0, arg_container]).await;
+            let result = run_with_unwind(&mut core, raw.fn_body_native_or_exception_table, vec![arg_container]).await;
 
             Allocator::free(&mut core, arg_container, (raw_args.len() as u32) * 4)?;
 
@@ -277,6 +264,7 @@ impl JavaMethod {
         core: &mut ArmCore,
         jvm: &Jvm,
         ptr_method: u32,
+        class_name: &str,
         proto: JavaMethodProto<C>,
         context: Context,
         java_functions: JavaSvcFunctions,
@@ -290,8 +278,7 @@ impl JavaMethod {
 
         let mut parameter_types = parameter_types.to_vec();
         if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
-            // TODO proper flag handling
-            parameter_types.insert(0, JavaType::Class("".into())); // TODO name
+            parameter_types.insert(0, JavaType::Class(class_name.into()));
         }
 
         let proxy = JavaMethodProxy {
@@ -387,7 +374,7 @@ where
 
         let native_entry = self.ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
         let raw_args = if SvcId::get(core, 0).0 == native_entry {
-            let param_base = u32::get(core, 1);
+            let param_base = u32::get(core, 0);
             (0..param_count)
                 .map(|x| read_generic(core, param_base + (x as u32) * 4))
                 .collect::<wie_util::Result<Vec<u32>>>()?
@@ -446,5 +433,19 @@ impl ResultWriter<JavaMethodResult> for JavaMethodResult {
         }
 
         Ok(())
+    }
+}
+
+pub struct JavaMethodRunResult {
+    pub result: u32,
+    pub result_high: u32,
+}
+
+impl wie_core_arm::RunFunctionResult<JavaMethodRunResult> for JavaMethodRunResult {
+    fn get(core: &ArmCore) -> Self {
+        let result = core.read_param(0).unwrap();
+        let result_high = core.read_param(1).unwrap();
+
+        Self { result, result_high }
     }
 }

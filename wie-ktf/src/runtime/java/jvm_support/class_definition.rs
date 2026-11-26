@@ -23,8 +23,8 @@ use wie_util::{
 use crate::runtime::java::JavaSvcFunctions;
 
 use super::{
-    KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, name::JavaFullName, value::JavaValueCodec,
-    vtable::JavaVtable,
+    KtfJvmSupport, KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, name::JavaFullName,
+    value::JavaValueCodec, vtable::JavaVtable,
 };
 
 #[derive(Clone)]
@@ -75,11 +75,11 @@ impl JavaClassDefinition {
 
         let field_offset_base: u32 = if let Some(x) = &parent_class { x.field_size()? as _ } else { 0 };
 
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let ptr_raw = KtfJvmSupport::alloc_class(core)?;
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let method = JavaMethod::new(core, jvm, ptr_raw, method, context.clone(), java_functions.clone())?;
+            let method = JavaMethod::new(core, jvm, ptr_raw, proto.name, method, context.clone(), java_functions.clone())?;
 
             methods.push(method.ptr_raw);
         }
@@ -138,7 +138,7 @@ impl JavaClassDefinition {
                 ptr_descriptor,
                 ptr_vtable: 0,
                 vtable_count: 0,
-                unk_flag: 8,
+                unk_flag: 0,
             },
         )?;
 
@@ -289,19 +289,6 @@ impl JavaClassDefinition {
 
         Ok(None)
     }
-
-    pub fn read_static_field(&self, field: &JavaField) -> Result<KtfJvmWord> {
-        let address = field.static_address()?;
-        let result: KtfJvmWord = read_generic(&self.core, address)?;
-
-        Ok(result as _)
-    }
-
-    pub fn write_static_field(&mut self, field: &JavaField, value: KtfJvmWord) -> Result<()> {
-        let address = field.static_address()?;
-
-        write_generic(&mut self.core, address, value)
-    }
 }
 
 #[async_trait::async_trait]
@@ -359,17 +346,33 @@ impl ClassDefinition for JavaClassDefinition {
 
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let value = self.read_static_field(field).unwrap();
+        let address = field.static_address().unwrap();
+        let codec = JavaValueCodec::new(&self.core);
 
         let r#type = JavaType::parse(field.name().unwrap().descriptor());
-        Ok(JavaValueCodec::new(&self.core).decode_word(value, &r#type))
+        if matches!(r#type, JavaType::Long | JavaType::Double) {
+            let [value, value_high]: [KtfJvmWord; 2] = read_generic(&self.core, address).unwrap();
+
+            Ok(codec.decode_wide(value, value_high, &r#type))
+        } else {
+            let value: KtfJvmWord = read_generic(&self.core, address).unwrap();
+
+            Ok(codec.decode_word(value, &r#type))
+        }
     }
 
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let value = JavaValueCodec::new(&self.core).encode_word(&value);
+        let address = field.static_address().unwrap();
+        let codec = JavaValueCodec::new(&self.core);
 
-        self.write_static_field(field, value as _).unwrap();
+        if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {
+            let (value, value_high) = codec.encode_wide(&value);
+
+            write_generic(&mut self.core, address, [value, value_high]).unwrap();
+        } else {
+            write_generic(&mut self.core, address, codec.encode_word(&value)).unwrap();
+        }
 
         Ok(())
     }

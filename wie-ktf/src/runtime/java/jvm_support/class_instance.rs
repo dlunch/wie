@@ -14,7 +14,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
 use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
 
-use crate::runtime::java::jvm_support::KtfJvmSupport;
+use crate::runtime::java::jvm_support::{KtfJvmSupportContext, SUPPORT_CONTEXT_BASE};
 
 use super::{KtfJvmWord, Result, class_definition::JavaClassDefinition, field::JavaField, value::JavaValueCodec};
 
@@ -69,7 +69,7 @@ impl JavaClassInstance {
         let zero = iter::repeat_n(0, (field_size + 4) as _).collect::<Vec<_>>();
         core.write_bytes(ptr_fields, &zero)?;
 
-        let vtable_index = KtfJvmSupport::get_vtable_index(core, class)?;
+        let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
 
         write_generic(
             core,
@@ -79,9 +79,10 @@ impl JavaClassInstance {
                 ptr_class: class.ptr_raw,
             },
         )?;
-        write_generic(core, ptr_fields, (vtable_index * 4) << 5)?;
+        // AOT code locates the class at the class base plus this header shifted right by 5.
+        write_generic(core, ptr_fields, class.ptr_raw.wrapping_sub(support.ptr_class_base) << 5)?;
 
-        tracing::trace!("Instantiate {}, vtable_index {vtable_index:#x} at {ptr_raw:#x}", class.name()?);
+        tracing::trace!("Instantiate {} at {ptr_raw:#x}", class.name()?);
 
         Ok(Self::from_raw(ptr_raw, core))
     }

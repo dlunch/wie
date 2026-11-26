@@ -15,7 +15,7 @@ use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as Ra
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::array_element_size;
-use wie_util::{write_generic, write_null_terminated_string_bytes};
+use wie_util::{read_generic, write_generic, write_null_terminated_string_bytes};
 
 use super::{KtfJvmSupport, Result, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition};
 
@@ -37,11 +37,17 @@ impl JavaArrayClassDefinition {
         let java_lang_object = jvm.resolve_class("java/lang/Object").await.unwrap();
         let java_lang_object_raw = KtfJvmSupport::class_definition_raw(&*java_lang_object.definition)?;
 
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let java_lang_object_class: RawJavaClass = read_generic(core, java_lang_object_raw)?;
+
+        let ptr_raw = KtfJvmSupport::alloc_class(core)?;
 
         let element_type_name = &name[1..];
         let element_type_raw = if element_type_name.starts_with('L') {
             let class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await.unwrap();
+
+            Some(KtfJvmSupport::class_definition_raw(&*class.definition)?)
+        } else if element_type_name.starts_with('[') {
+            let class = jvm.resolve_class(element_type_name).await.unwrap();
 
             Some(KtfJvmSupport::class_definition_raw(&*class.definition)?)
         } else {
@@ -78,8 +84,8 @@ impl JavaArrayClassDefinition {
                 ptr_next: ptr_raw + 4,
                 unk1: 0,
                 ptr_descriptor,
-                ptr_vtable: 0,
-                vtable_count: 0,
+                ptr_vtable: java_lang_object_class.ptr_vtable,
+                vtable_count: java_lang_object_class.vtable_count,
                 unk_flag: 8,
             },
         )?;
