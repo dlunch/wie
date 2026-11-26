@@ -15,13 +15,19 @@ pub async fn htonl(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WI
 pub async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_utilHtons({val})");
 
-    Ok((val as u16).to_be() as _) // XXX we're always on little endian
+    Ok((val as u16).swap_bytes() as _)
+}
+
+pub async fn ntohl(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
+    tracing::debug!("MC_utilNtohl({val:#x})");
+
+    Ok(val.swap_bytes())
 }
 
 pub async fn ntohs(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_utilNtohs({val})");
 
-    Ok(u16::from_be(val as u16) as _) // XXX we're always on little endian
+    Ok((val as u16).swap_bytes() as _)
 }
 
 pub async fn inet_addr(context: &mut dyn WIPICContext, address: WIPICWord) -> Result<WIPICWord> {
