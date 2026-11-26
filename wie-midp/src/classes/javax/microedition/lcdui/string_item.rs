@@ -1,71 +1,33 @@
-use alloc::{string::String as RustString, vec};
+use alloc::string::String as RustString;
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::{
     canvas::string_width,
     text_layout::{minimum_width, preferred_width, wrap},
 };
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{Font, Graphics, Item};
 
 const LEFT_TOP: i32 = 4 | 16;
 
 // class javax.microedition.lcdui.StringItem
-pub struct StringItem;
+#[java_class(name = "javax/microedition/lcdui/StringItem", extends = "javax/microedition/lcdui/Item", public)]
+pub struct StringItem {
+    #[field(private)]
+    text: ClassInstanceRef<String>,
+    #[field(private)]
+    appearanceMode: i32,
+    #[field(private)]
+    font: ClassInstanceRef<Font>,
+}
 
+#[java_methods]
 impl StringItem {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/StringItem",
-            parent_class: Some("javax/microedition/lcdui/Item"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;Ljava/lang/String;I)V",
-                    Self::init_with_appearance,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getText", "()Ljava/lang/String;", Self::get_text, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setText", "(Ljava/lang/String;)V", Self::set_text, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getAppearanceMode", "()I", Self::get_appearance_mode, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setFont", "(Ljavax/microedition/lcdui/Font;)V", Self::set_font, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setPreferredSize", "(II)V", Self::set_preferred_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("measureWidth", "(I)I", Self::measure_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new("minimumContentWidth", "()I", Self::minimum_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new("minimumContentHeight", "()I", Self::minimum_content_height, MethodAccessFlags::empty()),
-                JavaMethodProto::new("preferredContentWidth", "()I", Self::preferred_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "preferredContentHeight",
-                    "(I)I",
-                    Self::preferred_content_height,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
-                    Self::paint_content,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
-                JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
-            ],
-            fields: vec![
-                JavaFieldProto::new("text", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("appearanceMode", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("font", "Ljavax/microedition/lcdui/Font;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -85,6 +47,7 @@ impl StringItem {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_appearance(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -119,6 +82,7 @@ impl StringItem {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_text(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.StringItem::getText({this:?})");
 
@@ -126,6 +90,7 @@ impl StringItem {
             .await
     }
 
+    #[method(public)]
     async fn set_text(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.StringItem::setText({this:?}, {text:?})");
 
@@ -135,12 +100,14 @@ impl StringItem {
             .await
     }
 
+    #[method(public)]
     async fn get_appearance_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::getAppearanceMode({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/StringItem", "appearanceMode", "I").await
     }
 
+    #[method(public)]
     async fn set_font(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.StringItem::setFont({this:?}, {font:?})");
 
@@ -156,6 +123,7 @@ impl StringItem {
             .await
     }
 
+    #[method(public)]
     async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::debug!("javax.microedition.lcdui.StringItem::getFont({this:?})");
 
@@ -170,6 +138,7 @@ impl StringItem {
         }
     }
 
+    #[method(public)]
     async fn set_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.StringItem::setPreferredSize({this:?}, {width}, {height})");
 
@@ -177,6 +146,7 @@ impl StringItem {
             .await
     }
 
+    #[method]
     async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::measureWidth({this:?}, {available_width})");
 
@@ -194,6 +164,7 @@ impl StringItem {
             .await
     }
 
+    #[method]
     async fn minimum_content_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::minimumContentWidth({this:?})");
 
@@ -209,6 +180,7 @@ impl StringItem {
         Ok(text_width + Item::appearance_inset(appearance_mode) * 2)
     }
 
+    #[method]
     async fn minimum_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::minimumContentHeight({this:?})");
 
@@ -219,6 +191,7 @@ impl StringItem {
         Ok(wrap(context.system().platform().font(), &text, 10.0, None).len() as i32 * Font::HEIGHT + Item::appearance_inset(appearance_mode) * 2)
     }
 
+    #[method]
     async fn preferred_content_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::preferredContentWidth({this:?})");
 
@@ -229,6 +202,7 @@ impl StringItem {
         Ok(preferred_width(context.system().platform().font(), &text, 10.0) + Item::appearance_inset(appearance_mode) * 2)
     }
 
+    #[method]
     async fn preferred_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::preferredContentHeight({this:?}, {width})");
 
@@ -246,6 +220,7 @@ impl StringItem {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method]
     async fn paint_content(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -337,12 +312,14 @@ impl StringItem {
         Ok(())
     }
 
+    #[method]
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.StringItem::isFocusable({this:?})");
 
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "isFocusable", "()Z", ()).await
     }
 
+    #[method]
     async fn handle_item_key(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.StringItem::handleItemKey({_this:?}, {_key})");
 

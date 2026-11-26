@@ -2,12 +2,11 @@ use alloc::{string::ToString, vec, vec::Vec};
 
 use futures::TryFutureExt;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{lang::Runnable, util::Vector};
 
 use wie_backend::{Event, KeyCode, YieldFuture};
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::{lcdui::Display, midlet::MIDlet};
 
@@ -147,35 +146,17 @@ impl MIDPKeyCode {
 }
 
 // class net.wie.EventQueue
-pub struct EventQueue;
+#[java_class(name = "net/wie/EventQueue", public)]
+pub struct EventQueue {
+    #[field(private, static)]
+    eventQueue: ClassInstanceRef<Self>,
+    #[field(private)]
+    callSeriallyEvents: ClassInstanceRef<Vector>,
+}
 
+#[java_methods]
 impl EventQueue {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/EventQueue",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("dispatchCallbacks", "()V", Self::dispatch_callbacks, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "getEventQueue",
-                    "()Lnet/wie/EventQueue;",
-                    Self::get_event_queue,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::<init>({this:?})");
 
@@ -195,6 +176,7 @@ impl EventQueue {
     }
 
     // TODO this resembles WIPI's architecture for now, but we need to change it to event listener
+    #[method(public)]
     async fn get_next_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -305,6 +287,7 @@ impl EventQueue {
         Ok(received)
     }
 
+    #[method(public)]
     async fn dispatch_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -386,6 +369,7 @@ impl EventQueue {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn get_event_queue(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::debug!("net.wie.EventQueue::getEventQueue()");
 
@@ -403,6 +387,7 @@ impl EventQueue {
         Ok(event_queue)
     }
 
+    #[method(public)]
     async fn call_serially(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -418,6 +403,7 @@ impl EventQueue {
             .await
     }
 
+    #[method]
     async fn dispatch_callbacks(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let events: ClassInstanceRef<Vector> = jvm
             .get_field(&this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")

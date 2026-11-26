@@ -1,12 +1,11 @@
-use alloc::{string::String as RustString, vec, vec::Vec};
+use alloc::{string::String as RustString, vec::Vec};
 
 use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::text_layout::wrap;
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::{
     javax::microedition::lcdui::{Font, Graphics, Item},
@@ -30,125 +29,45 @@ const INITIAL_CAPS_SENTENCE: i32 = 0x200000;
 const CONSTRAINT_MASK: i32 = 0xffff;
 
 // class javax.microedition.lcdui.TextField
-pub struct TextField;
+#[java_class(name = "javax/microedition/lcdui/TextField", extends = "javax/microedition/lcdui/Item", public)]
+pub struct TextField {
+    #[field(public, static, final)]
+    ANY: i32,
+    #[field(public, static, final)]
+    EMAILADDR: i32,
+    #[field(public, static, final)]
+    NUMERIC: i32,
+    #[field(public, static, final)]
+    PHONENUMBER: i32,
+    #[field(public, static, final)]
+    URL: i32,
+    #[field(public, static, final)]
+    DECIMAL: i32,
+    #[field(public, static, final)]
+    PASSWORD: i32,
+    #[field(public, static, final)]
+    UNEDITABLE: i32,
+    #[field(public, static, final)]
+    SENSITIVE: i32,
+    #[field(public, static, final)]
+    NON_PREDICTIVE: i32,
+    #[field(public, static, final)]
+    INITIAL_CAPS_WORD: i32,
+    #[field(public, static, final)]
+    INITIAL_CAPS_SENTENCE: i32,
+    #[field(public, static, final)]
+    CONSTRAINT_MASK: i32,
+    #[field(private)]
+    text: ClassInstanceRef<String>,
+    #[field(private)]
+    maxSize: i32,
+    #[field(private)]
+    constraints: i32,
+}
 
+#[java_methods]
 impl TextField {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/TextField",
-            parent_class: Some("javax/microedition/lcdui/Item"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;Ljava/lang/String;II)V",
-                    Self::init,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getChars", "([C)I", Self::get_chars, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setChars", "([CII)V", Self::set_chars, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("insert", "(Ljava/lang/String;I)V", Self::insert_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("insert", "([CIII)V", Self::insert_chars, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("delete", "(II)V", Self::delete, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMaxSize", "()I", Self::get_max_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setMaxSize", "(I)I", Self::set_max_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("size", "()I", Self::size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getCaretPosition", "()I", Self::get_caret_position, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getConstraints", "()I", Self::get_constraints, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setConstraints", "(I)V", Self::set_constraints, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setInitialInputMode",
-                    "(Ljava/lang/String;)V",
-                    Self::set_initial_input_mode,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("minimumContentWidth", "()I", Self::minimum_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new("minimumContentHeight", "()I", Self::minimum_content_height, MethodAccessFlags::empty()),
-                JavaMethodProto::new("preferredContentWidth", "()I", Self::preferred_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "preferredContentHeight",
-                    "(I)I",
-                    Self::preferred_content_height,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
-                    Self::paint_content,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
-                JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
-            ],
-            fields: vec![
-                JavaFieldProto::new("ANY", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-                JavaFieldProto::new(
-                    "EMAILADDR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "NUMERIC",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "PHONENUMBER",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("URL", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-                JavaFieldProto::new(
-                    "DECIMAL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "PASSWORD",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "UNEDITABLE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SENSITIVE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "NON_PREDICTIVE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "INITIAL_CAPS_WORD",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "INITIAL_CAPS_SENTENCE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "CONSTRAINT_MASK",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("text", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("maxSize", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("constraints", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.TextField::<clinit>");
 
@@ -180,6 +99,7 @@ impl TextField {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -286,12 +206,14 @@ impl TextField {
         jvm.load_array(data, offset as usize, length as usize).await
     }
 
+    #[method(public)]
     async fn get_string(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.TextField::getString({this:?})");
         jvm.get_field(&this, "javax/microedition/lcdui/TextField", "text", "Ljava/lang/String;")
             .await
     }
 
+    #[method(public)]
     async fn set_string(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.TextField::setString({this:?}, {text:?})");
         let text = if text.is_null() {
@@ -302,6 +224,7 @@ impl TextField {
         Self::replace(jvm, &mut this, text).await
     }
 
+    #[method(public)]
     async fn get_chars(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -318,6 +241,7 @@ impl TextField {
         Ok(size as i32)
     }
 
+    #[method(public)]
     async fn set_chars(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -335,6 +259,7 @@ impl TextField {
         Self::replace(jvm, &mut this, text).await
     }
 
+    #[method(name = "insert", public)]
     async fn insert_string(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -350,6 +275,7 @@ impl TextField {
         Self::insert_units(jvm, &mut this, position, src).await
     }
 
+    #[method(name = "insert", public)]
     async fn insert_chars(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -367,6 +293,7 @@ impl TextField {
         Self::insert_units(jvm, &mut this, position, src).await
     }
 
+    #[method(public)]
     async fn delete(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, offset: i32, length: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.TextField::delete({this:?}, {offset}, {length})");
         let mut text = Self::contents(jvm, &this).await?;
@@ -377,11 +304,13 @@ impl TextField {
         Self::replace(jvm, &mut this, text).await
     }
 
+    #[method(public)]
     async fn get_max_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::getMaxSize({this:?})");
         jvm.get_field(&this, "javax/microedition/lcdui/TextField", "maxSize", "I").await
     }
 
+    #[method(public)]
     async fn set_max_size(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, max_size: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::setMaxSize({this:?}, {max_size})");
         if max_size <= 0 {
@@ -397,6 +326,7 @@ impl TextField {
         Ok(max_size)
     }
 
+    #[method(public)]
     async fn size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::size({this:?})");
         let text: ClassInstanceRef<String> = jvm
@@ -405,16 +335,19 @@ impl TextField {
         jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await
     }
 
+    #[method(public)]
     async fn get_caret_position(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::getCaretPosition({this:?})");
         jvm.invoke_special(&this, "javax/microedition/lcdui/TextField", "size", "()I", ()).await
     }
 
+    #[method(public)]
     async fn get_constraints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::getConstraints({this:?})");
         jvm.get_field(&this, "javax/microedition/lcdui/TextField", "constraints", "I").await
     }
 
+    #[method(public)]
     async fn set_constraints(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, constraints: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.TextField::setConstraints({this:?}, {constraints})");
         Self::check_constraints(jvm, constraints).await?;
@@ -428,6 +361,7 @@ impl TextField {
             .await
     }
 
+    #[method(public)]
     async fn set_initial_input_mode(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -439,21 +373,25 @@ impl TextField {
         Ok(())
     }
 
+    #[method]
     async fn minimum_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::minimumContentWidth({this:?})");
         Ok(24)
     }
 
+    #[method]
     async fn minimum_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::minimumContentHeight({this:?})");
         Ok(Font::HEIGHT + INSET * 2)
     }
 
+    #[method]
     async fn preferred_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::preferredContentWidth({this:?})");
         Ok(96)
     }
 
+    #[method]
     async fn preferred_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::preferredContentHeight({this:?}, {width})");
         let text = Self::display_text(jvm, &this).await?;
@@ -462,6 +400,7 @@ impl TextField {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method]
     async fn paint_content(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -533,11 +472,13 @@ impl TextField {
         Ok(())
     }
 
+    #[method]
     async fn is_focusable(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.TextField::isFocusable({this:?})");
         Ok(true)
     }
 
+    #[method]
     async fn handle_item_key(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::handleItemKey({this:?}, {key})");
         if key != MIDPKeyCode::FIRE as i32 {

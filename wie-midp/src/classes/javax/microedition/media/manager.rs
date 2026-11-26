@@ -1,60 +1,18 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result, runtime::JavaLangString};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::media::Player;
 
 // class javax.microedition.media.Manager
+#[java_class(name = "javax/microedition/media/Manager", public, final)]
 pub struct Manager;
 
+#[java_methods]
 impl Manager {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/media/Manager",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "createPlayer",
-                    "(Ljava/io/InputStream;Ljava/lang/String;)Ljavax/microedition/media/Player;",
-                    Self::create_player,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createPlayer",
-                    "(Ljava/lang/String;)Ljavax/microedition/media/Player;",
-                    Self::create_player_from_locator,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getSupportedProtocols",
-                    "(Ljava/lang/String;)[Ljava/lang/String;",
-                    Self::get_supported_protocols,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "playTone",
-                    "(III)V",
-                    Self::play_tone,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getSupportedContentTypes",
-                    "(Ljava/lang/String;)[Ljava/lang/String;",
-                    Self::get_supported_content_types,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(public, static)]
     async fn create_player(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -72,6 +30,7 @@ impl Manager {
     }
 
     // Players are created from streams only, so no locator protocol is supported.
+    #[method(name = "createPlayer", public, static)]
     async fn create_player_from_locator(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -82,6 +41,7 @@ impl Manager {
         Err(jvm.exception("javax/microedition/media/MediaException", "Unsupported locator").await)
     }
 
+    #[method(public, static)]
     async fn get_supported_protocols(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -92,12 +52,14 @@ impl Manager {
         Ok(jvm.instantiate_array("Ljava/lang/String;", 0).await?.into())
     }
 
+    #[method(public, static)]
     async fn play_tone(_jvm: &Jvm, _context: &mut WieJvmContext, note: i32, duration: i32, volume: i32) -> Result<()> {
         tracing::warn!("stub javax.microedition.media.Manager::playTone({note}, {duration}, {volume})");
 
         Ok(())
     }
 
+    #[method(public, static)]
     async fn get_supported_content_types(
         jvm: &Jvm,
         _: &mut WieJvmContext,

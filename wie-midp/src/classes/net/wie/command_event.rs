@@ -1,52 +1,28 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Displayable, Item, ItemCommandListener};
 
 // class net.wie.CommandEvent
-pub struct CommandEvent;
+#[java_class(name = "net/wie/CommandEvent", implements("java/lang/Runnable"), public)]
+pub struct CommandEvent {
+    #[field(private)]
+    command: ClassInstanceRef<Command>,
+    #[field(private)]
+    listener: ClassInstanceRef<CommandListener>,
+    #[field(private)]
+    displayable: ClassInstanceRef<Displayable>,
+    #[field(private)]
+    itemListener: ClassInstanceRef<ItemCommandListener>,
+    #[field(private)]
+    item: ClassInstanceRef<Item>,
+}
 
+#[java_methods]
 impl CommandEvent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/CommandEvent",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec!["java/lang/Runnable"],
-            methods: vec![
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/lcdui/CommandListener;Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
-                    Self::init,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/lcdui/ItemCommandListener;Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Item;)V",
-                    Self::init_item,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("run", "()V", Self::run, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("command", "Ljavax/microedition/lcdui/Command;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("listener", "Ljavax/microedition/lcdui/CommandListener;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("displayable", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new(
-                    "itemListener",
-                    "Ljavax/microedition/lcdui/ItemCommandListener;",
-                    FieldAccessFlags::PRIVATE,
-                ),
-                JavaFieldProto::new("item", "Ljavax/microedition/lcdui/Item;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -82,6 +58,7 @@ impl CommandEvent {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init_item(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -111,6 +88,7 @@ impl CommandEvent {
             .await
     }
 
+    #[method(public)]
     async fn run(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let command: ClassInstanceRef<Command> = jvm
             .get_field(&this, "net/wie/CommandEvent", "command", "Ljavax/microedition/lcdui/Command;")

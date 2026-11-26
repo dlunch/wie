@@ -1,56 +1,36 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::rms::{RecordComparator, RecordFilter, RecordStore};
 
 // class net.wie.RecordEnumeration
-pub struct RecordEnumeration;
+#[java_class(name = "net/wie/RecordEnumeration", implements("javax/microedition/rms/RecordEnumeration"), public)]
+pub struct RecordEnumeration {
+    #[field(private)]
+    store: ClassInstanceRef<RecordStore>,
+    #[field(private)]
+    filter: ClassInstanceRef<RecordFilter>,
+    #[field(private)]
+    comparator: ClassInstanceRef<RecordComparator>,
+    #[field(private)]
+    ids: ClassInstanceRef<Array<i32>>,
+    #[field(private)]
+    currentId: i32,
+    #[field(private)]
+    nextIndex: i32,
+    #[field(private)]
+    previousIndex: i32,
+    #[field(private)]
+    keepUpdated: bool,
+}
 
+#[java_methods]
 impl RecordEnumeration {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/RecordEnumeration",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec!["javax/microedition/rms/RecordEnumeration"],
-            methods: vec![
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/rms/RecordStore;Ljavax/microedition/rms/RecordFilter;Ljavax/microedition/rms/RecordComparator;Z)V",
-                    Self::init,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("numRecords", "()I", Self::num_records, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("nextRecord", "()[B", Self::next_record, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("nextRecordId", "()I", Self::next_record_id, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("previousRecord", "()[B", Self::previous_record, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("previousRecordId", "()I", Self::previous_record_id, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("hasNextElement", "()Z", Self::has_next_element, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("hasPreviousElement", "()Z", Self::has_previous_element, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("reset", "()V", Self::reset, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("rebuild", "()V", Self::rebuild, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("keepUpdated", "(Z)V", Self::keep_updated, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isKeptUpdated", "()Z", Self::is_kept_updated, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("destroy", "()V", Self::destroy, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("store", "Ljavax/microedition/rms/RecordStore;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("filter", "Ljavax/microedition/rms/RecordFilter;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("comparator", "Ljavax/microedition/rms/RecordComparator;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("ids", "[I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("currentId", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("nextIndex", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("previousIndex", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("keepUpdated", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -187,6 +167,7 @@ impl RecordEnumeration {
         Ok(())
     }
 
+    #[method(public)]
     async fn num_records(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("net.wie.RecordEnumeration::numRecords({this:?})");
         Self::refresh(jvm, context, &mut this, false).await?;
@@ -215,16 +196,19 @@ impl RecordEnumeration {
         Ok(id)
     }
 
+    #[method(public)]
     async fn next_record_id(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("net.wie.RecordEnumeration::nextRecordId({this:?})");
         Self::step(jvm, context, &mut this, true).await
     }
 
+    #[method(public)]
     async fn previous_record_id(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("net.wie.RecordEnumeration::previousRecordId({this:?})");
         Self::step(jvm, context, &mut this, false).await
     }
 
+    #[method(public)]
     async fn next_record(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Array<i8>>> {
         tracing::debug!("net.wie.RecordEnumeration::nextRecord({this:?})");
         let id: i32 = jvm.invoke_virtual(&this, "net/wie/RecordEnumeration", "nextRecordId", "()I", ()).await?;
@@ -235,6 +219,7 @@ impl RecordEnumeration {
             .await
     }
 
+    #[method(public)]
     async fn previous_record(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Array<i8>>> {
         tracing::debug!("net.wie.RecordEnumeration::previousRecord({this:?})");
         let id: i32 = jvm
@@ -247,6 +232,7 @@ impl RecordEnumeration {
             .await
     }
 
+    #[method(public)]
     async fn has_next_element(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("net.wie.RecordEnumeration::hasNextElement({this:?})");
         Self::refresh(jvm, context, &mut this, false).await?;
@@ -255,6 +241,7 @@ impl RecordEnumeration {
         Ok((next as usize) < jvm.array_length(&ids).await?)
     }
 
+    #[method(public)]
     async fn has_previous_element(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("net.wie.RecordEnumeration::hasPreviousElement({this:?})");
         Self::refresh(jvm, context, &mut this, false).await?;
@@ -262,6 +249,7 @@ impl RecordEnumeration {
         Ok(previous >= 0)
     }
 
+    #[method(public)]
     async fn reset(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.RecordEnumeration::reset({this:?})");
         Self::refresh(jvm, context, &mut this, false).await?;
@@ -278,6 +266,7 @@ impl RecordEnumeration {
         .await
     }
 
+    #[method(public)]
     async fn rebuild(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.RecordEnumeration::rebuild({this:?})");
         jvm.put_field(&mut this, "net/wie/RecordEnumeration", "currentId", "I", 0).await?;
@@ -285,6 +274,7 @@ impl RecordEnumeration {
         Ok(())
     }
 
+    #[method(public)]
     async fn keep_updated(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, keep_updated: bool) -> JvmResult<()> {
         tracing::debug!("net.wie.RecordEnumeration::keepUpdated({this:?}, {keep_updated})");
         if keep_updated {
@@ -296,6 +286,7 @@ impl RecordEnumeration {
             .await
     }
 
+    #[method(public)]
     async fn is_kept_updated(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("net.wie.RecordEnumeration::isKeptUpdated({this:?})");
         let store: ClassInstanceRef<RecordStore> = jvm
@@ -307,6 +298,7 @@ impl RecordEnumeration {
         jvm.get_field(&this, "net/wie/RecordEnumeration", "keepUpdated", "Z").await
     }
 
+    #[method(public)]
     async fn destroy(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.RecordEnumeration::destroy({this:?})");
         let store: ClassInstanceRef<RecordStore> = jvm
@@ -332,38 +324,33 @@ mod tests {
     use alloc::{boxed::Box, vec};
 
     use jvm::{Array, ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
-    use jvm_class_proto::JavaMethodProto;
-    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
     use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+
+    use wie_jvm_support::WieJvmContext;
     use wie_util::Result;
 
-    use crate::get_protos;
+    use crate::{
+        classes::javax::microedition::rms::{RecordComparator, RecordEnumeration, RecordFilter, RecordStore},
+        get_protos,
+    };
 
-    use crate::classes::javax::microedition::rms::{RecordComparator, RecordEnumeration, RecordFilter, RecordStore};
-
+    #[java_class(
+        name = "test/PositiveRecordOrder",
+        implements("javax/microedition/rms/RecordFilter", "javax/microedition/rms/RecordComparator"),
+        public
+    )]
     struct PositiveRecordOrder;
 
+    #[java_methods]
     impl PositiveRecordOrder {
-        fn as_proto() -> WieJavaClassProto {
-            WieJavaClassProto {
-                name: "test/PositiveRecordOrder",
-                parent_class: Some("java/lang/Object"),
-                interfaces: vec!["javax/microedition/rms/RecordFilter", "javax/microedition/rms/RecordComparator"],
-                methods: vec![
-                    JavaMethodProto::new("matches", "([B)Z", Self::matches, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new("compare", "([B[B)I", Self::compare, MethodAccessFlags::PUBLIC),
-                ],
-                fields: vec![],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(public)]
         async fn matches(jvm: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, data: ClassInstanceRef<Array<i8>>) -> JvmResult<bool> {
             Ok(jvm.load_array::<i8>(&data, 0, 1).await?[0] > 0)
         }
 
+        #[method(public)]
         async fn compare(
             jvm: &Jvm,
             _: &mut WieJvmContext,

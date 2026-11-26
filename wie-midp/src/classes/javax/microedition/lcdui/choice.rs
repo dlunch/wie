@@ -1,109 +1,114 @@
-use alloc::vec;
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::lang::String;
 
-use jvm::{Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use wie_jvm_support::WieJvmContext;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use crate::classes::javax::microedition::lcdui::{Font, Image};
 
 // interface javax.microedition.lcdui.Choice
-pub struct Choice;
+#[java_class(name = "javax/microedition/lcdui/Choice", public, interface, abstract)]
+pub struct Choice {
+    #[field(public, static, final)]
+    EXCLUSIVE: i32,
+    #[field(public, static, final)]
+    MULTIPLE: i32,
+    #[field(public, static, final)]
+    IMPLICIT: i32,
+    #[field(public, static, final)]
+    POPUP: i32,
+    #[field(public, static, final)]
+    TEXT_WRAP_DEFAULT: i32,
+    #[field(public, static, final)]
+    TEXT_WRAP_ON: i32,
+    #[field(public, static, final)]
+    TEXT_WRAP_OFF: i32,
+}
 
+#[java_methods]
 impl Choice {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Choice",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new_abstract("size", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract(
-                    "getString",
-                    "(I)Ljava/lang/String;",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract(
-                    "getImage",
-                    "(I)Ljavax/microedition/lcdui/Image;",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract(
-                    "append",
-                    "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract(
-                    "insert",
-                    "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract("delete", "(I)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("deleteAll", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract(
-                    "set",
-                    "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract("isSelected", "(I)Z", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getSelectedIndex", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getSelectedFlags", "([Z)I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("setSelectedIndex", "(IZ)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("setSelectedFlags", "([Z)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("setFitPolicy", "(I)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getFitPolicy", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract(
-                    "setFont",
-                    "(ILjavax/microedition/lcdui/Font;)V",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract(
-                    "getFont",
-                    "(I)Ljavax/microedition/lcdui/Font;",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "EXCLUSIVE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "MULTIPLE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "IMPLICIT",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "POPUP",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "TEXT_WRAP_DEFAULT",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "TEXT_WRAP_ON",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "TEXT_WRAP_OFF",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32>;
 
+    #[method(public)]
+    async fn get_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<String>>;
+
+    #[method(public)]
+    async fn get_image(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Image>>;
+
+    #[method(public)]
+    async fn append(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        text: ClassInstanceRef<String>,
+        image: ClassInstanceRef<Image>,
+    ) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn insert(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        index: i32,
+        text: ClassInstanceRef<String>,
+        image: ClassInstanceRef<Image>,
+    ) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn delete(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn delete_all(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn set(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        index: i32,
+        text: ClassInstanceRef<String>,
+        image: ClassInstanceRef<Image>,
+    ) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn is_selected(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<bool>;
+
+    #[method(public)]
+    async fn get_selected_index(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn get_selected_flags(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        selected: ClassInstanceRef<Array<bool>>,
+    ) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn set_selected_index(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32, selected: bool) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn set_selected_flags(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        selected: ClassInstanceRef<Array<bool>>,
+    ) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn set_fit_policy(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, fit_policy: i32) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn get_fit_policy(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32>;
+
+    #[method(public)]
+    async fn set_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32, font: ClassInstanceRef<Font>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Font>>;
+
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Choice::<clinit>");
 
