@@ -6,7 +6,12 @@ use wie_jvm_support::WieJvmContext;
 use crate::classes::javax::microedition::lcdui::{Graphics, Image};
 
 // class javax.microedition.lcdui.game.GameCanvas
-#[java_class(name = "javax/microedition/lcdui/game/GameCanvas", extends = "javax/microedition/lcdui/Canvas", public)]
+#[java_class(
+    name = "javax/microedition/lcdui/game/GameCanvas",
+    extends = "javax/microedition/lcdui/Canvas",
+    public,
+    abstract
+)]
 pub struct GameCanvas {
     #[field(private)]
     offscreenImage: ClassInstanceRef<Image>,
@@ -115,7 +120,7 @@ impl GameCanvas {
         Ok(if shown { held | pressed } else { 0 })
     }
 
-    #[method(protected)]
+    #[method(public)]
     async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.GameCanvas::paint({this:?}, {g:?})");
 

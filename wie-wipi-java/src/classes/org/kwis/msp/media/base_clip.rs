@@ -7,7 +7,7 @@ use wie_midp::classes::javax::microedition::media::Player;
 
 // not in reference, but called by some apps..
 // class org.kwis.msp.media.BaseClip
-#[java_class(name = "org/kwis/msp/media/BaseClip", public)]
+#[java_class(name = "org/kwis/msp/media/BaseClip", public, abstract)]
 pub struct BaseClip {
     #[field(private)]
     stream: ClassInstanceRef<InputStream>,

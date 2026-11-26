@@ -159,10 +159,18 @@ impl Jlet {
     async fn start_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, args: ClassInstanceRef<Array<String>>) -> JvmResult<()>;
 
     #[method(protected)]
-    async fn pause_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+    async fn pause_app(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::pauseApp({this:?})");
+
+        Ok(())
+    }
 
     #[method(protected)]
-    async fn resume_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+    async fn resume_app(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::resumeApp({this:?})");
+
+        Ok(())
+    }
 
     #[method(protected)]
     async fn destroy_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()>;

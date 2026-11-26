@@ -19,7 +19,7 @@ pub struct Toolkit {
     FONT_HEIGHT: i32,
     #[field(public, static, final)]
     FONT_GAP: i32,
-    #[field(public, static, final)]
+    #[field(public, static)]
     MAX_CHARWIDTH: i32,
     #[field(public, static, final)]
     BLACK: i32,
