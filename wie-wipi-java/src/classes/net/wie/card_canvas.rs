@@ -1,10 +1,8 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::util::Vector;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::{
     javax::microedition::lcdui::{Canvas as MidpCanvas, Graphics as MidpGraphics},
     net::wie::MIDPKeyCode,
@@ -106,38 +104,15 @@ impl WIPIKeyCode {
 }
 
 // class net.wie.CardCanvas
-pub struct CardCanvas;
+#[java_class(name = "net/wie/CardCanvas", extends = "javax/microedition/lcdui/Canvas", public)]
+pub struct CardCanvas {
+    #[field(private)]
+    cards: ClassInstanceRef<Vector>,
+}
 
+#[java_methods]
 impl CardCanvas {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/CardCanvas",
-            parent_class: Some("javax/microedition/lcdui/Canvas"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    Self::paint,
-                    MethodAccessFlags::PROTECTED,
-                ),
-                JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("popCard", "()Lorg/kwis/msp/lcdui/Card;", Self::pop_card, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", Self::remove_card, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("countCard", "()I", Self::count_card, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, MethodAccessFlags::PUBLIC),
-                // wie private
-                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::PROTECTED),
-            ],
-            fields: vec![JavaFieldProto::new("cards", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::<init>({this:?})");
 
@@ -154,6 +129,7 @@ impl CardCanvas {
         Ok(())
     }
 
+    #[method(protected)]
     async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<MidpGraphics>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::paint({this:?}, {g:?})");
 
@@ -170,11 +146,11 @@ impl CardCanvas {
             .new_class("org/kwis/msp/lcdui/Graphics", "(Ljavax/microedition/lcdui/Graphics;)V", (g,))
             .await?;
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await?;
 
         for i in 0..length {
-            let card = jvm
+            let card: ClassInstanceRef<Card> = jvm
                 .invoke_virtual(&cards, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (i,))
                 .await?;
             let x: i32 = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "getX", "()I", ()).await?;
@@ -222,16 +198,17 @@ impl CardCanvas {
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_pressed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::keyPressed({this:?}, {key_code})");
 
         let key_code = WIPIKeyCode::from_midp_raw(key_code);
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await?;
 
         for i in (0..length).rev() {
-            let card = jvm
+            let card: ClassInstanceRef<Card> = jvm
                 .invoke_virtual(&cards, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (i,))
                 .await?;
             let propagate: bool = jvm
@@ -246,16 +223,17 @@ impl CardCanvas {
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_repeated(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::keyRepeated({this:?}, {key_code})");
 
         let key_code = WIPIKeyCode::from_midp_raw(key_code);
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await?;
 
         for i in (0..length).rev() {
-            let card = jvm
+            let card: ClassInstanceRef<Card> = jvm
                 .invoke_virtual(&cards, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (i,))
                 .await?;
             let propagate: bool = jvm
@@ -270,16 +248,17 @@ impl CardCanvas {
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_released(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::keyReleased({this:?}, {key_code})");
 
         let key_code = WIPIKeyCode::from_midp_raw(key_code);
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await?;
 
         for i in (0..length).rev() {
-            let card = jvm
+            let card: ClassInstanceRef<Card> = jvm
                 .invoke_virtual(&cards, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (i,))
                 .await?;
             let propagate: bool = jvm
@@ -294,6 +273,7 @@ impl CardCanvas {
         Ok(())
     }
 
+    #[method(public)]
     async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::pushCard({this:?}, {c:?})");
 
@@ -301,7 +281,7 @@ impl CardCanvas {
             return Ok(());
         }
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let canvas: ClassInstanceRef<MidpCanvas> = jvm
             .get_field(&c, "org/kwis/msp/lcdui/Card", "canvas", "Ljavax/microedition/lcdui/Canvas;")
             .await?;
@@ -332,10 +312,11 @@ impl CardCanvas {
         Ok(())
     }
 
+    #[method(public)]
     async fn pop_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Card>> {
         tracing::debug!("net.wie.CardCanvas::popCard({this:?})");
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let length: i32 = jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await?;
         if length == 0 {
             return Ok(None.into());
@@ -364,6 +345,7 @@ impl CardCanvas {
         Ok(card)
     }
 
+    #[method(public)]
     async fn remove_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, card: ClassInstanceRef<Card>) -> JvmResult<bool> {
         tracing::debug!("net.wie.CardCanvas::removeCard({this:?}, {card:?})");
 
@@ -371,7 +353,7 @@ impl CardCanvas {
             return Ok(false);
         }
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let index: i32 = jvm
             .invoke_virtual(&cards, "java/util/Vector", "indexOf", "(Ljava/lang/Object;)I", (card.clone(),))
             .await?;
@@ -399,21 +381,23 @@ impl CardCanvas {
         Ok(true)
     }
 
+    #[method(public)]
     async fn count_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("net.wie.CardCanvas::countCard({this:?})");
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await
     }
 
+    #[method(public)]
     async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::removeAllCards");
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await?;
 
         for i in 0..length {
-            let card = jvm
+            let card: ClassInstanceRef<Card> = jvm
                 .invoke_virtual(&cards, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (i,))
                 .await?;
             let _: () = jvm
@@ -438,6 +422,7 @@ impl CardCanvas {
         Ok(())
     }
 
+    #[method(protected)]
     async fn handle_notify_event(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -448,12 +433,12 @@ impl CardCanvas {
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::handleNotifyEvent({this:?}, {type}, {param1}, {param2})");
 
-        let cards = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
+        let cards: ClassInstanceRef<Vector> = jvm.get_field(&this, "net/wie/CardCanvas", "cards", "Ljava/util/Vector;").await?;
         let length: i32 = jvm.invoke_virtual(&cards, "java/util/Vector", "size", "()I", ()).await?;
         if length == 0 {
             return Ok(());
         }
-        let top_card = jvm
+        let top_card: ClassInstanceRef<Card> = jvm
             .invoke_virtual(&cards, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (length - 1,))
             .await?;
 

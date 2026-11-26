@@ -1,36 +1,23 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::io::RandomAccessFile;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::org::kwis::msp::io::File;
 
 // Internal stream used to preserve the WIPI File's position and stream lifecycle.
-pub struct WIPIFileOutputStream;
+#[java_class(name = "net/wie/WIPIFileOutputStream", extends = "java/io/OutputStream", public)]
+pub struct WIPIFileOutputStream {
+    #[field(private)]
+    file: ClassInstanceRef<File>,
+    #[field(private)]
+    closed: bool,
+}
 
+#[java_methods]
 impl WIPIFileOutputStream {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/WIPIFileOutputStream",
-            parent_class: Some("java/io/OutputStream"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/io/File;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("write", "(I)V", Self::write, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("file", "Lorg/kwis/msp/io/File;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("closed", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, file: ClassInstanceRef<File>) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIFileOutputStream::<init>({this:?}, {file:?})");
 
@@ -42,6 +29,7 @@ impl WIPIFileOutputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn write(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, byte: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIFileOutputStream::write({this:?}, {byte})");
 
@@ -65,6 +53,7 @@ impl WIPIFileOutputStream {
         Ok(())
     }
 
+    #[method(public)]
     async fn close(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIFileOutputStream::close({this:?})");
 

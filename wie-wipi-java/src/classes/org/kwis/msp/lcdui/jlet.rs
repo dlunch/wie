@@ -1,11 +1,8 @@
-use alloc::vec;
-
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
 use crate::classes::{
@@ -14,69 +11,21 @@ use crate::classes::{
 };
 
 // class org.kwis.msp.lcdui.Jlet
-pub struct Jlet;
+#[java_class(name = "org/kwis/msp/lcdui/Jlet", public, abstract)]
+pub struct Jlet {
+    #[field(private)]
+    wipiMidlet: ClassInstanceRef<WIPIMIDlet>,
+    #[field(private)]
+    dis: ClassInstanceRef<Display>,
+    #[field(private)]
+    eq: ClassInstanceRef<EventQueue>,
+    #[field(private, static)]
+    currentJlet: ClassInstanceRef<Self>,
+}
 
+#[java_methods]
 impl Jlet {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lcdui/Jlet",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "getActiveJlet",
-                    "()Lorg/kwis/msp/lcdui/Jlet;",
-                    Self::get_active_jlet,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getCurrentJlet",
-                    "()Lorg/kwis/msp/lcdui/Jlet;",
-                    Self::get_current_jlet,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getEventQueue",
-                    "()Lorg/kwis/msp/lcdui/EventQueue;",
-                    Self::get_event_queue,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "getAppProperty",
-                    "(Ljava/lang/String;)Ljava/lang/String;",
-                    Self::get_app_property,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "notifyDestroyed",
-                    "()V",
-                    Self::notify_destroyed,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new_abstract(
-                    "startApp",
-                    "([Ljava/lang/String;)V",
-                    MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract("pauseApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("resumeApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("destroyApp", "(Z)V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
-            ],
-            fields: vec![
-                JavaFieldProto::new("wipiMidlet", "Lnet/wie/WIPIMIDlet;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new(
-                    "currentJlet",
-                    "Lorg/kwis/msp/lcdui/Jlet;",
-                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor, protected)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({this:?})");
 
@@ -121,6 +70,7 @@ impl Jlet {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn get_active_jlet(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet()");
 
@@ -131,12 +81,14 @@ impl Jlet {
         Ok(jlet)
     }
 
+    #[method(public, static)]
     async fn get_current_jlet(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getCurrentJlet()");
         jvm.get_static_field("org/kwis/msp/lcdui/Jlet", "currentJlet", "Lorg/kwis/msp/lcdui/Jlet;")
             .await
     }
 
+    #[method(public, final)]
     async fn get_event_queue(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({this:?})");
 
@@ -147,6 +99,7 @@ impl Jlet {
         Ok(eq)
     }
 
+    #[method(public, final)]
     async fn get_app_property(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -155,7 +108,7 @@ impl Jlet {
     ) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getAppProperty({this:?}, {key:?})");
 
-        let midlet = jvm
+        let midlet: ClassInstanceRef<WIPIMIDlet> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;")
             .await?;
         let value = jvm
@@ -171,6 +124,7 @@ impl Jlet {
         Ok(value)
     }
 
+    #[method(public, final)]
     async fn notify_destroyed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({this:?})");
 
@@ -200,44 +154,57 @@ impl Jlet {
         jvm.get_field(this, "org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")
             .await
     }
+
+    #[method(protected)]
+    async fn start_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, args: ClassInstanceRef<Array<String>>) -> JvmResult<()>;
+
+    #[method(protected)]
+    async fn pause_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(protected)]
+    async fn resume_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(protected)]
+    async fn destroy_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()>;
 }
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec};
+    use alloc::boxed::Box;
 
     use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
 
     use test_utils::run_jvm_test;
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::WieJvmContext;
     use wie_util::Result;
 
     use crate::get_protos;
 
     use super::Jlet;
 
-    async fn destroy_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Jlet>, _unconditional: bool) -> JvmResult<()> {
-        let calls: i32 = jvm.get_static_field("test/NotifyingJlet", "calls", "I").await?;
-        assert_eq!(calls, 0, "destroyApp re-entered");
-        jvm.put_static_field("test/NotifyingJlet", "calls", "I", calls + 1).await?;
+    #[java_class(name = "test/NotifyingJlet", extends = "org/kwis/msp/lcdui/Jlet", public)]
+    struct NotifyingJlet {
+        #[field(static)]
+        calls: i32,
+    }
 
-        jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Jlet", "notifyDestroyed", "()V", ()).await
+    #[java_methods]
+    impl NotifyingJlet {
+        #[method(protected)]
+        async fn destroy_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Jlet>, _unconditional: bool) -> JvmResult<()> {
+            let calls: i32 = jvm.get_static_field("test/NotifyingJlet", "calls", "I").await?;
+            assert_eq!(calls, 0, "destroyApp re-entered");
+            jvm.put_static_field("test/NotifyingJlet", "calls", "I", calls + 1).await?;
+
+            jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Jlet", "notifyDestroyed", "()V", ()).await
+        }
     }
 
     #[test]
     fn destroy_app_runs_once_when_it_notifies_destroyed() -> Result<()> {
-        let jlet_proto = WieJavaClassProto {
-            name: "test/NotifyingJlet",
-            parent_class: Some("org/kwis/msp/lcdui/Jlet"),
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new("destroyApp", "(Z)V", destroy_app, MethodAccessFlags::PROTECTED)],
-            fields: vec![JavaFieldProto::new("calls", "I", FieldAccessFlags::STATIC)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         run_jvm_test(
-            Box::new([wie_midp::get_protos().into(), get_protos().into(), Box::new([jlet_proto])]),
+            Box::new([wie_midp::get_protos().into(), get_protos().into(), Box::new([NotifyingJlet::as_proto()])]),
             |jvm| async move {
                 for platform_requested in [false, true] {
                     jvm.put_static_field("test/NotifyingJlet", "calls", "I", 0).await?;

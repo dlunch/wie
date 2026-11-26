@@ -1,26 +1,16 @@
-use alloc::vec;
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use wie_jvm_support::WieJvmContext;
 
-use wie_jvm_support::WieJavaClassProto;
+use crate::classes::org::kwis::msp::lcdui::Image;
 
 // interface org.kwis.msp.lcdui.ImageObserver
+#[java_class(name = "org/kwis/msp/lcdui/ImageObserver", public, interface, abstract)]
 pub struct ImageObserver;
 
+#[java_methods]
 impl ImageObserver {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lcdui/ImageObserver",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract(
-                "notify",
-                "(Lorg/kwis/msp/lcdui/Image;I)V",
-                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>, status: i32) -> JvmResult<()>;
 }

@@ -1,26 +1,20 @@
-use alloc::vec;
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-
-use wie_jvm_support::WieJavaClassProto;
+use wie_jvm_support::WieJvmContext;
 
 // interface org.kwis.msp.db.DataComparator
+#[java_class(name = "org/kwis/msp/db/DataComparator", public, interface, abstract)]
 pub struct DataComparator;
 
+#[java_methods]
 impl DataComparator {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/db/DataComparator",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract(
-                "compare",
-                "([B[B)I",
-                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn compare(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        data1: ClassInstanceRef<Array<i8>>,
+        data2: ClassInstanceRef<Array<i8>>,
+    ) -> JvmResult<i32>;
 }

@@ -1,26 +1,21 @@
-use alloc::vec;
+use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-
-use wie_jvm_support::WieJavaClassProto;
+use wie_jvm_support::WieJvmContext;
 
 // interface org.kwis.msp.lcdui.InputMethodListener
+#[java_class(name = "org/kwis/msp/lcdui/InputMethodListener", public, interface, abstract)]
 pub struct InputMethodListener;
 
+#[java_methods]
 impl InputMethodListener {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lcdui/InputMethodListener",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract(
-                "notifyTextChanged",
-                "([CII)V",
-                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn notify_text_changed(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        text: ClassInstanceRef<Array<JavaChar>>,
+        length: i32,
+        mode: i32,
+    ) -> JvmResult<()>;
 }

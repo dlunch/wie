@@ -1,9 +1,6 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use jvm_class_proto::{java_class, java_methods};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::org::kwis::msp::{
     lcdui::{Card, Display},
@@ -11,45 +8,17 @@ use crate::classes::org::kwis::msp::{
 };
 
 // class org.kwis.msp.lwc.ShellComponent
-pub struct ShellComponent;
+#[java_class(name = "org/kwis/msp/lwc/ShellComponent", extends = "org/kwis/msp/lwc/ContainerComponent", public)]
+pub struct ShellComponent {
+    #[field(protected)]
+    cd: ClassInstanceRef<Card>,
+    #[field(protected)]
+    cmpWork: ClassInstanceRef<Component>,
+}
 
+#[java_methods]
 impl ShellComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/ShellComponent",
-            parent_class: Some("org/kwis/msp/lwc/ContainerComponent"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(IIII)V", Self::init_with_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "addComponent",
-                    "(Lorg/kwis/msp/lwc/Component;)I",
-                    Self::add_component,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("removeComponent", "(I)V", Self::remove_component_index, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setWorkComponent",
-                    "(Lorg/kwis/msp/lwc/Component;)V",
-                    Self::set_work_component,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("show", "()V", Self::show, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("hide", "()V", Self::hide, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("layout", "()V", Self::layout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getCard", "()Lorg/kwis/msp/lcdui/Card;", Self::get_card, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_area, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("cd", "Lorg/kwis/msp/lcdui/Card;", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("cmpWork", "Lorg/kwis/msp/lwc/Component;", FieldAccessFlags::PROTECTED),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::<init>({this:?})");
 
@@ -63,6 +32,7 @@ impl ShellComponent {
             .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_size(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -94,6 +64,7 @@ impl ShellComponent {
             .await
     }
 
+    #[method(public)]
     async fn add_component(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -126,6 +97,7 @@ impl ShellComponent {
         Ok(index)
     }
 
+    #[method(name = "removeComponent", public)]
     async fn remove_component_index(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::removeComponent({this:?}, {index})");
         let _: () = jvm
@@ -153,6 +125,7 @@ impl ShellComponent {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_work_component(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -205,6 +178,7 @@ impl ShellComponent {
         Ok(())
     }
 
+    #[method(public)]
     async fn show(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::show({this:?})");
 
@@ -225,6 +199,7 @@ impl ShellComponent {
         .await
     }
 
+    #[method(public)]
     async fn hide(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::hide({this:?})");
 
@@ -247,6 +222,7 @@ impl ShellComponent {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Card>> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::getCard({this:?})");
 
@@ -254,6 +230,7 @@ impl ShellComponent {
             .await
     }
 
+    #[method(name = "repaint", public)]
     async fn repaint_area(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::repaint({this:?}, {x}, {y}, {width}, {height})");
 
@@ -264,6 +241,7 @@ impl ShellComponent {
             .await
     }
 
+    #[method(public)]
     async fn service_repaints(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::serviceRepaints({this:?})");
 
@@ -273,6 +251,7 @@ impl ShellComponent {
         jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "serviceRepaints", "()V", ()).await
     }
 
+    #[method(public)]
     async fn layout(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ShellComponent::layout({this:?})");
         let work: ClassInstanceRef<Component> = jvm
@@ -290,16 +269,15 @@ impl ShellComponent {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec};
+    use alloc::boxed::Box;
 
     use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
 
     use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestPlatform, run_jvm_test_with_system};
     use wie_backend::{Event, KeyCode};
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::WieJvmContext;
     use wie_midp::classes::net::wie::{KeyboardEventType, MIDPKeyCode};
     use wie_util::Result;
 
@@ -311,39 +289,33 @@ mod test {
         get_protos,
     };
 
-    struct TestShell;
+    #[java_class(name = "test/TestShell", extends = "org/kwis/msp/lwc/ShellComponent", public)]
+    struct TestShell {
+        #[field(private)]
+        paintCount: i32,
+        #[field(private)]
+        lastKey: i32,
+        #[field(private)]
+        showCount: i32,
+        #[field(private)]
+        hideCount: i32,
+    }
 
+    #[java_methods]
     impl TestShell {
-        fn as_proto() -> WieJavaClassProto {
-            WieJavaClassProto {
-                name: "test/TestShell",
-                parent_class: Some("org/kwis/msp/lwc/ShellComponent"),
-                interfaces: vec![],
-                methods: vec![
-                    JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
-                ],
-                fields: vec![
-                    JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("lastKey", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("showCount", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("hideCount", "I", FieldAccessFlags::PRIVATE),
-                ],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(protected)]
         async fn paint(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, _: ClassInstanceRef<Graphics>) -> JvmResult<()> {
             let count: i32 = jvm.get_field(&this, "test/TestShell", "paintCount", "I").await?;
             jvm.put_field(&mut this, "test/TestShell", "paintCount", "I", count + 1).await
         }
 
+        #[method(protected)]
         async fn key_notify(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, r#type: i32, key: i32) -> JvmResult<bool> {
             jvm.put_field(&mut this, "test/TestShell", "lastKey", "I", r#type * 1000 + key).await?;
             Ok(false)
         }
 
+        #[method(protected)]
         async fn show_notify(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
             assert_eq!(
                 jvm.invoke_virtual::<_, bool>(&this, "org/kwis/msp/lwc/Component", "isShown", "()Z", ())
@@ -356,21 +328,19 @@ mod test {
         }
     }
 
+    #[java_class(name = "test/ShellJlet", extends = "org/kwis/msp/lcdui/Jlet", public)]
+    struct ShellJlet;
+
+    #[java_methods]
+    impl ShellJlet {}
+
     #[test]
     fn shell_component_paints_and_receives_keys_through_its_card() -> Result<()> {
-        let jlet_proto = WieJavaClassProto {
-            name: "test/ShellJlet",
-            parent_class: Some("org/kwis/msp/lcdui/Jlet"),
-            interfaces: vec![],
-            methods: vec![],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         run_jvm_test_with_system(
             Box::new([
                 wie_midp::get_protos().into(),
                 get_protos().into(),
-                Box::new([TestShell::as_proto(), jlet_proto]),
+                Box::new([TestShell::as_proto(), ShellJlet::as_proto()]),
             ]),
             Box::new(TestPlatform::new().with_text_input("가나다")),
             |jvm, system| async move {
@@ -505,7 +475,7 @@ mod test {
                     ("keyPressed", MIDPKeyCode::KEY_STAR, &textbox, "가나다"),
                 ] {
                     let _: () = jvm.invoke_virtual(&canvas, "net/wie/CardCanvas", method, "(I)V", (key as i32,)).await?;
-                    let value = jvm.invoke_virtual(widget, text_class, "getString", "()Ljava/lang/String;", ()).await?;
+                    let value: ClassInstanceRef<String> = jvm.invoke_virtual(widget, text_class, "getString", "()Ljava/lang/String;", ()).await?;
                     assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, expected);
                 }
                 let _: i32 = jvm
@@ -552,7 +522,7 @@ mod test {
                     assert_eq!(jvm.invoke_virtual::<_, i32>(&dialog, dialog_class, "doModal", "()I", ()).await?, result);
                     assert!(!jvm.invoke_virtual::<_, bool>(&dialog, dialog_class, "isShown", "()Z", ()).await?);
                 }
-                let value = jvm.invoke_virtual(&name, text_class, "getString", "()Ljava/lang/String;", ()).await?;
+                let value: ClassInstanceRef<String> = jvm.invoke_virtual(&name, text_class, "getString", "()Ljava/lang/String;", ()).await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, "가나다");
                 let notice = jvm.new_class(dialog_class, "(I)V", (0,)).await?;
                 let _: () = jvm.invoke_virtual(&notice, dialog_class, "setTimeout", "(I)V", (160,)).await?;

@@ -1,101 +1,24 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::rms::RecordStore;
 
 use super::{DataComparator, DataFilter};
 
 // class org.kwis.msp.db.DataBase
-pub struct DataBase;
+#[java_class(name = "org/kwis/msp/db/DataBase", public)]
+pub struct DataBase {
+    #[field(private)]
+    recordStore: ClassInstanceRef<RecordStore>,
+    #[field(private)]
+    recordSize: i32,
+}
 
+#[java_methods]
 impl DataBase {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/db/DataBase",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/rms/RecordStore;)V",
-                    Self::init,
-                    MethodAccessFlags::PRIVATE,
-                ),
-                JavaMethodProto::new(
-                    "openDataBase",
-                    "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
-                    Self::open_data_base,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "openDataBase",
-                    "(Ljava/lang/String;IZI)Lorg/kwis/msp/db/DataBase;",
-                    Self::open_data_base_with_flags,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("insertRecord", "([B)I", Self::insert_record, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record_with_offset, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("updateRecord", "(I[B)V", Self::update_record, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("updateRecord", "(I[BII)V", Self::update_record_with_offset, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "deleteDataBase",
-                    "(Ljava/lang/String;)V",
-                    Self::delete_data_base,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "deleteDataBase",
-                    "(Ljava/lang/String;I)V",
-                    Self::delete_data_base_with_flag,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("deleteRecord", "(I)V", Self::delete_record, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("selectRecord", "(I[BI)V", Self::select_record_into, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "sortRecord",
-                    "(Lorg/kwis/msp/db/DataFilter;Lorg/kwis/msp/db/DataComparator;)[I",
-                    Self::sort_record,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "listDataBases",
-                    "()[Ljava/lang/String;",
-                    Self::list_data_bases,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getAccessMode",
-                    "(Ljava/lang/String;)I",
-                    Self::get_access_mode,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getDataBaseName",
-                    "()Ljava/lang/String;",
-                    Self::get_data_base_name,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getDataBaseSize", "()I", Self::get_data_base_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getRecordSize", "()I", Self::get_record_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getSizeAvailable", "()I", Self::get_size_available, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getLastModified", "()J", Self::get_last_modified, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("recordStore", "Ljavax/microedition/rms/RecordStore;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("recordSize", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, private)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, record_store: ClassInstanceRef<RecordStore>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.db.DataBase::<init>({this:?}, {record_store:?})");
 
@@ -114,6 +37,7 @@ impl DataBase {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn open_data_base(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -135,6 +59,7 @@ impl DataBase {
         Ok(result)
     }
 
+    #[method(name = "openDataBase", public, static)]
     async fn open_data_base_with_flags(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -164,26 +89,29 @@ impl DataBase {
         Ok(instance)
     }
 
+    #[method(public)]
     async fn get_number_of_records(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
             .await
     }
 
+    #[method(public)]
     async fn close_data_base(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.db.DataBase::closeDataBase({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "closeRecordStore", "()V", ())
             .await
     }
 
+    #[method(public)]
     async fn insert_record(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -200,6 +128,7 @@ impl DataBase {
         Ok(result)
     }
 
+    #[method(name = "insertRecord", public)]
     async fn insert_record_with_offset(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -210,7 +139,7 @@ impl DataBase {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({this:?}, {data:?}, {offset}, {num_bytes})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let record_id = jvm
@@ -226,12 +155,18 @@ impl DataBase {
         Ok(DataBase::to_wipi_record_id(record_id))
     }
 
-    async fn select_record(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<ClassInstanceRef<i8>> {
+    #[method(public)]
+    async fn select_record(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        record_id: i32,
+    ) -> JvmResult<ClassInstanceRef<Array<i8>>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({this:?}, {record_id})");
 
         let record_id = DataBase::to_midp_record_id(record_id);
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let result = jvm
@@ -246,6 +181,7 @@ impl DataBase {
         Ok(result.unwrap())
     }
 
+    #[method(public)]
     async fn update_record(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -270,6 +206,7 @@ impl DataBase {
         Ok(())
     }
 
+    #[method(name = "updateRecord", public)]
     async fn update_record_with_offset(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -283,7 +220,7 @@ impl DataBase {
 
         let record_id = DataBase::to_midp_record_id(record_id);
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let _: () = jvm
@@ -299,6 +236,7 @@ impl DataBase {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn delete_data_base(jvm: &Jvm, _: &mut WieJvmContext, data_base_name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.db.DataBase::deleteDataBase({data_base_name:?})");
 
@@ -314,17 +252,19 @@ impl DataBase {
         Ok(())
     }
 
+    #[method(name = "deleteDataBase", public, static)]
     async fn delete_data_base_with_flag(_: &Jvm, _: &mut WieJvmContext, data_base_name: ClassInstanceRef<String>, flag: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::deleteDataBase({data_base_name:?}, {flag})");
 
         Ok(())
     }
 
+    #[method(public)]
     async fn delete_record(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.db.DataBase::deleteRecord({this:?}, {record_id})");
 
         let record_id = DataBase::to_midp_record_id(record_id);
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let result: JvmResult<()> = jvm
@@ -337,6 +277,7 @@ impl DataBase {
         Ok(())
     }
 
+    #[method(name = "selectRecord", public)]
     async fn select_record_into(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -348,7 +289,7 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({this:?}, {record_id}, {buffer:?}, {offset})");
 
         let record_id = DataBase::to_midp_record_id(record_id);
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let record_size: JvmResult<i32> = jvm
@@ -379,6 +320,7 @@ impl DataBase {
         Ok(())
     }
 
+    #[method(public)]
     async fn sort_record(
         _: &Jvm,
         _: &mut WieJvmContext,
@@ -391,6 +333,7 @@ impl DataBase {
         Ok(ClassInstanceRef::new(None))
     }
 
+    #[method(public, static)]
     async fn list_data_bases(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Array<String>>> {
         tracing::debug!("org.kwis.msp.db.DataBase::listDataBases()");
 
@@ -398,44 +341,50 @@ impl DataBase {
             .await
     }
 
+    #[method(public, static)]
     async fn get_access_mode(_: &Jvm, _: &mut WieJvmContext, data_base_name: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::getAccessMode({data_base_name:?})");
 
         Ok(0)
     }
 
+    #[method(public)]
     async fn get_data_base_name(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.db.DataBase::getDataBaseName({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.get_field(&record_store, "javax/microedition/rms/RecordStore", "dbName", "Ljava/lang/String;")
             .await
     }
 
+    #[method(public)]
     async fn get_data_base_size(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::getDataBaseSize({this:?})");
 
         Ok(0)
     }
 
+    #[method(public)]
     async fn get_record_size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getRecordSize({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/db/DataBase", "recordSize", "I").await
     }
 
+    #[method(public)]
     async fn get_size_available(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getSizeAvailable({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getSizeAvailable", "()I", ())
             .await
     }
 
+    #[method(public)]
     async fn get_last_modified(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i64> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::getLastModified({this:?})");
 

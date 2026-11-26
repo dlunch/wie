@@ -17,7 +17,10 @@ use jvm_implementation::KtfJvmImplementation;
 use bytemuck::{Pod, Zeroable};
 
 use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use rustjava_runtime::classes::java::util::{Enumeration, jar::JarEntry};
+use rustjava_runtime::classes::java::{
+    lang::String,
+    util::{Enumeration, jar::JarEntry},
+};
 
 use wie_backend::System;
 use wie_core_arm::ArmCore;
@@ -128,7 +131,7 @@ impl KtfJvmSupport {
                 .invoke_virtual(&entries, "java/util/Enumeration", "nextElement", "()Ljava/lang/Object;", [])
                 .await
                 .unwrap();
-            let name = jvm
+            let name: ClassInstanceRef<String> = jvm
                 .invoke_virtual(&entry, "java/util/jar/JarEntry", "getName", "()Ljava/lang/String;", [])
                 .await
                 .unwrap();
@@ -253,7 +256,7 @@ mod test {
     use bytemuck::Zeroable;
     use jvm::{ClassInstance, ClassInstanceRef, JavaValue, Jvm, runtime::JavaLangString};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-    use rustjava_runtime::classes::java::lang::Class;
+    use rustjava_runtime::classes::java::lang::{Class, String};
     use wipi_types::ktf::{
         ExeInterfaceFunctions,
         java::{
@@ -598,7 +601,7 @@ mod test {
             let string2 = JavaLangString::from_rust_string(&jvm, "test2").await.unwrap();
             assert!(!string1.class_definition().fields().is_empty());
 
-            let string3 = jvm
+            let string3: ClassInstanceRef<String> = jvm
                 .invoke_virtual(
                     &string1,
                     "java/lang/String",

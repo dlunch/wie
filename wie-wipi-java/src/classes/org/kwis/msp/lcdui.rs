@@ -1,5 +1,6 @@
 mod card;
 mod display;
+mod display_proxy;
 mod event_queue;
 mod font;
 mod graphics;
@@ -13,7 +14,7 @@ mod jlet_wrapper;
 mod main;
 
 pub use self::{
-    card::Card, display::Display, event_queue::EventQueue, font::Font, graphics::Graphics, image::Image, image_observer::ImageObserver,
-    input_method_handler::InputMethodHandler, input_method_listener::InputMethodListener, jlet::Jlet, jlet_event_listener::JletEventListener,
-    jlet_wrapper::JletWrapper, main::Main,
+    card::Card, display::Display, display_proxy::DisplayProxy, event_queue::EventQueue, font::Font, graphics::Graphics, image::Image,
+    image_observer::ImageObserver, input_method_handler::InputMethodHandler, input_method_listener::InputMethodListener, jlet::Jlet,
+    jlet_event_listener::JletEventListener, jlet_wrapper::JletWrapper, main::Main,
 };

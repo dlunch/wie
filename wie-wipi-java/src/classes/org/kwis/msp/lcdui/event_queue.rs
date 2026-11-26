@@ -1,40 +1,21 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::net::wie::EventQueue as WieEventQueue;
 
 use crate::classes::org::kwis::msp::lcdui::Jlet;
 
 // class org.kwis.msp.lcdui.EventQueue
-pub struct EventQueue;
+#[java_class(name = "org/kwis/msp/lcdui/EventQueue", public)]
+pub struct EventQueue {
+    #[field(private)]
+    wieEventQueue: ClassInstanceRef<WieEventQueue>,
+}
 
+#[java_methods]
 impl EventQueue {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lcdui/EventQueue",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", Self::init, MethodAccessFlags::empty()),
-                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("postEvent", "([I)Z", Self::post_event, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "postEvent",
-                    "(I[I)V",
-                    Self::post_event_static,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![JavaFieldProto::new("wieEventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({this:?}, {jlet:?})");
 
@@ -55,6 +36,7 @@ impl EventQueue {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_next_event(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -63,7 +45,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({this:?}, {event:?})");
 
-        let wie_event_queue = jvm
+        let wie_event_queue: ClassInstanceRef<WieEventQueue> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/EventQueue", "wieEventQueue", "Lnet/wie/EventQueue;")
             .await?;
         let _: () = jvm
@@ -73,6 +55,7 @@ impl EventQueue {
         Ok(())
     }
 
+    #[method(public)]
     async fn dispatch_event(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -81,7 +64,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({this:?}, {event:?})");
 
-        let wie_event_queue = jvm
+        let wie_event_queue: ClassInstanceRef<WieEventQueue> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/EventQueue", "wieEventQueue", "Lnet/wie/EventQueue;")
             .await?;
         let _: () = jvm
@@ -91,12 +74,14 @@ impl EventQueue {
         Ok(())
     }
 
+    #[method(public)]
     async fn post_event(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, event: ClassInstanceRef<Array<i32>>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.lcdui.EventQueue::postEvent({this:?}, {event:?})");
 
         Ok(false)
     }
 
+    #[method(name = "postEvent", public, static)]
     async fn post_event_static(_: &Jvm, _: &mut WieJvmContext, id: i32, event: ClassInstanceRef<Array<i32>>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.EventQueue::postEvent({id}, {event:?})");
 

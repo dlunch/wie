@@ -1,43 +1,22 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::org::kwis::msp::lcdui::Jlet;
 
 // class net.wie.WIPIMIDlet
-pub struct WIPIMIDlet;
+#[java_class(name = "net/wie/WIPIMIDlet", extends = "javax/microedition/midlet/MIDlet", public)]
+pub struct WIPIMIDlet {
+    #[field(private)]
+    jlet: ClassInstanceRef<Jlet>,
+    #[field(private)]
+    destroyed: bool,
+}
 
+#[java_methods]
 impl WIPIMIDlet {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/WIPIMIDlet",
-            parent_class: Some("javax/microedition/midlet/MIDlet"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("startApp", "()V", Self::start_app, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("pauseApp", "()V", Self::pause_app, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("destroyApp", "(Z)V", Self::destroy_app, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "setCurrentJlet",
-                    "(Lorg/kwis/msp/lcdui/Jlet;)V",
-                    Self::set_current_jlet,
-                    MethodAccessFlags::PUBLIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("jlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::PRIVATE),
-                // Keep lifecycle state on the bridge to preserve native Jlet subclass field offsets.
-                JavaFieldProto::new("destroyed", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIMIDlet::<init>({this:?})");
 
@@ -46,6 +25,7 @@ impl WIPIMIDlet {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_current_jlet(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -60,12 +40,13 @@ impl WIPIMIDlet {
         Ok(())
     }
 
+    #[method(protected)]
     async fn start_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIMIDlet::startApp({this:?})");
 
         let args_array = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
 
-        let jlet = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
+        let jlet: ClassInstanceRef<Jlet> = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
         let _: () = jvm
             .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "startApp", "([Ljava/lang/String;)V", (args_array,))
             .await?;
@@ -73,15 +54,17 @@ impl WIPIMIDlet {
         Ok(())
     }
 
+    #[method(protected)]
     async fn pause_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIMIDlet::pauseApp({this:?})");
 
-        let jlet = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
+        let jlet: ClassInstanceRef<Jlet> = jvm.get_field(&this, "net/wie/WIPIMIDlet", "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
         let _: () = jvm.invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "pauseApp", "()V", ()).await?;
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn destroy_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()> {
         tracing::debug!("net.wie.WIPIMIDlet::destroyApp({this:?}, {unconditional:?})");
 
