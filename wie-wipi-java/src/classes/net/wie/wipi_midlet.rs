@@ -10,6 +10,7 @@ use crate::classes::org::kwis::msp::lcdui::Jlet;
 pub struct WIPIMIDlet {
     #[field(private)]
     jlet: ClassInstanceRef<Jlet>,
+    // Keep lifecycle state on the bridge to preserve native Jlet subclass field offsets.
     #[field(private)]
     destroyed: bool,
 }

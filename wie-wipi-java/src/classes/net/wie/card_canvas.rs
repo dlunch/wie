@@ -422,6 +422,7 @@ impl CardCanvas {
         Ok(())
     }
 
+    // wie private
     #[method(protected)]
     async fn handle_notify_event(
         jvm: &Jvm,

@@ -9,6 +9,7 @@ use crate::classes::javax::microedition::lcdui::{Graphics, game::Layer};
 // class javax.microedition.lcdui.game.LayerManager
 #[java_class(name = "javax/microedition/lcdui/game/LayerManager", public)]
 pub struct LayerManager {
+    // Index 0 is the layer closest to the user.
     #[field(private)]
     layers: ClassInstanceRef<Vector>,
     #[field(private)]

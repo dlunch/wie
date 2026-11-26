@@ -57,8 +57,10 @@ pub struct TiledLayer {
     columns: i32,
     #[field(private)]
     rows: i32,
+    // Row-major tile indices: 0 is empty, positive is a static tile, negative is an animated tile.
     #[field(private)]
     cells: ClassInstanceRef<Array<i32>>,
+    // Static tile shown by animated tile -(index + 1).
     #[field(private)]
     animatedTiles: ClassInstanceRef<Array<i32>>,
 }

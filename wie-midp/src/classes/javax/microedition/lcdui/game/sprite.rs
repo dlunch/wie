@@ -122,12 +122,14 @@ pub struct Sprite {
     frameHeight: i32,
     #[field(private)]
     rawFrameCount: i32,
+    // Null while the default sequence of all raw frames in order is in use.
     #[field(private)]
     frameSequence: ClassInstanceRef<Array<i32>>,
     #[field(private)]
     frame: i32,
     #[field(private)]
     transform: i32,
+    // The reference pixel and collision rectangle are relative to the untransformed frame.
     #[field(private)]
     refX: i32,
     #[field(private)]

@@ -7,10 +7,8 @@ use rustjava_runtime::classes::java::lang::String;
 use wie_backend::text_layout::wrap;
 use wie_jvm_support::WieJvmContext;
 
-use crate::classes::{
-    javax::microedition::lcdui::{AlertType, Command, CommandListener, Display, Displayable, Font, Gauge, Graphics, Image, Item},
-    net::wie::{KeyboardEventType, MIDPKeyCode},
-};
+use crate::classes::javax::microedition::lcdui::{AlertType, Command, CommandListener, Display, Displayable, Font, Gauge, Graphics, Image, Item};
+use crate::classes::net::wie::{KeyboardEventType, MIDPKeyCode};
 
 const CONTENT_GAP: i32 = 4;
 const LEFT_TOP: i32 = 4 | 16;

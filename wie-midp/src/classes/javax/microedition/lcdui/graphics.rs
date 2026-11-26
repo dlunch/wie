@@ -177,6 +177,7 @@ impl Graphics {
         Ok(())
     }
 
+    // WIPI wrapper bridge only; this is not part of the MIDP Graphics API.
     #[method(name = "setXORMode", private)]
     async fn set_xor_mode(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setXORMode({this:?}, {xor_mode})");

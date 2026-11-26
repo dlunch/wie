@@ -274,6 +274,7 @@ impl Canvas {
         Ok(())
     }
 
+    // Protected so vendor canvases in other Java packages can translate key codes.
     #[method(protected)]
     async fn handle_key_event(
         jvm: &Jvm,

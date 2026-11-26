@@ -7,10 +7,8 @@ use rustjava_runtime::classes::java::{lang::String, util::Vector};
 use wie_backend::text_layout::{minimum_width, preferred_width, wrap};
 use wie_jvm_support::WieJvmContext;
 
-use crate::classes::{
-    javax::microedition::lcdui::{Command, Displayable, Font, Graphics, ItemCommandListener},
-    net::wie::{CommandEvent, EventQueue},
-};
+use crate::classes::javax::microedition::lcdui::{Command, Displayable, Font, Graphics, ItemCommandListener};
+use crate::classes::net::wie::{CommandEvent, EventQueue};
 
 const LABEL_COLOR: i32 = 0x52606d;
 const BUTTON_BACKGROUND: i32 = 0xe7edf2;

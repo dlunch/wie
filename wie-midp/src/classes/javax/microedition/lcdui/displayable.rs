@@ -6,10 +6,8 @@ use rustjava_runtime::classes::java::{lang::String, util::Vector};
 
 use wie_jvm_support::WieJvmContext;
 
-use crate::classes::{
-    javax::microedition::lcdui::{Command, CommandListener, Display, Font, Graphics, Item, Ticker},
-    net::wie::{CommandEvent, EventQueue, KeyboardEventType, MIDPKeyCode},
-};
+use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Display, Font, Graphics, Item, Ticker};
+use crate::classes::net::wie::{CommandEvent, EventQueue, KeyboardEventType, MIDPKeyCode};
 
 const COMMAND_BACK: i32 = 2;
 const COMMAND_CANCEL: i32 = 3;
@@ -64,6 +62,7 @@ pub struct Displayable {
     sizeNotifying: bool,
     #[field(private)]
     commandMenuOpen: bool,
+    // Game key state polled by GameCanvas: one bit per game action, at the position of the action's value.
     #[field(private)]
     heldGameKeys: i32,
     #[field(private)]

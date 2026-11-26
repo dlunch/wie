@@ -143,6 +143,7 @@ impl Display {
         Ok(())
     }
 
+    // wie private
     #[method(static)]
     async fn get_content_height(
         jvm: &Jvm,
@@ -383,6 +384,7 @@ impl Display {
         .await
     }
 
+    // wie private
     #[method]
     async fn transition(
         jvm: &Jvm,
@@ -606,6 +608,7 @@ impl Display {
         Self::schedule_alert_timeout(jvm, context, this, generation).await
     }
 
+    // wie private
     #[method(name = "getVisibleTicker")]
     async fn visible_ticker(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Ticker>> {
         tracing::debug!("javax.microedition.lcdui.Display::getVisibleTicker({this:?})");
@@ -1297,6 +1300,7 @@ impl Display {
         Ok(())
     }
 
+    // wie private
     #[method(name = "getScreenGraphics", static)]
     async fn screen_graphics(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("javax.microedition.lcdui.Display::getScreenGraphics()");

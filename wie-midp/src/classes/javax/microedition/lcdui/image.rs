@@ -33,6 +33,7 @@ pub struct Image {
 
 #[java_methods]
 impl Image {
+    // SKVM exposes a public no-argument constructor.
     #[method(constructor, public)]
     async fn init_empty(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Image::<init>({this:?})");

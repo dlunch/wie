@@ -373,6 +373,7 @@ impl Card {
         Ok(false)
     }
 
+    // wie private
     #[method(private)]
     async fn set_canvas(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Card>, canvas: ClassInstanceRef<Canvas>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::setCanvas({this:?}, {canvas:?})");

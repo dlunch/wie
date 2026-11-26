@@ -9,6 +9,7 @@ use wie_jvm_support::WieJvmContext;
 pub struct SYSTheme {
     #[field(public, static)]
     ITEM_GROUP_SOUND_DEFAULT: i32,
+    // Native imports link this field eagerly.
     #[field(public, static)]
     FORMAT_SOUND_MA3: i32,
 }
