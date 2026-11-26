@@ -1076,7 +1076,7 @@ mod test {
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
-    use test_utils::run_jvm_test;
+    use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_backend::{Event, KeyCode};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_util::Result;
@@ -1085,7 +1085,7 @@ mod test {
         classes::{
             javax::microedition::lcdui::{
                 ChoiceGroup, Command, CommandListener, Display, Displayable, Form, Gauge, Graphics, Image, Item, ItemCommandListener,
-                ItemStateListener, StringItem,
+                ItemStateListener, StringItem, TextField,
             },
             javax::microedition::midlet::MIDlet,
             net::wie::{EventQueue, KeyboardEventType, MIDPKeyCode},
@@ -1499,7 +1499,7 @@ mod test {
             queue.push(Event::Keydown(KeyCode::RIGHT));
             queue.push(Event::Keydown(KeyCode::RIGHT));
             queue.push(Event::Keydown(KeyCode::DOWN));
-            queue.push(Event::Keydown(KeyCode::RIGHT));
+            queue.push(Event::Keydown(KeyCode::OK));
             queue.push(Event::Keydown(KeyCode::LEFT_SOFT_KEY));
             queue.push(Event::Redraw);
             Ok(())
@@ -2338,7 +2338,7 @@ mod test {
 
     #[test]
     fn item_changes_and_commands_share_the_serial_callback_queue() -> Result<()> {
-        run_jvm_test(test_protos(), |jvm| async move {
+        run_jvm_test_with_system(test_protos(), Box::new(TestPlatform::new().with_text_input("34")), |jvm, _| async move {
             let midlet: ClassInstanceRef<RecordingFormMidlet> =
                 jvm.new_class("javax/microedition/lcdui/TestRecordingFormMidlet", "()V", ()).await?.into();
             let midlet: ClassInstanceRef<MIDlet> = JavaValue::from(midlet).into();
@@ -2348,8 +2348,12 @@ mod test {
                 .new_class("javax/microedition/lcdui/Gauge", "(Ljava/lang/String;ZII)V", (None, true, 1, 0))
                 .await?
                 .into();
-            let second: ClassInstanceRef<Gauge> = jvm
-                .new_class("javax/microedition/lcdui/Gauge", "(Ljava/lang/String;ZII)V", (None, true, 1, 0))
+            let second: ClassInstanceRef<TextField> = jvm
+                .new_class(
+                    "javax/microedition/lcdui/TextField",
+                    "(Ljava/lang/String;Ljava/lang/String;II)V",
+                    (None, None, 4, 2),
+                )
                 .await?
                 .into();
             let form = form_with_items(&jvm, vec![JavaValue::from(first.clone()).into(), JavaValue::from(second.clone()).into()]).await?;
@@ -2402,6 +2406,16 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&first, "javax/microedition/lcdui/Gauge", "setValue", "(I)V", (0,))
                 .await?;
+            let initial = JavaLangString::from_rust_string(&jvm, "12").await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &second,
+                    "javax/microedition/lcdui/TextField",
+                    "setString",
+                    "(Ljava/lang/String;)V",
+                    (initial,),
+                )
+                .await?;
             let event_queue: ClassInstanceRef<EventQueue> = jvm
                 .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                 .await?;
@@ -2415,7 +2429,7 @@ mod test {
                 MIDPKeyCode::RIGHT,
                 MIDPKeyCode::RIGHT,
                 MIDPKeyCode::DOWN,
-                MIDPKeyCode::RIGHT,
+                MIDPKeyCode::FIRE,
                 MIDPKeyCode::LEFT_SOFT_KEY,
             ] {
                 let _: () = jvm
@@ -2502,6 +2516,10 @@ mod test {
                 )
                 .await?;
             assert_eq!(delivered.identity(), second.identity());
+            let value = jvm
+                .invoke_virtual(&delivered, "javax/microedition/lcdui/TextField", "getString", "()Ljava/lang/String;", ())
+                .await?;
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, "1234");
             Ok(())
         })
     }

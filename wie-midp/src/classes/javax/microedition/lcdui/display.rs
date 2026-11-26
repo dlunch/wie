@@ -1431,7 +1431,8 @@ mod test {
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
-    use test_utils::run_jvm_test;
+    use rustjava_runtime::classes::java::lang::String;
+    use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_util::Result;
 
@@ -1670,6 +1671,7 @@ mod test {
                     ),
                 ],
                 fields: vec![
+                    JavaFieldProto::new("text", "Ljava/lang/String;", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("selectedIndex", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("count", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("lastCommand", "Ljavax/microedition/lcdui/Command;", FieldAccessFlags::PUBLIC),
@@ -1700,6 +1702,19 @@ mod test {
                     "selectedIndex",
                     "I",
                     selected,
+                )
+                .await?;
+            }
+            if jvm.is_instance(&**displayable, "javax/microedition/lcdui/TextBox") {
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&displayable, "javax/microedition/lcdui/TextBox", "getString", "()Ljava/lang/String;", ())
+                    .await?;
+                jvm.put_field(
+                    &mut this,
+                    "javax/microedition/lcdui/TestRecordingCommandListener",
+                    "text",
+                    "Ljava/lang/String;",
+                    text,
                 )
                 .await?;
             }
@@ -2441,6 +2456,44 @@ mod test {
                 .await?;
             assert_eq!(dispatched.identity(), first_tied.identity());
 
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn text_box_command_reads_host_edit_on_current_screen() -> Result<()> {
+        run_jvm_test_with_system(test_protos(), Box::new(TestPlatform::new().with_text_input("가")), |jvm, _| async move {
+            const TEXT_BOX: &str = "javax/microedition/lcdui/TextBox";
+            const DISPLAY: &str = "javax/microedition/lcdui/Display";
+            const LISTENER: &str = "javax/microedition/lcdui/TestRecordingCommandListener";
+            let title = JavaLangString::from_rust_string(&jvm, "Name").await?;
+            let text = JavaLangString::from_rust_string(&jvm, "A").await?;
+            let screen = jvm
+                .new_class(TEXT_BOX, "(Ljava/lang/String;Ljava/lang/String;II)V", (title, text, 2, 0))
+                .await?;
+            let display: ClassInstanceRef<Display> = jvm.new_class(DISPLAY, "()V", ()).await?.into();
+            let listener = jvm.new_class(LISTENER, "()V", ()).await?;
+            let command = make_command(&jvm, "Apply", 1, 0).await?;
+            let _: () = jvm
+                .invoke_virtual(&screen, TEXT_BOX, "addCommand", "(Ljavax/microedition/lcdui/Command;)V", (command,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &screen,
+                    TEXT_BOX,
+                    "setCommandListener",
+                    "(Ljavax/microedition/lcdui/CommandListener;)V",
+                    (listener.clone(),),
+                )
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&display, DISPLAY, "setCurrent", "(Ljavax/microedition/lcdui/Displayable;)V", (screen,))
+                .await?;
+            let _: () = jvm.invoke_virtual(&display, DISPLAY, "handlePaintEvent", "()V", ()).await?;
+            send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::FIRE).await?;
+            send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::LEFT_SOFT_KEY).await?;
+            let text = jvm.get_field(&listener, LISTENER, "text", "Ljava/lang/String;").await?;
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "A가");
             Ok(())
         })
     }
