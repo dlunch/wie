@@ -13,8 +13,6 @@ use crate::classes::{
     net::wie::MIDPKeyCode,
 };
 
-const FIELD: &str = "javax/microedition/lcdui/TextField";
-const ITEM: &str = "javax/microedition/lcdui/Item";
 const INSET: i32 = 2;
 const LEFT_TOP: i32 = 4 | 16;
 const ANY: i32 = 0;
@@ -37,8 +35,8 @@ pub struct TextField;
 impl TextField {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
-            name: FIELD,
-            parent_class: Some(ITEM),
+            name: "javax/microedition/lcdui/TextField",
+            parent_class: Some("javax/microedition/lcdui/Item"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
@@ -154,19 +152,30 @@ impl TextField {
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.TextField::<clinit>");
 
-        jvm.put_static_field(FIELD, "ANY", "I", ANY).await?;
-        jvm.put_static_field(FIELD, "EMAILADDR", "I", EMAILADDR).await?;
-        jvm.put_static_field(FIELD, "NUMERIC", "I", NUMERIC).await?;
-        jvm.put_static_field(FIELD, "PHONENUMBER", "I", PHONENUMBER).await?;
-        jvm.put_static_field(FIELD, "URL", "I", URL).await?;
-        jvm.put_static_field(FIELD, "DECIMAL", "I", DECIMAL).await?;
-        jvm.put_static_field(FIELD, "PASSWORD", "I", PASSWORD).await?;
-        jvm.put_static_field(FIELD, "UNEDITABLE", "I", UNEDITABLE).await?;
-        jvm.put_static_field(FIELD, "SENSITIVE", "I", SENSITIVE).await?;
-        jvm.put_static_field(FIELD, "NON_PREDICTIVE", "I", NON_PREDICTIVE).await?;
-        jvm.put_static_field(FIELD, "INITIAL_CAPS_WORD", "I", INITIAL_CAPS_WORD).await?;
-        jvm.put_static_field(FIELD, "INITIAL_CAPS_SENTENCE", "I", INITIAL_CAPS_SENTENCE).await?;
-        jvm.put_static_field(FIELD, "CONSTRAINT_MASK", "I", CONSTRAINT_MASK).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "ANY", "I", ANY).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "EMAILADDR", "I", EMAILADDR)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "NUMERIC", "I", NUMERIC)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "PHONENUMBER", "I", PHONENUMBER)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "URL", "I", URL).await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "DECIMAL", "I", DECIMAL)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "PASSWORD", "I", PASSWORD)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "UNEDITABLE", "I", UNEDITABLE)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "SENSITIVE", "I", SENSITIVE)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "NON_PREDICTIVE", "I", NON_PREDICTIVE)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "INITIAL_CAPS_WORD", "I", INITIAL_CAPS_WORD)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "INITIAL_CAPS_SENTENCE", "I", INITIAL_CAPS_SENTENCE)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/TextField", "CONSTRAINT_MASK", "I", CONSTRAINT_MASK)
+            .await?;
 
         Ok(())
     }
@@ -185,11 +194,16 @@ impl TextField {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Non-positive text capacity").await);
         }
         Self::check_constraints(jvm, constraints).await?;
-        let _: () = jvm.invoke_special(&this, ITEM, "<init>", "()V", ()).await?;
-        let _: () = jvm.invoke_special(&this, ITEM, "setLabel", "(Ljava/lang/String;)V", (label,)).await?;
-        jvm.put_field(&mut this, FIELD, "maxSize", "I", max_size).await?;
-        jvm.put_field(&mut this, FIELD, "constraints", "I", constraints).await?;
-        jvm.invoke_special(&this, FIELD, "setString", "(Ljava/lang/String;)V", (text,)).await
+        let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "<init>", "()V", ()).await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/TextField", "maxSize", "I", max_size)
+            .await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/TextField", "constraints", "I", constraints)
+            .await?;
+        jvm.invoke_special(&this, "javax/microedition/lcdui/TextField", "setString", "(Ljava/lang/String;)V", (text,))
+            .await
     }
 
     async fn check_constraints(jvm: &Jvm, constraints: i32) -> JvmResult<()> {
@@ -221,13 +235,15 @@ impl TextField {
     }
 
     async fn contents(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Vec<JavaChar>> {
-        let text: ClassInstanceRef<String> = jvm.get_field(this, FIELD, "text", "Ljava/lang/String;").await?;
+        let text: ClassInstanceRef<String> = jvm
+            .get_field(this, "javax/microedition/lcdui/TextField", "text", "Ljava/lang/String;")
+            .await?;
         JavaLangString::to_utf16(jvm, &text).await
     }
 
     async fn display_text(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<RustString> {
         let text = Self::contents(jvm, this).await?;
-        let constraints: i32 = jvm.get_field(this, FIELD, "constraints", "I").await?;
+        let constraints: i32 = jvm.get_field(this, "javax/microedition/lcdui/TextField", "constraints", "I").await?;
         Ok(if constraints & PASSWORD != 0 {
             "*".repeat(text.len())
         } else {
@@ -236,8 +252,8 @@ impl TextField {
     }
 
     async fn replace(jvm: &Jvm, this: &mut ClassInstanceRef<Self>, text: Vec<JavaChar>) -> JvmResult<()> {
-        let max_size: i32 = jvm.get_field(this, FIELD, "maxSize", "I").await?;
-        let constraints: i32 = jvm.get_field(this, FIELD, "constraints", "I").await?;
+        let max_size: i32 = jvm.get_field(this, "javax/microedition/lcdui/TextField", "maxSize", "I").await?;
+        let constraints: i32 = jvm.get_field(this, "javax/microedition/lcdui/TextField", "constraints", "I").await?;
         if text.len() > max_size as usize || !Self::accepts(&text, constraints) {
             return Err(jvm
                 .exception("java/lang/IllegalArgumentException", "Text exceeds capacity or violates constraints")
@@ -248,8 +264,10 @@ impl TextField {
 
     async fn store_text(jvm: &Jvm, this: &mut ClassInstanceRef<Self>, text: Vec<JavaChar>) -> JvmResult<()> {
         let text = JavaLangString::from_utf16(jvm, text).await?;
-        jvm.put_field(this, FIELD, "text", "Ljava/lang/String;", text).await?;
-        jvm.invoke_virtual(this, ITEM, "invalidate", "(Z)V", (true,)).await
+        jvm.put_field(this, "javax/microedition/lcdui/TextField", "text", "Ljava/lang/String;", text)
+            .await?;
+        jvm.invoke_virtual(this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn insert_units(jvm: &Jvm, this: &mut ClassInstanceRef<Self>, position: i32, src: Vec<JavaChar>) -> JvmResult<()> {
@@ -270,7 +288,8 @@ impl TextField {
 
     async fn get_string(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.TextField::getString({this:?})");
-        jvm.get_field(&this, FIELD, "text", "Ljava/lang/String;").await
+        jvm.get_field(&this, "javax/microedition/lcdui/TextField", "text", "Ljava/lang/String;")
+            .await
     }
 
     async fn set_string(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
@@ -360,7 +379,7 @@ impl TextField {
 
     async fn get_max_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::getMaxSize({this:?})");
-        jvm.get_field(&this, FIELD, "maxSize", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/TextField", "maxSize", "I").await
     }
 
     async fn set_max_size(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, max_size: i32) -> JvmResult<i32> {
@@ -373,35 +392,40 @@ impl TextField {
             text.truncate(max_size as usize);
             Self::replace(jvm, &mut this, text).await?;
         }
-        jvm.put_field(&mut this, FIELD, "maxSize", "I", max_size).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/TextField", "maxSize", "I", max_size)
+            .await?;
         Ok(max_size)
     }
 
     async fn size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::size({this:?})");
-        let text: ClassInstanceRef<String> = jvm.get_field(&this, FIELD, "text", "Ljava/lang/String;").await?;
+        let text: ClassInstanceRef<String> = jvm
+            .get_field(&this, "javax/microedition/lcdui/TextField", "text", "Ljava/lang/String;")
+            .await?;
         jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await
     }
 
     async fn get_caret_position(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::getCaretPosition({this:?})");
-        jvm.invoke_special(&this, FIELD, "size", "()I", ()).await
+        jvm.invoke_special(&this, "javax/microedition/lcdui/TextField", "size", "()I", ()).await
     }
 
     async fn get_constraints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.TextField::getConstraints({this:?})");
-        jvm.get_field(&this, FIELD, "constraints", "I").await
+        jvm.get_field(&this, "javax/microedition/lcdui/TextField", "constraints", "I").await
     }
 
     async fn set_constraints(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, constraints: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.TextField::setConstraints({this:?}, {constraints})");
         Self::check_constraints(jvm, constraints).await?;
         let text = Self::contents(jvm, &this).await?;
-        jvm.put_field(&mut this, FIELD, "constraints", "I", constraints).await?;
+        jvm.put_field(&mut this, "javax/microedition/lcdui/TextField", "constraints", "I", constraints)
+            .await?;
         if !Self::accepts(&text, constraints) {
             return Self::store_text(jvm, &mut this, Vec::new()).await;
         }
-        jvm.invoke_virtual(&this, ITEM, "invalidate", "(Z)V", (true,)).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn set_initial_input_mode(
@@ -519,7 +543,7 @@ impl TextField {
         if key != MIDPKeyCode::FIRE as i32 {
             return Ok(0);
         }
-        let constraints: i32 = jvm.get_field(&this, FIELD, "constraints", "I").await?;
+        let constraints: i32 = jvm.get_field(&this, "javax/microedition/lcdui/TextField", "constraints", "I").await?;
         if constraints & UNEDITABLE != 0 {
             return Ok(0);
         }
@@ -528,7 +552,7 @@ impl TextField {
             return Ok(Item::INPUT_HANDLED);
         };
         // A handset stops accepting characters at the capacity, so a longer host entry keeps its head.
-        let max_size: i32 = jvm.get_field(&this, FIELD, "maxSize", "I").await?;
+        let max_size: i32 = jvm.get_field(&this, "javax/microedition/lcdui/TextField", "maxSize", "I").await?;
         let mut text: Vec<_> = result.encode_utf16().collect();
         text.truncate(max_size as usize);
         if text == current || !Self::accepts(&text, constraints) {
@@ -547,7 +571,7 @@ mod test {
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
-    use super::{ANY, DECIMAL, FIELD, NUMERIC};
+    use super::{ANY, DECIMAL, NUMERIC};
     use crate::get_protos;
 
     #[test]
@@ -555,34 +579,73 @@ mod test {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let initial = JavaLangString::from_rust_string(&jvm, "-.5").await?;
             let field = jvm
-                .new_class(FIELD, "(Ljava/lang/String;Ljava/lang/String;II)V", (None, initial, 4, DECIMAL))
+                .new_class(
+                    "javax/microedition/lcdui/TextField",
+                    "(Ljava/lang/String;Ljava/lang/String;II)V",
+                    (None, initial, 4, DECIMAL),
+                )
                 .await?;
             for text in ["12.34", "1e2", "+1"] {
                 let text = JavaLangString::from_rust_string(&jvm, text).await?;
-                let result: JvmResult<()> = jvm.invoke_virtual(&field, FIELD, "setString", "(Ljava/lang/String;)V", (text,)).await;
+                let result: JvmResult<()> = jvm
+                    .invoke_virtual(
+                        &field,
+                        "javax/microedition/lcdui/TextField",
+                        "setString",
+                        "(Ljava/lang/String;)V",
+                        (text,),
+                    )
+                    .await;
                 let Err(JavaError::JavaException(exception)) = result else {
                     panic!("invalid replacement accepted")
                 };
                 assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
             }
-            let result: JvmResult<i32> = jvm.invoke_virtual(&field, FIELD, "setMaxSize", "(I)I", (2,)).await;
+            let result: JvmResult<i32> = jvm
+                .invoke_virtual(&field, "javax/microedition/lcdui/TextField", "setMaxSize", "(I)I", (2,))
+                .await;
             let Err(JavaError::JavaException(exception)) = result else {
                 panic!("invalid truncated decimal accepted")
             };
             assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&field, FIELD, "getMaxSize", "()I", ()).await?, 4);
-            let value = jvm.invoke_virtual(&field, FIELD, "getString", "()Ljava/lang/String;", ()).await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&field, "javax/microedition/lcdui/TextField", "getMaxSize", "()I", ())
+                    .await?,
+                4
+            );
+            let value = jvm
+                .invoke_virtual(&field, "javax/microedition/lcdui/TextField", "getString", "()Ljava/lang/String;", ())
+                .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, "-.5");
 
-            let _: () = jvm.invoke_virtual(&field, FIELD, "setConstraints", "(I)V", (NUMERIC,)).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&field, FIELD, "size", "()I", ()).await?, 0);
-            let _: () = jvm.invoke_virtual(&field, FIELD, "setConstraints", "(I)V", (ANY,)).await?;
+            let _: () = jvm
+                .invoke_virtual(&field, "javax/microedition/lcdui/TextField", "setConstraints", "(I)V", (NUMERIC,))
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&field, "javax/microedition/lcdui/TextField", "size", "()I", ())
+                    .await?,
+                0
+            );
+            let _: () = jvm
+                .invoke_virtual(&field, "javax/microedition/lcdui/TextField", "setConstraints", "(I)V", (ANY,))
+                .await?;
             let text = JavaLangString::from_rust_string(&jvm, "📝").await?;
-            let _: () = jvm.invoke_virtual(&field, FIELD, "insert", "(Ljava/lang/String;I)V", (text, 10)).await?;
-            let _: i32 = jvm.invoke_virtual(&field, FIELD, "setMaxSize", "(I)I", (1,)).await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &field,
+                    "javax/microedition/lcdui/TextField",
+                    "insert",
+                    "(Ljava/lang/String;I)V",
+                    (text, 10),
+                )
+                .await?;
+            let _: i32 = jvm
+                .invoke_virtual(&field, "javax/microedition/lcdui/TextField", "setMaxSize", "(I)I", (1,))
+                .await?;
             let chars = jvm.instantiate_array("C", 2).await?;
             assert_eq!(
-                jvm.invoke_virtual::<_, i32>(&field, FIELD, "getChars", "([C)I", (chars.clone(),)).await?,
+                jvm.invoke_virtual::<_, i32>(&field, "javax/microedition/lcdui/TextField", "getChars", "([C)I", (chars.clone(),))
+                    .await?,
                 1
             );
             assert_eq!(jvm.load_array::<u16>(&chars, 0, 2).await?, [0xd83d, 0]);
