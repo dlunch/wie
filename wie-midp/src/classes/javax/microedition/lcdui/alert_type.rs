@@ -22,7 +22,7 @@ pub struct AlertType {
 
 #[java_methods]
 impl AlertType {
-    #[method(constructor, private)]
+    #[method(constructor, protected)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.AlertType::<init>({this:?})");
 
