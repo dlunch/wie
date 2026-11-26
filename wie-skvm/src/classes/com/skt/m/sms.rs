@@ -1,65 +1,21 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use super::{SMSListener, SMSMessage};
 
 // class com.skt.m.SMS
-pub struct SMS;
+#[java_class(name = "com/skt/m/SMS", public, final)]
+pub struct SMS {
+    #[field(private, static)]
+    listener: ClassInstanceRef<SMSListener>,
+}
 
+#[java_methods]
 impl SMS {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/SMS",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "get",
-                    "(I)Lcom/skt/m/SMSMessage;",
-                    Self::get,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "get",
-                    "(ILcom/skt/m/SMSMessage;)Z",
-                    Self::get_into_message,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getSMSListener",
-                    "()Lcom/skt/m/SMSListener;",
-                    Self::get_sms_listener,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "send",
-                    "(Ljava/lang/String;Lcom/skt/m/SMSMessage;)Z",
-                    Self::send,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setSMSListener",
-                    "(Lcom/skt/m/SMSListener;)V",
-                    Self::set_sms_listener,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![JavaFieldProto::new(
-                "listener",
-                "Lcom/skt/m/SMSListener;",
-                FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
-            )],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         jvm.put_static_field(
             "com/skt/m/SMS",
@@ -70,6 +26,7 @@ impl SMS {
         .await
     }
 
+    #[method(public, static)]
     async fn get(jvm: &Jvm, _context: &mut WieJvmContext, index: i32) -> JvmResult<ClassInstanceRef<SMSMessage>> {
         tracing::warn!("stub com.skt.m.SMS::get({index})");
 
@@ -80,16 +37,19 @@ impl SMS {
         Ok(ClassInstanceRef::new(None))
     }
 
+    #[method(name = "get", public, static)]
     async fn get_into_message(_jvm: &Jvm, _context: &mut WieJvmContext, index: i32, message: ClassInstanceRef<SMSMessage>) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.SMS::get({index}, {message:?})");
 
         Ok(false)
     }
 
+    #[method(name = "getSMSListener", public, static)]
     async fn get_sms_listener(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<SMSListener>> {
         jvm.get_static_field("com/skt/m/SMS", "listener", "Lcom/skt/m/SMSListener;").await
     }
 
+    #[method(public, static)]
     async fn send(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -107,6 +67,7 @@ impl SMS {
         Ok(false)
     }
 
+    #[method(name = "setSMSListener", public, static)]
     async fn set_sms_listener(jvm: &Jvm, _context: &mut WieJvmContext, listener: ClassInstanceRef<SMSListener>) -> JvmResult<()> {
         if listener.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "listener must not be null").await);
@@ -119,39 +80,28 @@ impl SMS {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec};
+    use alloc::boxed::Box;
 
     use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
-    use jvm_class_proto::JavaMethodProto;
-    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
     use test_utils::run_jvm_test;
 
     use super::SMS;
     use crate::classes::com::skt::m::{SMSListener, SMSMessage};
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::WieJvmContext;
 
+    #[java_class(name = "test/SMSListener", implements("com/skt/m/SMSListener"), public)]
     struct TestSMSListener;
 
+    #[java_methods]
     impl TestSMSListener {
-        fn as_proto() -> WieJavaClassProto {
-            WieJavaClassProto {
-                name: "test/SMSListener",
-                parent_class: Some("java/lang/Object"),
-                interfaces: vec!["com/skt/m/SMSListener"],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new("onMessage", "(Lcom/skt/m/SMSMessage;)V", Self::on_message, MethodAccessFlags::PUBLIC),
-                ],
-                fields: vec![],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
             let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
             Ok(())
         }
 
+        #[method(public)]
         async fn on_message(
             _jvm: &Jvm,
             _context: &mut WieJvmContext,

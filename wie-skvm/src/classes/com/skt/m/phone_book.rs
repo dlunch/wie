@@ -1,11 +1,8 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 const ALL: i32 = 0;
 const NAME: i32 = 1;
@@ -17,80 +14,29 @@ const EMAIL: i32 = 6;
 const MEMO: i32 = 7;
 
 // class com.skt.m.PhoneBook
-pub struct PhoneBook;
+#[java_class(name = "com/skt/m/PhoneBook", public)]
+pub struct PhoneBook {
+    #[field(public, static, final)]
+    ALL: i32,
+    #[field(public, static, final)]
+    NAME: i32,
+    #[field(public, static, final)]
+    GROUP: i32,
+    #[field(public, static, final)]
+    HANDPHONE: i32,
+    #[field(public, static, final)]
+    HOME: i32,
+    #[field(public, static, final)]
+    OFFICE: i32,
+    #[field(public, static, final)]
+    EMAIL: i32,
+    #[field(public, static, final)]
+    MEMO: i32,
+}
 
+#[java_methods]
 impl PhoneBook {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/PhoneBook",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "findRecord",
-                    "(ILjava/lang/String;)V",
-                    Self::find_record,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("first", "()V", Self::first, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "getField",
-                    "(II)Ljava/lang/String;",
-                    Self::get_field,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getGroupNames",
-                    "()[Ljava/lang/String;",
-                    Self::get_group_names,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getMaxRecordID",
-                    "()I",
-                    Self::get_max_record_id,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getRecord",
-                    "(I)[Ljava/lang/String;",
-                    Self::get_record,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("isUsed", "(I)Z", Self::is_used, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("next", "()I", Self::next, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("ALL", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-                JavaFieldProto::new("NAME", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-                JavaFieldProto::new(
-                    "GROUP",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "HANDPHONE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("HOME", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-                JavaFieldProto::new(
-                    "OFFICE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "EMAIL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("MEMO", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.skt.m.PhoneBook::<clinit>()");
 
@@ -109,6 +55,7 @@ impl PhoneBook {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn find_record(jvm: &Jvm, _context: &mut WieJvmContext, field: i32, value: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.PhoneBook::findRecord({field}, {value:?})");
         if value.is_null() {
@@ -117,36 +64,43 @@ impl PhoneBook {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn first(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.PhoneBook::first()");
         Ok(())
     }
 
+    #[method(public, static)]
     async fn get_field(_jvm: &Jvm, _context: &mut WieJvmContext, record_id: i32, field: i32) -> JvmResult<ClassInstanceRef<String>> {
         tracing::warn!("stub com.skt.m.PhoneBook::getField({record_id}, {field})");
         Ok(ClassInstanceRef::new(None))
     }
 
+    #[method(public, static)]
     async fn get_group_names(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Array<String>>> {
         tracing::warn!("stub com.skt.m.PhoneBook::getGroupNames()");
         Ok(jvm.instantiate_array("Ljava/lang/String;", 0).await?.into())
     }
 
+    #[method(name = "getMaxRecordID", public, static)]
     async fn get_max_record_id(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.PhoneBook::getMaxRecordID()");
         Ok(0)
     }
 
+    #[method(public, static)]
     async fn get_record(_jvm: &Jvm, _context: &mut WieJvmContext, record_id: i32) -> JvmResult<ClassInstanceRef<Array<String>>> {
         tracing::warn!("stub com.skt.m.PhoneBook::getRecord({record_id})");
         Ok(ClassInstanceRef::new(None))
     }
 
+    #[method(public, static)]
     async fn is_used(_jvm: &Jvm, _context: &mut WieJvmContext, record_id: i32) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.PhoneBook::isUsed({record_id})");
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn next(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.PhoneBook::next()");
         Ok(-1)

@@ -1,17 +1,14 @@
-use alloc::vec;
-
 use jvm::{
     Array, ClassInstanceRef, Jvm, Result as JvmResult,
     runtime::{JavaLangClassLoader, JavaLangString},
 };
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{
     io::{FileDescriptor, InputStream, OutputStream, RandomAccessFile},
     lang::String,
 };
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 pub(super) const STDSTREAM: i32 = 0;
 pub(super) const NORMAL: i32 = 1;
@@ -33,160 +30,59 @@ const READ_DIRECTORY: i32 = 4;
 pub(super) const READ_RESOURCE: i32 = 8;
 
 // class com.xce.io.XFile
-pub struct XFile;
+#[java_class(name = "com/xce/io/XFile", public)]
+pub struct XFile {
+    #[field(public, static, final)]
+    STDSTREAM: i32,
+    #[field(public, static, final)]
+    NORMAL: i32,
+    #[field(public, static, final)]
+    DIRECTORY: i32,
+    #[field(public, static, final)]
+    FILE_JAR: i32,
+    #[field(public, static, final)]
+    STDIN: i32,
+    #[field(public, static, final)]
+    STDOUT: i32,
+    #[field(public, static, final)]
+    STDERR: i32,
+    #[field(public, static, final)]
+    SEEK_SET: i32,
+    #[field(public, static, final)]
+    SEEK_CUR: i32,
+    #[field(public, static, final)]
+    SEEK_END: i32,
+    #[field(public, static, final)]
+    READ: i32,
+    #[field(public, static, final)]
+    WRITE: i32,
+    #[field(public, static, final)]
+    READ_WRITE: i32,
+    #[field(public, static, final)]
+    READ_DIRECTORY: i32,
+    #[field(public, static, final)]
+    READ_RESOURCE: i32,
+    #[field(protected)]
+    r#type: i32,
+    #[field(protected)]
+    mode: i32,
+    #[field(protected)]
+    fd: i32,
+    #[field(protected)]
+    offset: i32,
+    #[field(protected)]
+    buf: ClassInstanceRef<Array<i8>>,
+    #[field(private)]
+    is: ClassInstanceRef<InputStream>,
+    #[field(private)]
+    os: ClassInstanceRef<OutputStream>,
+    #[field(private)]
+    raf: ClassInstanceRef<RandomAccessFile>,
+}
 
+#[java_methods]
 impl XFile {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/io/XFile",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "(I)V", Self::init_with_fd, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;Ljava/lang/String;)V",
-                    Self::init_with_jar,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("flush", "()V", Self::flush, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("read", "([BII)I", Self::read, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("readdir", "()Ljava/lang/String;", Self::read_dir, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("seek", "(II)I", Self::seek, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("write", "([BII)I", Self::write, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "exists",
-                    "(Ljava/lang/String;)Z",
-                    Self::exists,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "filesize",
-                    "(Ljava/lang/String;)I",
-                    Self::filesize,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "fsavail",
-                    "()I",
-                    Self::fs_available,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("fsused", "()I", Self::fs_used, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "mkdir",
-                    "(Ljava/lang/String;)V",
-                    Self::make_dir,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "rmdir",
-                    "(Ljava/lang/String;)V",
-                    Self::remove_dir,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "rmrdir",
-                    "(Ljava/lang/String;)V",
-                    Self::remove_dir_recursive,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "unlink",
-                    "(Ljava/lang/String;)I",
-                    Self::unlink,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "STDSTREAM",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "NORMAL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DIRECTORY",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "FILE_JAR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STDIN",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STDOUT",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STDERR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SEEK_SET",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SEEK_CUR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SEEK_END",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("READ", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
-                JavaFieldProto::new(
-                    "WRITE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "READ_WRITE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "READ_DIRECTORY",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "READ_RESOURCE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("type", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("mode", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("fd", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("offset", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("buf", "[B", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("is", "Ljava/io/InputStream;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("os", "Ljava/io/OutputStream;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.xce.io.XFile::<clinit>()");
 
@@ -209,6 +105,7 @@ impl XFile {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_fd(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, fd: i32) -> JvmResult<()> {
         tracing::debug!("com.xce.io.XFile::<init>({this:?}, {fd})");
 
@@ -248,6 +145,7 @@ impl XFile {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -311,6 +209,7 @@ impl XFile {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_jar(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -329,6 +228,7 @@ impl XFile {
         Err(jvm.exception("java/io/IOException", "JAR file selection is not supported").await)
     }
 
+    #[method(public, static)]
     async fn exists(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
         tracing::debug!("com.xce.io.XFile::exists({name:?})");
 
@@ -346,6 +246,7 @@ impl XFile {
         Ok(exists)
     }
 
+    #[method(public, static)]
     async fn filesize(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::filesize({name:?})");
 
@@ -370,6 +271,7 @@ impl XFile {
         Ok(size as i32)
     }
 
+    #[method(public, static)]
     async fn unlink(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::unlink({name:?})");
 
@@ -390,6 +292,7 @@ impl XFile {
         Ok(0)
     }
 
+    #[method(public)]
     async fn available(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::available({this:?})");
 
@@ -415,6 +318,7 @@ impl XFile {
         }
     }
 
+    #[method(public)]
     async fn read(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -450,7 +354,7 @@ impl XFile {
             if mode != READ && mode != READ_WRITE {
                 return Err(jvm.exception("java/io/IOException", "File is not open for reading").await);
             }
-            let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+            let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
 
             jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (data, offset, length))
                 .await?
@@ -465,6 +369,7 @@ impl XFile {
         Ok(read)
     }
 
+    #[method(public)]
     async fn write(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -500,7 +405,7 @@ impl XFile {
             if mode != WRITE && mode != READ_WRITE {
                 return Err(jvm.exception("java/io/IOException", "File is not open for writing").await);
             }
-            let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+            let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
             let _: () = jvm
                 .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (data, offset, length))
                 .await?;
@@ -513,6 +418,7 @@ impl XFile {
         Ok(length)
     }
 
+    #[method(public)]
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.XFile::close({this:?})");
 
@@ -524,13 +430,14 @@ impl XFile {
             let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "com/xce/io/XFile", "is", "Ljava/io/InputStream;").await?;
             let _: () = jvm.invoke_virtual(&is, "java/io/InputStream", "close", "()V", ()).await?;
         } else {
-            let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+            let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
             let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "close", "()V", ()).await?;
         }
 
         Ok(())
     }
 
+    #[method(public)]
     async fn flush(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.XFile::flush({this:?})");
 
@@ -546,6 +453,7 @@ impl XFile {
         Ok(())
     }
 
+    #[method(public)]
     async fn seek(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, n: i32, whence: i32) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::seek({this:?}, {n}, {whence})");
 
@@ -555,7 +463,7 @@ impl XFile {
             return Err(jvm.exception("java/io/IOException", "File is not seekable").await);
         }
 
-        let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
         let new_pos = match whence {
             SEEK_SET => Some(n as i64),
             SEEK_CUR => {
@@ -581,12 +489,14 @@ impl XFile {
         Ok(new_pos as i32)
     }
 
+    #[method(name = "readdir", public)]
     async fn read_dir(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::warn!("unsupported com.xce.io.XFile::readdir({this:?})");
 
         Err(jvm.exception("java/io/IOException", "Directory reads are not supported").await)
     }
 
+    #[method(name = "mkdir", public, static)]
     async fn make_dir(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("unsupported com.xce.io.XFile::mkdir({name:?})");
 
@@ -596,6 +506,7 @@ impl XFile {
         Err(jvm.exception("java/io/IOException", "Directory creation is not supported").await)
     }
 
+    #[method(name = "rmdir", public, static)]
     async fn remove_dir(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("unsupported com.xce.io.XFile::rmdir({name:?})");
 
@@ -605,6 +516,7 @@ impl XFile {
         Err(jvm.exception("java/io/IOException", "Directory removal is not supported").await)
     }
 
+    #[method(name = "rmrdir", public, static)]
     async fn remove_dir_recursive(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("unsupported com.xce.io.XFile::rmrdir({name:?})");
 
@@ -614,12 +526,14 @@ impl XFile {
         Err(jvm.exception("java/io/IOException", "Recursive directory removal is not supported").await)
     }
 
+    #[method(name = "fsused", public, static)]
     async fn fs_used(_jvm: &Jvm, context: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::fsused()");
 
         Ok(context.system().filesystem().usage().await as i32)
     }
 
+    #[method(name = "fsavail", public, static)]
     async fn fs_available(_jvm: &Jvm, context: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::warn!("stub com.xce.io.XFile::fsavail()");
 

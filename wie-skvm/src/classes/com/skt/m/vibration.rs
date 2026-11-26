@@ -1,46 +1,21 @@
-use alloc::vec;
-
 use jvm::{Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 // class com.skt.m.Vibration
+#[java_class(name = "com/skt/m/Vibration", public, final)]
 pub struct Vibration;
 
+#[java_methods]
 impl Vibration {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/Vibration",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "getLevelNum",
-                    "()I",
-                    Self::get_level_num,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("start", "(II)V", Self::start, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("stop", "()V", Self::stop, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "isSupported",
-                    "()Z",
-                    Self::is_supported,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(public, static)]
     async fn get_level_num(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::debug!("com.skt.m.Vibration::getLevelNum()");
 
         Ok(10)
     }
 
+    #[method(public, static)]
     async fn start(_jvm: &Jvm, context: &mut WieJvmContext, level: i32, timeout: i32) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Vibration::start({level}, {timeout})");
 
@@ -51,6 +26,7 @@ impl Vibration {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn stop(_jvm: &Jvm, context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Vibration::stop()");
 
@@ -59,6 +35,7 @@ impl Vibration {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn is_supported(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<bool> {
         tracing::debug!("com.skt.m.Vibration::isSupported()");
 

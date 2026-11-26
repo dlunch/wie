@@ -1,60 +1,18 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::com::skt::m::audio_clip::AudioClip;
 
 // class com.skt.m.AudioSystem
+#[java_class(name = "com/skt/m/AudioSystem", public, final)]
 pub struct AudioSystem;
 
+#[java_methods]
 impl AudioSystem {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/AudioSystem",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "getAudioClip",
-                    "(Ljava/lang/String;)Lcom/skt/m/AudioClip;",
-                    Self::get_audio_clip,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getClipFormats",
-                    "()[Ljava/lang/String;",
-                    Self::get_clip_formats,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getMaxVolume",
-                    "(Ljava/lang/String;)I",
-                    Self::get_max_volume,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getVolume",
-                    "(Ljava/lang/String;)I",
-                    Self::get_volume,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setVolume",
-                    "(Ljava/lang/String;I)V",
-                    Self::set_volume,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(public, static)]
     async fn get_audio_clip(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<AudioClip>> {
         tracing::debug!("com.skt.m.AudioSystem::getAudioClip({name:?})");
 
@@ -70,6 +28,7 @@ impl AudioSystem {
         Ok(audio_clip.into())
     }
 
+    #[method(public, static)]
     async fn get_clip_formats(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Array<String>>> {
         tracing::debug!("com.skt.m.AudioSystem::getClipFormats()");
 
@@ -79,6 +38,7 @@ impl AudioSystem {
         Ok(formats.into())
     }
 
+    #[method(public, static)]
     async fn get_max_volume(jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.AudioSystem::getMaxVolume({format:?})");
 
@@ -89,6 +49,7 @@ impl AudioSystem {
         Ok(0)
     }
 
+    #[method(public, static)]
     async fn get_volume(jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.AudioSystem::getVolume({format:?})");
 
@@ -99,6 +60,7 @@ impl AudioSystem {
         Ok(0)
     }
 
+    #[method(public, static)]
     async fn set_volume(jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>, level: i32) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.AudioSystem::setVolume({format:?}, {level})");
 
