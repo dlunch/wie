@@ -155,7 +155,7 @@ impl Jlet {
     ) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getAppProperty({this:?}, {key:?})");
 
-        let midlet = jvm
+        let midlet: ClassInstanceRef<WIPIMIDlet> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Jlet", "wipiMidlet", "Lnet/wie/WIPIMIDlet;")
             .await?;
         let value = jvm

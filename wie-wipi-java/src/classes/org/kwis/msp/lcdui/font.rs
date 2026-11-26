@@ -123,7 +123,7 @@ impl Font {
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::getHeight");
 
-        let midp_font = jvm
+        let midp_font: ClassInstanceRef<MidpFont> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Font", "midpFont", "Ljavax/microedition/lcdui/Font;")
             .await?;
         jvm.invoke_virtual(&midp_font, "javax/microedition/lcdui/Font", "getHeight", "()I", ())
@@ -221,7 +221,7 @@ impl Font {
     async fn string_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::stringWidth({string:?})");
 
-        let midp_font = jvm
+        let midp_font: ClassInstanceRef<MidpFont> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Font", "midpFont", "Ljavax/microedition/lcdui/Font;")
             .await?;
         jvm.invoke_virtual(
@@ -244,7 +244,7 @@ impl Font {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::substringWidth({string:?}, {offset:?}, {len:?})");
 
-        let midp_font = jvm
+        let midp_font: ClassInstanceRef<MidpFont> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Font", "midpFont", "Ljavax/microedition/lcdui/Font;")
             .await?;
         jvm.invoke_virtual(
@@ -260,7 +260,7 @@ impl Font {
     async fn char_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::charWidth({char:?})");
 
-        let midp_font = jvm
+        let midp_font: ClassInstanceRef<MidpFont> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Font", "midpFont", "Ljavax/microedition/lcdui/Font;")
             .await?;
         jvm.invoke_virtual(&midp_font, "javax/microedition/lcdui/Font", "charWidth", "(C)I", (char,))
@@ -277,7 +277,7 @@ impl Font {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::charsWidth({chars:?}, {offset:?}, {len:?})");
 
-        let midp_font = jvm
+        let midp_font: ClassInstanceRef<MidpFont> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Font", "midpFont", "Ljavax/microedition/lcdui/Font;")
             .await?;
         jvm.invoke_virtual(&midp_font, "javax/microedition/lcdui/Font", "charsWidth", "([CII)I", (chars, offset, len))

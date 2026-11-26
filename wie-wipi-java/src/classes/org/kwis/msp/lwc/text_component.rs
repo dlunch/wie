@@ -134,7 +134,7 @@ impl TextComponent {
         constraint == 0 || chars.iter().all(|c| matches!(c, 48..=57) || constraint == 1 && matches!(c, 32 | 45))
     }
 
-    async fn chars<T>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Vec<u16>> {
+    async fn chars<T: Sync>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Vec<u16>> {
         let data: ClassInstanceRef<Array<u16>> = jvm.get_field(this, "org/kwis/msp/lwc/TextComponent", "m_td", "[C").await?;
         let count: i32 = jvm.get_field(this, "org/kwis/msp/lwc/TextComponent", "charCount", "I").await?;
         jvm.load_array(&data, 0, count as usize).await
@@ -288,7 +288,7 @@ impl TextComponent {
             .await
     }
 
-    async fn text_lines<T>(
+    async fn text_lines<T: Sync>(
         jvm: &Jvm,
         this: &ClassInstanceRef<T>,
         wrap_width: Option<i32>,
@@ -345,7 +345,7 @@ impl TextComponent {
             .await
     }
 
-    pub async fn measure_text<T>(jvm: &Jvm, this: &ClassInstanceRef<T>, wrap_width: Option<i32>) -> JvmResult<(i32, i32)> {
+    pub async fn measure_text<T: Sync>(jvm: &Jvm, this: &ClassInstanceRef<T>, wrap_width: Option<i32>) -> JvmResult<(i32, i32)> {
         let font: ClassInstanceRef<Font> = jvm
             .get_field(this, "org/kwis/msp/lwc/TextComponent", "f", "Lorg/kwis/msp/lcdui/Font;")
             .await?;
@@ -359,7 +359,7 @@ impl TextComponent {
         Self::draw_text(jvm, this, g, false).await
     }
 
-    pub async fn draw_text<T>(jvm: &Jvm, this: ClassInstanceRef<T>, g: ClassInstanceRef<Graphics>, wrap: bool) -> JvmResult<()> {
+    pub async fn draw_text<T: Sync>(jvm: &Jvm, this: ClassInstanceRef<T>, g: ClassInstanceRef<Graphics>, wrap: bool) -> JvmResult<()> {
         let _: () = jvm
             .invoke_special(
                 &this,

@@ -8,7 +8,10 @@ use jvm::{
 };
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::{io::InputStream, lang::String};
+use rustjava_runtime::classes::java::{
+    io::InputStream,
+    lang::{Class, String},
+};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::media::Player;
@@ -85,10 +88,10 @@ impl Clip {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?}, {resource_name:?})");
 
-        let class = jvm
+        let class: ClassInstanceRef<Class> = jvm
             .invoke_virtual(&r#type, "java/lang/String", "getClass", "()Ljava/lang/Class;", ())
             .await?;
-        let resource_stream = jvm
+        let resource_stream: ClassInstanceRef<InputStream> = jvm
             .invoke_virtual(
                 &class,
                 "java/lang/Class",

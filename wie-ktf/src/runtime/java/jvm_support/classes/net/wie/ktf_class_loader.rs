@@ -7,7 +7,10 @@ use jvm::{
 };
 use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::lang::{Class, ClassLoader, String};
+use rustjava_runtime::classes::java::{
+    io::InputStream,
+    lang::{Class, ClassLoader, String},
+};
 use wipi_types::ktf::ExeInterfaceFunctions;
 
 use wie_backend::System;
@@ -85,7 +88,7 @@ impl KtfClassLoader {
 
         // load client.bin
         let name_rust = JavaLangString::to_rust_string(jvm, &binary_name).await.unwrap();
-        let data_stream = jvm
+        let data_stream: ClassInstanceRef<InputStream> = jvm
             .invoke_virtual(
                 &this,
                 "net/wie/KtfClassLoader",

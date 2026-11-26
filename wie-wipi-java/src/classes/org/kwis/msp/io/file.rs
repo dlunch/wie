@@ -4,7 +4,7 @@ use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangSt
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::{
-    io::{DataInputStream, DataOutputStream, FileDescriptor, InputStream, OutputStream},
+    io::{DataInputStream, DataOutputStream, FileDescriptor, InputStream, OutputStream, RandomAccessFile},
     lang::String,
 };
 
@@ -184,7 +184,7 @@ impl File {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::write({this:?}, {buf:?}, {offset:?}, {len:?})");
 
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buf, offset, len))
             .await?;
@@ -195,7 +195,7 @@ impl File {
     async fn seek(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, pos: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::seek({this:?}, {pos:?})");
 
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "seek", "(J)V", (pos as i64,))
             .await?;
@@ -220,7 +220,7 @@ impl File {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({this:?}, {buf:?})");
 
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let read = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (buf, offset, length))
             .await?;
@@ -236,7 +236,7 @@ impl File {
             return Ok(());
         }
 
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "close", "()V", ()).await?;
         jvm.put_field(&mut this, "org/kwis/msp/io/File", "closed", "Z", true).await?;
 
@@ -246,7 +246,7 @@ impl File {
     async fn size_of(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({this:?})");
 
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let length: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "length", "()J", ()).await?;
 
         Ok(length as _)
@@ -329,7 +329,7 @@ impl File {
         let mut buffer = jvm.instantiate_array("B", 1).await?;
         jvm.store_array(&mut buffer, 0, [byte as i8]).await?;
 
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buffer, 0, 1))
             .await?;
@@ -341,7 +341,7 @@ impl File {
         tracing::debug!("org.kwis.msp.io.File::read({this:?})");
 
         let buffer = jvm.instantiate_array("B", 1).await?;
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let read: i32 = jvm
             .invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (buffer.clone(), 0, 1))
             .await?;
@@ -358,7 +358,7 @@ impl File {
     async fn tell(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::tell({this:?})");
 
-        let raf = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "org/kwis/msp/io/File", "raf", "Ljava/io/RandomAccessFile;").await?;
         let position: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "getFilePointer", "()J", ()).await?;
 
         Ok(position as i32)

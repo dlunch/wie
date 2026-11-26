@@ -505,7 +505,7 @@ mod test {
                     ("keyPressed", MIDPKeyCode::KEY_STAR, &textbox, "가나다"),
                 ] {
                     let _: () = jvm.invoke_virtual(&canvas, "net/wie/CardCanvas", method, "(I)V", (key as i32,)).await?;
-                    let value = jvm.invoke_virtual(widget, text_class, "getString", "()Ljava/lang/String;", ()).await?;
+                    let value: ClassInstanceRef<String> = jvm.invoke_virtual(widget, text_class, "getString", "()Ljava/lang/String;", ()).await?;
                     assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, expected);
                 }
                 let _: i32 = jvm
@@ -552,7 +552,7 @@ mod test {
                     assert_eq!(jvm.invoke_virtual::<_, i32>(&dialog, dialog_class, "doModal", "()I", ()).await?, result);
                     assert!(!jvm.invoke_virtual::<_, bool>(&dialog, dialog_class, "isShown", "()Z", ()).await?);
                 }
-                let value = jvm.invoke_virtual(&name, text_class, "getString", "()Ljava/lang/String;", ()).await?;
+                let value: ClassInstanceRef<String> = jvm.invoke_virtual(&name, text_class, "getString", "()Ljava/lang/String;", ()).await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, "가나다");
                 let notice = jvm.new_class(dialog_class, "(I)V", (0,)).await?;
                 let _: () = jvm.invoke_virtual(&notice, dialog_class, "setTimeout", "(I)V", (160,)).await?;

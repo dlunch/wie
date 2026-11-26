@@ -167,7 +167,7 @@ impl DataBase {
     async fn get_number_of_records(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
@@ -177,7 +177,7 @@ impl DataBase {
     async fn close_data_base(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.db.DataBase::closeDataBase({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "closeRecordStore", "()V", ())
@@ -210,7 +210,7 @@ impl DataBase {
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({this:?}, {data:?}, {offset}, {num_bytes})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let record_id = jvm
@@ -231,7 +231,7 @@ impl DataBase {
 
         let record_id = DataBase::to_midp_record_id(record_id);
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let result = jvm
@@ -283,7 +283,7 @@ impl DataBase {
 
         let record_id = DataBase::to_midp_record_id(record_id);
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let _: () = jvm
@@ -324,7 +324,7 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::deleteRecord({this:?}, {record_id})");
 
         let record_id = DataBase::to_midp_record_id(record_id);
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let result: JvmResult<()> = jvm
@@ -348,7 +348,7 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({this:?}, {record_id}, {buffer:?}, {offset})");
 
         let record_id = DataBase::to_midp_record_id(record_id);
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         let record_size: JvmResult<i32> = jvm
@@ -407,7 +407,7 @@ impl DataBase {
     async fn get_data_base_name(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.db.DataBase::getDataBaseName({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.get_field(&record_store, "javax/microedition/rms/RecordStore", "dbName", "Ljava/lang/String;")
@@ -429,7 +429,7 @@ impl DataBase {
     async fn get_size_available(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getSizeAvailable({this:?})");
 
-        let record_store = jvm
+        let record_store: ClassInstanceRef<RecordStore> = jvm
             .get_field(&this, "org/kwis/msp/db/DataBase", "recordStore", "Ljavax/microedition/rms/RecordStore;")
             .await?;
         jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getSizeAvailable", "()I", ())

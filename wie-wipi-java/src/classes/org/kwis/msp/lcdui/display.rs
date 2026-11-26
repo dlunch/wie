@@ -8,10 +8,10 @@ use rustjava_runtime::classes::java::lang::{Object, Runnable, String};
 use wie_backend::Event;
 use wie_jvm_support::{JvmSupport, WieJavaClassProto, WieJvmContext};
 
-use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
+use wie_midp::classes::{javax::microedition::lcdui::Display as MidpDisplay, net::wie::EventQueue as WieEventQueue};
 
 use crate::classes::{
-    net::wie::WIPIKeyCode,
+    net::wie::{CardCanvas, WIPIKeyCode},
     org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
 };
 
@@ -261,7 +261,7 @@ impl Display {
     async fn is_double_buffered(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Display::isDoubleBuffered({this:?})");
 
-        let canvas = jvm
+        let canvas: ClassInstanceRef<CardCanvas> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Display", "cardCanvas", "Lnet/wie/CardCanvas;")
             .await?;
 
@@ -272,7 +272,7 @@ impl Display {
     async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({this:?}, {c:?})");
 
-        let card_canvas = jvm
+        let card_canvas: ClassInstanceRef<CardCanvas> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Display", "cardCanvas", "Lnet/wie/CardCanvas;")
             .await?;
         let _: () = jvm
@@ -285,7 +285,7 @@ impl Display {
     async fn pop_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Card>> {
         tracing::debug!("org.kwis.msp.lcdui.Display::popCard({this:?})");
 
-        let card_canvas = jvm
+        let card_canvas: ClassInstanceRef<CardCanvas> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Display", "cardCanvas", "Lnet/wie/CardCanvas;")
             .await?;
         jvm.invoke_virtual(&card_canvas, "net/wie/CardCanvas", "popCard", "()Lorg/kwis/msp/lcdui/Card;", ())
@@ -295,7 +295,7 @@ impl Display {
     async fn remove_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, card: ClassInstanceRef<Card>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeCard({this:?}, {card:?})");
 
-        let card_canvas = jvm
+        let card_canvas: ClassInstanceRef<CardCanvas> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Display", "cardCanvas", "Lnet/wie/CardCanvas;")
             .await?;
         jvm.invoke_virtual(&card_canvas, "net/wie/CardCanvas", "removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", (card,))
@@ -305,7 +305,7 @@ impl Display {
     async fn count_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::countCard({this:?})");
 
-        let card_canvas = jvm
+        let card_canvas: ClassInstanceRef<CardCanvas> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Display", "cardCanvas", "Lnet/wie/CardCanvas;")
             .await?;
         jvm.invoke_virtual(&card_canvas, "net/wie/CardCanvas", "countCard", "()I", ()).await
@@ -314,7 +314,7 @@ impl Display {
     async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards({this:?})");
 
-        let card_canvas = jvm
+        let card_canvas: ClassInstanceRef<CardCanvas> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/Display", "cardCanvas", "Lnet/wie/CardCanvas;")
             .await?;
         let _: () = jvm
@@ -396,7 +396,7 @@ impl Display {
         let jvm = jvm.clone();
         context.system().event_queue().push(Event::timer(due, move || async move {
             let result: JvmResult<()> = async {
-                let queue = jvm
+                let queue: ClassInstanceRef<WieEventQueue> = jvm
                     .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                     .await?;
                 jvm.invoke_virtual(
@@ -550,9 +550,13 @@ mod test {
     use test_utils::{TestClock, TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_backend::{Event, KeyCode};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_midp::classes::net::wie::EventQueue;
     use wie_util::Result;
 
-    use crate::{classes::org::kwis::msp::lcdui::Jlet, get_protos};
+    use crate::{
+        classes::org::kwis::msp::lcdui::{Display, Jlet},
+        get_protos,
+    };
 
     struct DelayedCallback;
 
@@ -600,10 +604,10 @@ mod test {
                     .invoke_virtual(&jlet, "java/lang/Object", "equals", "(Ljava/lang/Object;)Z", (current,))
                     .await?;
                 assert!(is_current);
-                let display = jvm
+                let display: ClassInstanceRef<Display> = jvm
                     .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", ())
                     .await?;
-                let queue = jvm
+                let queue: ClassInstanceRef<EventQueue> = jvm
                     .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                     .await?;
                 let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();

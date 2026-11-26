@@ -63,7 +63,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({this:?}, {event:?})");
 
-        let wie_event_queue = jvm
+        let wie_event_queue: ClassInstanceRef<WieEventQueue> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/EventQueue", "wieEventQueue", "Lnet/wie/EventQueue;")
             .await?;
         let _: () = jvm
@@ -81,7 +81,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({this:?}, {event:?})");
 
-        let wie_event_queue = jvm
+        let wie_event_queue: ClassInstanceRef<WieEventQueue> = jvm
             .get_field(&this, "org/kwis/msp/lcdui/EventQueue", "wieEventQueue", "Lnet/wie/EventQueue;")
             .await?;
         let _: () = jvm

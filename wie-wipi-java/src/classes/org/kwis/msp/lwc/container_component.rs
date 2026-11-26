@@ -60,7 +60,7 @@ impl ContainerComponent {
         .await
     }
 
-    pub async fn children<T>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Vec<ClassInstanceRef<Component>>> {
+    pub async fn children<T: Sync>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Vec<ClassInstanceRef<Component>>> {
         let array: ClassInstanceRef<Array<Component>> = jvm
             .get_field(this, "org/kwis/msp/lwc/ContainerComponent", "cmps", "[Lorg/kwis/msp/lwc/Component;")
             .await?;
