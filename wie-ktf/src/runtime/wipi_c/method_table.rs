@@ -6,7 +6,7 @@ use wipi_types::{
 };
 
 use wie_core_arm::ArmCore;
-use wie_util::{Result, WieError};
+use wie_util::{Result, WieError, write_generic};
 use wie_wipi_c::{
     MethodBody, MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
     api::{database, fs, graphics, im, kernel, media, misc, net, uic, util},
@@ -385,6 +385,17 @@ pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
+async fn plugin_cleanup(_: &mut dyn WIPICContext) -> Result<u32> {
+    tracing::warn!("stub KTF plugin[18]()");
+    Ok(0)
+}
+
+async fn plugin_get_layout_callback(context: &mut dyn WIPICContext, callback: u32, a1: u32, a2: u32) -> Result<u32> {
+    tracing::warn!("stub KTF plugin[19]({callback:#x}, {a1:#x}, {a2:#x})");
+    write_generic(context, callback, 0u32)?;
+    Ok(0)
+}
+
 async fn unk_screen_flush(context: &mut dyn WIPICContext) -> Result<()> {
     tracing::debug!("KTF unk_screen_flush()");
     let framebuffer = graphics::get_screen_framebuffer(context, 0).await?;
@@ -542,13 +553,12 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
         },
         WIPICTableId::Interface3 => get_im_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Database => get_database_method_table().into_iter().nth(function_id as usize),
-        WIPICTableId::Interface5 => {
-            if function_id < 64 {
-                Some(gen_stub(5, "stub"))
-            } else {
-                None
-            }
-        }
+        WIPICTableId::Interface5 => match function_id {
+            18 => Some(plugin_cleanup.into_body()),
+            19 => Some(plugin_get_layout_callback.into_body()),
+            0..64 => Some(gen_stub(function_id.into(), "KTF plugin")),
+            _ => None,
+        },
         WIPICTableId::Fs => match WIPICFsMethodId::try_from(function_id).ok()? {
             WIPICFsMethodId::Open => Some(fs::open.into_body()),
             WIPICFsMethodId::Read => Some(fs::read.into_body()),
