@@ -146,7 +146,7 @@ struct Args {
     #[arg(long)]
     delete_storage: bool,
     /// List available MIDI output devices and exit.
-    #[arg(long, conflicts_with_all = ["filename", "debug", "profile_out", "midi_device", "phone_number", "delete_storage"])]
+    #[arg(long, exclusive = true)]
     list_midi_devices: bool,
 }
 
