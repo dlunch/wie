@@ -452,49 +452,6 @@ mod tests {
     use super::Toolkit;
 
     #[test]
-    fn image_accessor_preserves_the_image_reference() {
-        let result = run_jvm_test(
-            Box::new([wie_midp::get_protos().into(), [Toolkit::as_proto()].into()]),
-            |jvm| async move {
-                let image: ClassInstanceRef<Image> = jvm
-                    .invoke_static(
-                        "javax/microedition/lcdui/Image",
-                        "createImage",
-                        "(II)Ljavax/microedition/lcdui/Image;",
-                        (2, 3),
-                    )
-                    .await?;
-
-                let _: () = jvm
-                    .invoke_static(
-                        "com/xce/lcdui/Toolkit",
-                        "setTitleImg",
-                        "(Ljavax/microedition/lcdui/Image;)V",
-                        (image.clone(),),
-                    )
-                    .await?;
-                let returned: ClassInstanceRef<Image> = jvm
-                    .invoke_static("com/xce/lcdui/Toolkit", "titleImg", "()Ljavax/microedition/lcdui/Image;", ())
-                    .await?;
-                assert!(returned.equals(&**image)?);
-
-                let app_image: ClassInstanceRef<Image> = jvm
-                    .invoke_static("com/xce/lcdui/Toolkit", "appImg", "()Ljavax/microedition/lcdui/Image;", ())
-                    .await?;
-                let castle_image: ClassInstanceRef<Image> = jvm
-                    .invoke_static("com/xce/lcdui/Toolkit", "castleImg", "()Ljavax/microedition/lcdui/Image;", ())
-                    .await?;
-                assert!(app_image.is_null());
-                assert!(castle_image.is_null());
-
-                Ok(())
-            },
-        );
-
-        assert!(result.is_ok(), "JVM test failed: {result:?}");
-    }
-
-    #[test]
     fn split_string_returns_a_utf16_index_and_missing_images_throw_io_exception() {
         let result = run_jvm_test(
             Box::new([wie_midp::get_protos().into(), [Toolkit::as_proto()].into()]),

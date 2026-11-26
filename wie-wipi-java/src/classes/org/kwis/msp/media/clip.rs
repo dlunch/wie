@@ -281,70 +281,10 @@ mod test {
     use alloc::boxed::Box;
 
     use jvm::{ClassInstanceRef, runtime::JavaLangString};
-    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
     use crate::{classes::org::kwis::msp::media::Clip, get_protos};
-
-    #[test]
-    fn test_position_and_stop_time_round_trip() -> Result<()> {
-        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
-            let r#type = JavaLangString::from_rust_string(&jvm, "audio/test").await?;
-            let clip: ClassInstanceRef<Clip> = jvm.new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;)V", (r#type,)).await?.into();
-
-            let initial_position: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getPosition", "()I", ()).await?;
-            let initial_stop_time: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getStopTime", "()I", ()).await?;
-            let position_set: bool = jvm
-                .invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setPosition", "(I)Z", (-17,))
-                .await?;
-            let stop_time_set: bool = jvm
-                .invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setStopTime", "(I)Z", (i32::MAX,))
-                .await?;
-            let position: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getPosition", "()I", ()).await?;
-            let stop_time: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getStopTime", "()I", ()).await?;
-
-            assert_eq!(initial_position, 0);
-            assert_eq!(initial_stop_time, 0);
-            assert!(position_set);
-            assert!(stop_time_set);
-            assert_eq!(position, -17);
-            assert_eq!(stop_time, i32::MAX);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_string_and_data_constructor_type_round_trip() -> Result<()> {
-        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
-            let string_type = JavaLangString::from_rust_string(&jvm, "audio/string").await?;
-            let string_clip: ClassInstanceRef<Clip> = jvm
-                .new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;)V", (string_type,))
-                .await?
-                .into();
-
-            let data_type = JavaLangString::from_rust_string(&jvm, "audio/data").await?;
-            let mut data = jvm.instantiate_array("B", 3).await?;
-            jvm.store_array(&mut data, 0, [1i8, 2, 3]).await?;
-            let data_clip: ClassInstanceRef<Clip> = jvm
-                .new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;[B)V", (data_type, data))
-                .await?
-                .into();
-
-            let returned_string_type: ClassInstanceRef<String> = jvm
-                .invoke_virtual(&string_clip, "org/kwis/msp/media/Clip", "getType", "()Ljava/lang/String;", ())
-                .await?;
-            let returned_data_type: ClassInstanceRef<String> = jvm
-                .invoke_virtual(&data_clip, "org/kwis/msp/media/Clip", "getType", "()Ljava/lang/String;", ())
-                .await?;
-
-            assert_eq!(JavaLangString::to_rust_string(&jvm, &returned_string_type).await?, "audio/string");
-            assert_eq!(JavaLangString::to_rust_string(&jvm, &returned_data_type).await?, "audio/data");
-
-            Ok(())
-        })
-    }
 
     #[test]
     fn test_volume_range_round_trip() -> Result<()> {

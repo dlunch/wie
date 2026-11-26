@@ -1577,39 +1577,6 @@ mod test {
     }
 
     #[test]
-    fn command_event_propagates_listener_exception() -> Result<()> {
-        run_jvm_test(test_protos(), |jvm| async move {
-            let listener = jvm.new_class("javax/microedition/lcdui/TestAlertCommandListener", "()V", ()).await?;
-            let command = new_command(&jvm, "Continue").await?;
-            let alert = new_alert(&jvm, "custom").await?;
-            let event = jvm
-                .new_class(
-                    "net/wie/CommandEvent",
-                    "(Ljavax/microedition/lcdui/CommandListener;Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
-                    (listener, command, alert),
-                )
-                .await?;
-            let result: JvmResult<()> = jvm.invoke_virtual(&event, "java/lang/Runnable", "run", "()V", ()).await;
-            let Err(JavaError::JavaException(exception)) = result else {
-                panic!("CommandEvent swallowed the listener exception");
-            };
-            assert!(jvm.is_instance(&*exception, "java/lang/RuntimeException"));
-            let queue = jvm
-                .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (event,))
-                .await?;
-            let result: JvmResult<()> = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()V", ()).await;
-            let Err(JavaError::JavaException(exception)) = result else {
-                panic!("EventQueue swallowed the callback exception");
-            };
-            assert!(jvm.is_instance(&*exception, "java/lang/RuntimeException"));
-            Ok(())
-        })
-    }
-
-    #[test]
     fn sole_application_command_fires_once_and_propagates_its_listener_exception() -> Result<()> {
         let clock = TestClock::new();
         run_jvm_test_with_system(

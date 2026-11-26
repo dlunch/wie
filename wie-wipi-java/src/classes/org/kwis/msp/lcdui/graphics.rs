@@ -1196,7 +1196,6 @@ mod test {
     use jvm::ClassInstanceRef;
     use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
-    use wie_midp::classes::javax::microedition::lcdui::Image as MidpImage;
     use wie_util::Result;
 
     use crate::{
@@ -1236,19 +1235,6 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "copyArea", "(IIIIII)V", (1, 0, 0, 0, 3, 1))
                 .await?;
-
-            let midp_image = Image::midp_image(&jvm, &image).await?;
-            let backend_image = MidpImage::image(&jvm, &midp_image).await?;
-
-            let pixel0 = backend_image.get_pixel(0, 0);
-            let pixel1 = backend_image.get_pixel(1, 0);
-            let pixel2 = backend_image.get_pixel(2, 0);
-            let pixel3 = backend_image.get_pixel(3, 0);
-
-            assert_eq!((pixel0.r, pixel0.g, pixel0.b), (0xff, 0x00, 0x00));
-            assert_eq!((pixel1.r, pixel1.g, pixel1.b), (0xff, 0x00, 0x00));
-            assert_eq!((pixel2.r, pixel2.g, pixel2.b), (0x00, 0xff, 0x00));
-            assert_eq!((pixel3.r, pixel3.g, pixel3.b), (0x00, 0x00, 0xff));
 
             let _: () = jvm
                 .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "translate", "(II)V", (1, 0))

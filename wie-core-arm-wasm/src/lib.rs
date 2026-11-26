@@ -88,7 +88,7 @@ mod tests {
 
     use wie_core_arm_aot::{
         RegionKey,
-        ir::{BasicBlock, Condition, Instruction, MemoryAddress, Operation, RegionIr},
+        ir::{AluOp, BasicBlock, Condition, Instruction, MemoryAddress, Operand, Operation, Reg, RegionIr, Shift, ShiftAmount, Value},
     };
 
     use super::*;
@@ -113,6 +113,63 @@ mod tests {
                     .collect(),
             },
         }
+    }
+
+    #[test]
+    fn large_batches_compile_into_a_single_module() {
+        let request = CompileRequest {
+            images: Arc::from([]),
+            max_region_instructions: 512,
+            max_region_blocks: 128,
+            regions: Box::new((0..48).map(|step| {
+                if step % 2 == 0 {
+                    return None;
+                }
+                let pc = 0x100000 + (step / 2) * 0x1000;
+                Some(CompileRegion {
+                    ir: RegionIr {
+                        entry: RegionKey {
+                            pc,
+                            thumb: false,
+                            cpu_mode: 0x1f,
+                        },
+                        blocks: vec![BasicBlock {
+                            instructions: (0..512)
+                                .map(|index| Instruction {
+                                    pc: MemoryAddress::new(pc + index * 4),
+                                    size: 4,
+                                    condition: Condition::Le,
+                                    operation: Operation::Alu {
+                                        op: AluOp::ReverseSubCarry,
+                                        destination: Some(Reg::new(0)),
+                                        left: Value::Register(Reg::new(0)),
+                                        right: Operand {
+                                            value: Value::Register(Reg::new(1)),
+                                            shift: Shift::Lsl,
+                                            amount: ShiftAmount::Register(Reg::new(2)),
+                                        },
+                                        set_flags: true,
+                                    },
+                                })
+                                .collect(),
+                        }],
+                    },
+                })
+            })),
+        };
+        let mut compiler = Compiler::new(request);
+        assert!(!compiler.step().unwrap());
+        assert!(compiler.artifact.manifest.is_empty());
+        assert!(!compiler.step().unwrap());
+        assert!(compiler.artifact.manifest.is_empty());
+        while !compiler.step().unwrap() {}
+        let artifact = compiler.finish();
+        assert_eq!(artifact.manifest.iter().filter(|region| !region.entry.thumb).count(), 24);
+        assert_eq!(
+            artifact.manifest.iter().map(|region| region.instruction_pcs.len()).sum::<usize>(),
+            24 * 512
+        );
+        assert!(artifact.chunks.iter().map(Vec::len).sum::<usize>() > 512 * 1024);
     }
 
     #[test]

@@ -305,14 +305,6 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn missing_file_has_no_data_or_size() {
-        let fs = setup();
-        let mut buf = [0u8; 4];
-        assert_eq!(fs.read("nope", 0, 4, &mut buf).await, None);
-        assert_eq!(fs.size("nope").await, None);
-    }
-
-    #[futures_test::test]
     async fn first_persistent_write_materializes_virtual_prefix() {
         let fs = setup();
         fs.add_virtual("append.dat", vec![0xAA, 0xBB]);

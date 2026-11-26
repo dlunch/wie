@@ -258,3 +258,153 @@ impl FileInputStream {
         Ok(count - remaining)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+
+    use jvm::{Array, ClassInstanceRef, runtime::JavaLangString};
+    use rustjava_runtime::classes::java::lang::String;
+    use test_utils::run_jvm_test;
+
+    use crate::classes::com::xce::io::{FileInputStream, FileOutputStream, XFile};
+
+    #[test]
+    fn stream_overloads_preserve_mark_skip_and_eof_behavior() {
+        let result = run_jvm_test(
+            Box::new([Box::new([XFile::as_proto(), FileInputStream::as_proto(), FileOutputStream::as_proto()])]),
+            |jvm| async move {
+                let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "stream-overloads.dat").await?.into();
+                let output: ClassInstanceRef<FileOutputStream> = jvm
+                    .new_class("com/xce/io/FileOutputStream", "(Ljava/lang/String;Z)V", (name.clone(), true))
+                    .await?
+                    .into();
+                let mut source = jvm.instantiate_array("B", 4).await?;
+                jvm.store_array(&mut source, 0, [1_i8, 2, 3, 4]).await?;
+                let _: () = jvm
+                    .invoke_virtual(&output, "com/xce/io/FileOutputStream", "write", "([BII)V", (source, 1, 2))
+                    .await?;
+                let _: () = jvm.invoke_virtual(&output, "com/xce/io/FileOutputStream", "flush", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&output, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
+
+                let append_output: ClassInstanceRef<FileOutputStream> = jvm
+                    .new_class("com/xce/io/FileOutputStream", "(Ljava/lang/String;Z)V", (name.clone(), false))
+                    .await?
+                    .into();
+                let _: () = jvm
+                    .invoke_virtual(&append_output, "com/xce/io/FileOutputStream", "write", "(I)V", (4,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&append_output, "com/xce/io/FileOutputStream", "close", "()V", ())
+                    .await?;
+
+                let input: ClassInstanceRef<FileInputStream> = jvm
+                    .new_class("com/xce/io/FileInputStream", "(Ljava/lang/String;)V", (name,))
+                    .await?
+                    .into();
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&input, "com/xce/io/FileInputStream", "markSupported", "()Z", ())
+                        .await?
+                );
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "mark", "(I)V", (8,)).await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    2
+                );
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "reset", "()V", ()).await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i64>(&input, "com/xce/io/FileInputStream", "skip", "(J)J", (1_i64,))
+                        .await?,
+                    1
+                );
+
+                let target: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 2).await?.into();
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "([B)I", (target.clone(),))
+                        .await?,
+                    2
+                );
+                assert_eq!(jvm.load_array::<i8>(&target, 0, 2).await?, [3, 4]);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    -1
+                );
+
+                Ok(())
+            },
+        );
+
+        assert!(result.is_ok(), "JVM test failed: {result:?}");
+    }
+
+    #[test]
+    fn append_mode_creates_a_missing_file() {
+        let result = run_jvm_test(
+            Box::new([Box::new([XFile::as_proto(), FileInputStream::as_proto(), FileOutputStream::as_proto()])]),
+            |jvm| async move {
+                let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "append-new.dat").await?.into();
+                let output: ClassInstanceRef<FileOutputStream> = jvm
+                    .new_class("com/xce/io/FileOutputStream", "(Ljava/lang/String;Z)V", (name.clone(), false))
+                    .await?
+                    .into();
+                let _: () = jvm
+                    .invoke_virtual(&output, "com/xce/io/FileOutputStream", "write", "(I)V", (0xAB,))
+                    .await?;
+                let _: () = jvm.invoke_virtual(&output, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
+
+                let input: ClassInstanceRef<FileInputStream> = jvm
+                    .new_class("com/xce/io/FileInputStream", "(Ljava/lang/String;)V", (name,))
+                    .await?
+                    .into();
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    0xAB
+                );
+
+                Ok(())
+            },
+        );
+
+        assert!(result.is_ok(), "JVM test failed: {result:?}");
+    }
+
+    #[test]
+    fn standard_streams_have_neutral_input_and_non_owning_output_close() {
+        let result = run_jvm_test(
+            Box::new([Box::new([XFile::as_proto(), FileInputStream::as_proto(), FileOutputStream::as_proto()])]),
+            |jvm| async move {
+                let input: ClassInstanceRef<FileInputStream> = jvm.new_class("com/xce/io/FileInputStream", "(I)V", (0,)).await?.into();
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&input, "com/xce/io/FileInputStream", "markSupported", "()Z", ())
+                        .await?
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "available", "()I", ())
+                        .await?,
+                    0
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    -1
+                );
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "mark", "(I)V", (1,)).await?;
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "reset", "()V", ()).await?;
+
+                let first: ClassInstanceRef<FileOutputStream> = jvm.new_class("com/xce/io/FileOutputStream", "(I)V", (1,)).await?.into();
+                let _: () = jvm.invoke_virtual(&first, "com/xce/io/FileOutputStream", "write", "(I)V", (1,)).await?;
+                let _: () = jvm.invoke_virtual(&first, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
+                let second: ClassInstanceRef<FileOutputStream> = jvm.new_class("com/xce/io/FileOutputStream", "(I)V", (1,)).await?.into();
+                let _: () = jvm.invoke_virtual(&second, "com/xce/io/FileOutputStream", "write", "(I)V", (2,)).await?;
+                let _: () = jvm.invoke_virtual(&second, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
+
+                Ok(())
+            },
+        );
+
+        assert!(result.is_ok(), "JVM test failed: {result:?}");
+    }
+}

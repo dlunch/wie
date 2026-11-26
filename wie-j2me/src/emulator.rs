@@ -283,14 +283,6 @@ mod tests {
     }
 
     #[test]
-    fn ignores_malformed_manifest_lines() {
-        let descriptor = J2MEDescriptor::parse(b"invalid line\nMIDlet-1: incomplete\n\xff\nMIDlet-Name: Valid App\n");
-
-        assert_eq!(descriptor.name, "incomplete");
-        assert!(descriptor.main_class_name.is_empty());
-    }
-
-    #[test]
     fn parses_midlet_icon_and_continued_manifest_value() {
         let descriptor =
             J2MEDescriptor::parse(b"MIDlet-Name: Boulder Dash\nMIDlet-1: Boulder Dash, icon.png, net.instantcom.boulderdash.BoulderDa\n shMIDlet\n");

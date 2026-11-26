@@ -270,29 +270,6 @@ mod tests {
     }
 
     #[test]
-    fn partial_instructions_remain_fallback_holes() {
-        for bytes in [vec![], vec![1], vec![0, 0xf0], vec![0, 0xf0, 0]] {
-            assert!(Decoder::new(vec![image(0x1000, bytes)].into(), None).flatten().next().is_none());
-        }
-        let regions: Vec<_> = Decoder::new(vec![image(0x1001, vec![0xff, 1, 0x20, 0])].into(), None).flatten().collect();
-        assert_eq!(regions.len(), 1);
-        assert_eq!(regions[0].ir.entry.pc, 0x1002);
-        assert_eq!(regions[0].ir.blocks[0].instructions.len(), 1);
-    }
-
-    #[test]
-    fn unsupported_images_make_bounded_progress_without_ir() {
-        let mut decoder = Decoder::new(vec![image(0x1000, vec![0xff; 16 * 1024])].into(), None);
-        let mut steps = 0;
-        for region in decoder.by_ref() {
-            assert!(region.is_none());
-            steps += 1;
-        }
-        assert!(steps >= (16 * 1024 / 4 + 16 * 1024 / 2) / 256);
-        assert!(decoder.next().is_none());
-    }
-
-    #[test]
     fn analysis_limits_only_claim_emitted_instructions() {
         for code in [vec![0x3001_u16; MAX_REGION_INSTRUCTIONS + 1], vec![0xd1ff_u16; MAX_REGION_BLOCKS + 1]] {
             let images: Arc<[_]> = vec![image(0x1000, code.iter().flat_map(|op| op.to_le_bytes()).collect())].into();

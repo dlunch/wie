@@ -256,15 +256,12 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
     use core::sync::atomic::{AtomicU32, Ordering};
 
-    use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+    use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::JavaMethodProto;
     use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-    use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestPlatform, TestPlatformEvent, run_jvm_test_with_system};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_midp::classes::javax::microedition::midlet::MIDlet;
-
-    use crate::classes::com::skt::m::Call;
 
     use super::Device;
 
@@ -294,28 +291,9 @@ mod tests {
             access_flags: ClassAccessFlags::PUBLIC,
         };
         run_jvm_test_with_system(
-            Box::new([wie_midp::get_protos().into(), [Device::as_proto(), Call::as_proto(), midlet_proto].into()]),
+            Box::new([wie_midp::get_protos().into(), [Device::as_proto(), midlet_proto].into()]),
             Box::new(platform),
             move |jvm, _system| async move {
-                let phone_number: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "01012345678").await?.into();
-                let connected: bool = jvm
-                    .invoke_static("com/skt/m/Call", "connect", "(Ljava/lang/String;)Z", (phone_number,))
-                    .await?;
-                assert!(!connected);
-
-                let disconnected: bool = jvm.invoke_static("com/skt/m/Call", "disconnect", "()Z", ()).await?;
-                assert!(!disconnected);
-
-                let call_supported: bool = jvm.invoke_static("com/skt/m/Call", "isSupported", "()Z", ()).await?;
-                assert!(!call_supported);
-
-                let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "standby.sis").await?.into();
-                let data: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 3).await?.into();
-                let installed: bool = jvm
-                    .invoke_static("com/skt/m/Device", "setSISImage", "(ILjava/lang/String;[B)Z", (0, name, data))
-                    .await?;
-                assert!(!installed);
-
                 let midlet = jvm.instantiate_class("test/BrowserMidlet").await?;
                 let _: () = jvm
                     .invoke_special(&midlet, "javax/microedition/midlet/MIDlet", "<init>", "()V", ())

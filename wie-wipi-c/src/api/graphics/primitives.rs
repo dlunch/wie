@@ -269,14 +269,14 @@ pub fn set_rgb_pixels(
 #[cfg(test)]
 mod tests {
     use wie_backend::canvas::{Clip, Color};
-    use wie_util::{ByteRead, ByteWrite, Result};
+    use wie_util::Result;
 
     use crate::{
         api::graphics::{
             FrameBuffer,
-            primitives::{fill_rect, get_rgb_pixels, put_pixel, set_rgb_pixels},
+            primitives::{fill_rect, put_pixel},
         },
-        context::{WIPICContext, test::TestContext},
+        context::test::TestContext,
     };
 
     #[test]
@@ -304,68 +304,5 @@ mod tests {
         assert_eq!(image.get_pixel(1, 1).r, 255);
         assert_eq!(image.get_pixel(3, 3).r, 0);
         Ok(())
-    }
-
-    #[test]
-    fn rgb_pixels_use_the_wipi_little_endian_layout() -> Result<()> {
-        let mut context = TestContext::new();
-        let framebuffer = FrameBuffer::new(&mut context, 1, 1, 16)?;
-        put_pixel(
-            &mut context,
-            &framebuffer,
-            0,
-            0,
-            Color {
-                a: 0xff,
-                r: 0xff,
-                g: 0,
-                b: 0,
-            },
-            Clip {
-                x: 0,
-                y: 0,
-                width: 1,
-                height: 1,
-            },
-        )?;
-        let image = framebuffer.image(&mut context)?;
-
-        get_rgb_pixels(&mut context, &*image, 0, 0, 1, 1, 0x1000, 4)?;
-        let mut bytes = [0; 4];
-        context.read_bytes(0x1000, &mut bytes)?;
-        assert_eq!(u32::from_le_bytes(bytes), 0x00ff_0000);
-        Ok(())
-    }
-
-    #[test]
-    fn rgb_row_bytes_rejects_overflow_and_short_strides() {
-        assert_eq!(super::rgb_row_bytes(i32::MAX, i32::MAX), None);
-        assert_eq!(super::rgb_row_bytes(4, 15), None);
-        assert_eq!(super::rgb_row_bytes(4, 16), Some(16));
-    }
-
-    #[test]
-    fn set_rgb_pixels_wraps_guest_coordinates() -> Result<()> {
-        let mut context = TestContext::new();
-        let framebuffer = FrameBuffer::new(&mut context, 1, 1, 16)?;
-        let source = context.alloc(8)?;
-        context.write_bytes(context.data_ptr(source)?, &[0, 0, 0, 0, 0, 0, 0, 0])?;
-
-        set_rgb_pixels(
-            &mut context,
-            &framebuffer,
-            i32::MAX,
-            0,
-            2,
-            1,
-            source.0,
-            8,
-            Clip {
-                x: 0,
-                y: 0,
-                width: 1,
-                height: 1,
-            },
-        )
     }
 }

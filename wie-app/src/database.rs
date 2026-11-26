@@ -164,3 +164,86 @@ impl Database for SqliteDatabase {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use wie_backend::DatabaseRepository as _;
+
+    use super::DatabaseRepository;
+    use crate::store;
+
+    #[test]
+    fn record_ids_persist_until_the_store_is_deleted() {
+        let root = tempdir().unwrap();
+        tauri::async_runtime::block_on(async {
+            {
+                let repository = DatabaseRepository {
+                    store: store::open(root.path()).unwrap(),
+                };
+                assert!(!repository.exists("save", "app").await);
+                let mut db = repository.open("save", "app").await;
+                assert_eq!(db.get(1).await, None);
+                assert!(!repository.exists("save", "app").await);
+                repository.create("save", "app").await;
+                assert!(repository.exists("save", "app").await);
+                assert!(db.set(1, b"first").await);
+                repository.create("save", "app").await;
+                assert_eq!(db.get(1).await.unwrap(), b"first");
+                assert_eq!(db.next_id().await, 2);
+                assert_eq!(db.add(b"second").await, 2);
+                assert!(db.set(1, b"updated").await);
+                assert_eq!(db.next_id().await, 3);
+                assert!(db.delete(1).await);
+                let mut reopened = repository.open("save", "app").await;
+                assert_eq!(reopened.next_id().await, 3);
+                assert_eq!(reopened.add(b"third").await, 3);
+                assert_eq!(db.next_id().await, 4);
+                assert!(db.delete(3).await);
+                assert!(db.delete(2).await);
+            }
+
+            let repository = DatabaseRepository {
+                store: store::open(root.path()).unwrap(),
+            };
+            assert!(repository.exists("save", "app").await);
+            let mut db = repository.open("save", "app").await;
+            assert!(db.get_record_ids().await.is_empty());
+            assert_eq!(db.next_id().await, 4);
+            assert_eq!(db.add(b"fourth").await, 4);
+            assert_eq!(db.get_record_ids().await, [4]);
+            assert!(repository.delete("save", "app").await);
+            assert!(!repository.exists("save", "app").await);
+            repository.create("save", "app").await;
+            let mut reset = repository.open("save", "app").await;
+            assert!(reset.get_record_ids().await.is_empty());
+            assert_eq!(reset.add(b"reset").await, 1);
+            assert_eq!(reset.get_record_ids().await, [1]);
+        });
+    }
+
+    #[test]
+    fn record_stores_are_isolated_by_pid_and_name() {
+        let root = tempdir().unwrap();
+        tauri::async_runtime::block_on(async {
+            let repository = DatabaseRepository {
+                store: store::open(root.path()).unwrap(),
+            };
+            let stores = [
+                ("pid/./app", "save:1"),
+                ("pid/./app", "save_1"),
+                ("pid/app", "save:1"),
+                ("pid/app", "save_1"),
+            ];
+            for (pid, name) in stores {
+                repository.create(name, pid).await;
+                assert_eq!(repository.open(name, pid).await.add(format!("{pid}:{name}").as_bytes()).await, 1);
+            }
+            assert!(repository.delete("save:1", "pid/./app").await);
+            for &(pid, name) in &stores[1..] {
+                assert_eq!(repository.open(name, pid).await.get(1).await.unwrap(), format!("{pid}:{name}").as_bytes());
+            }
+        });
+    }
+}

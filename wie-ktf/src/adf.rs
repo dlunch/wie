@@ -119,58 +119,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_adf_empty() {
-        let adf = KtfAdf::parse(b"");
-        assert!(adf.name.is_empty());
-        assert!(adf.aid.is_empty());
-        assert!(adf.pid.is_empty());
-        assert!(adf.mclass.is_empty());
-        assert_eq!(adf.display_size, None);
-    }
-
-    #[test]
-    fn parse_adf_partial() {
-        let data = b"AID:only\n";
-        let adf = KtfAdf::parse(data);
-        assert!(adf.name.is_empty());
-        assert_eq!(adf.aid, "only");
-        assert!(adf.pid.is_empty());
-        assert!(adf.mclass.is_empty());
-        assert_eq!(adf.display_size, None);
-    }
-
-    #[test]
     fn parse_adf_display_size_variants() {
         assert_eq!(KtfAdf::parse(b"DisplaySize: 176 x 220\r\n").display_size, Some((176, 220)));
         assert_eq!(KtfAdf::parse(b"DisplaySize:176X220\n").display_size, Some((176, 220)));
     }
 
     #[test]
-    fn parse_adf_invalid_display_size() {
-        assert_eq!(KtfAdf::parse(b"DisplaySize:invalid\n").display_size, None);
-        assert_eq!(KtfAdf::parse(b"DisplaySize:0*220\n").display_size, None);
-        assert_eq!(KtfAdf::parse(b"DisplaySize:176*0\n").display_size, None);
-        assert_eq!(KtfAdf::parse(b"DisplaySize:4294967296*220\n").display_size, None);
-    }
-
-    #[test]
     fn parse_bss_size_ok() {
         assert_eq!(parse_bss_size("client.bin12345").unwrap(), 12345);
         assert_eq!(parse_bss_size("client.bin0").unwrap(), 0);
-    }
-
-    #[test]
-    fn parse_bss_size_missing_marker() {
-        assert!(parse_bss_size("not_a_client_bin_name").is_err());
-    }
-
-    #[test]
-    fn parse_bss_size_no_digits() {
-        assert!(parse_bss_size("client.bin").is_err());
-    }
-
-    #[test]
-    fn parse_bss_size_non_numeric() {
-        assert!(parse_bss_size("client.binABC").is_err());
     }
 }

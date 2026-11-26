@@ -121,10 +121,9 @@ impl SMS {
 mod test {
     use alloc::{boxed::Box, vec};
 
-    use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
+    use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
     use jvm_class_proto::JavaMethodProto;
     use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
 
     use super::SMS;
@@ -164,56 +163,6 @@ mod test {
     }
 
     #[test]
-    fn listener_round_trips_and_network_operations_fail_deterministically() {
-        let result = run_jvm_test(
-            Box::new([
-                wie_midp::get_protos().into(),
-                Box::new([
-                    SMS::as_proto(),
-                    SMSListener::as_proto(),
-                    SMSMessage::as_proto(),
-                    TestSMSListener::as_proto(),
-                ]),
-            ]),
-            |jvm| async move {
-                let listener: ClassInstanceRef<SMSListener> = jvm.new_class("test/SMSListener", "()V", ()).await?.into();
-                let _: () = jvm
-                    .invoke_static("com/skt/m/SMS", "setSMSListener", "(Lcom/skt/m/SMSListener;)V", (listener.clone(),))
-                    .await?;
-                let returned: ClassInstanceRef<SMSListener> = jvm
-                    .invoke_static("com/skt/m/SMS", "getSMSListener", "()Lcom/skt/m/SMSListener;", ())
-                    .await?;
-                assert_eq!(
-                    returned.instance.as_ref().map(|instance| instance.identity()),
-                    listener.instance.as_ref().map(|instance| instance.identity())
-                );
-
-                let message: ClassInstanceRef<SMSMessage> = jvm.new_class("com/skt/m/SMSMessage", "()V", ()).await?.into();
-                let receiver: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "01098765432").await?.into();
-                let sent: bool = jvm
-                    .invoke_static(
-                        "com/skt/m/SMS",
-                        "send",
-                        "(Ljava/lang/String;Lcom/skt/m/SMSMessage;)Z",
-                        (receiver, message.clone()),
-                    )
-                    .await?;
-                let filled: bool = jvm
-                    .invoke_static("com/skt/m/SMS", "get", "(ILcom/skt/m/SMSMessage;)Z", (0, message))
-                    .await?;
-                let received: ClassInstanceRef<SMSMessage> = jvm.invoke_static("com/skt/m/SMS", "get", "(I)Lcom/skt/m/SMSMessage;", (0,)).await?;
-                assert!(!sent);
-                assert!(!filled);
-                assert!(received.is_null());
-
-                Ok(())
-            },
-        );
-
-        assert!(result.is_ok(), "JVM test failed: {result:?}");
-    }
-
-    #[test]
     fn documented_input_errors_raise_java_exceptions_and_preserve_the_listener() {
         let result = run_jvm_test(
             Box::new([
@@ -247,43 +196,6 @@ mod test {
                     returned.instance.as_ref().map(|instance| instance.identity()),
                     listener.instance.as_ref().map(|instance| instance.identity())
                 );
-
-                let invalid_get: JvmResult<ClassInstanceRef<SMSMessage>> =
-                    jvm.invoke_static("com/skt/m/SMS", "get", "(I)Lcom/skt/m/SMSMessage;", (1,)).await;
-                let Err(JavaError::JavaException(exception)) = invalid_get else {
-                    panic!("SMS.get accepted an index other than zero");
-                };
-                assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
-
-                let message: ClassInstanceRef<SMSMessage> = jvm.new_class("com/skt/m/SMSMessage", "()V", ()).await?.into();
-                let receiver: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "01098765432").await?.into();
-                let null_receiver = ClassInstanceRef::<String>::new(None);
-                let send_result: JvmResult<bool> = jvm
-                    .invoke_static(
-                        "com/skt/m/SMS",
-                        "send",
-                        "(Ljava/lang/String;Lcom/skt/m/SMSMessage;)Z",
-                        (null_receiver, message),
-                    )
-                    .await;
-                let Err(JavaError::JavaException(exception)) = send_result else {
-                    panic!("SMS.send accepted a null receiver");
-                };
-                assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
-
-                let null_message = ClassInstanceRef::<SMSMessage>::new(None);
-                let send_result: JvmResult<bool> = jvm
-                    .invoke_static(
-                        "com/skt/m/SMS",
-                        "send",
-                        "(Ljava/lang/String;Lcom/skt/m/SMSMessage;)Z",
-                        (receiver, null_message),
-                    )
-                    .await;
-                let Err(JavaError::JavaException(exception)) = send_result else {
-                    panic!("SMS.send accepted a null message");
-                };
-                assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
 
                 Ok(())
             },

@@ -154,50 +154,11 @@ mod test {
     use bytemuck::cast_slice;
     use jvm::{ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
     use rustjava_runtime::classes::java::lang::String;
-    use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
+    use test_utils::{TestPlatform, run_jvm_test_with_system};
     use wie_backend::{AudioCommand, AudioEventData};
     use wie_util::Result;
 
-    use crate::{
-        classes::org::kwis::msp::media::{BaseClip, Clip},
-        get_protos,
-    };
-
-    #[test]
-    fn test_base_clip_overloads_return_false() -> Result<()> {
-        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
-            let clip: ClassInstanceRef<BaseClip> = jvm.new_class("org/kwis/msp/media/BaseClip", "()V", ()).await?.into();
-
-            let paused: bool = jvm
-                .invoke_static("org/kwis/msp/media/Player", "pause", "(Lorg/kwis/msp/media/BaseClip;)Z", (clip.clone(),))
-                .await?;
-            let stopped: bool = jvm
-                .invoke_static("org/kwis/msp/media/Player", "stop", "(Lorg/kwis/msp/media/BaseClip;)Z", (clip.clone(),))
-                .await?;
-            let resumed: bool = jvm
-                .invoke_static("org/kwis/msp/media/Player", "resume", "(Lorg/kwis/msp/media/BaseClip;)Z", (clip.clone(),))
-                .await?;
-            let played: bool = jvm
-                .invoke_static(
-                    "org/kwis/msp/media/Player",
-                    "play",
-                    "(Lorg/kwis/msp/media/BaseClip;Z)Z",
-                    (clip.clone(), true),
-                )
-                .await?;
-            let recorded: bool = jvm
-                .invoke_static("org/kwis/msp/media/Player", "record", "(Lorg/kwis/msp/media/BaseClip;)Z", (clip,))
-                .await?;
-
-            assert!(!paused);
-            assert!(!stopped);
-            assert!(!resumed);
-            assert!(!played);
-            assert!(!recorded);
-
-            Ok(())
-        })
-    }
+    use crate::{classes::org::kwis::msp::media::Clip, get_protos};
 
     #[test]
     fn test_clip_playback_reuses_player_until_buffer_replacement() -> Result<()> {

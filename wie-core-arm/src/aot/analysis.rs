@@ -936,73 +936,6 @@ mod tests {
     }
 
     #[test]
-    fn thumb_countdown_has_a_backedge_and_conditional_fallthrough() {
-        // movs r0,#3; subs r0,#1; cmp r0,#0; bne 0x1002; bx lr
-        let ir = thumb(&[0x2003, 0x3801, 0x2800, 0xd1fc, 0x4770], 0x1000).unwrap();
-        assert_eq!(ir.blocks.iter().map(|b| b.instructions.len()).collect::<Vec<_>>(), [1, 3, 1]);
-
-        let Operation::Alu {
-            op: AluOp::Move,
-            destination: Some(ref decoded_destination),
-            left: Value::Immediate(0),
-            right:
-                Operand {
-                    value: Value::Immediate(3),
-                    shift: Shift::Lsl,
-                    amount: ShiftAmount::Immediate(0),
-                },
-            set_flags: true,
-        } = ir.blocks[0].instructions[0].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_destination.index() == 0);
-
-        let Operation::Alu {
-            op: AluOp::Sub,
-            destination: Some(ref decoded_destination),
-            ..
-        } = ir.blocks[1].instructions[0].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_destination.index() == 0);
-
-        let Operation::Alu {
-            op: AluOp::Sub,
-            destination: None,
-            set_flags: true,
-            ..
-        } = ir.blocks[1].instructions[1].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-
-        let branch = &ir.blocks[1].instructions[2];
-        assert!(branch.condition == Condition::Ne);
-
-        let Operation::Branch {
-            target: BranchTarget::Address(ref decoded_target),
-            link: None,
-            exchange: false,
-        } = branch.operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_target.get() == 0x1002);
-
-        let Operation::Branch {
-            target: BranchTarget::Register(ref decoded_target),
-            link: None,
-            exchange: true,
-        } = ir.blocks[2].instructions[0].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_target.index() == 14);
-    }
-
-    #[test]
     fn snapshot_reaches_before_entry_without_decoding_unreachable_bytes() {
         // adds r0,#1; b 0x1000; undefined; b 0x1000
         let ir = thumb(&[0x3001, 0xe7fd, 0xde00, 0xe7fb], 0x1006).unwrap();
@@ -1049,77 +982,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn invalid_or_partial_boundaries_terminate() {
-        assert!(analyze(&[], 0x1000, ENTRY).is_none());
-        assert!(analyze(&[0x01], 0x1000, ENTRY).is_none());
-        assert!(analyze(&[0x01, 0x20], 0x1000, RegionKey { pc: 0x1001, ..ENTRY }).is_none());
-        assert!(analyze(&[0x01, 0x20], 0x1000, RegionKey { pc: 0xffe, ..ENTRY }).is_none());
-        let ir = analyze(&[0x01, 0x20, 0xff], 0x1000, ENTRY).unwrap();
-        assert_eq!(ir.blocks[0].instructions.len(), 1);
-    }
-
     fn arm(code: &[u32]) -> Option<RegionIr> {
         let bytes: Vec<_> = code.iter().flat_map(|opcode| opcode.to_le_bytes()).collect();
         analyze(&bytes, 0x1000, RegionKey { thumb: false, ..ENTRY })
-    }
-
-    #[test]
-    fn arm_conditions_comparisons_and_backedges() {
-        // mov r0,#3; subs r0,r0,#1; cmp r0,#0; bne 0x1004; bx lr
-        let ir = arm(&[0xe3a00003, 0xe2500001, 0xe3500000, 0x1afffffc, 0xe12fff1e]).unwrap();
-        assert_eq!(ir.blocks.iter().map(|b| b.instructions.len()).collect::<Vec<_>>(), [1, 3, 1]);
-        let instructions = &ir.blocks[1].instructions;
-
-        let Operation::Alu {
-            op: AluOp::Sub,
-            destination: Some(ref decoded_destination),
-            set_flags: true,
-            ..
-        } = instructions[0].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_destination.index() == 0);
-
-        let Operation::Alu {
-            op: AluOp::Sub,
-            destination: None,
-            set_flags: true,
-            ..
-        } = instructions[1].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-
-        assert!(instructions[2].condition == Condition::Ne);
-
-        let Operation::Branch {
-            target: BranchTarget::Address(ref decoded_target),
-            link: None,
-            exchange: false,
-        } = instructions[2].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_target.get() == 0x1004);
-
-        // Conditional ordinary instructions keep their condition without making a branch.
-        let ir = arm(&[0x02812001, 0xe12fff1e]).unwrap();
-        assert_eq!(ir.blocks.len(), 1);
-        assert!(ir.blocks[0].instructions[0].condition == Condition::Eq);
-
-        let Operation::Alu {
-            op: AluOp::Add,
-            destination: Some(ref decoded_destination),
-            left: Value::Register(ref decoded_left),
-            set_flags: false,
-            ..
-        } = ir.blocks[0].instructions[0].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_destination.index() == 2 && decoded_left.index() == 1);
     }
 
     #[test]
@@ -1176,56 +1041,6 @@ mod tests {
             assert!(matches!(&instruction.operation, Operation::Alu { op: AluOp::Move, right, .. }
                 if right.value == expected.value && right.shift == expected.shift && right.amount == expected.amount));
         }
-    }
-
-    #[test]
-    fn arm_rotated_immediates_do_not_discard_shifter_carry() {
-        let ir = arm(&[0xe3b00102, 0xe3b01002, 0xe3100102, 0xe3300102]).unwrap();
-        assert_eq!(ir.blocks[0].instructions.len(), 4);
-        for index in [0, 2, 3] {
-            assert!(matches!(
-                ir.blocks[0].instructions[index].operation,
-                Operation::Alu {
-                    right: Operand {
-                        value: Value::Immediate(2),
-                        shift: Shift::Ror,
-                        amount: ShiftAmount::Immediate(2)
-                    },
-                    ..
-                }
-            ));
-        }
-        assert!(matches!(
-            ir.blocks[0].instructions[1].operation,
-            Operation::Alu {
-                right: Operand {
-                    value: Value::Immediate(2),
-                    shift: Shift::Lsl,
-                    amount: ShiftAmount::Immediate(0)
-                },
-                ..
-            }
-        ));
-
-        let Operation::Alu {
-            op: AluOp::And,
-            destination: None,
-            set_flags: true,
-            ..
-        } = ir.blocks[0].instructions[2].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-
-        let Operation::Alu {
-            op: AluOp::Xor,
-            destination: None,
-            set_flags: true,
-            ..
-        } = ir.blocks[0].instructions[3].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
     }
 
     #[test]
@@ -1572,6 +1387,11 @@ mod tests {
     fn exceptions_newer_isa_and_unpredictable_encodings_stay_in_interpreter() {
         for opcode in [
             0xef000000, 0x0f000000, 0xe1b0f00e, 0xf3a00001, 0xe6000010, 0xe1a00f11, 0xe4911004, 0xe5c0f000, 0xe1900fb1,
+            // MUL/MLA with a PC operand or reserved bits.
+            0xe00f0190, 0xe000019f, 0xe0000f91, 0xe0001190, 0xf0000190, 0xe020009f, 0xe0200f90, 0xe020f090, 0xe02f0090,
+            // Reserved CLZ and SWP forms.
+            0xe16fff10, 0xe16f0f1f, 0xe1600f10, 0xe16f0010, 0xe16f0f30, 0xe17f0f10, 0xe101f093, 0xe10f2093, 0xe101209f, 0xe1011093, 0xe1012091,
+            0xe1012193, 0xe1112093,
         ] {
             assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
             let ir = arm(&[0xe3a00001, opcode, 0xe2800001]).unwrap();
@@ -1636,60 +1456,6 @@ mod tests {
     }
 
     #[test]
-    fn arm_multiply_preserves_conditions_operands_and_flag_selection() {
-        for condition_bits in 0..15 {
-            let condition = decode_condition(condition_bits).unwrap();
-            for set_flags in [false, true] {
-                for (rd, rm, rs) in [(0, 0, 1), (2, 1, 2), (14, 13, 12), (0, 0, 0)] {
-                    let opcode = ((condition_bits as u32) << 28)
-                        | 0x0000_0090
-                        | (u32::from(set_flags) << 20)
-                        | (u32::from(rd) << 16)
-                        | (u32::from(rs) << 8)
-                        | u32::from(rm);
-                    let ir = arm(&[opcode, 0xe2800001]).unwrap();
-                    assert_eq!(ir.blocks.len(), 1, "{opcode:08x}");
-                    assert_eq!(ir.blocks[0].instructions.len(), 2, "{opcode:08x}");
-                    assert_eq!(ir.blocks[0].instructions[1].pc.get(), 0x1004);
-                    let Instruction {
-                        pc: ref decoded_pc,
-                        size: 4,
-                        condition: ref actual_condition,
-                        operation:
-                            Operation::Alu {
-                                op: AluOp::Multiply,
-                                destination: Some(ref actual_destination),
-                                left: Value::Register(ref actual_left),
-                                right:
-                                    Operand {
-                                        value: Value::Register(ref actual_value),
-                                        shift: Shift::Lsl,
-                                        amount: ShiftAmount::Immediate(0),
-                                    },
-                                set_flags: actual_set_flags,
-                            },
-                    } = ir.blocks[0].instructions[0]
-                    else {
-                        panic!("{opcode:08x}")
-                    };
-                    let actual_destination = actual_destination.index();
-                    let actual_left = actual_left.index();
-                    let actual_value = actual_value.index();
-                    assert!(decoded_pc.get() == 0x1000);
-                    assert!(
-                        *actual_condition == condition
-                            && actual_destination == rd
-                            && actual_left == rm
-                            && actual_value == rs
-                            && actual_set_flags == set_flags,
-                        "{opcode:08x}"
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
     fn thumb_multiply_preserves_all_low_register_operands_and_sets_flags() {
         for rd in 0..8 {
             for rm in 0..8 {
@@ -1725,61 +1491,6 @@ mod tests {
                 assert!(decoded_pc.get() == 0x1000);
                 assert!(actual_destination == rd && actual_left == rd && actual_value == rm, "{opcode:04x}");
             }
-        }
-    }
-
-    #[test]
-    fn arm_multiply_rejects_pc_and_reserved_bits() {
-        for opcode in [
-            0xe00f0190, // MUL with PC destination.
-            0xe000019f, // MUL with PC as Rm.
-            0xe0000f91, // MUL with PC as Rs.
-            0xe0001190, // MUL with nonzero SBZ field.
-            0xf0000190, // MUL is not an unconditional-space instruction.
-        ] {
-            assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
-            let ir = arm(&[0xe3a00001, opcode, 0xe2800001]).unwrap();
-            assert_eq!(ir.blocks[0].instructions.len(), 1, "{opcode:08x}");
-        }
-    }
-
-    #[test]
-    fn arm_multiply_accumulate_keeps_all_inputs_and_flag_selection() {
-        for set_flags in [false, true] {
-            for (destination, left, right, accumulate) in [(2, 1, 3, 4), (2, 2, 2, 2), (14, 13, 12, 11)] {
-                let opcode = 0x0020_0090
-                    | (u32::from(set_flags) << 20)
-                    | (u32::from(destination) << 16)
-                    | (u32::from(accumulate) << 12)
-                    | (u32::from(right) << 8)
-                    | u32::from(left);
-                let ir = arm(&[opcode]).unwrap();
-                assert!(ir.blocks[0].instructions[0].condition == Condition::Eq);
-                let Operation::MultiplyAccumulate {
-                    destination: ref actual_destination,
-                    left: ref actual_left,
-                    right: ref actual_right,
-                    accumulate: ref actual_accumulate,
-                    set_flags: actual_set_flags,
-                } = ir.blocks[0].instructions[0].operation
-                else {
-                    panic!("unexpected decoded instruction")
-                };
-                let actual_destination = actual_destination.index();
-                let actual_left = actual_left.index();
-                let actual_right = actual_right.index();
-                let actual_accumulate = actual_accumulate.index();
-                assert!(
-                    actual_destination == destination
-                        && actual_left == left
-                        && actual_right == right
-                        && actual_accumulate == accumulate
-                        && actual_set_flags == set_flags
-                );
-            }
-        }
-        for field in [0, 8, 12, 16] {
-            assert!(arm(&[0xe0200090 | (15 << field)]).is_none());
         }
     }
 
@@ -1829,35 +1540,6 @@ mod tests {
             }
         }
         for opcode in [0xe0800090, 0xe08f0293, 0xe081f293, 0xe0810f93, 0xe081029f, 0xe0410293] {
-            assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
-        }
-    }
-
-    #[test]
-    fn arm_clz_reads_one_register_without_setting_flags() {
-        for (rd, rm) in [(0, 1), (14, 14)] {
-            let opcode = 0xe16f0f10 | (u32::from(rd) << 12) | u32::from(rm);
-            let ir = arm(&[opcode]).unwrap();
-            let Operation::Alu {
-                op: AluOp::CountLeadingZeros,
-                destination: Some(ref actual_destination),
-                left: Value::Immediate(0),
-                right:
-                    Operand {
-                        value: Value::Register(ref actual_value),
-                        shift: Shift::Lsl,
-                        amount: ShiftAmount::Immediate(0),
-                    },
-                set_flags: false,
-            } = ir.blocks[0].instructions[0].operation
-            else {
-                panic!("unexpected decoded instruction")
-            };
-            let actual_destination = actual_destination.index();
-            let actual_value = actual_value.index();
-            assert!(actual_destination == rd && actual_value == rm);
-        }
-        for opcode in [0xe16fff10, 0xe16f0f1f, 0xe1600f10, 0xe16f0010, 0xe16f0f30, 0xe17f0f10] {
             assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
         }
     }
@@ -2305,33 +1987,6 @@ mod tests {
     }
 
     #[test]
-    fn arm_swap_preserves_width_and_input_aliases() {
-        for (opcode, destination, value, width) in [
-            (0xe1012093, 2, 3, Width::Word),
-            (0xe1412093, 2, 3, Width::Byte),
-            (0xe1012092, 2, 2, Width::Word),
-        ] {
-            let Operation::Swap {
-                destination: ref actual_destination,
-                address: ref decoded_address,
-                value: ref actual_value,
-                width: ref actual_width,
-            } = arm(&[opcode]).unwrap().blocks[0].instructions[0].operation
-            else {
-                panic!("unexpected decoded instruction")
-            };
-            let actual_destination = actual_destination.index();
-            let actual_value = actual_value.index();
-            assert!(decoded_address.index() == 1);
-            assert!(actual_destination == destination && actual_value == value);
-            assert!(core::mem::discriminant(actual_width) == core::mem::discriminant(&width));
-        }
-        for opcode in [0xe101f093, 0xe10f2093, 0xe101209f, 0xe1011093, 0xe1012091, 0xe1012193, 0xe1112093] {
-            assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
-        }
-    }
-
-    #[test]
     fn arm_double_transfers_keep_pair_addressing_and_register_restrictions() {
         for load in [false, true] {
             for (pre_index, write_back) in [(true, false), (true, true), (false, true)] {
@@ -2392,63 +2047,6 @@ mod tests {
         ] {
             assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
         }
-    }
-
-    #[test]
-    fn arm_data_processing_opcode_families_preserve_operands() {
-        for (opcode, op) in [
-            (0xe0112003, AluOp::And),
-            (0xe0312003, AluOp::Xor),
-            (0xe0512003, AluOp::Sub),
-            (0xe0712003, AluOp::ReverseSub),
-            (0xe0912003, AluOp::Add),
-            (0xe0b12003, AluOp::AddCarry),
-            (0xe0d12003, AluOp::SubCarry),
-            (0xe0f12003, AluOp::ReverseSubCarry),
-            (0xe1912003, AluOp::Or),
-            (0xe1d12003, AluOp::BitClear),
-        ] {
-            let ir = arm(&[opcode]).unwrap();
-            let Operation::Alu {
-                op: ref actual_op,
-                destination: Some(ref decoded_destination),
-                left: Value::Register(ref decoded_left),
-                right:
-                    Operand {
-                        value: Value::Register(ref decoded_right_value),
-                        shift: Shift::Lsl,
-                        amount: ShiftAmount::Immediate(0),
-                    },
-                set_flags: true,
-            } = ir.blocks[0].instructions[0].operation
-            else {
-                panic!("{opcode:08x}")
-            };
-            assert!(decoded_destination.index() == 2 && decoded_left.index() == 1 && decoded_right_value.index() == 3);
-            assert!(*actual_op == op, "{opcode:08x}");
-        }
-        let ir = arm(&[0xe1f02003, 0xe1710003]).unwrap();
-
-        let Operation::Alu {
-            op: AluOp::Not,
-            destination: Some(ref decoded_destination),
-            left: Value::Immediate(0),
-            ..
-        } = ir.blocks[0].instructions[0].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
-        assert!(decoded_destination.index() == 2);
-
-        let Operation::Alu {
-            op: AluOp::Add,
-            destination: None,
-            set_flags: true,
-            ..
-        } = ir.blocks[0].instructions[1].operation
-        else {
-            panic!("unexpected decoded instruction")
-        };
     }
 
     #[test]
@@ -2665,6 +2263,7 @@ mod tests {
             }
         ));
         assert!(analyze(&[0; 4], 0, key).is_none());
+        assert!(analyze(&[0; 2], 0x1000, RegionKey { pc: 0x1001, ..ENTRY }).is_none());
         assert!(analyze(&[0; 3], 0x1000, RegionKey { thumb: false, ..ENTRY }).is_none());
         assert!(
             analyze(

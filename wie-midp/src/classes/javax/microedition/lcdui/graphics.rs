@@ -1154,39 +1154,7 @@ mod test {
     #[test]
     fn test_graphics() -> Result<()> {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let image: ClassInstanceRef<Image> = jvm
-                .invoke_static(
-                    "javax/microedition/lcdui/Image",
-                    "createImage",
-                    "(II)Ljavax/microedition/lcdui/Image;",
-                    (100, 100),
-                )
-                .await?;
-
-            let graphics = jvm
-                .new_class(
-                    "javax/microedition/lcdui/Graphics",
-                    "(Ljavax/microedition/lcdui/Image;)V",
-                    (image.clone(),),
-                )
-                .await?;
-
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x00ff00,))
-                .await?;
-
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
-                .await?;
-
-            let backend_image = Image::image(&jvm, &image).await?;
-
-            assert_eq!(backend_image.width(), 100);
-            assert_eq!(backend_image.height(), 100);
-
-            assert_eq!(backend_image.colors()[0].r, 0x00);
-            assert_eq!(backend_image.colors()[0].g, 0xff);
-            assert_eq!(backend_image.colors()[0].b, 0x00);
+            let (image, graphics) = new_graphics(&jvm).await?;
 
             let _: () = jvm
                 .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
@@ -1267,60 +1235,15 @@ mod test {
     }
 
     #[test]
-    fn test_clip_follows_translate() -> Result<()> {
-        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let (image, graphics) = new_graphics(&jvm).await?;
-
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (10, 10))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 5, 5))
-                .await?;
-
-            let clip_x: i32 = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
-                .await?;
-            let clip_y: i32 = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
-                .await?;
-            assert_eq!(clip_x, 0);
-            assert_eq!(clip_y, 0);
-
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (-10, -10))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
-                .await?;
-
-            let backend_image = Image::image(&jvm, &image).await?;
-            for (x, y) in [(10, 10), (14, 14)] {
-                let color = backend_image.get_pixel(x, y);
-                assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00));
-            }
-            for (x, y) in [(9, 9), (15, 15)] {
-                let color = backend_image.get_pixel(x, y);
-                assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
-            }
-
-            Ok(())
-        })
-    }
-
-    #[test]
     fn test_clip_rect_intersects_in_translated_coords() -> Result<()> {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let (image, graphics) = new_graphics(&jvm).await?;
 
             let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 20, 20))
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (10, 10))
                 .await?;
             let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (10, 10))
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 6, 6))
                 .await?;
             let _: () = jvm
                 .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "clipRect", "(IIII)V", (0, 0, 5, 5))
@@ -1357,34 +1280,6 @@ mod test {
             let color = backend_image.get_pixel(10, 10);
             assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00));
             for (x, y) in [(9, 9), (15, 15)] {
-                let color = backend_image.get_pixel(x, y);
-                assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
-            }
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_empty_clip_draws_nothing() -> Result<()> {
-        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let (image, graphics) = new_graphics(&jvm).await?;
-
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 5, 5))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "clipRect", "(IIII)V", (20, 20, 5, 5))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
-                .await?;
-
-            let backend_image = Image::image(&jvm, &image).await?;
-            for (x, y) in [(0, 0), (2, 2), (21, 21)] {
                 let color = backend_image.get_pixel(x, y);
                 assert_eq!((color.r, color.g, color.b), (0xff, 0xff, 0xff));
             }

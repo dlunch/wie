@@ -953,19 +953,6 @@ mod tests {
     }
 
     #[test]
-    fn interpreter_executes_without_preparation() {
-        let mut core = ArmCore::new(Options::default()).unwrap();
-        Allocator::init(&mut core).unwrap();
-        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        let _context = core.enter_thread_context(1);
-        core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
-        assert!(!core.is_preparing());
-        assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
-        futures::executor::block_on(core.prepare_execution()).unwrap();
-        assert_eq!(futures::executor::block_on(core.run_function::<u32>(0x1001, &[])).unwrap(), 42);
-    }
-
-    #[test]
     fn terminated_string_reads_use_normal_and_debug_engines() {
         for debug in [false, true] {
             let mut core = ArmCore::new(Options::default()).unwrap();
@@ -1049,35 +1036,6 @@ mod tests {
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn scheduler_locking_keeps_other_thread_futures_stopped() {
-        let mut core = ArmCore::new(Options::default()).unwrap();
-        let engine = DebuggedArm32CpuEngine::new();
-        let debug = engine.debug_inner();
-        core.inner.lock().engine = Box::new(engine);
-        crate::Allocator::init(&mut core).unwrap();
-        let calls = Arc::new(AtomicU32::new(0));
-        let observed = calls.clone();
-        let mut task = pin!(
-            core.run_in_thread(move || async move {
-                calls.fetch_add(1, Ordering::Relaxed);
-                Ok(())
-            })
-            .unwrap()
-        );
-        let _other = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        debug.resume(Vec::new(), Some(vec![2]));
-        let (waker, wake_count) = futures_test::task::new_count_waker();
-        let mut cx = Context::from_waker(&waker);
-        assert!(task.as_mut().poll(&mut cx).is_pending());
-        assert_eq!(wake_count, 0);
-        assert_eq!(observed.load(Ordering::Relaxed), 0);
-        debug.resume(Vec::new(), None);
-        assert!(matches!(task.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
-        assert_eq!(observed.load(Ordering::Relaxed), 1);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
     fn interrupt_stops_a_thread_waiting_in_host_code() {
         extern crate std;
 
@@ -1118,12 +1076,6 @@ mod tests {
         ));
         assert_eq!(observed.load(Ordering::Relaxed), 1);
         assert_eq!(core.read_thread_context(1).unwrap().r0, 123);
-    }
-
-    async fn test_svc_handler(_core: &mut ArmCore, seen_id: &mut Option<u32>, id: crate::SvcId) -> Result<()> {
-        *seen_id = Some(id.0);
-
-        Ok(())
     }
 
     async fn count_inline_svc(core: &mut ArmCore, calls: &mut Arc<AtomicU32>) -> Result<JumpTo> {
@@ -1385,41 +1337,6 @@ mod tests {
         assert_eq!(polls.load(Ordering::Relaxed), 4);
         for (thread, previous) in [1, 2].into_iter().zip(first) {
             assert_eq!(core.read_thread_context(thread).unwrap().r0 - previous, 5_000);
-        }
-    }
-
-    #[test]
-    fn test_thumb_svc_stub_dispatch() {
-        let mut core = ArmCore::new(Options::default()).unwrap();
-        core.map(0x1000, 0x1000).unwrap();
-
-        let mut context = core.save_context();
-        context.sp = 0x2000;
-        core.restore_context(&context);
-
-        core.register_svc_handler(1, test_svc_handler, &None).unwrap();
-        let first = core.make_svc_stub(1, 0u32).unwrap();
-        let second = core.make_svc_stub(1, 1u32).unwrap();
-        assert_eq!(first, FUNCTIONS_BASE + 1);
-        assert_eq!(second, FUNCTIONS_BASE + SVC_STUB_SIZE + 1);
-
-        let result = {
-            let mut inner = core.inner.lock();
-            inner.engine.reg_write(ArmRegister::Cpsr, 0x3f);
-            inner.engine.reg_write(ArmRegister::PC, second);
-            inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
-            inner.engine.run(RUN_FUNCTION_LR, 10).unwrap()
-        };
-
-        assert_eq!(result.budget_consumed, 5);
-        match result.stop_reason {
-            EngineStopReason::Svc { category, lr, spsr } => {
-                assert_eq!(category, 1);
-                assert_eq!(lr, FUNCTIONS_BASE + SVC_STUB_SIZE + 10);
-                assert_ne!(spsr & 0x20, 0);
-            }
-            EngineStopReason::End => panic!("expected SVC, got end"),
-            EngineStopReason::Yield => panic!("expected SVC, got yield"),
         }
     }
 

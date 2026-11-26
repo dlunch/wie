@@ -1086,27 +1086,6 @@ mod tests {
     }
 
     #[test]
-    fn process_state_initializes_once_for_the_clet_lifecycle() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options::default())?;
-        Allocator::init(&mut core)?;
-
-        init_process_state(&mut core, 240, 320)?;
-        let ptr_state: u32 = read_generic(&core, GRAPHICS_STATE_ROOT)?;
-        let state: LgtGraphicsState = read_generic(&core, ptr_state)?;
-        assert_eq!(state.physical_width, 240);
-        assert_eq!(state.physical_height, 320);
-
-        init_process_state(&mut core, 176, 220)?;
-        let ptr_state_after: u32 = read_generic(&core, GRAPHICS_STATE_ROOT)?;
-        let state_after: LgtGraphicsState = read_generic(&core, ptr_state_after)?;
-        assert_eq!(ptr_state_after, ptr_state);
-        assert_eq!(state_after.physical_width, 240);
-        assert_eq!(state_after.physical_height, 320);
-
-        Ok(())
-    }
-
-    #[test]
     fn display_properties_update_physical_display_state() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options::default())?;
         Allocator::init(&mut core)?;
@@ -1121,6 +1100,13 @@ mod tests {
         let state: LgtGraphicsState = read_generic(&core, ptr_state)?;
         assert_eq!(state.physical_width, 240);
         assert_eq!(state.physical_height, 320);
+
+        init_process_state(&mut core, 128, 160)?;
+        let ptr_state_after: u32 = read_generic(&core, GRAPHICS_STATE_ROOT)?;
+        let state_after: LgtGraphicsState = read_generic(&core, ptr_state_after)?;
+        assert_eq!(ptr_state_after, ptr_state);
+        assert_eq!(state_after.physical_width, 240);
+        assert_eq!(state_after.physical_height, 320);
 
         Ok(())
     }

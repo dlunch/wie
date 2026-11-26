@@ -617,6 +617,25 @@ mod test {
 
             assert_eq!(temp, vec![5, 6, 7, 8]);
 
+            let values = vec![i64::MIN, -1, 0x12345678_9abcdef0, i64::MAX];
+            let mut array = jvm.instantiate_array("J", 4).await.unwrap();
+            jvm.store_array(&mut array, 0, values.clone()).await.unwrap();
+            let loaded: Vec<i64> = jvm.load_array(&array, 0, 4).await.unwrap();
+            assert_eq!(loaded, values);
+
+            // guard against store/load flipping words symmetrically: check raw guest memory layout
+            let array_instance = JavaArrayClassInstance::from_raw(KtfJvmSupport::class_instance_raw(&array), &core);
+            let mut raw = [0u8; 8];
+            array_instance.load_raw(16, &mut raw)?;
+            assert_eq!(raw, 0x12345678_9abcdef0u64.to_le_bytes());
+
+            let values = vec![f64::MIN_POSITIVE, -1.5, f64::MAX];
+            let mut array = jvm.instantiate_array("D", 3).await.unwrap();
+            jvm.store_array(&mut array, 0, values.clone()).await.unwrap();
+            let loaded: Vec<f64> = jvm.load_array(&array, 0, 3).await.unwrap();
+            let to_bits = |x: &Vec<f64>| x.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+            assert_eq!(to_bits(&loaded), to_bits(&values));
+
             let reference_array = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
             assert!(reference_array.class_definition().fields().is_empty());
 
@@ -1102,81 +1121,6 @@ mod test {
                 let result: u32 = core.run_function(entry, &args).await?;
                 assert_eq!(result, caller.r4);
             }
-
-            done_clone.store(true, Ordering::Relaxed);
-
-            Ok(())
-        });
-
-        loop {
-            system.tick()?;
-            if done.load(Ordering::Relaxed) {
-                break;
-            }
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_long_array_store_load() -> Result<()> {
-        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
-
-        let done = Arc::new(AtomicBool::new(false));
-
-        let done_clone = done.clone();
-        let mut system_clone = system.clone();
-        system.spawn(async move || {
-            let (jvm, core) = init_jvm(&mut system_clone).await?;
-
-            let values = vec![i64::MIN, -1, 0x12345678_9abcdef0, i64::MAX];
-
-            let mut array = jvm.instantiate_array("J", 4).await.unwrap();
-            jvm.store_array(&mut array, 0, values.clone()).await.unwrap();
-            let loaded: Vec<i64> = jvm.load_array(&array, 0, 4).await.unwrap();
-
-            assert_eq!(loaded, values);
-
-            // guard against store/load flipping words symmetrically: check raw guest memory layout
-            let array_instance = JavaArrayClassInstance::from_raw(KtfJvmSupport::class_instance_raw(&array), &core);
-            let mut raw = [0u8; 8];
-            array_instance.load_raw(16, &mut raw)?;
-            assert_eq!(raw, 0x12345678_9abcdef0u64.to_le_bytes());
-
-            done_clone.store(true, Ordering::Relaxed);
-
-            Ok(())
-        });
-
-        loop {
-            system.tick()?;
-            if done.load(Ordering::Relaxed) {
-                break;
-            }
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_double_array_store_load() -> Result<()> {
-        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
-
-        let done = Arc::new(AtomicBool::new(false));
-
-        let done_clone = done.clone();
-        let mut system_clone = system.clone();
-        system.spawn(async move || {
-            let (jvm, _core) = init_jvm(&mut system_clone).await?;
-
-            let values = vec![f64::MIN_POSITIVE, -1.5, f64::MAX];
-
-            let mut array = jvm.instantiate_array("D", 3).await.unwrap();
-            jvm.store_array(&mut array, 0, values.clone()).await.unwrap();
-            let loaded: Vec<f64> = jvm.load_array(&array, 0, 3).await.unwrap();
-
-            let to_bits = |x: &Vec<f64>| x.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
-            assert_eq!(to_bits(&loaded), to_bits(&values));
 
             done_clone.store(true, Ordering::Relaxed);
 

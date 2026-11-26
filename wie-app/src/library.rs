@@ -113,11 +113,11 @@ mod tests {
         io::{Cursor, Write},
     };
 
-    use rusqlite::params;
     use tempfile::tempdir;
+    use zip::{ZipWriter, write::SimpleFileOptions};
+
     use wie::{FileType, extract_app_metadata};
     use wie_backend::{DatabaseRepository as _, Filesystem as _};
-    use zip::{ZipWriter, write::SimpleFileOptions};
 
     use crate::{database::DatabaseRepository, filesystem::SqliteFilesystem, store};
 
@@ -207,22 +207,15 @@ mod tests {
         assert_eq!(first.id, "PD00000000");
         assert_eq!(second.id, "PD00000001");
 
+        let saves = [(first.id.as_str(), b"record".as_slice()), (second.id.as_str(), b"other".as_slice())];
         tauri::async_runtime::block_on(async {
             let store = store::open(root.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
-                assert!(!repository.exists("save", id).await);
-                let mut database = repository.open("save", id).await;
-                assert_eq!(database.get(1).await, None);
-                assert!(!repository.exists("save", id).await);
+            for (id, data) in saves {
                 repository.create("save", id).await;
-                assert!(repository.exists("save", id).await);
-                assert!(database.set(1, data).await);
-                repository.create("save", id).await;
-                assert_eq!(database.get(1).await.as_deref(), Some(data));
-                assert_eq!(database.next_id().await, 2);
-                assert_eq!(filesystem.write(id, "save", 2, data).await, data.len());
+                assert!(repository.open("save", id).await.set(1, data).await);
+                assert_eq!(filesystem.write(id, "save", 0, data).await, data.len());
             }
         });
 
@@ -245,143 +238,6 @@ mod tests {
             library.import("hello.zip", &ktf).unwrap();
             assert_eq!(library.list().unwrap().len(), 2);
         }
-        tauri::async_runtime::block_on(async {
-            let store = store::open(root.path()).unwrap();
-            let repository = DatabaseRepository { store: store.clone() };
-            let filesystem = SqliteFilesystem { store };
-            for (id, data) in [(&first.id, b"record".as_slice()), (&second.id, b"other".as_slice())] {
-                assert_eq!(repository.open("save", id).await.get(1).await.as_deref(), Some(data));
-                assert_eq!(filesystem.size(id, "save").await, Some(data.len() + 2));
-                let mut bytes = vec![0; data.len() + 2];
-                assert_eq!(filesystem.read(id, "save", 0, bytes.len(), &mut bytes).await, Some(bytes.len()));
-                assert_eq!(&bytes[..2], &[0, 0]);
-                assert_eq!(&bytes[2..], data);
-            }
-
-            let mut database = repository.open("save", &first.id).await;
-            assert_eq!(database.add(b"second").await, 2);
-            assert!(database.set(1, b"updated").await);
-            assert_eq!(database.next_id().await, 3);
-            assert!(database.delete(1).await);
-            let mut reopened = repository.open("save", &first.id).await;
-            assert_eq!(reopened.next_id().await, 3);
-            assert_eq!(reopened.add(b"third").await, 3);
-            assert_eq!(database.next_id().await, 4);
-            assert!(reopened.delete(3).await);
-            assert!(reopened.delete(2).await);
-
-            for pid in ["pid/./app", "pid/app"] {
-                for name in ["save:1", "save_1"] {
-                    repository.create(name, pid).await;
-                    assert_eq!(repository.open(name, pid).await.add(format!("{pid}:{name}").as_bytes()).await, 1);
-                }
-            }
-        });
-
-        // All state owners above have closed, including handles to the now-empty store.
-        tauri::async_runtime::block_on(async {
-            let store = store::open(root.path()).unwrap();
-            let repository = DatabaseRepository { store: store.clone() };
-            let filesystem = SqliteFilesystem { store: store.clone() };
-            assert!(repository.exists("save", &first.id).await);
-            let mut reopened = repository.open("save", &first.id).await;
-            assert!(reopened.get_record_ids().await.is_empty());
-            assert_eq!(reopened.next_id().await, 4);
-
-            store
-                .lock()
-                .unwrap()
-                .execute_batch(
-                    "CREATE TEMP TRIGGER fail_record_insert BEFORE INSERT ON records
-                     BEGIN SELECT RAISE(ABORT, 'injected record failure'); END;",
-                )
-                .unwrap();
-            assert_eq!(reopened.add(b"failed").await, 0);
-            assert_eq!(reopened.next_id().await, 4);
-            assert!(reopened.get_record_ids().await.is_empty());
-            store.lock().unwrap().execute_batch("DROP TRIGGER fail_record_insert").unwrap();
-            assert_eq!(reopened.add(b"fourth").await, 4);
-            assert_eq!(reopened.get_record_ids().await, [4]);
-
-            store
-                .lock()
-                .unwrap()
-                .execute(
-                    "UPDATE record_stores SET next_id = ?1 WHERE pid = ?2 AND name = 'save'",
-                    params![i32::MAX, first.id],
-                )
-                .unwrap();
-            assert_eq!(reopened.next_id().await, i32::MAX as u32);
-            assert_eq!(reopened.add(b"last").await, i32::MAX as u32);
-            assert_eq!(reopened.get_record_ids().await, [4, i32::MAX as u32]);
-            assert_eq!(reopened.next_id().await, 0);
-            assert_eq!(reopened.add(b"exhausted").await, 0);
-            assert!(reopened.delete(i32::MAX as u32).await);
-            assert_eq!(reopened.next_id().await, 0);
-
-            assert!(repository.delete("save", &first.id).await);
-            assert_eq!(repository.open("save", &first.id).await.get(1).await, None);
-            assert!(!repository.exists("save", &first.id).await);
-            repository.create("save", &first.id).await;
-            let mut reset = repository.open("save", &first.id).await;
-            assert!(reset.get_record_ids().await.is_empty());
-            assert_eq!(reset.add(b"reset").await, 1);
-            assert_eq!(reset.get_record_ids().await, [1]);
-
-            for pid in ["pid/./app", "pid/app"] {
-                for name in ["save:1", "save_1"] {
-                    assert_eq!(repository.open(name, pid).await.get(1).await.unwrap(), format!("{pid}:{name}").as_bytes());
-                }
-            }
-            assert!(repository.delete("save:1", "pid/./app").await);
-            assert_eq!(
-                repository.open("save_1", "pid/./app").await.get(1).await.as_deref(),
-                Some(b"pid/./app:save_1".as_slice())
-            );
-            assert_eq!(
-                repository.open("save:1", "pid/app").await.get(1).await.as_deref(),
-                Some(b"pid/app:save:1".as_slice())
-            );
-
-            assert_eq!(filesystem.write(&first.id, "save", 3, &[0xff, 0x00]).await, 2);
-            let mut bytes = [0; 8];
-            assert_eq!(filesystem.read(&first.id, "save", 0, 8, &mut bytes).await, Some(8));
-            assert_eq!(&bytes, b"\0\0r\xff\0ord");
-            assert_eq!(filesystem.read(&first.id, "save", 7, 8, &mut bytes).await, Some(1));
-            assert_eq!(&bytes, b"d\0r\xff\0ord");
-            assert_eq!(filesystem.read(&first.id, "save", 8, 8, &mut bytes).await, Some(0));
-            assert_eq!(&bytes, b"d\0r\xff\0ord");
-
-            store
-                .lock()
-                .unwrap()
-                .execute_batch(
-                    "CREATE TEMP TRIGGER fail_file_growth AFTER UPDATE ON files
-                     WHEN length(NEW.data) > length(OLD.data)
-                     BEGIN SELECT RAISE(ABORT, 'injected file growth failure'); END;",
-                )
-                .unwrap();
-            assert_eq!(filesystem.write(&first.id, "save", 7, b"extension").await, 0);
-            assert_eq!(filesystem.size(&first.id, "save").await, Some(8));
-            assert_eq!(filesystem.read(&first.id, "save", 0, 8, &mut bytes).await, Some(8));
-            assert_eq!(&bytes, b"\0\0r\xff\0ord");
-            assert_eq!(filesystem.write(&first.id, "failed", 2, b"new").await, 0);
-            assert!(!filesystem.exists(&first.id, "failed").await);
-            store.lock().unwrap().execute_batch("DROP TRIGGER fail_file_growth").unwrap();
-
-            filesystem.truncate(&first.id, "save", 3).await;
-            filesystem.truncate(&first.id, "save", 6).await;
-            assert_eq!(filesystem.read(&first.id, "save", 0, 8, &mut bytes).await, Some(6));
-            assert_eq!(&bytes[..6], b"\0\0r\0\0\0");
-            assert_eq!(filesystem.write(&first.id, "empty", 5, &[]).await, 0);
-            assert_eq!(filesystem.size(&first.id, "empty").await, Some(5));
-            filesystem.truncate(&first.id, "empty", 0).await;
-            filesystem.truncate(&first.id, "new", 0).await;
-            assert!(filesystem.exists(&first.id, "new").await);
-            assert_eq!(filesystem.size(&first.id, "new").await, Some(0));
-            assert_eq!(filesystem.read(&first.id, "missing", 0, 8, &mut bytes).await, None);
-        });
-
         // Cloud backup excludes the library; restore only the closed state database.
         let restored = tempdir().unwrap();
         fs::copy(root.path().join("state.sqlite"), restored.path().join("state.sqlite")).unwrap();
@@ -397,22 +253,12 @@ mod tests {
             let store = store::open(restored.path()).unwrap();
             let repository = DatabaseRepository { store: store.clone() };
             let filesystem = SqliteFilesystem { store };
-            for (pid, record, file) in [
-                (&first.id, b"reset".as_slice(), b"\0\0r\0\0\0".as_slice()),
-                (&second.id, b"other".as_slice(), b"\0\0other".as_slice()),
-            ] {
-                let database = repository.open("save", pid).await;
-                assert_eq!(database.get(1).await.as_deref(), Some(record));
-                assert_eq!(database.get_record_ids().await, [1]);
-                assert_eq!(database.next_id().await, 2);
-                assert_eq!(filesystem.size(pid, "save").await, Some(file.len()));
+            for (pid, data) in saves {
+                assert_eq!(repository.open("save", pid).await.get(1).await.as_deref(), Some(data));
                 let mut bytes = [0; 8];
-                assert_eq!(filesystem.read(pid, "save", 0, bytes.len(), &mut bytes).await, Some(file.len()));
-                assert_eq!(&bytes[..file.len()], file);
+                assert_eq!(filesystem.read(pid, "save", 0, bytes.len(), &mut bytes).await, Some(data.len()));
+                assert_eq!(&bytes[..data.len()], data);
             }
-            assert!(filesystem.exists(&first.id, "empty").await);
-            assert_eq!(filesystem.size(&first.id, "empty").await, Some(0));
-            assert_eq!(filesystem.read(&first.id, "empty", 0, 1, &mut [1]).await, Some(0));
         });
     }
 }

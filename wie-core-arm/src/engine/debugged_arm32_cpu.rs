@@ -592,37 +592,6 @@ mod tests {
     }
 
     #[test]
-    fn stepping_svc_stops_before_the_next_guest_instruction() {
-        extern crate std;
-
-        let mut engine = DebuggedArm32CpuEngine::new();
-        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
-        engine.mem_write(0x1000, &[0x01, 0xdf, 0x01, 0x30]).unwrap(); // svc #1; add r0, #1
-        engine.reg_write(ArmRegister::Cpsr, 0x3f);
-        engine.reg_write(ArmRegister::PC, 0x1001);
-        engine.debug.on_thread_entered(1);
-        engine.debug.resume(vec![1], None);
-        let result = engine.run(0, 2).unwrap();
-        let EngineStopReason::Svc { lr, spsr, .. } = result.stop_reason else {
-            panic!("expected SVC");
-        };
-        let thread_id = engine.debug.begin_svc_step().unwrap();
-        engine.reg_write(ArmRegister::Cpsr, spsr);
-        engine.reg_write(ArmRegister::PC, lr);
-        engine.debug.end_svc_step(thread_id, true);
-
-        let debug = engine.debug.clone();
-        let runner = std::thread::spawn(move || engine.run(0, 1));
-        let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
-        let context = debug.read_registers();
-        debug.resume(Vec::new(), None);
-        runner.join().unwrap().unwrap();
-        assert!(stopped.is_ok());
-        assert_eq!(context.pc, 0x1002);
-        assert_eq!(context.r0, 0);
-    }
-
-    #[test]
     fn stepping_svc_tracks_each_resumed_thread() {
         extern crate std;
 
@@ -799,34 +768,6 @@ mod tests {
     }
 
     #[test]
-    fn test_thumb_breakpoint_patch_and_restore() {
-        let debug = DebugInner::new();
-        {
-            let mut cpu = debug.cpu.lock();
-            cpu.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
-            cpu.mem_write(0x1000, &[0x12, 0x34]).unwrap();
-        }
-
-        debug.add_breakpoint(0x1001, DebugBreakpointKind::Thumb16).unwrap();
-
-        let mut data = [0; 2];
-        debug.read_memory(0x1000, &mut data).unwrap();
-        assert_eq!(data, [0x12, 0x34]);
-
-        assert!(debug.try_restore_breakpoint(0x1000).unwrap());
-        debug.read_memory(0x1000, &mut data).unwrap();
-        assert_eq!(data, [0x12, 0x34]);
-
-        debug.reinsert_breakpoint(0x1000).unwrap();
-        debug.read_memory(0x1000, &mut data).unwrap();
-        assert_eq!(data, [0x12, 0x34]);
-
-        debug.remove_breakpoint(0x1001).unwrap();
-        debug.read_memory(0x1000, &mut data).unwrap();
-        assert_eq!(data, [0x12, 0x34]);
-    }
-
-    #[test]
     fn test_arm_breakpoint_patch_and_restore() {
         let debug = DebugInner::new();
         {
@@ -855,7 +796,7 @@ mod tests {
             cpu.mem_write(0x3000, &[0xAA, 0xBB, 0xCC, 0xDD]).unwrap();
         }
 
-        debug.add_breakpoint(0x3000, DebugBreakpointKind::Thumb16).unwrap();
+        debug.add_breakpoint(0x3001, DebugBreakpointKind::Thumb16).unwrap();
 
         debug.write_memory(0x3000, &[0x11, 0x22]).unwrap();
 
@@ -867,7 +808,7 @@ mod tests {
         debug.cpu.lock().mem_read(0x3000, 2, &mut raw).unwrap();
         assert_eq!(raw, [0x00, 0xbe]);
 
-        debug.remove_breakpoint(0x3000).unwrap();
+        debug.remove_breakpoint(0x3001).unwrap();
         let mut final_data = [0; 2];
         debug.cpu.lock().mem_read(0x3000, 2, &mut final_data).unwrap();
         assert_eq!(final_data, [0x11, 0x22]);

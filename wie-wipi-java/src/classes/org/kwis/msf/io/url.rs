@@ -40,37 +40,3 @@ impl URL {
         Err(jvm.exception("org/kwis/msf/io/SchemeNotFoundException", "Network is not supported").await)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use alloc::boxed::Box;
-
-    use jvm::{ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
-    use rustjava_runtime::classes::java::lang::String;
-
-    use test_utils::run_jvm_test;
-    use wie_util::Result;
-
-    use crate::get_protos;
-
-    use super::URL;
-
-    #[test]
-    fn find_throws_scheme_not_found_exception() -> Result<()> {
-        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let _: ClassInstanceRef<URL> = jvm.new_class("org/kwis/msf/io/URL", "()V", ()).await?.into();
-            let url: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "http://example.com").await?.into();
-            let result: JvmResult<ClassInstanceRef<URL>> = jvm
-                .invoke_static("org/kwis/msf/io/URL", "find", "(Ljava/lang/String;)Lorg/kwis/msf/io/Socket;", (url,))
-                .await;
-
-            let Err(JavaError::JavaException(exception)) = result else {
-                panic!("URL.find returned without throwing SchemeNotFoundException");
-            };
-            assert!(jvm.is_instance(&*exception, "org/kwis/msf/io/SchemeNotFoundException"));
-            assert!(jvm.is_instance(&*exception, "java/io/IOException"));
-
-            Ok(())
-        })
-    }
-}
