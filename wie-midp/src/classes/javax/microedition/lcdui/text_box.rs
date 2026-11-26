@@ -18,17 +18,6 @@ const FIELD_TYPE: &str = "Ljavax/microedition/lcdui/TextField;";
 const DISPLAYABLE: &str = "javax/microedition/lcdui/Displayable";
 const SCREEN: &str = "javax/microedition/lcdui/Screen";
 
-macro_rules! text_method {
-    ($name:literal, $descriptor:literal, ($($arg:ident: $ty:ty),*) -> $result:ty) => {{
-        async fn forward(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextBox>, $($arg: $ty),*) -> JvmResult<$result> {
-            tracing::debug!(concat!("javax.microedition.lcdui.TextBox::", $name, "{:?}"), (&this, $(&$arg,)*));
-            let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
-            jvm.invoke_virtual(&field, FIELD, $name, $descriptor, ($($arg,)*)).await
-        }
-        JavaMethodProto::new($name, $descriptor, forward, MethodAccessFlags::PUBLIC)
-    }};
-}
-
 // class javax.microedition.lcdui.TextBox
 pub struct TextBox;
 
@@ -45,20 +34,25 @@ impl TextBox {
                     Self::init,
                     MethodAccessFlags::PUBLIC,
                 ),
-                text_method!("getString", "()Ljava/lang/String;", () -> ClassInstanceRef<String>),
-                text_method!("setString", "(Ljava/lang/String;)V", (text: ClassInstanceRef<String>) -> ()),
-                text_method!("getChars", "([C)I", (data: ClassInstanceRef<Array<JavaChar>>) -> i32),
-                text_method!("setChars", "([CII)V", (data: ClassInstanceRef<Array<JavaChar>>, offset: i32, length: i32) -> ()),
-                text_method!("insert", "(Ljava/lang/String;I)V", (text: ClassInstanceRef<String>, position: i32) -> ()),
-                text_method!("insert", "([CIII)V", (data: ClassInstanceRef<Array<JavaChar>>, offset: i32, length: i32, position: i32) -> ()),
-                text_method!("delete", "(II)V", (offset: i32, length: i32) -> ()),
-                text_method!("getMaxSize", "()I", () -> i32),
-                text_method!("setMaxSize", "(I)I", (max_size: i32) -> i32),
-                text_method!("size", "()I", () -> i32),
-                text_method!("getCaretPosition", "()I", () -> i32),
-                text_method!("getConstraints", "()I", () -> i32),
-                text_method!("setConstraints", "(I)V", (constraints: i32) -> ()),
-                text_method!("setInitialInputMode", "(Ljava/lang/String;)V", (subset: ClassInstanceRef<String>) -> ()),
+                JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getChars", "([C)I", Self::get_chars, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setChars", "([CII)V", Self::set_chars, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("insert", "(Ljava/lang/String;I)V", Self::insert_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("insert", "([CIII)V", Self::insert_chars, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("delete", "(II)V", Self::delete, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getMaxSize", "()I", Self::get_max_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setMaxSize", "(I)I", Self::set_max_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("size", "()I", Self::size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getCaretPosition", "()I", Self::get_caret_position, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getConstraints", "()I", Self::get_constraints, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setConstraints", "(I)V", Self::set_constraints, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "setInitialInputMode",
+                    "(Ljava/lang/String;)V",
+                    Self::set_initial_input_mode,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "itemInvalidated",
                     "(Ljavax/microedition/lcdui/Item;Z)V",
@@ -108,6 +102,119 @@ impl TextBox {
             .await?;
         jvm.put_field(&mut this, TEXT_BOX, "editor", FIELD_TYPE, field).await?;
         jvm.invoke_special(&this, DISPLAYABLE, "setTitle", "(Ljava/lang/String;)V", (title,))
+            .await
+    }
+
+    async fn get_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::getString({this:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "getString", "()Ljava/lang/String;", ()).await
+    }
+
+    async fn set_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::setString({this:?}, {text:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "setString", "(Ljava/lang/String;)V", (text,)).await
+    }
+
+    async fn get_chars(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, data: ClassInstanceRef<Array<JavaChar>>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::getChars({this:?}, {data:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "getChars", "([C)I", (data,)).await
+    }
+
+    async fn set_chars(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        data: ClassInstanceRef<Array<JavaChar>>,
+        offset: i32,
+        length: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::setChars({this:?}, {data:?}, {offset}, {length})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "setChars", "([CII)V", (data, offset, length)).await
+    }
+
+    async fn insert_string(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        text: ClassInstanceRef<String>,
+        position: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::insert({this:?}, {text:?}, {position})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "insert", "(Ljava/lang/String;I)V", (text, position))
+            .await
+    }
+
+    async fn insert_chars(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        data: ClassInstanceRef<Array<JavaChar>>,
+        offset: i32,
+        length: i32,
+        position: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::insert({this:?}, {data:?}, {offset}, {length}, {position})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "insert", "([CIII)V", (data, offset, length, position))
+            .await
+    }
+
+    async fn delete(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, offset: i32, length: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::delete({this:?}, {offset}, {length})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "delete", "(II)V", (offset, length)).await
+    }
+
+    async fn get_max_size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::getMaxSize({this:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "getMaxSize", "()I", ()).await
+    }
+
+    async fn set_max_size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, max_size: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::setMaxSize({this:?}, {max_size})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "setMaxSize", "(I)I", (max_size,)).await
+    }
+
+    async fn size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::size({this:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "size", "()I", ()).await
+    }
+
+    async fn get_caret_position(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::getCaretPosition({this:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "getCaretPosition", "()I", ()).await
+    }
+
+    async fn get_constraints(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::getConstraints({this:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "getConstraints", "()I", ()).await
+    }
+
+    async fn set_constraints(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, constraints: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::setConstraints({this:?}, {constraints})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "setConstraints", "(I)V", (constraints,)).await
+    }
+
+    async fn set_initial_input_mode(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        subset: ClassInstanceRef<String>,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.TextBox::setInitialInputMode({this:?}, {subset:?})");
+        let field: ClassInstanceRef<TextField> = jvm.get_field(&this, TEXT_BOX, "editor", FIELD_TYPE).await?;
+        jvm.invoke_virtual(&field, FIELD, "setInitialInputMode", "(Ljava/lang/String;)V", (subset,))
             .await
     }
 
