@@ -432,20 +432,21 @@ mod test {
             // Native allocations must not accumulate in a long-lived JVM caller.
             let _caller = jvm.push_native_frame(&[]);
             let allocate = core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaArrayNew)?;
+            let byte_array_class = KtfJvmSupport::class_definition_raw(&*jvm.resolve_class("[B").await.unwrap().definition)?;
             let ptr_interface = get_wipi_jb_interface(&mut core)?;
             let interface: WIPIJBInterface = read_generic(&core, ptr_interface)?;
             for (entry, args) in [
-                (allocate, vec![u32::from(b'B'), 16]),
-                (interface.fn_java_jump_1, vec![u32::from(b'B'), allocate]),
-                (interface.fn_java_jump_2, vec![u32::from(b'B'), 16, allocate]),
-                (interface.fn_java_jump_3, vec![u32::from(b'B'), 16, 0, allocate]),
+                (allocate, vec![byte_array_class, 16]),
+                (interface.fn_java_jump_1, vec![byte_array_class, allocate]),
+                (interface.fn_java_jump_2, vec![byte_array_class, 16, allocate]),
+                (interface.fn_java_jump_3, vec![byte_array_class, 16, 0, allocate]),
             ] {
                 let array: u32 = core.run_function(entry, &args).await?;
                 jvm.collect_garbage().unwrap();
                 assert!(!Allocator::is_allocated(&core, array, instance_size)?);
             }
 
-            let array: u32 = core.run_function(allocate, &[u32::from(b'B'), 16]).await?;
+            let array: u32 = core.run_function(allocate, &[byte_array_class, 16]).await?;
             let raw: RawJavaClassInstance = read_generic(&core, array)?;
             let header: u32 = read_generic(&core, raw.ptr_fields)?;
             let support: KtfJvmSupportContext = read_generic(&core, SUPPORT_CONTEXT_BASE)?;

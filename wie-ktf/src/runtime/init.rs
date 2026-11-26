@@ -4,6 +4,7 @@ use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
+use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam3, InitParam4, WipiExe};
@@ -14,8 +15,8 @@ use crate::{
     runtime::{
         SVC_CATEGORY_INIT,
         java::{
-            interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
-            jvm_support::{KtfJvmSupportContext, SUPPORT_CONTEXT_BASE},
+            interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_is_instance, java_new, java_throw},
+            jvm_support::{KtfJvmSupport, KtfJvmSupportContext, SUPPORT_CONTEXT_BASE},
         },
         svc_ids::InitSvcId,
         wipi_c::{interface::get_wipic_knl_interface, register_wipic_svc_handler},
@@ -33,7 +34,7 @@ async fn handle_init_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result
     match InitSvcId::try_from(id)? {
         InitSvcId::GetInterface => get_interface(core, core.read_param(0)?).await?.write(core, lr),
         InitSvcId::JavaThrow => EmulatedFunction::call(&java_throw, core, jvm).await?.write(core, lr),
-        InitSvcId::JavaCheckType => EmulatedFunction::call(&java_check_type, core, jvm).await?.write(core, lr),
+        InitSvcId::JavaIsInstance => EmulatedFunction::call(&java_is_instance, core, jvm).await?.write(core, lr),
         InitSvcId::JavaNew => EmulatedFunction::call(&java_new, core, jvm).await?.write(core, lr),
         InitSvcId::JavaArrayNew => EmulatedFunction::call(&java_array_new, core, jvm).await?.write(core, lr),
         InitSvcId::JavaClassLoad => EmulatedFunction::call(&java_class_load, core, jvm).await?.write(core, lr),
@@ -70,19 +71,29 @@ pub async fn load_native(
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
+    let mut primitive_array_classes = [0; 8];
+    for (ptr_class, name) in primitive_array_classes.iter_mut().zip(["[Z", "[C", "[F", "[D", "[B", "[S", "[I", "[J"]) {
+        let class = match jvm.resolve_class(name).await {
+            Ok(x) => x,
+            Err(x) => return Err(JvmSupport::to_wie_err(jvm, x).await),
+        };
+        *ptr_class = KtfJvmSupport::class_definition_raw(&*class.definition)?;
+    }
+    let [boolean, char, float, double, byte, short, int, long] = primitive_array_classes;
+
     let param_3 = InitParam3 {
         unk1: 0,
         unk2: 0,
         unk3: 0,
         unk4: 0,
-        boolean: b'Z' as u32,
-        char: b'C' as u32,
-        float: b'F' as u32,
-        double: b'D' as u32,
-        byte: b'B' as u32,
-        short: b'S' as u32,
-        int: b'I' as u32,
-        long: b'J' as u32,
+        boolean,
+        char,
+        float,
+        double,
+        byte,
+        short,
+        int,
+        long,
     };
 
     let ptr_param_3 = Allocator::alloc(core, size_of::<InitParam3>() as u32)?;
@@ -93,7 +104,7 @@ pub async fn load_native(
         fn_java_throw: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaThrow)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_type: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaCheckType)?,
+        fn_java_is_instance: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaIsInstance)?,
         fn_java_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaNew)?,
         fn_java_array_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaArrayNew)?,
         fn_visit_gc_root: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::VisitGcRoot)?,

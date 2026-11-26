@@ -348,19 +348,14 @@ pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Resu
     Ok(raw)
 }
 
-pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32, count: u32) -> Result<u32> {
-    tracing::trace!("java_array_new({element_type:#x}, {count:#x})");
+pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_array_class: u32, count: u32) -> Result<u32> {
+    tracing::trace!("java_array_new({ptr_array_class:#x}, {count:#x})");
 
-    let element_type_name = if element_type > 0x100 {
-        // Object arrays are requested by their array class.
-        let class = KtfJvmSupport::class_from_raw(core, element_type);
-        class.name()?[1..].into()
-    } else {
-        (element_type as u8 as char).to_string()
-    };
+    let array_class_name = KtfJvmSupport::class_from_raw(core, ptr_array_class).name()?;
+    let element_type_name = &array_class_name[1..];
     let support: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
     let _frame = (support.ptr_visit_gc_root != 0).then(|| jvm.push_native_frame(&[]));
-    let result = jvm.instantiate_array(&element_type_name, count as _).await;
+    let result = jvm.instantiate_array(element_type_name, count as _).await;
     if let Err(x) = result {
         return Err(JvmSupport::to_wie_err(jvm, x).await);
     }
@@ -370,8 +365,8 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
     Ok(raw)
 }
 
-pub async fn java_check_type(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, ptr_instance: u32) -> Result<u32> {
-    tracing::debug!("java_check_type({ptr_class:#x}, {ptr_instance:#x})");
+pub async fn java_is_instance(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, ptr_instance: u32) -> Result<u32> {
+    tracing::debug!("java_is_instance({ptr_class:#x}, {ptr_instance:#x})");
 
     let instance = JavaClassInstance::from_raw(ptr_instance, core);
     let class = JavaClassDefinition::from_raw(ptr_class, core);

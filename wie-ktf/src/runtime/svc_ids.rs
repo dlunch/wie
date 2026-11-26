@@ -5,7 +5,7 @@ use wie_core_arm::SvcId;
 pub enum InitSvcId {
     GetInterface = 0,
     JavaThrow = 1,
-    JavaCheckType = 2,
+    JavaIsInstance = 2,
     JavaNew = 3,
     JavaArrayNew = 4,
     JavaClassLoad = 5,
@@ -20,7 +20,7 @@ impl TryFrom<SvcId> for InitSvcId {
         Ok(match value.0 {
             0 => Self::GetInterface,
             1 => Self::JavaThrow,
-            2 => Self::JavaCheckType,
+            2 => Self::JavaIsInstance,
             3 => Self::JavaNew,
             4 => Self::JavaArrayNew,
             5 => Self::JavaClassLoad,
