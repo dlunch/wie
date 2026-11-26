@@ -1,98 +1,22 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::lcdui::{Graphics as MidpGraphics, Image as MidpImage};
 
 use crate::classes::org::kwis::msp::lcdui::{Graphics, ImageObserver};
 
 // class org.kwis.msp.lcdui.Image
-pub struct Image;
+#[java_class(name = "org/kwis/msp/lcdui/Image", public)]
+pub struct Image {
+    #[field(private)]
+    midpImage: ClassInstanceRef<MidpImage>,
+}
 
+#[java_methods]
 impl Image {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lcdui/Image",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init_empty, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Image;)V", Self::init, MethodAccessFlags::PRIVATE),
-                JavaMethodProto::new(
-                    "loadImage",
-                    "(Ljava/lang/String;Lorg/kwis/msp/lcdui/ImageObserver;)Lorg/kwis/msp/lcdui/Image;",
-                    Self::load_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(II)Lorg/kwis/msp/lcdui/Image;",
-                    Self::create_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Image;",
-                    Self::create_image_from_name,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "([BII)Lorg/kwis/msp/lcdui/Image;",
-                    Self::create_image_from_data,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(Lorg/kwis/msp/lcdui/Image;)Lorg/kwis/msp/lcdui/Image;",
-                    Self::create_image_from_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getGraphics",
-                    "()Lorg/kwis/msp/lcdui/Graphics;",
-                    Self::get_graphics,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isMutable", "()Z", Self::is_mutable, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isAnimated", "()Z", Self::is_animated, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("play", "(Lorg/kwis/msp/lcdui/ImageObserver;)V", Self::play, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("stop", "()V", Self::stop, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "stopImage",
-                    "(Lorg/kwis/msp/lcdui/ImageObserver;)V",
-                    Self::stop_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "drawImage",
-                    "(Lorg/kwis/msp/lcdui/Image;IIIIIIII)V",
-                    Self::draw_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "createSubImage",
-                    "(IIIIZ)Lorg/kwis/msp/lcdui/Image;",
-                    Self::create_sub_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setTransparentColor", "(I)V", Self::set_transparent_color, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![JavaFieldProto::new(
-                "midpImage",
-                "Ljavax/microedition/lcdui/Image;",
-                FieldAccessFlags::PRIVATE,
-            )],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init_empty(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Image::<init>({this:?})");
 
@@ -107,6 +31,7 @@ impl Image {
         .await
     }
 
+    #[method(constructor, private)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Image>, image: ClassInstanceRef<MidpImage>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Image::<init>({this:?})");
 
@@ -122,6 +47,7 @@ impl Image {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn load_image(
         _: &Jvm,
         _: &mut WieJvmContext,
@@ -133,6 +59,7 @@ impl Image {
         Ok(None.into())
     }
 
+    #[method(public, static)]
     async fn create_image(jvm: &Jvm, _: &mut WieJvmContext, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({width}, {height})");
 
@@ -152,6 +79,7 @@ impl Image {
         Ok(instance)
     }
 
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_name(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({name:?})");
 
@@ -171,6 +99,7 @@ impl Image {
         Ok(instance.into())
     }
 
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_data(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -196,6 +125,7 @@ impl Image {
         Ok(instance.into())
     }
 
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_image(jvm: &Jvm, _: &mut WieJvmContext, image: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({image:?})");
 
@@ -243,6 +173,7 @@ impl Image {
         Ok(instance.into())
     }
 
+    #[method(public)]
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({this:?})");
 
@@ -272,6 +203,7 @@ impl Image {
         Ok(instance.into())
     }
 
+    #[method(public)]
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({this:?})");
 
@@ -283,6 +215,7 @@ impl Image {
             .await
     }
 
+    #[method(public)]
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({this:?})");
 
@@ -294,6 +227,7 @@ impl Image {
             .await
     }
 
+    #[method(public)]
     async fn is_mutable(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Image::isMutable({this:?})");
 
@@ -304,30 +238,35 @@ impl Image {
         jvm.invoke_virtual(&image, "javax/microedition/lcdui/Image", "isMutable", "()Z", ()).await
     }
 
+    #[method(public)]
     async fn is_animated(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.lcdui.Image::isAnimated({this:?})");
 
         Ok(false)
     }
 
+    #[method(public)]
     async fn play(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>, observer: ClassInstanceRef<ImageObserver>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Image::play({this:?}, {observer:?})");
 
         Ok(())
     }
 
+    #[method(public)]
     async fn stop(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Image::stop({this:?})");
 
         Ok(())
     }
 
+    #[method(public, static)]
     async fn stop_image(_: &Jvm, _: &mut WieJvmContext, observer: ClassInstanceRef<ImageObserver>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Image::stopImage({observer:?})");
 
         Ok(())
     }
 
+    #[method(public)]
     #[allow(clippy::too_many_arguments)]
     async fn draw_image(
         jvm: &Jvm,
@@ -398,6 +337,7 @@ impl Image {
         .await
     }
 
+    #[method(public)]
     #[allow(clippy::too_many_arguments)]
     async fn create_sub_image(
         _: &Jvm,
@@ -414,6 +354,7 @@ impl Image {
         Ok(None.into())
     }
 
+    #[method(public)]
     async fn set_transparent_color(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>, rgb: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Image::setTransparentColor({this:?}, {rgb})");
 

@@ -1,25 +1,24 @@
-use alloc::vec;
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::lang::Object;
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-use wie_jvm_support::WieJavaClassProto;
+use wie_jvm_support::WieJvmContext;
 
 // interface org.kwis.msp.lwc.EventListener
+#[java_class(name = "org/kwis/msp/lwc/EventListener", public, interface, abstract)]
 pub struct EventListener;
 
+#[java_methods]
 impl EventListener {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/EventListener",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract(
-                "eventNotify",
-                "(IIIILjava/lang/Object;)Z",
-                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn event_notify(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        event_type: i32,
+        subtype: i32,
+        param1: i32,
+        param2: i32,
+        object: ClassInstanceRef<Object>,
+    ) -> JvmResult<bool>;
 }

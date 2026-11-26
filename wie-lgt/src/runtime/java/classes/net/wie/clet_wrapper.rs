@@ -1,8 +1,5 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
@@ -11,30 +8,25 @@ use wie_wipi_java::classes::org::kwis::msp::lcdui::Display;
 use super::CletWrapperContext;
 
 // class net.wie.CletWrapper
-pub struct CletWrapper;
+#[java_class(name = "net/wie/CletWrapper", extends = "org/kwis/msp/lcdui/Jlet", public)]
+pub struct CletWrapper {
+    #[field(private, static)]
+    startClet: i32,
+    #[field(private, static)]
+    pauseClet: i32,
+    #[field(private, static)]
+    resumeClet: i32,
+    #[field(private, static)]
+    destroyClet: i32,
+    #[field(private, static)]
+    paintClet: i32,
+    #[field(private, static)]
+    handleCletEvent: i32,
+}
 
+#[java_methods]
 impl CletWrapper {
-    pub fn as_proto() -> JavaClassProto<CletWrapperContext> {
-        JavaClassProto {
-            name: "net/wie/CletWrapper",
-            parent_class: Some("org/kwis/msp/lcdui/Jlet"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("startApp", "([Ljava/lang/String;)V", Self::start_app, MethodAccessFlags::PROTECTED),
-            ],
-            fields: vec![
-                JavaFieldProto::new("startClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("pauseClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("resumeClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("destroyClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("paintClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("handleCletEvent", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut CletWrapperContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.CletWrapper::<init>({this:?})");
 
@@ -43,6 +35,7 @@ impl CletWrapper {
         Ok(())
     }
 
+    #[method(protected)]
     async fn start_app(
         jvm: &Jvm,
         context: &mut CletWrapperContext,

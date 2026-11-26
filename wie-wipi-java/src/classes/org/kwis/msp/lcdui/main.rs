@@ -1,32 +1,16 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class org.kwis.msp.lcdui.Main
+#[java_class(name = "org/kwis/msp/lcdui/Main", public)]
 pub struct Main;
 
+#[java_methods]
 impl Main {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lcdui/Main",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "main",
-                "([Ljava/lang/String;)V",
-                Self::main,
-                MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(public, static)]
     async fn main(jvm: &Jvm, _: &mut WieJvmContext, args: ClassInstanceRef<Array<String>>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({args:?})");
 

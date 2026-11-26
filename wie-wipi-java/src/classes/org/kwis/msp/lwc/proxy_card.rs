@@ -1,10 +1,7 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::org::kwis::msp::{
     lcdui::{Display, Graphics},
@@ -12,53 +9,14 @@ use crate::classes::org::kwis::msp::{
 };
 
 // class org.kwis.msp.lwc.ProxyCard
-pub struct ProxyCard;
+#[java_class(name = "org/kwis/msp/lwc/ProxyCard", extends = "org/kwis/msp/lcdui/Card", public)]
+pub struct ProxyCard {
+    cmp: ClassInstanceRef<ContainerComponent>,
+}
 
+#[java_methods]
 impl ProxyCard {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/ProxyCard",
-            parent_class: Some("org/kwis/msp/lcdui/Card"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lwc/ContainerComponent;)V",
-                    Self::init,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lwc/ContainerComponent;Z)V",
-                    Self::init_transparent,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lwc/ContainerComponent;IIII)V",
-                    Self::init_with_bounds,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lwc/ContainerComponent;IIIIZ)V",
-                    Self::init_with_bounds_and_transparency,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("pointerNotify", "(III)Z", Self::pointer_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
-            ],
-            fields: vec![JavaFieldProto::new(
-                "cmp",
-                "Lorg/kwis/msp/lwc/ContainerComponent;",
-                FieldAccessFlags::empty(),
-            )],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -78,6 +36,7 @@ impl ProxyCard {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init_transparent(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -100,6 +59,7 @@ impl ProxyCard {
         .await
     }
 
+    #[method(constructor, public)]
     #[allow(clippy::too_many_arguments)]
     async fn init_with_bounds(
         jvm: &Jvm,
@@ -126,6 +86,7 @@ impl ProxyCard {
         .await
     }
 
+    #[method(constructor, public)]
     #[allow(clippy::too_many_arguments)]
     async fn init_with_bounds_and_transparency(
         jvm: &Jvm,
@@ -162,6 +123,7 @@ impl ProxyCard {
         .await
     }
 
+    #[method(protected)]
     async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ProxyCard::paint({this:?}, {graphics:?})");
 
@@ -178,6 +140,7 @@ impl ProxyCard {
         .await
     }
 
+    #[method(protected)]
     async fn key_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: i32, chr: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lwc.ProxyCard::keyNotify({this:?}, {type}, {chr})");
 
@@ -191,12 +154,14 @@ impl ProxyCard {
         Ok(!handled)
     }
 
+    #[method(protected)]
     async fn pointer_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: i32, x: i32, y: i32) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.lwc.ProxyCard::pointerNotify({this:?}, {type}, {x}, {y})");
 
         Ok(false)
     }
 
+    #[method(protected)]
     async fn show_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ProxyCard::showNotify({this:?}, {show})");
 

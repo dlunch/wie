@@ -1,91 +1,35 @@
-use alloc::{format, vec};
+use alloc::format;
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::lcdui::Canvas;
 
-use crate::classes::org::kwis::msp::lcdui::Display;
+use crate::classes::org::kwis::msp::lcdui::{Display, Graphics};
 
 // abstract class org.kwis.msp.lcdui.Card
-pub struct Card;
+#[java_class(name = "org/kwis/msp/lcdui/Card", implements("org/kwis/msp/lcdui/JletEventListener"), public, abstract)]
+pub struct Card {
+    #[field(private)]
+    canvas: ClassInstanceRef<Canvas>,
+    #[field(private)]
+    display: ClassInstanceRef<Display>,
+    #[field(protected)]
+    x: i32,
+    #[field(protected)]
+    y: i32,
+    #[field(protected)]
+    w: i32,
+    #[field(protected)]
+    h: i32,
+    #[field(protected)]
+    transparent: bool,
+}
 
+#[java_methods]
 impl Card {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lcdui/Card",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec!["org/kwis/msp/lcdui/JletEventListener"],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(I)V", Self::init_int, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Z)V", Self::init_transparent, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(IIII)V", Self::init_with_bounds, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lcdui/Display;)V",
-                    Self::init_with_display,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lcdui/Display;IIII)V",
-                    Self::init_with_display_and_bounds,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lcdui/Display;IIIIZ)V",
-                    Self::init_with_display_bounds_and_transparency,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("move", "(II)V", Self::move_card, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("resize", "(II)V", Self::resize, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getX", "()I", Self::get_x, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getY", "()I", Self::get_y, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("pointerNotify", "(III)Z", Self::pointer_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "getDisplay",
-                    "()Lorg/kwis/msp/lcdui/Display;",
-                    Self::get_display,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("isShown", "()Z", Self::is_shown, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("repaint", "()V", Self::repaint, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new_abstract(
-                    "paint",
-                    "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                    MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
-                ),
-                // wie private
-                JavaMethodProto::new(
-                    "setCanvas",
-                    "(Ljavax/microedition/lcdui/Canvas;)V",
-                    Self::set_canvas,
-                    MethodAccessFlags::PRIVATE,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("canvas", "Ljavax/microedition/lcdui/Canvas;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("x", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("y", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("w", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("h", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("transparent", "Z", FieldAccessFlags::PROTECTED),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({this:?})");
 
@@ -101,6 +45,7 @@ impl Card {
     }
 
     // not in reference, but called by some clet
+    #[method(constructor, public)]
     async fn init_int(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, a0: i32) -> JvmResult<()> {
         tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({this:?}, {a0})");
 
@@ -115,6 +60,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_transparent(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, transparent: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::<init>({this:?}, {transparent})");
 
@@ -140,6 +86,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_bounds(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -167,6 +114,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_display(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, display: ClassInstanceRef<Display>) -> JvmResult<()> {
         let log = format!("org.kwis.msp.lcdui.Card::<init>({this:?}, {display:?})");
         tracing::debug!("{log}");
@@ -190,6 +138,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(constructor, public)]
     #[allow(clippy::too_many_arguments)]
     async fn init_with_display_and_bounds(
         jvm: &Jvm,
@@ -217,6 +166,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(constructor, public)]
     #[allow(clippy::too_many_arguments)]
     async fn init_with_display_bounds_and_transparency(
         jvm: &Jvm,
@@ -254,6 +204,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(name = "move", public)]
     async fn move_card(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Card>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::move({this:?}, {x}, {y})");
 
@@ -261,6 +212,7 @@ impl Card {
         jvm.put_field(&mut this, "org/kwis/msp/lcdui/Card", "y", "I", y).await
     }
 
+    #[method(public)]
     async fn resize(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Card>, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::resize({this:?}, {width}, {height})");
 
@@ -274,24 +226,28 @@ impl Card {
         jvm.put_field(&mut this, "org/kwis/msp/lcdui/Card", "h", "I", height).await
     }
 
+    #[method(public)]
     async fn get_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getX({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/lcdui/Card", "x", "I").await
     }
 
+    #[method(public)]
     async fn get_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getY({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/lcdui/Card", "y", "I").await
     }
 
+    #[method(protected)]
     async fn pointer_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, r#type: i32, x: i32, y: i32) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::pointerNotify({this:?}, {type}, {x}, {y})");
 
         Ok(false)
     }
 
+    #[method(public)]
     async fn get_display(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<ClassInstanceRef<Display>> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getDisplay({this:?})");
 
@@ -299,6 +255,7 @@ impl Card {
             .await
     }
 
+    #[method(public)]
     async fn is_shown(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Card::isShown({this:?})");
 
@@ -308,18 +265,21 @@ impl Card {
         Ok(!canvas.is_null())
     }
 
+    #[method(public)]
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/lcdui/Card", "w", "I").await
     }
 
+    #[method(public)]
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/lcdui/Card", "h", "I").await
     }
 
+    #[method(public)]
     async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({this:?})");
 
@@ -333,6 +293,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(name = "repaint", public)]
     async fn repaint_with_area(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -382,6 +343,7 @@ impl Card {
         Ok(())
     }
 
+    #[method(public)]
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::serviceRepaints({this:?})");
 
@@ -397,18 +359,21 @@ impl Card {
         Ok(())
     }
 
+    #[method(protected)]
     async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, show: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::showNotify({this:?}, {show})");
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, r#type: i32, key: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Card::keyNotify({this:?}, {type}, {key})");
 
         Ok(false)
     }
 
+    #[method(private)]
     async fn set_canvas(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Card>, canvas: ClassInstanceRef<Canvas>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::setCanvas({this:?}, {canvas:?})");
 
@@ -421,15 +386,18 @@ impl Card {
         )
         .await
     }
+
+    #[method(protected)]
+    async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()>;
 }
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec, vec::Vec};
+    use alloc::{boxed::Box, vec::Vec};
 
     use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
+
     use test_utils::run_jvm_test;
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_midp::classes::javax::microedition::lcdui::{Display as MidpDisplay, Graphics as MidpGraphics, Image as MidpImage};
@@ -441,38 +409,23 @@ mod test {
         get_protos,
     };
 
-    struct TestCard;
+    #[java_class(name = "test/TestCard", extends = "org/kwis/msp/lcdui/Card", public)]
+    struct TestCard {
+        #[field(private)]
+        showCount: i32,
+        #[field(private)]
+        hideCount: i32,
+        #[field(private)]
+        keyCount: i32,
+        #[field(private)]
+        notifyCount: i32,
+        #[field(private)]
+        paintCount: i32,
+    }
 
+    #[java_methods]
     impl TestCard {
-        fn as_proto() -> WieJavaClassProto {
-            WieJavaClassProto {
-                name: "test/TestCard",
-                parent_class: Some("org/kwis/msp/lcdui/Card"),
-                interfaces: vec![],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;IIIIZ)V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new(
-                        "<init>",
-                        "(Lorg/kwis/msp/lcdui/Display;)V",
-                        Self::init_with_display,
-                        MethodAccessFlags::PUBLIC,
-                    ),
-                    JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("notifyEvent", "(III)V", Self::notify_event, MethodAccessFlags::PUBLIC),
-                ],
-                fields: vec![
-                    JavaFieldProto::new("showCount", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("hideCount", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("keyCount", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("notifyCount", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PRIVATE),
-                ],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         #[allow(clippy::too_many_arguments)]
         async fn init(
             jvm: &Jvm,
@@ -495,6 +448,7 @@ mod test {
             .await
         }
 
+        #[method(constructor, public)]
         async fn init_with_display(
             jvm: &Jvm,
             _: &mut WieJvmContext,
@@ -505,6 +459,7 @@ mod test {
                 .await
         }
 
+        #[method(protected)]
         async fn paint(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
             let paint_count: i32 = jvm.get_field(&this, "test/TestCard", "paintCount", "I").await?;
             jvm.put_field(&mut this, "test/TestCard", "paintCount", "I", paint_count + 1).await?;
@@ -572,6 +527,7 @@ mod test {
             Ok(())
         }
 
+        #[method(protected)]
         async fn show_notify(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
             let _: () = jvm
                 .invoke_special(&this, "org/kwis/msp/lcdui/Card", "showNotify", "(Z)V", (show,))
@@ -581,55 +537,47 @@ mod test {
             jvm.put_field(&mut this, "test/TestCard", field, "I", count + 1).await
         }
 
+        #[method(protected)]
         async fn key_notify(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, _: i32, _: i32) -> JvmResult<bool> {
             let count: i32 = jvm.get_field(&this, "test/TestCard", "keyCount", "I").await?;
             jvm.put_field(&mut this, "test/TestCard", "keyCount", "I", count + 1).await?;
             Ok(false)
         }
 
+        #[method(public)]
         async fn notify_event(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, _: i32, _: i32, _: i32) -> JvmResult<()> {
             let count: i32 = jvm.get_field(&this, "test/TestCard", "notifyCount", "I").await?;
             jvm.put_field(&mut this, "test/TestCard", "notifyCount", "I", count + 1).await
         }
     }
 
-    struct TestCanvas;
+    #[java_class(name = "test/TestCanvas", extends = "javax/microedition/lcdui/Canvas", public)]
+    struct TestCanvas {
+        #[field(private)]
+        repaintX: i32,
+        #[field(private)]
+        repaintY: i32,
+        #[field(private)]
+        repaintWidth: i32,
+        #[field(private)]
+        repaintHeight: i32,
+        #[field(private)]
+        repaintCount: i32,
+    }
 
+    #[java_methods]
     impl TestCanvas {
-        fn as_proto() -> WieJavaClassProto {
-            WieJavaClassProto {
-                name: "test/TestCanvas",
-                parent_class: Some("javax/microedition/lcdui/Canvas"),
-                interfaces: vec![],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new(
-                        "paint",
-                        "(Ljavax/microedition/lcdui/Graphics;)V",
-                        Self::paint,
-                        MethodAccessFlags::PROTECTED,
-                    ),
-                    JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, MethodAccessFlags::PUBLIC),
-                ],
-                fields: vec![
-                    JavaFieldProto::new("repaintX", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("repaintY", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("repaintWidth", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("repaintHeight", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("repaintCount", "I", FieldAccessFlags::PRIVATE),
-                ],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "<init>", "()V", ()).await
         }
 
+        #[method(protected)]
         async fn paint(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, _: ClassInstanceRef<MidpGraphics>) -> JvmResult<()> {
             Ok(())
         }
 
+        #[method(public)]
         async fn repaint(
             jvm: &Jvm,
             _: &mut WieJvmContext,

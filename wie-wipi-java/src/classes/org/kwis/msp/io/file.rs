@@ -1,14 +1,11 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{
-    io::{DataInputStream, DataOutputStream, FileDescriptor, InputStream, OutputStream, RandomAccessFile},
+    io::{DataInputStream, DataOutputStream, File as JavaFile, FileDescriptor, InputStream, OutputStream, RandomAccessFile},
     lang::String,
 };
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 #[repr(i32)]
@@ -35,64 +32,25 @@ impl Mode {
 }
 
 // class org.kwis.msp.io.File
-pub struct File;
+#[java_class(name = "org/kwis/msp/io/File", public)]
+pub struct File {
+    #[field(private)]
+    file: ClassInstanceRef<JavaFile>,
+    #[field(private)]
+    raf: ClassInstanceRef<RandomAccessFile>,
+    #[field(private)]
+    inputStream: ClassInstanceRef<InputStream>,
+    #[field(private)]
+    mode: i32,
+    #[field(private)]
+    closed: bool,
+    #[field(private)]
+    outputStreamOpen: bool,
+}
 
+#[java_methods]
 impl File {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/io/File",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("write", "([B)I", Self::write, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("write", "([BII)I", Self::write_with_offset_length, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("read", "([B)I", Self::read, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("read", "([BII)I", Self::read_with_offset_length, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("seek", "(I)V", Self::seek, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("sizeOf", "()I", Self::size_of, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "openInputStream",
-                    "()Ljava/io/InputStream;",
-                    Self::open_input_stream,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "openDataInputStream",
-                    "()Ljava/io/DataInputStream;",
-                    Self::open_data_input_stream,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "openOutputStream",
-                    "()Ljava/io/OutputStream;",
-                    Self::open_output_stream,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "openDataOutputStream",
-                    "()Ljava/io/DataOutputStream;",
-                    Self::open_data_output_stream,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("write", "(I)I", Self::write_byte, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("read", "()I", Self::read_byte, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("tell", "()I", Self::tell, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("file", "Ljava/io/File;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("inputStream", "Ljava/io/InputStream;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("mode", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("closed", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("outputStreamOpen", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, filename: ClassInstanceRef<String>, mode: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::<init>({this:?}, {filename:?}, {mode:?})");
 
@@ -103,6 +61,7 @@ impl File {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_flag(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -167,6 +126,7 @@ impl File {
         Ok(())
     }
 
+    #[method(public)]
     async fn write(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
         let length = jvm.array_length(&buf).await? as i32;
 
@@ -174,6 +134,7 @@ impl File {
             .await
     }
 
+    #[method(name = "write", public)]
     async fn write_with_offset_length(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -192,6 +153,7 @@ impl File {
         Ok(0)
     }
 
+    #[method(public)]
     async fn seek(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, pos: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::seek({this:?}, {pos:?})");
 
@@ -203,6 +165,7 @@ impl File {
         Ok(())
     }
 
+    #[method(public)]
     async fn read(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
         let length = jvm.array_length(&buf).await? as i32;
 
@@ -210,6 +173,7 @@ impl File {
             .await
     }
 
+    #[method(name = "read", public)]
     async fn read_with_offset_length(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -228,6 +192,7 @@ impl File {
         Ok(read)
     }
 
+    #[method(public)]
     async fn close(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::close({this:?})");
 
@@ -243,6 +208,7 @@ impl File {
         Ok(())
     }
 
+    #[method(public)]
     async fn size_of(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({this:?})");
 
@@ -252,6 +218,7 @@ impl File {
         Ok(length as _)
     }
 
+    #[method(public)]
     async fn open_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openInputStream({this:?})");
 
@@ -267,6 +234,7 @@ impl File {
         Ok(input_stream)
     }
 
+    #[method(public)]
     async fn open_data_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<DataInputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openDataInputStream({this:?})");
 
@@ -280,6 +248,7 @@ impl File {
         Ok(data_input_stream.into())
     }
 
+    #[method(public)]
     async fn open_output_stream(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<OutputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openOutputStream({this:?})");
 
@@ -306,6 +275,7 @@ impl File {
         Ok(output_stream.into())
     }
 
+    #[method(public)]
     async fn open_data_output_stream(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -323,6 +293,7 @@ impl File {
         Ok(data_output_stream.into())
     }
 
+    #[method(name = "write", public)]
     async fn write_byte(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, byte: i32) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::write({this:?}, {byte})");
 
@@ -337,6 +308,7 @@ impl File {
         Ok(1)
     }
 
+    #[method(name = "read", public)]
     async fn read_byte(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({this:?})");
 
@@ -355,6 +327,7 @@ impl File {
         Ok(value[0] as i32)
     }
 
+    #[method(public)]
     async fn tell(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::tell({this:?})");
 

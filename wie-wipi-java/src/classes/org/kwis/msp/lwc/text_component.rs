@@ -1,62 +1,41 @@
 use alloc::{vec, vec::Vec};
 
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::net::wie::KeyboardEventType;
 
 use crate::classes::{
     net::wie::WIPIKeyCode,
-    org::kwis::msp::lcdui::{Font, Graphics},
+    org::kwis::msp::lcdui::{Font, Graphics, InputMethodHandler},
 };
 
 // class org.kwis.msp.lwc.TextComponent
-pub struct TextComponent;
+#[java_class(name = "org/kwis/msp/lwc/TextComponent", extends = "org/kwis/msp/lwc/Component", public, abstract)]
+pub struct TextComponent {
+    #[field(protected)]
+    charCount: i32,
+    #[field(protected)]
+    constraint: i32,
+    #[field(protected)]
+    f: ClassInstanceRef<Font>,
+    #[field(protected)]
+    m_cPos: i32,
+    #[field(protected)]
+    m_td: ClassInstanceRef<Array<JavaChar>>,
+    #[field(protected)]
+    maxLength: i32,
+    #[field(protected)]
+    imHandler: ClassInstanceRef<InputMethodHandler>,
+    #[field(protected)]
+    iMode: i32,
+}
 
+#[java_methods]
 impl TextComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/TextComponent",
-            parent_class: Some("org/kwis/msp/lwc/Component"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init_with_text, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("insert", "([CIII)V", Self::insert, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("delete", "(II)V", Self::delete, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMaxLength", "()I", Self::get_max_length, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getConstraint", "()I", Self::get_constraint, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                    Self::paint_content,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("calcPreferredSize", "(I)V", Self::calc_preferred_size, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("charCount", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("constraint", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("f", "Lorg/kwis/msp/lcdui/Font;", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("m_cPos", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("m_td", "[C", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("maxLength", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("iMode", "I", FieldAccessFlags::PROTECTED),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor, protected)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::<init>({this:?})");
         jvm.invoke_special(
@@ -69,6 +48,7 @@ impl TextComponent {
         .await
     }
 
+    #[method(constructor, protected)]
     async fn init_with_text(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -105,16 +85,19 @@ impl TextComponent {
             .await
     }
 
+    #[method(public)]
     async fn get_constraint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::getConstraint({this:?})");
         jvm.get_field(&this, "org/kwis/msp/lwc/TextComponent", "constraint", "I").await
     }
 
+    #[method(public)]
     async fn get_max_length(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::getMaxLength({this:?})");
         jvm.get_field(&this, "org/kwis/msp/lwc/TextComponent", "maxLength", "I").await
     }
 
+    #[method(public)]
     async fn set_max_length(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, max: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::setMaxLength({this:?}, {max})");
         if max == 0 || max < -1 {
@@ -152,6 +135,7 @@ impl TextComponent {
         jvm.invoke_virtual(&this, "org/kwis/msp/lwc/Component", "repaint", "()V", ()).await
     }
 
+    #[method(public)]
     async fn set_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, data: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::setString({this:?}, {data:?})");
         let mut chars = if data.is_null() {
@@ -173,11 +157,13 @@ impl TextComponent {
         Self::store(jvm, this, chars, cursor).await
     }
 
+    #[method(public)]
     async fn get_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::getString({this:?})");
         Ok(JavaLangString::from_utf16(jvm, Self::chars(jvm, &this).await?).await?.into())
     }
 
+    #[method(public)]
     async fn insert(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -210,6 +196,7 @@ impl TextComponent {
         Self::store(jvm, this, chars, index + len).await
     }
 
+    #[method(public)]
     async fn delete(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32, len: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::delete({this:?}, {index}, {len})");
         let mut chars = Self::chars(jvm, &this).await?;
@@ -223,6 +210,7 @@ impl TextComponent {
         Self::store(jvm, this, chars, index).await
     }
 
+    #[method(public)]
     async fn key_notify(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, kind: i32, key: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::keyNotify({this:?}, {kind}, {key})");
         if kind != KeyboardEventType::KeyPressed as i32 {
@@ -268,6 +256,7 @@ impl TextComponent {
         Ok(true)
     }
 
+    #[method(public)]
     async fn set_font(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::setFont({this:?}, {font:?})");
         let font = if font.is_null() {
@@ -282,6 +271,7 @@ impl TextComponent {
         jvm.invoke_virtual(&this, "org/kwis/msp/lwc/Component", "repaint", "()V", ()).await
     }
 
+    #[method(public)]
     async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::getFont({this:?})");
         jvm.get_field(&this, "org/kwis/msp/lwc/TextComponent", "f", "Lorg/kwis/msp/lcdui/Font;")
@@ -336,6 +326,7 @@ impl TextComponent {
         Ok((lines, widest.max(line_width)))
     }
 
+    #[method(protected)]
     async fn calc_preferred_size(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::calcPreferredSize({this:?}, {width})");
         let (preferred_width, preferred_height) = Self::measure_text(jvm, &this, None).await?;
@@ -354,6 +345,7 @@ impl TextComponent {
         Ok((widest.max(line_height) + 4, lines.len() as i32 * line_height + 4))
     }
 
+    #[method(public)]
     async fn paint_content(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextComponent::paintContent({this:?}, {g:?})");
         Self::draw_text(jvm, this, g, false).await

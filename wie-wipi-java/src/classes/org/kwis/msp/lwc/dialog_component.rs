@@ -1,11 +1,8 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::net::wie::{EventQueue, KeyboardEventType};
 
 use crate::classes::{
@@ -23,67 +20,27 @@ const DLG_CANCEL: i32 = 12;
 const INSET: i32 = 3;
 
 // class org.kwis.msp.lwc.DialogComponent
-pub struct DialogComponent;
+#[java_class(name = "org/kwis/msp/lwc/DialogComponent", extends = "org/kwis/msp/lwc/ShellComponent", public)]
+pub struct DialogComponent {
+    #[field(protected)]
+    actionState: i32,
+    #[field(private)]
+    r#type: i32,
+    #[field(private)]
+    timeout: i32,
+    #[field(private)]
+    autoSize: bool,
+    #[field(private)]
+    title: ClassInstanceRef<String>,
+    #[field(private)]
+    okLabel: ClassInstanceRef<String>,
+    #[field(private)]
+    cancelLabel: ClassInstanceRef<String>,
+}
 
+#[java_methods]
 impl DialogComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/DialogComponent",
-            parent_class: Some("org/kwis/msp/lwc/ShellComponent"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init_type, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lwc/Component;Ljava/lang/String;I)V",
-                    Self::init,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Lorg/kwis/msp/lwc/Component;Ljava/lang/String;IIIII)V",
-                    Self::init_bounds,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setType", "(I)V", Self::set_type, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getTimeout", "()I", Self::get_timeout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setTimeout", "(I)V", Self::set_timeout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getActionState", "()I", Self::get_action_state, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("doModal", "()I", Self::do_modal, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setButtonString",
-                    "(ILjava/lang/String;)V",
-                    Self::set_button_string,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("layout", "()V", Self::layout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                    Self::paint_content,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "paintFrame",
-                    "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                    Self::paint_frame,
-                    MethodAccessFlags::PROTECTED,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("actionState", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("type", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("timeout", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("autoSize", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("title", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("okLabel", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("cancelLabel", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init_type(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, kind: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::<init>({this:?}, {kind})");
         jvm.invoke_special(
@@ -96,6 +53,7 @@ impl DialogComponent {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -108,6 +66,7 @@ impl DialogComponent {
         Self::initialize(jvm, this, work, title, kind, None).await
     }
 
+    #[method(constructor, public)]
     #[allow(clippy::too_many_arguments)]
     async fn init_bounds(
         jvm: &Jvm,
@@ -170,6 +129,7 @@ impl DialogComponent {
         .await
     }
 
+    #[method(public)]
     async fn set_type(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, kind: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::setType({this:?}, {kind})");
         if !(0..=2).contains(&kind) {
@@ -188,6 +148,7 @@ impl DialogComponent {
         jvm.invoke_virtual(&this, "org/kwis/msp/lwc/Component", "repaint", "()V", ()).await
     }
 
+    #[method(public)]
     async fn set_timeout(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, timeout: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::setTimeout({this:?}, {timeout})");
         if timeout == -1 && jvm.get_field::<i32>(&this, "org/kwis/msp/lwc/DialogComponent", "type", "I").await? == 0 {
@@ -199,16 +160,19 @@ impl DialogComponent {
             .await
     }
 
+    #[method(public)]
     async fn get_timeout(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::getTimeout({this:?})");
         jvm.get_field(&this, "org/kwis/msp/lwc/DialogComponent", "timeout", "I").await
     }
 
+    #[method(public)]
     async fn get_action_state(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::getActionState({this:?})");
         jvm.get_field(&this, "org/kwis/msp/lwc/DialogComponent", "actionState", "I").await
     }
 
+    #[method(public)]
     async fn do_modal(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::doModal({this:?})");
         let queue: ClassInstanceRef<EventQueue> = jvm
@@ -240,6 +204,7 @@ impl DialogComponent {
         Ok(result)
     }
 
+    #[method(protected)]
     async fn key_notify(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, event: i32, key: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::keyNotify({this:?}, {event}, {key})");
         let kind: i32 = jvm.get_field(&this, "org/kwis/msp/lwc/DialogComponent", "type", "I").await?;
@@ -262,6 +227,7 @@ impl DialogComponent {
         Ok(true)
     }
 
+    #[method(public)]
     async fn set_button_string(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -299,6 +265,7 @@ impl DialogComponent {
         Ok((font, height + INSET, labels))
     }
 
+    #[method(public)]
     async fn layout(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::layout({this:?})");
         let (font, row, labels) = Self::captions(jvm, &this).await?;
@@ -365,6 +332,7 @@ impl DialogComponent {
         .await
     }
 
+    #[method(public)]
     async fn paint_content(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::paintContent({this:?}, {g:?})");
         let _: () = jvm
@@ -386,6 +354,7 @@ impl DialogComponent {
         .await
     }
 
+    #[method(protected)]
     async fn paint_frame(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.DialogComponent::paintFrame({this:?}, {g:?})");
         let (font, row, labels) = Self::captions(jvm, &this).await?;

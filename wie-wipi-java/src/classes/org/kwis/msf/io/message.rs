@@ -1,30 +1,19 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class org.kwis.msf.io.Message
-pub struct Message;
+#[java_class(name = "org/kwis/msf/io/Message", public)]
+pub struct Message {
+    #[field(private)]
+    data: ClassInstanceRef<Array<i8>>,
+}
 
+#[java_methods]
 impl Message {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msf/io/Message",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;[B)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getData", "()[B", Self::get_data, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![JavaFieldProto::new("data", "[B", FieldAccessFlags::PRIVATE)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -38,6 +27,7 @@ impl Message {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_data(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Array<i8>>> {
         tracing::debug!("org.kwis.msf.io.Message::getData({this:?})");
         jvm.get_field(&this, "org/kwis/msf/io/Message", "data", "[B").await

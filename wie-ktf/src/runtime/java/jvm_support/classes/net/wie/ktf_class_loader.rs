@@ -1,12 +1,11 @@
-use alloc::{boxed::Box, vec};
+use alloc::boxed::Box;
 
 use bytemuck::cast_slice;
 use jvm::{
     ClassInstanceRef, Jvm, Result as JvmResult,
     runtime::{JavaIoInputStream, JavaLangString},
 };
-use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{
     io::InputStream,
     lang::{Class, ClassLoader, String},
@@ -25,49 +24,18 @@ pub struct ClassLoaderContext {
     pub system: System,
 }
 
-type ClassLoaderProto = JavaClassProto<ClassLoaderContext>;
-
 // class net.wie.KtfClassLoader
-pub struct KtfClassLoader;
+#[java_class(name = "net/wie/KtfClassLoader", extends = "java/lang/ClassLoader", public)]
+pub struct KtfClassLoader {
+    #[field(private)]
+    nativeFunctions: i32,
+    #[field(private, static)]
+    instance: ClassInstanceRef<Self>,
+}
 
+#[java_methods]
 impl KtfClassLoader {
-    pub fn as_proto() -> ClassLoaderProto {
-        ClassLoaderProto {
-            name: "net/wie/KtfClassLoader",
-            parent_class: Some("java/lang/ClassLoader"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
-                    Self::init,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "loadClass",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
-                    Self::load_class,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "findClass",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
-                    Self::find_class,
-                    MethodAccessFlags::PROTECTED,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("nativeFunctions", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new(
-                    "instance",
-                    "Lnet/wie/KtfClassLoader;",
-                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         context: &mut ClassLoaderContext,
@@ -119,6 +87,7 @@ impl KtfClassLoader {
         Ok(())
     }
 
+    #[method(public)]
     async fn load_class(
         jvm: &Jvm,
         _: &mut ClassLoaderContext,
@@ -166,6 +135,7 @@ impl KtfClassLoader {
         .await
     }
 
+    #[method(protected)]
     async fn find_class(
         jvm: &Jvm,
         context: &mut ClassLoaderContext,

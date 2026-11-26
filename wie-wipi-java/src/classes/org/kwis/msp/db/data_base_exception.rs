@@ -1,30 +1,16 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class org.kwis.msp.db.DataBaseException
+#[java_class(name = "org/kwis/msp/db/DataBaseException", extends = "java/lang/Exception", public)]
 pub struct DataBaseException;
 
+#[java_methods]
 impl DataBaseException {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/db/DataBaseException",
-            parent_class: Some("java/lang/Exception"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init_with_message, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
         tracing::debug!("org.kwis.msp.db.DataBaseException::<init>({this:?})");
 
@@ -33,6 +19,7 @@ impl DataBaseException {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_message(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, message: ClassInstanceRef<String>) -> Result<()> {
         tracing::debug!("org.kwis.msp.db.DataBaseException::<init>({this:?}, {message:?})");
 

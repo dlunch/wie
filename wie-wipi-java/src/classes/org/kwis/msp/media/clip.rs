@@ -1,74 +1,36 @@
-use alloc::vec;
-
 use bytemuck::cast_vec;
 
 use jvm::{
     Array, ClassInstanceRef, Jvm, Result as JvmResult,
     runtime::{JavaIoInputStream, JavaLangString},
 };
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{
     io::InputStream,
     lang::{Class, String},
 };
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::media::Player;
 
 use crate::classes::org::kwis::msp::media::PlayListener;
 
 // class org.kwis.msp.media.Clip
-pub struct Clip;
+#[java_class(name = "org/kwis/msp/media/Clip", extends = "org/kwis/msp/media/BaseClip", public)]
+pub struct Clip {
+    #[field(private)]
+    position: i32,
+    #[field(private)]
+    stopTime: i32,
+    #[field(private)]
+    r#type: ClassInstanceRef<String>,
+    #[field(private)]
+    volume: i32,
+}
 
+#[java_methods]
 impl Clip {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/media/Clip",
-            parent_class: Some("org/kwis/msp/media/BaseClip"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;[B)V", Self::init_with_data, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init_with_data_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;Ljava/lang/String;)V",
-                    Self::init_with_resource,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setVolume", "(I)Z", Self::set_volume, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setVolume", "(I)V", Self::set_volume_void, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setListener",
-                    "(Lorg/kwis/msp/media/PlayListener;)V",
-                    Self::set_listener,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setBuffer", "([BI)V", Self::set_buffer, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getType", "()Ljava/lang/String;", Self::get_type, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setPosition", "(I)Z", Self::set_position, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getPosition", "()I", Self::get_position, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setStopTime", "(I)Z", Self::set_stop_time, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getStopTime", "()I", Self::get_stop_time, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getVolume", "()I", Self::get_volume, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getOrCreatePlayer",
-                    "()Ljavax/microedition/media/Player;",
-                    Self::get_or_create_player,
-                    MethodAccessFlags::empty(),
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("position", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("stopTime", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("type", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("volume", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, r#type: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?})");
 
@@ -79,6 +41,7 @@ impl Clip {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_resource(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -118,6 +81,7 @@ impl Clip {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_data(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -139,6 +103,7 @@ impl Clip {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init_with_data_size(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -157,6 +122,7 @@ impl Clip {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_volume(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Clip>, level: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Clip::setVolume({this:?}, {level})");
 
@@ -170,6 +136,7 @@ impl Clip {
     }
 
     // not in spec, but some apps call it
+    #[method(name = "setVolume", public)]
     async fn set_volume_void(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Clip>, level: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::setVolume({this:?}, {level})");
 
@@ -180,12 +147,14 @@ impl Clip {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_listener(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, listener: ClassInstanceRef<PlayListener>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setListener({this:?}, {listener:?})");
 
         Ok(())
     }
 
+    #[method(public)]
     async fn set_buffer(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -202,12 +171,14 @@ impl Clip {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_type(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.media.Clip::getType({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "type", "Ljava/lang/String;").await
     }
 
+    #[method(public)]
     async fn set_position(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, milliseconds: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Clip::setPosition({this:?}, {milliseconds})");
 
@@ -216,12 +187,14 @@ impl Clip {
         Ok(true)
     }
 
+    #[method(public)]
     async fn get_position(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.media.Clip::getPosition({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "position", "I").await
     }
 
+    #[method(public)]
     async fn set_stop_time(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, milliseconds: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Clip::setStopTime({this:?}, {milliseconds})");
 
@@ -230,18 +203,21 @@ impl Clip {
         Ok(true)
     }
 
+    #[method(public)]
     async fn get_stop_time(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.media.Clip::getStopTime({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "stopTime", "I").await
     }
 
+    #[method(public)]
     async fn get_volume(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.media.Clip::getVolume({this:?})");
 
         jvm.get_field(&this, "org/kwis/msp/media/Clip", "volume", "I").await
     }
 
+    #[method]
     async fn get_or_create_player(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
         let player: ClassInstanceRef<Player> = jvm
             .get_field(&this, "org/kwis/msp/media/BaseClip", "player", "Ljavax/microedition/media/Player;")
