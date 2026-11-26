@@ -13,24 +13,23 @@ use crate::{
     adf::parse_bss_size,
     emulator::IMAGE_BASE,
     runtime::{
-        SVC_CATEGORY_INIT, SVC_CATEGORY_WIPIC,
+        SVC_CATEGORY_INIT,
         java::{
             interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_is_instance, java_new, java_throw, java_throw_instance},
             jvm_support::{KtfJvmSupport, KtfJvmSupportContext, SUPPORT_CONTEXT_BASE},
         },
-        svc_ids::{InitSvcId, WIPICTableId},
-        wipi_c::{interface::get_wipic_knl_interface, register_wipic_svc_handler},
+        svc_ids::InitSvcId,
+        wipi_c::{
+            interface::{get_user_memory_interface, get_wipic_knl_interface},
+            register_wipic_svc_handler,
+        },
         with_arm_context,
     },
 };
 
 pub fn register_init_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
-    let mut methods = [0u32; 4];
-    for (index, method) in methods.iter_mut().enumerate() {
-        *method = core.make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::UserMemory.function_id(index as u16))?;
-    }
-    let user_memory = Allocator::alloc(core, size_of_val(&methods) as u32)?;
-    write_generic(core, user_memory, methods)?;
+    // Apps look this table up repeatedly, so it is built once.
+    let user_memory = get_user_memory_interface(core)?;
     core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(jvm.clone(), user_memory))
 }
 

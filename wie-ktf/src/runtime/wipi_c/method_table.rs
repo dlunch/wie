@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, vec, vec::Vec};
+use alloc::{format, vec, vec::Vec};
 
 use wipi_types::{
     ktf::wipic::{WIPICFsInterface, WIPICGraphicsInterface, WIPICKnlInterface},
@@ -8,7 +8,7 @@ use wipi_types::{
 use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError, write_generic};
 use wie_wipi_c::{
-    MethodBody, MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
+    MethodImpl, WIPICContext, WIPICMethodBody,
     api::{database, fs, graphics, im, kernel, media, misc, net, uic, util},
 };
 
@@ -18,21 +18,10 @@ use crate::runtime::{
     wipi_c::user_memory,
 };
 
-struct UnimplementedMethod {
-    id: WIPICWord,
-    name: &'static str,
-}
-
-#[async_trait::async_trait]
-impl MethodBody<WieError> for UnimplementedMethod {
-    async fn call(&self, _: &mut dyn WIPICContext, args: Box<[WIPICWord]>) -> Result<WIPICResult> {
-        tracing::warn!("stub {}[{}] (argument words {args:#x?})", self.name, self.id);
-        Err(WieError::Unimplemented(format!("{}: {}", self.id, self.name)))
-    }
-}
-
 fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    Box::new(UnimplementedMethod { id, name })
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(format!("{id}: {name}"))) };
+
+    body.into_body()
 }
 
 pub fn get_kernel_interface(core: &mut ArmCore) -> Result<WIPICKnlInterface> {

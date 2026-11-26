@@ -36,6 +36,18 @@ pub fn get_wipic_knl_interface(core: &mut ArmCore) -> Result<u32> {
     Ok(address)
 }
 
+pub fn get_user_memory_interface(core: &mut ArmCore) -> Result<u32> {
+    let mut methods = [0u32; 4];
+    for (index, method) in methods.iter_mut().enumerate() {
+        *method = core.make_svc_stub(crate::runtime::SVC_CATEGORY_WIPIC, WIPICTableId::UserMemory.function_id(index as u16))?;
+    }
+
+    let address = Allocator::alloc(core, size_of_val(&methods) as u32)?;
+    write_generic(core, address, methods)?;
+
+    Ok(address)
+}
+
 fn write_interface<T: Pod>(context: &mut dyn WIPICContext, interface: T) -> Result<u32> {
     let address = context.alloc_raw(size_of_val(&interface) as u32)?;
     write_generic(context, address, interface)?;
