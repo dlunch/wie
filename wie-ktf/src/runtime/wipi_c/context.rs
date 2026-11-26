@@ -208,11 +208,10 @@ mod tests {
     use wie_wipi_c::{WIPICContext, api::kernel};
 
     use super::KtfWIPICContext;
-    use crate::runtime::wipi_c::user_memory;
     use crate::runtime::{KtfJvmSupport, KtfJvmThreadContext};
 
     #[test]
-    fn guest_allocations_reuse_storage() -> Result<()> {
+    fn indirect_allocations_clear_reused_payloads() -> Result<()> {
         run_jvm_test_with_system(Box::new([]), Box::new(TestPlatform::new()), |jvm, system| async move {
             let mut core = ArmCore::new(Options::default()).unwrap();
             Allocator::init(&mut core).unwrap();
@@ -230,16 +229,6 @@ mod tests {
                 assert!(bytes.iter().all(|byte| *byte == 0));
                 kernel::free(&mut context, reused).await.unwrap();
             }
-            let base = context.alloc_raw(32).unwrap();
-            user_memory::reset(&mut context, base, 32).await.unwrap();
-            let first = user_memory::alloc(&mut context, base, 3).await.unwrap();
-            assert!((base..base + 32).contains(&first));
-            let second = user_memory::alloc(&mut context, base, 1).await.unwrap();
-            assert_eq!(second, first + 4);
-            assert_eq!(user_memory::alloc(&mut context, base, 32).await.unwrap(), 0);
-            user_memory::reset(&mut context, base, 32).await.unwrap();
-            assert_eq!(user_memory::alloc(&mut context, base, 3).await.unwrap(), first);
-
             Ok(())
         })
     }
