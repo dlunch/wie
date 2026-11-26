@@ -3,7 +3,9 @@ import { extractAppMetadata } from "@pkg";
 import { AppLibraryStore } from "../app_library_store";
 import type { LibraryApp, Wie } from "../backend";
 import { configStore } from "../config_store";
+import { openFilesystemStore } from "../filesystem_store";
 import { t } from "../i18n";
+import { IndexedDBStore } from "../indexed_db_store";
 import { setMasterVolume, setPcmVolume } from "../midi";
 import { startWasmSession } from "./wasm";
 
@@ -41,6 +43,11 @@ export const initializeWie = async (): Promise<Wie> => {
     },
     deleteApp(id) {
       return store.delete(id);
+    },
+    async deleteAppStorage(id) {
+      const [files, records] = await Promise.all([openFilesystemStore(), IndexedDBStore.open(`wie_${id}`, `wie_${id}`)]);
+      // IndexedDB sorts arrays after strings: file keys are [pid, path], and record keys are strings or arrays.
+      await Promise.all([files.delete(IDBKeyRange.bound([id], [id, []])), records.delete(IDBKeyRange.lowerBound(""))]);
     },
     async readSettings() {
       return {

@@ -45,6 +45,10 @@ impl CliFilesystem {
 
         Some(self.base_path.join(&sanitized_pid).join("fs").join(normalized))
     }
+
+    pub fn root(&self, pid: &str) -> Option<PathBuf> {
+        Some(self.path_for(pid, "_")?.parent().unwrap().to_owned())
+    }
 }
 
 #[async_trait::async_trait]
@@ -63,10 +67,10 @@ impl Filesystem for CliFilesystem {
     }
 
     async fn usage(&self, pid: &str) -> u64 {
-        let Some(path) = self.path_for(pid, "_") else {
+        let Some(root) = self.root(pid) else {
             return 0;
         };
-        let mut pending = vec![path.parent().unwrap().to_owned()];
+        let mut pending = vec![root];
         let mut usage = 0;
         while let Some(path) = pending.pop() {
             let Ok(entries) = fs::read_dir(path) else {

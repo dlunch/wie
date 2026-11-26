@@ -8,7 +8,7 @@ use core::str;
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
     fs::{self, File},
-    io::{LineWriter, Write, stderr, stdin, stdout},
+    io::{ErrorKind, LineWriter, Write, stderr, stdin, stdout},
     path::{Path, PathBuf},
     sync::{Mutex, mpsc::Sender, mpsc::channel},
     thread,
@@ -142,8 +142,11 @@ struct Args {
     /// Select a MIDI output by zero-based index.
     #[arg(long, value_name = "INDEX")]
     midi_device: Option<usize>,
+    /// Delete the data the application saved and exit.
+    #[arg(long)]
+    delete_storage: bool,
     /// List available MIDI output devices and exit.
-    #[arg(long, conflicts_with_all = ["filename", "debug", "profile_out", "midi_device", "phone_number"])]
+    #[arg(long, conflicts_with_all = ["filename", "debug", "profile_out", "midi_device", "phone_number", "delete_storage"])]
     list_midi_devices: bool,
 }
 
@@ -165,8 +168,19 @@ pub fn run() -> anyhow::Result<()> {
         return list_midi_devices();
     }
 
-    let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
     let directories = ProjectDirs::from("net", "dlunch", "wie").ok_or_else(|| anyhow::anyhow!("Unable to determine application directories"))?;
+    let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;
+
+    if args.delete_storage {
+        let filename = filename.replace(".jad", ".jar");
+        let bytes = fs::read(&filename)?;
+        let pid = extract_app_metadata(&filename, &bytes, determine_file_type(&filename, &bytes)?)?.id;
+        delete_storage(&pid, directories.data_dir())?;
+        println!("Deleted storage of {pid}");
+        return Ok(());
+    }
+
+    let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
     let cache = Box::new(AotCache {
         directory: directories.cache_dir().join("native-aot"),
     });
@@ -176,9 +190,19 @@ pub fn run() -> anyhow::Result<()> {
         aot: Some(Box::new(NativeExecutor::new(Some(cache)))),
         profile,
     };
-    let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;
 
     start(filename, options, args.midi_device, directories.data_dir())
+}
+
+fn delete_storage(pid: &str, data_dir: &Path) -> anyhow::Result<()> {
+    let directories = [CliFilesystem::new(data_dir).root(pid), Some(DatabaseRepository::new(data_dir).root(pid))];
+    for directory in directories.into_iter().flatten() {
+        match fs::remove_dir_all(directory) {
+            Err(error) if error.kind() != ErrorKind::NotFound => return Err(error.into()),
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn list_midi_devices() -> anyhow::Result<()> {
@@ -327,7 +351,28 @@ fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
 mod tests {
     use clap::Parser;
 
-    use super::{Args, select_midi_output_index};
+    use wie_backend::{DatabaseRepository as _, Filesystem};
+
+    use super::{Args, CliFilesystem, DatabaseRepository, delete_storage, select_midi_output_index};
+
+    #[futures_test::test]
+    async fn deletes_only_the_storage_of_the_given_app() {
+        let root = tempfile::tempdir().unwrap();
+        let repository = DatabaseRepository::new(root.path());
+        let filesystem = CliFilesystem::new(root.path());
+        for pid in ["app", "other"] {
+            repository.create("save", pid).await;
+            assert_eq!(filesystem.write(pid, "save", 0, b"data").await, 4);
+        }
+
+        delete_storage("app", root.path()).unwrap();
+        delete_storage("app", root.path()).unwrap();
+
+        assert!(!repository.exists("save", "app").await);
+        assert!(!filesystem.exists("app", "save").await);
+        assert!(repository.exists("save", "other").await);
+        assert!(filesystem.exists("other", "save").await);
+    }
 
     #[test]
     fn selects_midi_port_by_index() {

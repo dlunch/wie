@@ -25,6 +25,9 @@ export const initializeWie = async (): Promise<Wie> => {
     deleteApp(id) {
       return invoke("delete_app", { id });
     },
+    deleteAppStorage(id) {
+      return invoke("delete_app_storage", { id });
+    },
     readSettings() {
       return invoke("read_settings");
     },

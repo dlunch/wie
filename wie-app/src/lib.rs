@@ -90,6 +90,7 @@ pub fn run() {
             runtime::list_apps,
             runtime::import_app,
             runtime::delete_app,
+            runtime::delete_app_storage,
             runtime::read_settings,
             runtime::write_settings,
             runtime::start_app,

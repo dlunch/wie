@@ -168,6 +168,21 @@ pub async fn delete_app(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn delete_app_storage(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        // Session registration holds the library lock, so the app cannot start while its storage is deleted.
+        let _library = state.library.lock().unwrap();
+        if state.runtime.lock().unwrap().session.as_ref().is_some_and(|session| session.app_id == id) {
+            return Err("Cannot delete the storage of a running app".into());
+        }
+        store::delete_app_storage(&state.store, &id).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 pub async fn read_settings(state: State<'_, AppState>) -> Result<Settings, String> {
     state.settings.lock().await.read().await.map_err(|error| error.to_string())
 }

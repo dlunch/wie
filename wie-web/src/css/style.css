@@ -167,9 +167,6 @@ svg {
 }
 
 .library-menu {
-  position: absolute;
-  top: 44px;
-  right: 0;
   display: none;
   width: 210px;
   padding: 6px;
@@ -177,6 +174,17 @@ svg {
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+}
+
+#library-menu {
+  position: absolute;
+  top: 44px;
+  right: 0;
+}
+
+#app-menu {
+  position: fixed;
+  z-index: 10;
 }
 
 .library-menu.visible {
@@ -202,10 +210,6 @@ svg {
 .library-menu button:hover,
 .library-menu a:hover {
   background: #f1f5f9;
-}
-
-.library-menu button:disabled {
-  color: #94a3b8;
 }
 
 .library-menu svg,
@@ -379,35 +383,22 @@ svg {
   height: 32px;
 }
 
-.delete-app-button {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  display: flex;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: #ffffff;
-  background: #dc2626;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24);
-  opacity: 0;
-  pointer-events: none;
-  transform: scale(0.75);
+.app-launch .app-title {
+  margin-right: 28px;
 }
 
-.delete-app-button svg {
+.app-menu-toggle {
+  position: absolute;
+  right: 0;
+  bottom: 3px;
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+
+.app-menu-toggle svg {
   width: 16px;
   height: 16px;
-}
-
-.manage-mode .delete-app-button {
-  opacity: 1;
-  pointer-events: auto;
-  transform: scale(1);
 }
 
 .page-indicators {
