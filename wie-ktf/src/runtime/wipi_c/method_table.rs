@@ -342,6 +342,9 @@ pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(27, "MC_netHttpGetType"),
         gen_stub(28, "MC_netHttpGetEncoding"),
         gen_stub(29, "MC_netHttpClose"),
+        gen_stub(30, "MC_netReserved1"),
+        gen_stub(31, "MC_netReserved2"),
+        gen_stub(32, "MC_netReserved3"),
     ]
 }
 
