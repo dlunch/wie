@@ -1592,7 +1592,7 @@ mod test {
                     )
                     .await?;
                 assert_eq!(appended, index as i32);
-                let stored = jvm
+                let stored: ClassInstanceRef<String> = jvm
                     .invoke_virtual(
                         &list,
                         "javax/microedition/lcdui/Choice",

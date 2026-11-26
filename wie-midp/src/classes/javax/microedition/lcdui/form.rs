@@ -1075,7 +1075,7 @@ mod test {
     use jvm::{Array, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_backend::{Event, KeyCode};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -1581,7 +1581,7 @@ mod test {
                 (event_type as i32, key as i32),
             )
             .await?;
-        let queue = jvm
+        let queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let _: () = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()V", ()).await?;
@@ -2516,7 +2516,7 @@ mod test {
                 )
                 .await?;
             assert_eq!(delivered.identity(), second.identity());
-            let value = jvm
+            let value: ClassInstanceRef<String> = jvm
                 .invoke_virtual(&delivered, "javax/microedition/lcdui/TextField", "getString", "()Ljava/lang/String;", ())
                 .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, "1234");

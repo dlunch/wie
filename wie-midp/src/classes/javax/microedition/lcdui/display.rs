@@ -12,9 +12,12 @@ use rustjava_runtime::classes::java::lang::{Runnable, String as JavaString};
 use wie_backend::{Event, text_layout::wrap};
 use wie_jvm_support::{JvmSupport, WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::{
-    lcdui::{Alert, Displayable, Graphics, Image, Item, Ticker},
-    midlet::MIDlet,
+use crate::classes::{
+    javax::microedition::{
+        lcdui::{Alert, Displayable, Graphics, Image, Item, Ticker},
+        midlet::MIDlet,
+    },
+    net::wie::EventQueue,
 };
 
 const FONT_HEIGHT: i32 = 12;
@@ -171,7 +174,7 @@ impl Display {
             (screen.width() as i32, screen.height() as i32)
         };
 
-        let screen_image = jvm
+        let screen_image: ClassInstanceRef<Image> = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Image",
                 "createImage",
@@ -363,7 +366,7 @@ impl Display {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::callSerially({this:?}, {event:?})");
 
-        let event_queue = jvm
+        let event_queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let _: () = jvm
@@ -1375,7 +1378,7 @@ impl Display {
             .invoke_virtual(&x, "java/lang/Throwable", "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
             .await?;
 
-        let trace = jvm
+        let trace: ClassInstanceRef<JavaString> = jvm
             .invoke_virtual(&string_writer, "java/io/StringWriter", "toString", "()Ljava/lang/String;", [])
             .await?;
         let trace = JavaLangString::to_rust_string(jvm, &trace).await?;
@@ -1439,7 +1442,7 @@ mod test {
     use crate::{
         classes::{
             javax::microedition::lcdui::{Command, CommandListener, Display, Displayable, Graphics, Image},
-            net::wie::{KeyboardEventType, MIDPKeyCode},
+            net::wie::{EventQueue, KeyboardEventType, MIDPKeyCode},
         },
         get_protos,
     };
@@ -1796,7 +1799,7 @@ mod test {
                 (event_type as i32, key as i32),
             )
             .await?;
-        let queue = jvm
+        let queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let _: () = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()V", ()).await?;
@@ -2492,7 +2495,7 @@ mod test {
             let _: () = jvm.invoke_virtual(&display, DISPLAY, "handlePaintEvent", "()V", ()).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::FIRE).await?;
             send_key(&jvm, &display, KeyboardEventType::KeyPressed, MIDPKeyCode::LEFT_SOFT_KEY).await?;
-            let text = jvm.get_field(&listener, LISTENER, "text", "Ljava/lang/String;").await?;
+            let text: ClassInstanceRef<String> = jvm.get_field(&listener, LISTENER, "text", "Ljava/lang/String;").await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "A가");
             Ok(())
         })

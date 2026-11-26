@@ -960,7 +960,7 @@ mod test {
     use jvm::{Array, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestClock, TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_backend::{Event, System};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -972,7 +972,7 @@ mod test {
                 lcdui::{Alert, Command, Display, Displayable, Gauge, Graphics, Image},
                 midlet::MIDlet,
             },
-            net::wie::{KeyboardEventType, MIDPKeyCode},
+            net::wie::{EventQueue, KeyboardEventType, MIDPKeyCode},
         },
         get_protos,
     };
@@ -1145,7 +1145,7 @@ mod test {
             param1: 19,
             param2: 23,
         });
-        let queue = jvm
+        let queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
@@ -1224,7 +1224,7 @@ mod test {
                 )
                 .await?;
             assert_eq!(dismiss.identity(), effective.identity());
-            let label = jvm
+            let label: ClassInstanceRef<String> = jvm
                 .invoke_virtual(&dismiss, "javax/microedition/lcdui/Command", "getLabel", "()Ljava/lang/String;", ())
                 .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &label).await?, "");

@@ -207,6 +207,7 @@ mod test {
     use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::JavaMethodProto;
     use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
 
     use wie_backend::{Event, System};
@@ -214,9 +215,12 @@ mod test {
     use wie_util::Result;
 
     use crate::{
-        classes::javax::microedition::{
-            lcdui::{Display, Displayable, Image, Ticker},
-            midlet::MIDlet,
+        classes::{
+            javax::microedition::{
+                lcdui::{Display, Displayable, Image, Ticker},
+                midlet::MIDlet,
+            },
+            net::wie::EventQueue,
         },
         get_protos,
     };
@@ -255,7 +259,7 @@ mod test {
     async fn pump(jvm: &Jvm, system: &System, clock: &TestClock, millis: u64) -> JvmResult<()> {
         clock.advance(millis);
         system.event_queue().push(Event::Redraw);
-        let queue = jvm
+        let queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
@@ -342,7 +346,7 @@ mod test {
                 );
 
                 let _frame = jvm.push_native_frame(&[]);
-                let original = jvm.invoke_virtual(&ticker, TICKER, "getString", "()Ljava/lang/String;", ()).await?;
+                let original: ClassInstanceRef<String> = jvm.invoke_virtual(&ticker, TICKER, "getString", "()Ljava/lang/String;", ()).await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &original).await?, "News\r\nNext\nEnd\r!");
                 let normalized = JavaLangString::from_rust_string(&jvm, "News Next End !").await?;
                 let _: () = jvm

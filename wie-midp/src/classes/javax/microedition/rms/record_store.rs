@@ -295,7 +295,7 @@ impl RecordStore {
     }
 
     pub async fn get_database(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {
-        let db_name = jvm
+        let db_name: ClassInstanceRef<String> = jvm
             .get_field(this, "javax/microedition/rms/RecordStore", "dbName", "Ljava/lang/String;")
             .await?;
         let db_name_str = JavaLangString::to_rust_string(jvm, &db_name).await?;

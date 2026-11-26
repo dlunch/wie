@@ -7,7 +7,7 @@ use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::midlet::MIDlet;
+use crate::classes::{javax::microedition::midlet::MIDlet, net::wie::EventQueue};
 
 // class net.wie.Launcher
 pub struct Launcher;
@@ -71,7 +71,7 @@ impl MethodBody<JavaError, WieJvmContext> for EventLoopRunner {
         jvm.attach_thread(None).await?;
 
         // event loop
-        let event_queue = jvm
+        let event_queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
 

@@ -547,7 +547,7 @@ mod test {
         .await
     }
 
-    async fn paint_item<T>(
+    async fn paint_item<T: Sync>(
         jvm: &Jvm,
         item: &ClassInstanceRef<T>,
         graphics: ClassInstanceRef<Graphics>,

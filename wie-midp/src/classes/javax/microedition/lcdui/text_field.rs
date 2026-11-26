@@ -567,7 +567,8 @@ impl TextField {
 mod test {
     use alloc::boxed::Box;
 
-    use jvm::{JavaError, Result as JvmResult, runtime::JavaLangString};
+    use jvm::{ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
@@ -613,7 +614,7 @@ mod test {
                     .await?,
                 4
             );
-            let value = jvm
+            let value: ClassInstanceRef<String> = jvm
                 .invoke_virtual(&field, "javax/microedition/lcdui/TextField", "getString", "()Ljava/lang/String;", ())
                 .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &value).await?, "-.5");

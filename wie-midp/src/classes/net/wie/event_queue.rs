@@ -4,12 +4,12 @@ use futures::TryFutureExt;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::lang::Runnable;
+use rustjava_runtime::classes::java::{lang::Runnable, util::Vector};
 
 use wie_backend::{Event, KeyCode, YieldFuture};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::midlet::MIDlet;
+use crate::classes::javax::microedition::{lcdui::Display, midlet::MIDlet};
 
 #[repr(i32)]
 #[allow(clippy::enum_variant_names)]
@@ -275,7 +275,7 @@ impl EventQueue {
 
                 break true;
             } else {
-                let events = jvm
+                let events: ClassInstanceRef<Vector> = jvm
                     .get_field(this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
                     .await?;
                 let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
@@ -317,7 +317,7 @@ impl EventQueue {
             .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
             .await?;
 
-        let display = jvm
+        let display: ClassInstanceRef<Display> = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Display",
                 "getDisplay",
@@ -411,7 +411,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::callSerially({this:?}, {event:?})");
 
-        let call_serially_events = jvm
+        let call_serially_events: ClassInstanceRef<Vector> = jvm
             .get_field(&this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
             .await?;
         jvm.invoke_virtual(&call_serially_events, "java/util/Vector", "addElement", "(Ljava/lang/Object;)V", (event,))
@@ -419,7 +419,7 @@ impl EventQueue {
     }
 
     async fn dispatch_callbacks(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        let events = jvm
+        let events: ClassInstanceRef<Vector> = jvm
             .get_field(&this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
             .await?;
         let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
@@ -470,7 +470,7 @@ mod test {
                 assert!(now - last_run >= 16, "idle callbacks must retain the timed wait");
                 context.system().event_queue().push(Event::Keydown(KeyCode::NUM1));
             } else {
-                let queue = jvm
+                let queue: ClassInstanceRef<EventQueue> = jvm
                     .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                     .await?;
                 let _: () = jvm
@@ -510,7 +510,7 @@ mod test {
                 RustJavaJvmImplementation,
             )
             .await?;
-            let queue = jvm
+            let queue: ClassInstanceRef<EventQueue> = jvm
                 .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                 .await
                 .unwrap();

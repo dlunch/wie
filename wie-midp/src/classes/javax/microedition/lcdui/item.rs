@@ -1053,7 +1053,7 @@ impl Item {
         Ok(())
     }
 
-    async fn label_text<T>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Option<RustString>> {
+    async fn label_text<T: Sync>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Option<RustString>> {
         let label: ClassInstanceRef<String> = jvm
             .get_field(this, "javax/microedition/lcdui/Item", "label", "Ljava/lang/String;")
             .await?;
