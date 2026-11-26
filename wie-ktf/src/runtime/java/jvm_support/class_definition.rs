@@ -23,8 +23,8 @@ use wie_util::{
 use crate::runtime::java::JavaSvcFunctions;
 
 use super::{
-    KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, name::JavaFullName, value::JavaValueCodec,
-    vtable::JavaVtable,
+    KtfJvmSupport, KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, name::JavaFullName,
+    value::JavaValueCodec, vtable::JavaVtable,
 };
 
 #[derive(Clone)]
@@ -75,7 +75,7 @@ impl JavaClassDefinition {
 
         let field_offset_base: u32 = if let Some(x) = &parent_class { x.field_size()? as _ } else { 0 };
 
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let ptr_raw = KtfJvmSupport::alloc_class(core)?;
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {

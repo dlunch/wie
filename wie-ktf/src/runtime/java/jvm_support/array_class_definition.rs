@@ -37,11 +37,15 @@ impl JavaArrayClassDefinition {
         let java_lang_object = jvm.resolve_class("java/lang/Object").await.unwrap();
         let java_lang_object_raw = KtfJvmSupport::class_definition_raw(&*java_lang_object.definition)?;
 
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let ptr_raw = KtfJvmSupport::alloc_class(core)?;
 
         let element_type_name = &name[1..];
         let element_type_raw = if element_type_name.starts_with('L') {
             let class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await.unwrap();
+
+            Some(KtfJvmSupport::class_definition_raw(&*class.definition)?)
+        } else if element_type_name.starts_with('[') {
+            let class = jvm.resolve_class(element_type_name).await.unwrap();
 
             Some(KtfJvmSupport::class_definition_raw(&*class.definition)?)
         } else {

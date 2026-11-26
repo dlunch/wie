@@ -111,20 +111,6 @@ impl JavaMethod {
         let codec = JavaValueCodec::new(&self.core);
         let raw_args = encode_method_arguments(&codec, &args);
 
-        struct JavaMethodRunResult {
-            result: u32,
-            result_high: u32,
-        }
-
-        impl wie_core_arm::RunFunctionResult<JavaMethodRunResult> for JavaMethodRunResult {
-            fn get(core: &ArmCore) -> Self {
-                let result = core.read_param(0).unwrap();
-                let result_high = core.read_param(1).unwrap();
-
-                Self { result, result_high }
-            }
-        }
-
         let access_flags = MethodAccessFlags::from_bits_truncate(raw.access_flags);
 
         // Re-enters `run_function` if a Java catch handler matches the current ARM frame —
@@ -446,5 +432,19 @@ impl ResultWriter<JavaMethodResult> for JavaMethodResult {
         }
 
         Ok(())
+    }
+}
+
+pub struct JavaMethodRunResult {
+    pub result: u32,
+    pub result_high: u32,
+}
+
+impl wie_core_arm::RunFunctionResult<JavaMethodRunResult> for JavaMethodRunResult {
+    fn get(core: &ArmCore) -> Self {
+        let result = core.read_param(0).unwrap();
+        let result_high = core.read_param(1).unwrap();
+
+        Self { result, result_high }
     }
 }

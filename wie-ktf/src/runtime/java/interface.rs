@@ -5,17 +5,17 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::mem::{offset_of, size_of};
+use core::mem::size_of;
 
 use jvm::{Jvm, runtime::JavaLangString};
-use wipi_types::ktf::{InitParam2, java::WIPIJBInterface};
+use wipi_types::ktf::java::WIPIJBInterface;
 
 use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, EmulatedFunction, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
 use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use crate::runtime::java::jvm_support::{
-    JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaVtable, KtfJvmSupport, KtfJvmSupportContext, KtfJvmWord,
+    JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaMethodRunResult, KtfJvmSupport, KtfJvmSupportContext, KtfJvmWord,
     SUPPORT_CONTEXT_BASE,
 };
 use crate::runtime::{SVC_CATEGORY_JAVA_INTERFACE, svc_ids::JavaSvcId};
@@ -140,27 +140,11 @@ async fn get_java_method(core: &mut ArmCore, _: &mut (), ptr_class: u32, ptr_ful
 
     tracing::debug!("get_java_method({ptr_class:#x}, {fullname})");
 
-    // ptr_class can also be a JVM-context-relative vtable reference.
-    let first_item: u32 = read_generic(core, ptr_class)?;
-    let method = if first_item != ptr_class + 4 {
-        let ptr_vtable: u32 = read_generic(core, ptr_class + offset_of!(InitParam2, ptr_java_vtables) as u32)?;
-        let vtable = JavaVtable::from_raw(core, ptr_vtable);
-        let method = vtable.find_method(fullname.name(), fullname.descriptor())?;
-
-        if method.is_none() {
-            return Err(WieError::FatalError(format!("Method {fullname} not found from {ptr_class:#x}")));
-        }
-        method
-    } else {
-        let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-        let method = find_java_method(&class, fullname.name(), fullname.descriptor()).await?;
-
-        if method.is_none() {
-            return Err(WieError::FatalError(format!("Method {fullname} not found from {}", class.name()?)));
-        }
-
-        method
-    };
+    let class = KtfJvmSupport::class_from_raw(core, ptr_class);
+    let method = find_java_method(&class, fullname.name(), fullname.descriptor()).await?;
+    if method.is_none() {
+        return Err(WieError::FatalError(format!("Method {fullname} not found from {}", class.name()?)));
+    }
     let method = method.unwrap();
     tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
@@ -299,15 +283,15 @@ async fn monitor_exit(core: &mut ArmCore, jvm: &mut Jvm, ptr_raw: u32) -> Result
 }
 
 async fn call_native(core: &mut ArmCore, _: &mut (), address: u32, ptr_data: u32) -> Result<JavaMethodResult> {
-    tracing::trace!("java_jump_native({address:#x}, {ptr_data:#x})");
+    tracing::trace!("call_native({address:#x}, {ptr_data:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    // TODO correctly figure out parameter
+    // Guest native bodies take the argument area in r0; host native entries read it from r1.
     let caller = core.save_context();
-    let result = match core.run_function::<u32>(address, &[ptr_data, ptr_data]).await {
+    let result = match core.run_function::<JavaMethodRunResult>(address, &[ptr_data, ptr_data]).await {
         Ok(result) => result,
         Err(WieError::JavaExceptionUnwind {
             context_base,
@@ -317,8 +301,8 @@ async fn call_native(core: &mut ArmCore, _: &mut (), address: u32, ptr_data: u32
         Err(err) => return Err(err),
     };
 
-    write_generic(core, ptr_data, result)?;
-    write_generic(core, ptr_data + 4, 0u32)?;
+    // The caller reads one or two result words back from the argument area.
+    write_generic(core, ptr_data, [result.result, result.result_high])?;
 
     Ok(JavaMethodResult::new(vec![ptr_data], None))
 }
@@ -369,7 +353,7 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
     tracing::trace!("java_array_new({element_type:#x}, {count:#x})");
 
     let element_type_name = if element_type > 0x100 {
-        // HACK: we don't have element type class
+        // Object arrays are requested by their array class.
         let class = KtfJvmSupport::class_from_raw(core, element_type);
         class.name()?[1..].into()
     } else {
@@ -387,16 +371,10 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
     Ok(raw)
 }
 
-pub async fn java_check_type(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, ptr_instance: u32, unk: u32) -> Result<u32> {
-    tracing::warn!("stub java_check_type({ptr_class:#x}, {ptr_instance:#x}, {unk:#x})");
+pub async fn java_check_type(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, ptr_instance: u32) -> Result<u32> {
+    tracing::debug!("java_check_type({ptr_class:#x}, {ptr_instance:#x})");
 
     let instance = JavaClassInstance::from_raw(ptr_instance, core);
-
-    // TODO is it correct?
-    if instance.class()?.name()?.starts_with('[') || unk != 0 {
-        return Ok(1);
-    }
-
     let class = JavaClassDefinition::from_raw(ptr_class, core);
     let result = jvm.is_instance(&instance, &class.name()?);
 
