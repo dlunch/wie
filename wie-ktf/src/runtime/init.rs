@@ -13,26 +13,32 @@ use crate::{
     adf::parse_bss_size,
     emulator::IMAGE_BASE,
     runtime::{
-        SVC_CATEGORY_INIT,
+        SVC_CATEGORY_INIT, SVC_CATEGORY_WIPIC,
         java::{
             interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_is_instance, java_new, java_throw, java_throw_instance},
             jvm_support::{KtfJvmSupport, KtfJvmSupportContext, SUPPORT_CONTEXT_BASE},
         },
-        svc_ids::InitSvcId,
+        svc_ids::{InitSvcId, WIPICTableId},
         wipi_c::{interface::get_wipic_knl_interface, register_wipic_svc_handler},
         with_arm_context,
     },
 };
 
 pub fn register_init_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, jvm)
+    let mut methods = [0u32; 4];
+    for (index, method) in methods.iter_mut().enumerate() {
+        *method = core.make_svc_stub(SVC_CATEGORY_WIPIC, WIPICTableId::UserMemory.function_id(index as u16))?;
+    }
+    let user_memory = Allocator::alloc(core, size_of_val(&methods) as u32)?;
+    write_generic(core, user_memory, methods)?;
+    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(jvm.clone(), user_memory))
 }
 
-async fn handle_init_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, (jvm, user_memory): &mut (Jvm, u32), id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
 
     match InitSvcId::try_from(id)? {
-        InitSvcId::GetInterface => get_interface(core, core.read_param(0)?).await?.write(core, lr),
+        InitSvcId::GetInterface => get_interface(core, *user_memory)?.write(core, lr),
         InitSvcId::JavaThrow => EmulatedFunction::call(&java_throw, core, jvm).await?.write(core, lr),
         InitSvcId::JavaThrowInstance => EmulatedFunction::call(&java_throw_instance, core, jvm).await?.write(core, lr),
         InitSvcId::JavaIsInstance => EmulatedFunction::call(&java_is_instance, core, jvm).await?.write(core, lr),
@@ -154,12 +160,19 @@ pub async fn load_native(
     Ok(exe_interface.ptr_functions)
 }
 
-async fn get_interface(core: &mut ArmCore, ptr_name: u32) -> Result<u32> {
-    tracing::trace!("get_interface({ptr_name:#x})");
+fn get_interface(core: &mut ArmCore, user_memory: u32) -> Result<u32> {
+    let name = read_null_terminated_string_bytes(core, core.read_param(0)?)?;
+    let name = String::from_utf8_lossy(&name);
+    tracing::debug!(
+        "get_interface({name:?}, {:#x}, {:#x}, {:#x}, {:#x})",
+        core.read_param(1)?,
+        core.read_param(2)?,
+        core.read_param(3)?,
+        core.read_param(4)?
+    );
 
-    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
-
-    match name.as_str() {
+    match name.as_ref() {
+        "MXUserMemInterf" => Ok(user_memory),
         "WIPIC_knlInterface" => get_wipic_knl_interface(core),
         "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {

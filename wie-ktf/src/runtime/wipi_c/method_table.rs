@@ -1,4 +1,4 @@
-use alloc::{format, vec, vec::Vec};
+use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use wipi_types::{
     ktf::wipic::{WIPICFsInterface, WIPICGraphicsInterface, WIPICKnlInterface},
@@ -8,19 +8,31 @@ use wipi_types::{
 use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError};
 use wie_wipi_c::{
-    MethodImpl, WIPICContext, WIPICMethodBody,
+    MethodBody, MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
     api::{database, fs, graphics, im, kernel, media, misc, net, uic, util},
 };
 
 use crate::runtime::{
-    SVC_CATEGORY_WIPIC,
-    svc_ids::{WIPICFsMethodId, WIPICGraphicsMethodId, WIPICKernelMethodId, WIPICTableId},
+    SVC_CATEGORY_INIT, SVC_CATEGORY_WIPIC,
+    svc_ids::{InitSvcId, WIPICFsMethodId, WIPICGraphicsMethodId, WIPICKernelMethodId, WIPICTableId},
+    wipi_c::user_memory,
 };
 
-fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(format!("{id}: {name}"))) };
+struct UnimplementedMethod {
+    id: WIPICWord,
+    name: &'static str,
+}
 
-    body.into_body()
+#[async_trait::async_trait]
+impl MethodBody<WieError> for UnimplementedMethod {
+    async fn call(&self, _: &mut dyn WIPICContext, args: Box<[WIPICWord]>) -> Result<WIPICResult> {
+        tracing::warn!("stub {}[{}] (argument words {args:#x?})", self.name, self.id);
+        Err(WieError::Unimplemented(format!("{}: {}", self.id, self.name)))
+    }
+}
+
+fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    Box::new(UnimplementedMethod { id, name })
 }
 
 pub fn get_kernel_interface(core: &mut ArmCore) -> Result<WIPICKnlInterface> {
@@ -63,7 +75,7 @@ pub fn get_kernel_interface(core: &mut ArmCore) -> Result<WIPICKnlInterface> {
         reserved1: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved1))?,
         reserved2: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved2))?,
         reserved3: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved3))?,
-        reserved4: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved4))?,
+        reserved4: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetInterface)?,
         reserved5: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved5))?,
         reserved6: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved6))?,
         reserved7: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved7))?,
@@ -425,7 +437,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICKernelMethodId::Reserved1 => None,
             WIPICKernelMethodId::Reserved2 => Some(gen_stub(34, "MC_knlReserved2")),
             WIPICKernelMethodId::Reserved3 => Some(gen_stub(35, "MC_knlReserved3")),
-            WIPICKernelMethodId::Reserved4 => Some(gen_stub(36, "MC_knlReserved4")),
+            WIPICKernelMethodId::Reserved4 => None,
             WIPICKernelMethodId::Reserved5 => Some(gen_stub(37, "MC_knlReserved5")),
             WIPICKernelMethodId::Reserved6 => Some(gen_stub(38, "MC_knlReserved6")),
             WIPICKernelMethodId::Reserved7 => Some(gen_stub(39, "MC_knlReserved7")),
@@ -454,6 +466,12 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICKernelMethodId::GetLibPrivateArea => Some(gen_stub(62, "OEMC_knlGetLibPrivateArea")),
             WIPICKernelMethodId::GetPlatformVersion => Some(gen_stub(63, "OEMC_knlGetPlatformVersion")),
             WIPICKernelMethodId::GetToken => Some(gen_stub(64, "OEMC_knlGetToken")),
+        },
+        WIPICTableId::UserMemory => match function_id {
+            0 => Some(user_memory::reset.into_body()),
+            1 => Some(user_memory::alloc.into_body()),
+            2 | 3 => Some(gen_stub(function_id.into(), "MXUserMemInterf")),
+            _ => None,
         },
         WIPICTableId::Util => get_util_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Misc => get_misc_method_table().into_iter().nth(function_id as usize),

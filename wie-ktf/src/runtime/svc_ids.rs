@@ -464,6 +464,7 @@ pub enum WIPICTableId {
     Interface14 = 15,
     Interface15 = 16,
     Interface16 = 17,
+    UserMemory = 18,
 }
 
 impl WIPICTableId {
@@ -495,6 +496,7 @@ impl TryFrom<u32> for WIPICTableId {
             15 => Self::Interface14,
             16 => Self::Interface15,
             17 => Self::Interface16,
+            18 => Self::UserMemory,
             _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF WIPIC table id {value}"))),
         })
     }
