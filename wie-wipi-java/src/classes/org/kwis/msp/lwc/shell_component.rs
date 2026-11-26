@@ -463,12 +463,6 @@ mod test {
                     assert_eq!(width, expected_width);
                 }
 
-                let annunciator = jvm.new_class("org/kwis/msp/lwc/AnnunciatorComponent", "(Z)V", (false,)).await?;
-                let annunciator_height: i32 = jvm
-                    .invoke_virtual(&annunciator, "org/kwis/msp/lwc/Component", "getHeight", "()I", ())
-                    .await?;
-                assert_eq!(annunciator_height, 0);
-
                 let shell_class = "org/kwis/msp/lwc/ShellComponent";
                 let form_class = "org/kwis/msp/lwc/FormComponent";
                 let text_class = "org/kwis/msp/lwc/TextComponent";

@@ -75,3 +75,54 @@ impl Iterator for Decoder {
         Some(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::{vec, vec::Vec};
+
+    use super::*;
+
+    #[test]
+    fn partial_instructions_remain_fallback_holes() {
+        for bytes in [vec![], vec![1], vec![0, 0xf0], vec![0, 0xf0, 0]] {
+            assert!(
+                Decoder::new([CodeImage { address: 0x1000, bytes }].into(), None)
+                    .flatten()
+                    .next()
+                    .is_none()
+            );
+        }
+        let regions: Vec<_> = Decoder::new(
+            [CodeImage {
+                address: 0x1001,
+                bytes: vec![0xff, 1, 0x20, 0],
+            }]
+            .into(),
+            None,
+        )
+        .flatten()
+        .collect();
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0].ir.entry.pc, 0x1002);
+        assert_eq!(regions[0].ir.blocks[0].instructions.len(), 1);
+    }
+
+    #[test]
+    fn unsupported_images_make_bounded_progress_without_ir() {
+        let mut decoder = Decoder::new(
+            [CodeImage {
+                address: 0x1000,
+                bytes: vec![0xff; 16 * 1024],
+            }]
+            .into(),
+            None,
+        );
+        let mut steps = 0;
+        for region in decoder.by_ref() {
+            assert!(region.is_none());
+            steps += 1;
+        }
+        assert!(steps >= (16 * 1024 / 4 + 16 * 1024 / 2) / 256);
+        assert!(decoder.next().is_none());
+    }
+}

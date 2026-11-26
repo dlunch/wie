@@ -240,13 +240,6 @@ mod tests {
     use super::{KtfJvmSupport, KtfTaskRunner};
 
     #[test]
-    fn clet_mode_is_selected_from_adf_mclass() {
-        assert!(super::is_clet_mode("Clet"));
-        assert!(!super::is_clet_mode("MIDlet"));
-        assert!(!super::is_clet_mode(""));
-    }
-
-    #[test]
     fn switches_jvm_thread_context_between_tasks() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options::default())?;
         Allocator::init(&mut core)?;

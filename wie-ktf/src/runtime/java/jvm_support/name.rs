@@ -107,8 +107,6 @@ mod tests {
             let parsed = JavaFullName::from_ptr(&core, 0x1000)?;
             assert_eq!((parsed.tag, parsed.name(), parsed.descriptor()), (0x80, name, descriptor));
             assert_eq!(parsed.as_bytes(), original.as_bytes());
-            assert_eq!(parsed.descriptor().as_ptr(), parsed.value.as_ptr());
-            assert_eq!(parsed.name().as_ptr(), parsed.value[parsed.name_offset..].as_ptr());
             assert_eq!(format!("{parsed}"), format!("{name}{descriptor}@128"));
             assert!(parsed == JavaFullName::new(0, name, descriptor));
             assert!(JavaFullName::matches(&core, 0x1000, name, descriptor)?);

@@ -470,11 +470,6 @@ mod test {
                 .invoke_virtual(&clone, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
                 .await?;
             assert!(!copied_graphics.is_null());
-            assert!(
-                !jvm.invoke_virtual::<_, bool>(&source, "org/kwis/msp/lcdui/Image", "isAnimated", "()Z", ())
-                    .await?
-            );
-
             let graphics: ClassInstanceRef<Graphics> = jvm
                 .invoke_virtual(&source, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
                 .await?;

@@ -790,3 +790,67 @@ async fn java_destroy_runtime_context(_core: &mut ArmCore, _: &mut (), runtime_c
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::{boxed::Box, sync::Arc};
+    use core::sync::atomic::{AtomicBool, Ordering};
+
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{Result, WieError};
+
+    use super::{get_java_interface_method, register_java_system_svc_handler};
+    use crate::runtime::java::{LgtJvmSupport, exception};
+
+    #[test]
+    fn array_type_passes_array_creation_and_cast_check() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let system_clone = system.clone();
+
+        system.spawn(async move || {
+            let mut core = ArmCore::new(wie_backend::Options::default())?;
+            Allocator::init(&mut core)?;
+            let stack = Allocator::alloc(&mut core, 0x1000)?;
+            let mut context = core.save_context();
+            context.sp = stack + 0x1000;
+            core.restore_context(&context);
+
+            let jvm = LgtJvmSupport::init(&mut core, &system_clone, None, &[]).await?;
+            exception::init(&mut core)?;
+            register_java_system_svc_handler(&mut core, &jvm, 0)?;
+
+            // Generated code passes the looked-up array type unchanged to both imports.
+            let get_array_type = get_java_interface_method(&mut core, 0x0e)?;
+            let array_type: u32 = core.run_function(get_array_type, &[1, 0, 5]).await?;
+            let instantiate_array = get_java_interface_method(&mut core, 0x10)?;
+            let ptr_array: u32 = core.run_function(instantiate_array, &[array_type, 3]).await?;
+            let array = LgtJvmSupport::class_instance_from_raw(&core, ptr_array);
+            assert_eq!(array.class_definition().name(), "[C");
+
+            let is_class_assignable = get_java_interface_method(&mut core, 0x12)?;
+            let ptr_array_class = LgtJvmSupport::class_definition_raw(&*array.class_definition());
+            let assignable: u32 = core.run_function(is_class_assignable, &[ptr_array_class, array_type, 0]).await?;
+            assert_eq!(assignable, 1);
+
+            let raise_class_cast_exception = get_java_interface_method(&mut core, 0x26)?;
+            let Err(WieError::JavaException(ptr_exception)) = core.run_function::<u32>(raise_class_cast_exception, &[]).await else {
+                panic!("failed cast must throw");
+            };
+            let exception = LgtJvmSupport::class_instance_from_raw(&core, ptr_exception);
+            assert!(jvm.is_instance(&*exception, "java/lang/ClassCastException"));
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+
+        Ok(())
+    }
+}

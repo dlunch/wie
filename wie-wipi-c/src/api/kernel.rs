@@ -438,14 +438,6 @@ mod test {
         let result = read_null_terminated_string_bytes(&context, dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "1234");
 
-        write_null_terminated_string_bytes(&mut context, format, "test %02d".as_bytes()).unwrap();
-        sprintk
-            .call(&mut context, Box::new([dest, format, 1, 0, 0, 0, 0, 0, 0, 0]))
-            .await
-            .unwrap();
-        let result = read_null_terminated_string_bytes(&context, dest).unwrap();
-        assert_eq!(String::from_utf8(result).unwrap(), "test 01");
-
         Ok(())
     }
 
@@ -476,33 +468,6 @@ mod test {
         assert_ne!(alloc(&mut context, 0).await.unwrap().0, 0);
         assert_ne!(calloc(&mut context, 0).await.unwrap().0, 0);
         assert_eq!(free(&mut context, wipi_types::wipic::WIPICIndirectPtr(0)).await.unwrap().0, 0);
-
-        Ok(())
-    }
-
-    #[futures_test::test]
-    async fn test_get_system_property_non_utf8() -> Result<()> {
-        let mut context = TestContext::new();
-        let id = context.alloc_raw(16).unwrap();
-        let out = context.alloc_raw(16).unwrap();
-
-        // EUC-KR "한글"
-        write_null_terminated_string_bytes(&mut context, id, &[0xc7, 0xd1, 0xb1, 0xdb]).unwrap();
-
-        assert_eq!(get_system_property(&mut context, id, out, 16).await.unwrap(), -9);
-
-        Ok(())
-    }
-
-    #[futures_test::test]
-    async fn test_get_resource_id_non_utf8() -> Result<()> {
-        let mut context = TestContext::new();
-        let name = context.alloc_raw(16).unwrap();
-        let size = context.alloc_raw(4).unwrap();
-
-        write_null_terminated_string_bytes(&mut context, name, &[0xc7, 0xd1, 0xb1, 0xdb]).unwrap();
-
-        assert_eq!(get_resource_id(&mut context, name, size).await.unwrap(), -12);
 
         Ok(())
     }

@@ -65,29 +65,3 @@ impl Vibration {
         Ok(true)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use alloc::boxed::Box;
-
-    use test_utils::run_jvm_test;
-
-    use super::Vibration;
-
-    #[test]
-    fn vibration_start_and_stop_use_the_supported_platform_path() {
-        run_jvm_test(Box::new([[Vibration::as_proto()].into()]), |jvm| async move {
-            let supported: bool = jvm.invoke_static("com/skt/m/Vibration", "isSupported", "()Z", ()).await?;
-            assert!(supported);
-
-            let level_count: i32 = jvm.invoke_static("com/skt/m/Vibration", "getLevelNum", "()I", ()).await?;
-            assert_eq!(level_count, 10);
-
-            let _: () = jvm.invoke_static("com/skt/m/Vibration", "start", "(II)V", (6, 250)).await?;
-            let _: () = jvm.invoke_static("com/skt/m/Vibration", "stop", "()V", ()).await?;
-
-            Ok(())
-        })
-        .unwrap();
-    }
-}

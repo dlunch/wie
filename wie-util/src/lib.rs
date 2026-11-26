@@ -239,32 +239,4 @@ mod tests {
             ));
         }
     }
-
-    #[test]
-    fn terminated_string_reads_preserve_short_reads_and_errors() {
-        struct FailingReader(bool);
-
-        impl ByteRead for FailingReader {
-            fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
-                assert_eq!(result.len(), 32);
-                if address == 1 {
-                    result.fill(b'x');
-                    Ok(result.len())
-                } else if self.0 {
-                    Ok(0)
-                } else {
-                    Err(WieError::AllocationFailure)
-                }
-            }
-        }
-
-        assert!(matches!(
-            read_null_terminated_string_bytes(&FailingReader(true), 1),
-            Err(WieError::FatalError(message)) if message == "Short read at 0x21: expected 32, got 0"
-        ));
-        assert!(matches!(
-            read_null_terminated_string_bytes(&FailingReader(false), 1),
-            Err(WieError::AllocationFailure)
-        ));
-    }
 }

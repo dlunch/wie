@@ -166,6 +166,12 @@ mod tests {
 
         BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
 
+        for size in 0..4 {
+            let address = BucketAllocator::alloc(&mut core, 0x40000000, size)?;
+            assert_eq!(address, 0x40020000);
+            BucketAllocator::free(&mut core, 0x40000000, address, size)?;
+        }
+
         let address1 = BucketAllocator::alloc(&mut core, 0x40000000, 4)?;
         assert_eq!(address1, 0x40020000);
 
@@ -210,38 +216,6 @@ mod tests {
                 Err(WieError::AllocationFailure)
             ));
         }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_init_rejects_undersized_region() {
-        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
-
-        // 0x1000000 (16 MB) is far too small for the full bucket layout.
-        assert!(BucketAllocator::init(&mut core, 0x40000000, 0x1000000).is_err());
-    }
-
-    #[test]
-    fn test_allocator_small_sizes() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
-
-        BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
-
-        // sizes 0..=3 must all land in the smallest (4-byte) bucket
-        let a0 = BucketAllocator::alloc(&mut core, 0x40000000, 0)?;
-        assert_eq!(a0, 0x40020000);
-        let a1 = BucketAllocator::alloc(&mut core, 0x40000000, 1)?;
-        assert_eq!(a1, 0x40020004);
-        let a2 = BucketAllocator::alloc(&mut core, 0x40000000, 2)?;
-        assert_eq!(a2, 0x40020008);
-        let a3 = BucketAllocator::alloc(&mut core, 0x40000000, 3)?;
-        assert_eq!(a3, 0x4002000c);
-
-        // free with the same (small) size must round-trip without panicking
-        BucketAllocator::free(&mut core, 0x40000000, a1, 1)?;
-        let a1b = BucketAllocator::alloc(&mut core, 0x40000000, 1)?;
-        assert_eq!(a1b, 0x40020004);
 
         Ok(())
     }

@@ -526,7 +526,7 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
     use core::{
         sync::atomic::{AtomicBool, Ordering},
-        task::Poll,
+        task::{Context, Poll, Waker},
     };
     use std::{
         thread,
@@ -536,10 +536,12 @@ mod tests {
     use arm32_cpu::Memory;
     use spin::Mutex;
     use test_utils::TestNativeExecutor;
+    use wie_backend::Options;
+    use wie_core_arm_aot::ir::{Operand, Operation, Value};
     use wie_core_arm_aot::{CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion};
 
     use crate::{
-        Allocator,
+        Allocator, ArmCore,
         engine::{ArmEngine, ArmRegister, EngineStopReason, MemoryPermission},
     };
 
@@ -622,43 +624,6 @@ mod tests {
                 })
                 .collect(),
         }
-    }
-
-    #[test]
-    fn preparation_snapshots_final_file_bytes_without_bss_or_duplicate_ranges() {
-        let responses = Arc::new(Mutex::new(Responses::default()));
-        let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
-        let mut memory = EmulatedMemory::new();
-        memory.map(0x1000, 0x10000);
-        memory.write_range(0x3ffe, &[1, 0x20, 2, 0x21, 0x70, 0x47]).unwrap();
-        aot.record_image(0x3ffe, 6);
-        aot.record_image(0x4000, 2);
-        memory.write_range(0x4000, &[7, 0x21]).unwrap();
-        let _preparation = aot.begin(&memory).unwrap().unwrap();
-
-        let state = responses.lock();
-        assert_eq!(state.requests.len(), 1);
-        let request = &state.requests[0];
-        let instructions: Vec<_> = request
-            .iter()
-            .filter(|region| region.ir.entry.thumb)
-            .flat_map(|region| &region.ir.blocks)
-            .flat_map(|block| &block.instructions)
-            .collect();
-        assert_eq!(
-            instructions.iter().map(|instruction| instruction.pc.get()).collect::<Vec<_>>(),
-            [0x3ffe, 0x4000, 0x4002]
-        );
-        for (instruction, immediate) in instructions.iter().zip([1, 7]) {
-            assert!(
-                matches!(instruction.operation, wie_core_arm_aot::ir::Operation::Alu { right: wie_core_arm_aot::ir::Operand { value: wie_core_arm_aot::ir::Value::Immediate(value), .. }, .. } if value == immediate)
-            );
-        }
-        assert!(aot.state == PreparationState::Preparing);
-        drop(state);
-        assert!(aot.begin(&memory).unwrap().is_none());
-        assert_eq!(responses.lock().requests.len(), 1);
-        assert!(aot.state == PreparationState::Preparing);
     }
 
     #[test]
@@ -756,31 +721,6 @@ mod tests {
         assert_eq!(responses.lock().requests.len(), 4);
     }
 
-    #[test]
-    fn failed_preparation_does_not_install_late_results() {
-        let responses = Arc::new(Mutex::new(Responses::default()));
-        let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
-        let mut memory = EmulatedMemory::new();
-        memory.map(0x1000, 0x1000);
-        aot.record_image(0x1000, 4);
-        let preparation = aot.begin(&memory).unwrap().unwrap();
-        assert!(
-            responses
-                .lock()
-                .ready
-                .take()
-                .unwrap()
-                .send(Err(WieError::FatalError("compile failed".into())))
-                .is_ok()
-        );
-        assert!(!aot.finish(futures::executor::block_on(preparation)));
-        assert!(aot.state == PreparationState::Ready);
-        let late = artifact(&responses.lock().requests[0], 0);
-        assert!(!aot.finish(Ok(late)));
-        assert!(aot.entries.is_empty());
-        assert_eq!(responses.lock().requests.len(), 1);
-    }
-
     struct TestExecutor {
         calls: Arc<Mutex<(u32, bool)>>,
         completed: Option<u32>,
@@ -860,7 +800,7 @@ mod tests {
     #[test]
     fn preparation_waits_without_running_image_code() {
         let responses = Arc::new(Mutex::new(Responses::default()));
-        let mut core = crate::ArmCore::new(wie_backend::Options {
+        let mut core = ArmCore::new(Options {
             aot: Some(Box::new(DeferredExecutor(responses.clone()))),
             ..Default::default()
         })
@@ -868,29 +808,52 @@ mod tests {
         Allocator::init(&mut core).unwrap();
         let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
         let _thread_context = core.enter_thread_context(1);
-        core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
+        core.load(&[1, 0x30, 2, 0x21, 0x70, 0x47], 0x3ffe, 0x1000).unwrap();
+        core.load(&[7, 0x21], 0x4000, 2).unwrap();
         let controller = core.clone();
         let mut execution: core::pin::Pin<Box<dyn Future<Output = Result<u32>> + Send>> = Box::pin(async move {
             core.prepare_execution().await?;
-            core.run_function(0x1001, &[]).await
+            core.run_function(0x3fff, &[]).await
         });
-        let waker = futures::task::noop_waker();
-        let mut context = core::task::Context::from_waker(&waker);
+        let waker = Waker::noop();
+        let mut context = Context::from_waker(waker);
         assert!(execution.as_mut().poll(&mut context).is_pending());
         assert!(controller.is_preparing());
         assert_eq!(controller.inner.try_lock().unwrap().engine.reg_read(ArmRegister::R0), 0);
+        assert!(controller.inner.lock().engine.begin_preparation().unwrap().is_none());
+        {
+            let state = responses.lock();
+            assert_eq!(state.requests.len(), 1);
+            let request = &state.requests[0];
+            let instructions: Vec<_> = request
+                .iter()
+                .filter(|region| region.ir.entry.thumb)
+                .flat_map(|region| &region.ir.blocks)
+                .flat_map(|block| &block.instructions)
+                .collect();
+            assert_eq!(
+                instructions.iter().map(|instruction| instruction.pc.get()).collect::<Vec<_>>(),
+                [0x3ffe, 0x4000, 0x4002]
+            );
+            for (instruction, immediate) in instructions.iter().zip([1, 7]) {
+                assert!(
+                    matches!(instruction.operation, Operation::Alu { right: Operand { value: Value::Immediate(value), .. }, .. } if value == immediate)
+                );
+            }
+        }
         assert!(
             responses
                 .lock()
                 .ready
                 .take()
                 .unwrap()
-                .send(Ok(CompiledArtifact { regions: Vec::new() }))
+                .send(Err(WieError::FatalError("compile failed".into())))
                 .is_ok()
         );
         assert!(controller.is_preparing());
         assert!(matches!(execution.as_mut().poll(&mut context), Poll::Ready(Ok(1))));
         assert!(!controller.is_preparing());
+        assert!(controller.inner.lock().engine.begin_preparation().unwrap().is_none());
     }
 
     #[test]
@@ -1071,33 +1034,17 @@ mod tests {
         arm32cpu_memory.w32(0x10000, 0x12345678);
         let r32 = arm32cpu_memory.r32(0x10000);
         assert_eq!(r32, 0x12345678);
-    }
-
-    #[test]
-    fn test_memory_unmapped_read() {
-        let mut memory = EmulatedMemory::new();
-
-        memory.map(0x10000, 0x10000);
 
         let mut buf = [0; 0x1000];
-        assert!(memory.read_range(0x1f500, 0x1000, &mut buf).is_err());
+        assert!(memory.read_range(0x2f500, 0x1000, &mut buf).is_err());
 
+        assert!(memory.write_range(0x2f500, &[12; 0x1000]).is_err());
         let mut access = memory.as_arm32cpu_memory();
-        assert_eq!(access.r32(0x20000), 0);
-        assert_eq!(access.memory_error, Some(0x20000));
-    }
-
-    #[test]
-    fn test_memory_unmapped_write() {
-        let mut memory = EmulatedMemory::new();
-
-        memory.map(0x10000, 0x10000);
-
-        assert!(memory.write_range(0x1f500, &[12; 0x1000]).is_err());
-
+        assert_eq!(access.r32(0x30000), 0);
+        assert_eq!(access.memory_error, Some(0x30000));
         let mut access = memory.as_arm32cpu_memory();
-        access.w32(0x20000, 12);
-        assert_eq!(access.memory_error, Some(0x20000));
+        access.w32(0x30000, 12);
+        assert_eq!(access.memory_error, Some(0x30000));
     }
 
     struct Engines {
@@ -1410,7 +1357,13 @@ mod tests {
         for set_flags in [0, 1] {
             opcodes.extend([0xe3a0_2000, 0xe3a0_2102, 0xe3e0_2000, 0xe3e0_2102].map(|opcode| opcode | set_flags << 20));
         }
-        opcodes.extend([0xe012_0190, 0xe032_4190, 0xe16f_2f11, 0xe10f_2000, 0xe128_f001]);
+        // Rotated TST/TEQ immediates feed the shifter carry into CPSR.
+        opcodes.extend([0xe310_0102, 0xe330_0102]);
+        for set_flags in [0, 1] {
+            // MUL, MUL with an aliased input, MLA and MLA with aliased inputs.
+            opcodes.extend([0xe002_0190, 0x0000_0190, 0xe022_4190, 0xe022_2292].map(|opcode| opcode | set_flags << 20));
+        }
+        opcodes.extend([0xe16f_2f11, 0xe16f_1f11, 0xe10f_2000, 0xe128_f001]);
         for signed in [0, 1] {
             for accumulate in [0, 1] {
                 opcodes.push(0xe093_2190 | signed << 22 | accumulate << 21);
@@ -1504,10 +1457,13 @@ mod tests {
 
     #[test]
     fn native_loops_and_interior_entries_run_without_interpreter_budget() {
-        // subs r0,#1; bne 0x1000; bx lr
-        let bytes: Vec<_> = [0x3801u16, 0xd1fd, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect();
+        // movs r0,#3; subs r0,#1; cmp r0,#0; bne 0x1002; bx lr
+        let bytes: Vec<_> = [0x2003u16, 0x3801, 0x2800, 0xd1fc, 0x4770]
+            .into_iter()
+            .flat_map(u16::to_le_bytes)
+            .collect();
         let mut engines = Engines::new(&bytes);
-        for pc in [0x1000, 0x1002, 0x1004] {
+        for pc in [0x1000, 0x1002, 0x1004, 0x1006, 0x1008] {
             for end in [pc, 0x8000] {
                 engines.reset(pc | 1, 0x3f, &[(ArmRegister::R0, 3)]);
                 engines.compare_run(end);

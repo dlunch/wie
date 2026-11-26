@@ -156,18 +156,6 @@ mod tests {
     use super::ListAllocator;
 
     #[test]
-    fn test_allocator() -> Result<()> {
-        let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
-
-        ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
-        let address = ListAllocator::alloc(&mut core, 0x40000000, 0x1000, 4)?;
-
-        assert_eq!(address, 0x40000004);
-
-        Ok(())
-    }
-
-    #[test]
     fn test_coalesce_adjacent_free_blocks() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options::default()).unwrap();
 

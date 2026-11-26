@@ -650,9 +650,8 @@ mod test {
 
     #[test]
     fn test_card_state_and_validation() -> Result<()> {
-        let fixture: Box<[WieJavaClassProto]> = Vec::from([TestCard::as_proto(), TestCanvas::as_proto()]).into_boxed_slice();
         run_jvm_test(
-            Box::new([wie_midp::get_protos().into(), get_protos().into(), fixture]),
+            Box::new([wie_midp::get_protos().into(), get_protos().into(), [TestCard::as_proto()].into()]),
             |jvm| async move {
                 let display: ClassInstanceRef<Display> = jvm.instantiate_class("org/kwis/msp/lcdui/Display").await?.into();
                 let card: ClassInstanceRef<TestCard> = jvm
@@ -757,9 +756,8 @@ mod test {
 
     #[test]
     fn test_card_stack_lifecycle_and_order() -> Result<()> {
-        let fixture: Box<[WieJavaClassProto]> = Vec::from([TestCard::as_proto(), TestCanvas::as_proto()]).into_boxed_slice();
         run_jvm_test(
-            Box::new([wie_midp::get_protos().into(), get_protos().into(), fixture]),
+            Box::new([wie_midp::get_protos().into(), get_protos().into(), [TestCard::as_proto()].into()]),
             |jvm| async move {
                 let canvas: ClassInstanceRef<CardCanvas> = jvm.new_class("net/wie/CardCanvas", "()V", ()).await?.into();
                 let midp_display: ClassInstanceRef<MidpDisplay> = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?.into();
@@ -1034,9 +1032,8 @@ mod test {
 
     #[test]
     fn test_card_canvas_offsets_and_isolates_graphics_state() -> Result<()> {
-        let fixture: Box<[WieJavaClassProto]> = Vec::from([TestCard::as_proto(), TestCanvas::as_proto()]).into_boxed_slice();
         run_jvm_test(
-            Box::new([wie_midp::get_protos().into(), get_protos().into(), fixture]),
+            Box::new([wie_midp::get_protos().into(), get_protos().into(), [TestCard::as_proto()].into()]),
             |jvm| async move {
                 let canvas: ClassInstanceRef<CardCanvas> = jvm.new_class("net/wie/CardCanvas", "()V", ()).await?.into();
                 let midp_display: ClassInstanceRef<MidpDisplay> = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?.into();

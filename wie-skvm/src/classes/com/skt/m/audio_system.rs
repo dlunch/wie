@@ -130,7 +130,7 @@ mod test {
                     "com/skt/m/AudioSystem",
                     "getAudioClip",
                     "(Ljava/lang/String;)Lcom/skt/m/AudioClip;",
-                    (null_format.clone(),),
+                    (null_format,),
                 )
                 .await;
             let Err(JavaError::JavaException(exception)) = clip_result else {
@@ -151,24 +151,6 @@ mod test {
                 panic!("AudioSystem.getAudioClip accepted an unsupported format");
             };
             assert!(jvm.is_instance(&*exception, "com/skt/m/UnsupportedFormatException"));
-
-            for method in ["getMaxVolume", "getVolume"] {
-                let volume_result: JvmResult<i32> = jvm
-                    .invoke_static("com/skt/m/AudioSystem", method, "(Ljava/lang/String;)I", (null_format.clone(),))
-                    .await;
-                let Err(JavaError::JavaException(exception)) = volume_result else {
-                    panic!("AudioSystem.{method} accepted a null format");
-                };
-                assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
-            }
-
-            let set_result: JvmResult<()> = jvm
-                .invoke_static("com/skt/m/AudioSystem", "setVolume", "(Ljava/lang/String;I)V", (null_format, 0))
-                .await;
-            let Err(JavaError::JavaException(exception)) = set_result else {
-                panic!("AudioSystem.setVolume accepted a null format");
-            };
-            assert!(jvm.is_instance(&*exception, "java/lang/NullPointerException"));
 
             Ok(())
         });

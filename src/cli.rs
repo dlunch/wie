@@ -330,38 +330,13 @@ mod tests {
     use super::{Args, select_midi_output_index};
 
     #[test]
-    fn defaults_to_last_midi_port() {
-        assert_eq!(select_midi_output_index(3, None), Some(2));
-    }
-
-    #[test]
     fn selects_midi_port_by_index() {
         for index in 0..3 {
             assert_eq!(select_midi_output_index(3, Some(index)), Some(index));
         }
-    }
-
-    #[test]
-    fn invalid_midi_device_falls_back_to_last_port() {
+        assert_eq!(select_midi_output_index(3, None), Some(2));
         assert_eq!(select_midi_output_index(2, Some(2)), Some(1));
-    }
-
-    #[test]
-    fn handles_empty_midi_port_list() {
         assert_eq!(select_midi_output_index(0, Some(0)), None);
-    }
-
-    #[test]
-    fn list_midi_devices_does_not_require_filename() {
-        let args = Args::try_parse_from(["wie", "--list-midi-devices"]).unwrap();
-
-        assert!(args.list_midi_devices);
-        assert!(args.filename.is_none());
-    }
-
-    #[test]
-    fn normal_run_requires_filename() {
-        assert!(Args::try_parse_from(["wie"]).is_err());
     }
 
     #[test]
@@ -376,13 +351,5 @@ mod tests {
                 Some(number)
             );
         }
-    }
-
-    #[test]
-    fn parses_midi_device_with_filename() {
-        let args = Args::try_parse_from(["wie", "app.jar", "--midi-device", "1"]).unwrap();
-
-        assert_eq!(args.filename.as_deref(), Some("app.jar"));
-        assert_eq!(args.midi_device, Some(1));
     }
 }

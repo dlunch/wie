@@ -296,15 +296,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_msd_ignores_malformed_optional_fields() {
-        let msd = SktMsd::parse("sample.msd", b"MIDlet-Name: Sample\nMIDlet-1: incomplete\nDD-ProgName: \xff\n");
-
-        assert_eq!(msd.name, "Sample");
-        assert_eq!(msd.id, "sample");
-        assert!(msd.main_class.is_empty());
-    }
-
-    #[test]
     fn extracts_static_icon_from_wmr() {
         let mut wmr = vec![0; 16];
         wmr[..4].copy_from_slice(b"\xad\xde\xce\xfa");

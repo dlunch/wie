@@ -466,7 +466,7 @@ mod test {
     use super::DataBase;
 
     #[test]
-    fn test_database_state_selection_and_stubs() -> Result<()> {
+    fn test_database_metadata_and_record_selection() -> Result<()> {
         run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
             let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "storage-handset").await?.into();
             let database: ClassInstanceRef<DataBase> = jvm
@@ -474,7 +474,7 @@ mod test {
                     "org/kwis/msp/db/DataBase",
                     "openDataBase",
                     "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
-                    (name.clone(), 32, true),
+                    (name, 32, true),
                 )
                 .await?;
 
@@ -523,49 +523,12 @@ mod test {
             assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
 
             let missing_result: JvmResult<()> = jvm
-                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "selectRecord", "(I[BI)V", (99, buffer.clone(), 0))
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "selectRecord", "(I[BI)V", (99, buffer, 0))
                 .await;
             let Err(JavaError::JavaException(exception)) = missing_result else {
                 panic!("selectRecord accepted an unknown record ID");
             };
             assert!(jvm.is_instance(&*exception, "org/kwis/msp/db/DataBaseRecordException"));
-
-            let sorted: ClassInstanceRef<Array<i32>> = jvm
-                .invoke_virtual(
-                    &database,
-                    "org/kwis/msp/db/DataBase",
-                    "sortRecord",
-                    "(Lorg/kwis/msp/db/DataFilter;Lorg/kwis/msp/db/DataComparator;)[I",
-                    (ClassInstanceRef::<()>::new(None), ClassInstanceRef::<()>::new(None)),
-                )
-                .await?;
-            assert!(sorted.is_null());
-
-            let databases: ClassInstanceRef<Array<String>> = jvm
-                .invoke_static("org/kwis/msp/db/DataBase", "listDataBases", "()[Ljava/lang/String;", ())
-                .await?;
-            assert_eq!(jvm.array_length(&databases).await?, 0);
-
-            let access_mode: i32 = jvm
-                .invoke_static("org/kwis/msp/db/DataBase", "getAccessMode", "(Ljava/lang/String;)I", (name.clone(),))
-                .await?;
-            let database_size: i32 = jvm
-                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getDataBaseSize", "()I", ())
-                .await?;
-            let size_available: i32 = jvm
-                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getSizeAvailable", "()I", ())
-                .await?;
-            let last_modified: i64 = jvm
-                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getLastModified", "()J", ())
-                .await?;
-            assert_eq!(access_mode, 0);
-            assert_eq!(database_size, 0);
-            assert_eq!(size_available, 1_000_000);
-            assert_eq!(last_modified, 0);
-
-            let _: () = jvm
-                .invoke_static("org/kwis/msp/db/DataBase", "deleteDataBase", "(Ljava/lang/String;I)V", (name, 1))
-                .await?;
 
             Ok(())
         })

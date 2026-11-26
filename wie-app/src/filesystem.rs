@@ -129,3 +129,56 @@ impl Filesystem for SqliteFilesystem {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use wie_backend::Filesystem;
+
+    use super::SqliteFilesystem;
+    use crate::store;
+
+    #[test]
+    fn sparse_writes_and_reads_at_offsets() {
+        let root = tempdir().unwrap();
+        tauri::async_runtime::block_on(async {
+            let fs = SqliteFilesystem {
+                store: store::open(root.path()).unwrap(),
+            };
+            assert_eq!(fs.write("app", "save", 2, b"record").await, 6);
+            assert_eq!(fs.write("app", "save", 3, &[0xff, 0]).await, 2);
+            let mut bytes = [0; 8];
+            assert_eq!(fs.read("app", "save", 0, 8, &mut bytes).await, Some(8));
+            assert_eq!(&bytes, b"\0\0r\xff\0ord");
+            assert_eq!(fs.read("app", "save", 7, 8, &mut bytes).await, Some(1));
+            assert_eq!(&bytes, b"d\0r\xff\0ord");
+            assert_eq!(fs.read("app", "save", 8, 8, &mut bytes).await, Some(0));
+            assert_eq!(&bytes, b"d\0r\xff\0ord");
+            assert_eq!(fs.read("app", "missing", 0, 8, &mut bytes).await, None);
+        });
+    }
+
+    #[test]
+    fn truncation_and_empty_writes_set_file_length() {
+        let root = tempdir().unwrap();
+        tauri::async_runtime::block_on(async {
+            let fs = SqliteFilesystem {
+                store: store::open(root.path()).unwrap(),
+            };
+            fs.write("app", "save", 0, b"record").await;
+            fs.truncate("app", "save", 3).await;
+            fs.truncate("app", "save", 6).await;
+            let mut bytes = [0; 8];
+            assert_eq!(fs.read("app", "save", 0, 8, &mut bytes).await, Some(6));
+            assert_eq!(&bytes[..6], b"rec\0\0\0");
+            assert_eq!(fs.write("app", "empty", 5, &[]).await, 0);
+            assert_eq!(fs.size("app", "empty").await, Some(5));
+            fs.truncate("app", "empty", 0).await;
+            assert_eq!(fs.read("app", "empty", 0, 1, &mut bytes).await, Some(0));
+            fs.truncate("app", "new", 0).await;
+            assert!(fs.exists("app", "new").await);
+            assert_eq!(fs.size("app", "new").await, Some(0));
+        });
+    }
+}

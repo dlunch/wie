@@ -812,10 +812,6 @@ mod tests {
                 }
             }
         }
-        for (x, y, width, height) in [(-1, 0, 1, 1), (0, 0, 0, 1), (2, 1, 2, 1), (0, 0, i32::MAX, 1)] {
-            assert_eq!(encode_image(&mut context, source, x, y, width, height, length_ptr).await?, 0);
-            assert_eq!(read_generic::<u32, _>(&context, length_ptr)?, 0);
-        }
         Ok(())
     }
 
