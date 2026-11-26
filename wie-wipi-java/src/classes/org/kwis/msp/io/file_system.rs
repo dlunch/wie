@@ -5,7 +5,7 @@ use rustjava_runtime::classes::java::{io::File as JavaFile, lang::String, util::
 use wie_jvm_support::WieJvmContext;
 
 // class org.kwis.msp.io.FileSystem
-#[java_class(name = "org/kwis/msp/io/FileSystem", public)]
+#[java_class(name = "org/kwis/msp/io/FileSystem", public, final)]
 pub struct FileSystem;
 
 #[java_methods]
