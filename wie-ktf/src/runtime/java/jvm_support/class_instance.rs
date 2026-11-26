@@ -79,8 +79,8 @@ impl JavaClassInstance {
                 ptr_class: class.ptr_raw,
             },
         )?;
-        // AOT code locates the class at the JVM context plus this header shifted right by 5.
-        write_generic(core, ptr_fields, class.ptr_raw.wrapping_sub(support.ptr_jvm_context) << 5)?;
+        // AOT code locates the class at the class base plus this header shifted right by 5.
+        write_generic(core, ptr_fields, class.ptr_raw.wrapping_sub(support.ptr_class_base) << 5)?;
 
         tracing::trace!("Instantiate {} at {ptr_raw:#x}", class.name()?);
 

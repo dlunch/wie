@@ -25,7 +25,7 @@ use wie_jvm_support::JvmSupport;
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 use wie_util::{Result, WieError, read_generic, write_generic};
 
-use wipi_types::ktf::{InitParam2, java::JavaClass as RawJavaClass};
+use wipi_types::ktf::java::JavaClass as RawJavaClass;
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -53,7 +53,7 @@ pub struct KtfJvmThreadContext {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct KtfJvmSupportContext {
-    pub ptr_jvm_context: u32,
+    pub ptr_class_base: u32,
     ptr_next_class: u32,
     ptr_current_jvm_thread_context: u32,
     /// Nonzero once native root tables are ready and callback-local references can be released.
@@ -62,8 +62,8 @@ pub struct KtfJvmSupportContext {
 
 pub const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
 
-// Instance headers hold a signed 27-bit class offset from the JVM context,
-// so the context and host-defined classes are placed near the app image.
+// Instance headers hold a signed 27-bit class offset from the class base,
+// so the base and host-defined classes are placed near the app image.
 const CLASS_AREA_BASE: u32 = 0x2000000;
 const CLASS_AREA_SIZE: u32 = 0x100000;
 
@@ -76,25 +76,16 @@ impl KtfJvmSupport {
         jar_name: Option<&str>,
         properties: &[(&str, &str)],
     ) -> Result<(Jvm, Box<dyn ClassInstance>)> {
-        let jvm_context = InitParam2 {
-            unk1: 0,
-            unk2: 0,
-            unk3: 0,
-            ptr_java_vtables: [0; 128],
-        };
-        let ptr_jvm_context = CLASS_AREA_BASE;
         core.map(CLASS_AREA_BASE, CLASS_AREA_SIZE)?;
-        write_generic(core, ptr_jvm_context, jvm_context)?;
-
         write_generic(
             core,
-            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_jvm_context) as u32,
-            ptr_jvm_context,
+            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_class_base) as u32,
+            CLASS_AREA_BASE,
         )?;
         write_generic(
             core,
             SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_next_class) as u32,
-            ptr_jvm_context + size_of::<InitParam2>() as u32,
+            CLASS_AREA_BASE,
         )?;
 
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
@@ -168,7 +159,7 @@ impl KtfJvmSupport {
                 (
                     system_class_loader,
                     binary_name,
-                    ptr_jvm_context as i32,
+                    CLASS_AREA_BASE as i32,
                     (SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_current_jvm_thread_context) as u32) as i32,
                 ),
             )
@@ -458,7 +449,7 @@ mod test {
             let raw: RawJavaClassInstance = read_generic(&core, array)?;
             let header: u32 = read_generic(&core, raw.ptr_fields)?;
             let support: KtfJvmSupportContext = read_generic(&core, SUPPORT_CONTEXT_BASE)?;
-            assert_eq!(support.ptr_jvm_context.wrapping_add_signed(header as i32 >> 5), raw.ptr_class);
+            assert_eq!(support.ptr_class_base.wrapping_add_signed(header as i32 >> 5), raw.ptr_class);
             let mut registers = core.save_context();
             registers.r4 = raw.ptr_fields + 9;
             core.restore_context(&registers);

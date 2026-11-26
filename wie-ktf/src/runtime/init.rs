@@ -48,7 +48,7 @@ pub async fn load_native(
     jvm: &Jvm,
     filename: &str,
     data: &[u8],
-    ptr_jvm_context: u32,
+    ptr_class_base: u32,
     ptr_current_jvm_thread_context: u32,
 ) -> Result<u32> {
     let bss_size = parse_bss_size(filename)?;
@@ -114,7 +114,7 @@ pub async fn load_native(
     let result = core
         .run_function::<u32>(
             exe_interface_functions.fn_init,
-            &[ptr_param_0, ptr_current_jvm_thread_context, ptr_jvm_context, ptr_param_3, ptr_param_4],
+            &[ptr_param_0, ptr_current_jvm_thread_context, ptr_class_base, ptr_param_3, ptr_param_4],
         )
         .await
         .map_err(|error| with_arm_context(core, error))?;
