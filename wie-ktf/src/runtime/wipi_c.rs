@@ -12,6 +12,7 @@ use crate::runtime::svc_ids::{WIPICKernelMethodId, WIPICTableId};
 mod context;
 pub mod interface;
 mod method_table;
+mod plugin;
 mod user_memory;
 
 use context::KtfWIPICContext;

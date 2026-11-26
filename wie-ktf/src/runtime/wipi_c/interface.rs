@@ -37,13 +37,16 @@ pub fn get_wipic_knl_interface(core: &mut ArmCore) -> Result<u32> {
 }
 
 pub fn get_user_memory_interface(core: &mut ArmCore) -> Result<u32> {
-    let mut methods = [0u32; 4];
-    for (index, method) in methods.iter_mut().enumerate() {
-        *method = core.make_svc_stub(crate::runtime::SVC_CATEGORY_WIPIC, WIPICTableId::UserMemory.function_id(index as u16))?;
-    }
+    let methods = method_table::get_user_memory_method_table();
+    let address = Allocator::alloc(core, (methods.len() * 4) as u32)?;
 
-    let address = Allocator::alloc(core, size_of_val(&methods) as u32)?;
-    write_generic(core, address, methods)?;
+    let mut cursor = address;
+    for (index, _) in methods.into_iter().enumerate() {
+        let address = core.make_svc_stub(crate::runtime::SVC_CATEGORY_WIPIC, WIPICTableId::UserMemory.function_id(index as u16))?;
+
+        write_generic(core, cursor, address)?;
+        cursor += 4;
+    }
 
     Ok(address)
 }
@@ -66,7 +69,7 @@ pub async fn get_wipic_interfaces(core: &mut ArmCore, context: &mut dyn WIPICCon
     let graphics_interface = write_interface(context, graphics_interface)?;
     let interface_3 = write_methods(core, context, WIPICTableId::Interface3, method_table::get_im_method_table())?;
     let database_interface = write_methods(core, context, WIPICTableId::Database, method_table::get_database_method_table())?;
-    let interface_5 = write_methods(core, context, WIPICTableId::Interface5, method_table::get_stub_method_table(5))?;
+    let interface_5 = write_methods(core, context, WIPICTableId::Interface5, method_table::get_plugin_method_table())?;
     let fs_interface = write_interface(context, fs_interface)?;
     let interface_7 = write_methods(core, context, WIPICTableId::Interface7, method_table::get_stub_method_table(7))?;
     let uic_interface = write_methods(core, context, WIPICTableId::Uic, method_table::get_uic_method_table())?;

@@ -6,7 +6,7 @@ use wipi_types::{
 };
 
 use wie_core_arm::ArmCore;
-use wie_util::{Result, WieError, write_generic};
+use wie_util::{Result, WieError};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody,
     api::{database, fs, graphics, im, kernel, media, misc, net, uic, util},
@@ -15,7 +15,7 @@ use wie_wipi_c::{
 use crate::runtime::{
     SVC_CATEGORY_INIT, SVC_CATEGORY_WIPIC,
     svc_ids::{InitSvcId, WIPICFsMethodId, WIPICGraphicsMethodId, WIPICKernelMethodId, WIPICTableId},
-    wipi_c::user_memory,
+    wipi_c::{plugin, user_memory},
 };
 
 fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
@@ -389,15 +389,21 @@ pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
-async fn plugin_cleanup(_: &mut dyn WIPICContext) -> Result<u32> {
-    tracing::warn!("stub KTF plugin[18]()");
-    Ok(0)
+pub fn get_plugin_method_table() -> Vec<WIPICMethodBody> {
+    let mut table = get_stub_method_table(5);
+    table[18] = plugin::unk18.into_body();
+    table[19] = plugin::unk19.into_body();
+
+    table
 }
 
-async fn plugin_get_layout_callback(context: &mut dyn WIPICContext, callback: u32, a1: u32, a2: u32) -> Result<u32> {
-    tracing::warn!("stub KTF plugin[19]({callback:#x}, {a1:#x}, {a2:#x})");
-    write_generic(context, callback, 0u32)?;
-    Ok(0)
+pub fn get_user_memory_method_table() -> Vec<WIPICMethodBody> {
+    vec![
+        user_memory::reset.into_body(),
+        user_memory::alloc.into_body(),
+        gen_stub(2, "MXUserMemInterf"),
+        gen_stub(3, "MXUserMemInterf"),
+    ]
 }
 
 async fn unk_screen_flush(context: &mut dyn WIPICContext) -> Result<()> {
@@ -485,12 +491,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICKernelMethodId::GetPlatformVersion => Some(gen_stub(63, "OEMC_knlGetPlatformVersion")),
             WIPICKernelMethodId::GetToken => Some(gen_stub(64, "OEMC_knlGetToken")),
         },
-        WIPICTableId::UserMemory => match function_id {
-            0 => Some(user_memory::reset.into_body()),
-            1 => Some(user_memory::alloc.into_body()),
-            2 | 3 => Some(gen_stub(function_id.into(), "MXUserMemInterf")),
-            _ => None,
-        },
+        WIPICTableId::UserMemory => get_user_memory_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Util => get_util_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Misc => get_misc_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Graphics => match WIPICGraphicsMethodId::try_from(function_id).ok()? {
@@ -557,12 +558,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
         },
         WIPICTableId::Interface3 => get_im_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Database => get_database_method_table().into_iter().nth(function_id as usize),
-        WIPICTableId::Interface5 => match function_id {
-            18 => Some(plugin_cleanup.into_body()),
-            19 => Some(plugin_get_layout_callback.into_body()),
-            0..64 => Some(gen_stub(function_id.into(), "KTF plugin")),
-            _ => None,
-        },
+        WIPICTableId::Interface5 => get_plugin_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Fs => match WIPICFsMethodId::try_from(function_id).ok()? {
             WIPICFsMethodId::Open => Some(fs::open.into_body()),
             WIPICFsMethodId::Read => Some(fs::read.into_body()),
