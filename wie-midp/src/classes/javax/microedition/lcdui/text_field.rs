@@ -206,8 +206,8 @@ impl TextField {
         }
         match constraints & CONSTRAINT_MASK {
             NUMERIC => {
-                let text = RustString::from_utf16_lossy(text);
-                !text.starts_with('+') && text.parse::<i32>().is_ok()
+                let digits = text.strip_prefix(&[b'-' as JavaChar]).unwrap_or(text);
+                !digits.is_empty() && digits.iter().all(|&c| matches!(u8::try_from(c), Ok(b'0'..=b'9')))
             }
             DECIMAL => {
                 let text = RustString::from_utf16_lossy(text);
@@ -523,17 +523,15 @@ impl TextField {
         if constraints & UNEDITABLE != 0 {
             return Ok(0);
         }
-        let initial = RustString::from_utf16_lossy(&Self::contents(jvm, &this).await?);
-        let Some(result) = context.system().platform().text_input(&initial).await else {
+        let current = Self::contents(jvm, &this).await?;
+        let Some(result) = context.system().platform().text_input(&RustString::from_utf16_lossy(&current)).await else {
             return Ok(Item::INPUT_HANDLED);
         };
-        if result == initial {
-            return Ok(Item::INPUT_HANDLED);
-        }
-        let text: Vec<_> = result.encode_utf16().collect();
+        // A handset stops accepting characters at the capacity, so a longer host entry keeps its head.
         let max_size: i32 = jvm.get_field(&this, FIELD, "maxSize", "I").await?;
-        let constraints: i32 = jvm.get_field(&this, FIELD, "constraints", "I").await?;
-        if constraints & UNEDITABLE != 0 || text.len() > max_size as usize || !Self::accepts(&text, constraints) {
+        let mut text: Vec<_> = result.encode_utf16().collect();
+        text.truncate(max_size as usize);
+        if text == current || !Self::accepts(&text, constraints) {
             return Ok(Item::INPUT_HANDLED);
         }
         Self::store_text(jvm, &mut this, text).await?;
