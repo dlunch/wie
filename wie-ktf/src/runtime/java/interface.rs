@@ -289,9 +289,8 @@ async fn call_native(core: &mut ArmCore, _: &mut (), address: u32, ptr_data: u32
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    // Commercial native bodies read the argument area from r0; host native entries and wipi-built bodies read it from r1.
     let caller = core.save_context();
-    let result = match core.run_function::<JavaMethodRunResult>(address, &[ptr_data, ptr_data]).await {
+    let result = match core.run_function::<JavaMethodRunResult>(address, &[ptr_data]).await {
         Ok(result) => result,
         Err(WieError::JavaExceptionUnwind {
             context_base,

@@ -787,7 +787,7 @@ mod test {
             }
             // KTF AOT callers can use the native argument-buffer ABI even when
             // the host implementation's Java prototype is not marked native.
-            let result: u32 = core.run_function(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await?;
+            let result: u32 = core.run_function(raw.fn_body_native_or_exception_table, &[ptr_args]).await?;
             let result: Box<dyn jvm::ClassInstance> = Box::new(JavaClassInstance::from_raw(result, &core));
             jvm.collect_garbage().unwrap();
             assert_eq!(JavaLangString::to_rust_string(&jvm, &result).await.unwrap(), "화장");
@@ -802,7 +802,7 @@ mod test {
             );
 
             write_generic(&mut core, ptr_args + 4, (-1i32) as u32)?;
-            let result = core.run_function::<u32>(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await;
+            let result = core.run_function::<u32>(raw.fn_body_native_or_exception_table, &[ptr_args]).await;
             assert!(matches!(result, Err(WieError::JavaException(_))));
             Allocator::free(&mut core, ptr_args, words.len() as u32 * 4)?;
 

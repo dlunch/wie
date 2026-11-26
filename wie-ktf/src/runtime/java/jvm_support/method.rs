@@ -152,7 +152,7 @@ impl JavaMethod {
             }
 
             tracing::trace!("Calling native method: {:#x}", raw.fn_body_native_or_exception_table);
-            let result = run_with_unwind(&mut core, raw.fn_body_native_or_exception_table, vec![0, arg_container]).await;
+            let result = run_with_unwind(&mut core, raw.fn_body_native_or_exception_table, vec![arg_container]).await;
 
             Allocator::free(&mut core, arg_container, (raw_args.len() as u32) * 4)?;
 
@@ -373,7 +373,7 @@ where
 
         let native_entry = self.ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
         let raw_args = if SvcId::get(core, 0).0 == native_entry {
-            let param_base = u32::get(core, 1);
+            let param_base = u32::get(core, 0);
             (0..param_count)
                 .map(|x| read_generic(core, param_base + (x as u32) * 4))
                 .collect::<wie_util::Result<Vec<u32>>>()?
