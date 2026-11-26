@@ -447,7 +447,7 @@ mod tests {
     use jvm::{ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
     use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
-    use wie_midp::classes::javax::microedition::lcdui::Image;
+    use wie_midp::classes::javax::microedition::lcdui::{Font, Image};
 
     use super::Toolkit;
 
@@ -457,7 +457,7 @@ mod tests {
             Box::new([wie_midp::get_protos().into(), [Toolkit::as_proto()].into()]),
             |jvm| async move {
                 let text: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "A\u{1f600}B").await?.into();
-                let font = jvm
+                let font: ClassInstanceRef<Font> = jvm
                     .get_static_field("com/xce/lcdui/Toolkit", "DEFAULT_FONT", "Ljavax/microedition/lcdui/Font;")
                     .await?;
                 let width: i32 = jvm

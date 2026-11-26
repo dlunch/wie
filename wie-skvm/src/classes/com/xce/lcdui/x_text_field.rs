@@ -393,7 +393,7 @@ mod tests {
         }
 
         async fn size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-            let text = jvm
+            let text: ClassInstanceRef<String> = jvm
                 .invoke_virtual(&this, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                 .await?;
             jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await
@@ -416,7 +416,7 @@ mod tests {
         }
 
         async fn delete(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-            let text = jvm
+            let text: ClassInstanceRef<String> = jvm
                 .invoke_virtual(&this, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                 .await?;
             let size: i32 = jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await?;
@@ -696,7 +696,7 @@ mod tests {
                 let _: () = jvm
                     .invoke_virtual(&component, "com/xce/lcdui/XTextField", "setBounds", "(IIII)V", (0, 0, 20, 10))
                     .await?;
-                let handler = jvm
+                let handler: ClassInstanceRef<TextComponentHandler> = jvm
                     .invoke_static(
                         "com/xce/lcdui/TextComponentHandler",
                         "getTextComponentHandler",
@@ -718,7 +718,7 @@ mod tests {
                         jvm.invoke_virtual::<_, bool>(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (key,))
                             .await?
                     );
-                    let text = jvm
+                    let text: ClassInstanceRef<String> = jvm
                         .invoke_virtual(&component, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                         .await?;
                     assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, expected);
@@ -728,7 +728,7 @@ mod tests {
                 let _: bool = jvm
                     .invoke_virtual(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (57,))
                     .await?;
-                let text = jvm
+                let text: ClassInstanceRef<String> = jvm
                     .invoke_virtual(&component, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                     .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1");
@@ -740,7 +740,7 @@ mod tests {
                     jvm.invoke_virtual::<_, bool>(&handler, "com/xce/lcdui/TextComponentHandler", "keyPressed", "(I)Z", (-5,))
                         .await?
                 );
-                let text = jvm
+                let text: ClassInstanceRef<String> = jvm
                     .invoke_virtual(&component, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                     .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "1가");
@@ -761,7 +761,7 @@ mod tests {
                 let _: () = jvm
                     .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", (57,))
                     .await?;
-                let text = jvm
+                let text: ClassInstanceRef<String> = jvm
                     .invoke_virtual(&free_text, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
                     .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "x가나");

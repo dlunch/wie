@@ -450,7 +450,7 @@ impl XFile {
             if mode != READ && mode != READ_WRITE {
                 return Err(jvm.exception("java/io/IOException", "File is not open for reading").await);
             }
-            let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+            let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
 
             jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (data, offset, length))
                 .await?
@@ -500,7 +500,7 @@ impl XFile {
             if mode != WRITE && mode != READ_WRITE {
                 return Err(jvm.exception("java/io/IOException", "File is not open for writing").await);
             }
-            let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+            let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
             let _: () = jvm
                 .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (data, offset, length))
                 .await?;
@@ -524,7 +524,7 @@ impl XFile {
             let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "com/xce/io/XFile", "is", "Ljava/io/InputStream;").await?;
             let _: () = jvm.invoke_virtual(&is, "java/io/InputStream", "close", "()V", ()).await?;
         } else {
-            let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+            let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
             let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "close", "()V", ()).await?;
         }
 
@@ -555,7 +555,7 @@ impl XFile {
             return Err(jvm.exception("java/io/IOException", "File is not seekable").await);
         }
 
-        let raf = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
+        let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "com/xce/io/XFile", "raf", "Ljava/io/RandomAccessFile;").await?;
         let new_pos = match whence {
             SEEK_SET => Some(n as i64),
             SEEK_CUR => {
