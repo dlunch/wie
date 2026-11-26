@@ -1,15 +1,16 @@
-use alloc::{string::String as RustString, vec};
+use alloc::string::String as RustString;
 
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{lang::String, util::Vector};
 
 use wie_backend::text_layout::{minimum_width, preferred_width, wrap};
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
-use crate::classes::javax::microedition::lcdui::{Command, Displayable, Font, Graphics, ItemCommandListener};
-use crate::classes::net::wie::{CommandEvent, EventQueue};
+use crate::classes::{
+    javax::microedition::lcdui::{Command, Displayable, Font, Graphics, ItemCommandListener},
+    net::wie::{CommandEvent, EventQueue},
+};
 
 const LABEL_COLOR: i32 = 0x52606d;
 const BUTTON_BACKGROUND: i32 = 0xe7edf2;
@@ -20,232 +21,68 @@ const BUTTON_INSET: i32 = 3;
 const LEFT_TOP: i32 = 4 | 16;
 
 // class javax.microedition.lcdui.Item
-pub struct Item;
+#[java_class(name = "javax/microedition/lcdui/Item", public, abstract)]
+pub struct Item {
+    #[field(public, static, final)]
+    LAYOUT_DEFAULT: i32,
+    #[field(public, static, final)]
+    LAYOUT_LEFT: i32,
+    #[field(public, static, final)]
+    LAYOUT_RIGHT: i32,
+    #[field(public, static, final)]
+    LAYOUT_CENTER: i32,
+    #[field(public, static, final)]
+    LAYOUT_TOP: i32,
+    #[field(public, static, final)]
+    LAYOUT_BOTTOM: i32,
+    #[field(public, static, final)]
+    LAYOUT_VCENTER: i32,
+    #[field(public, static, final)]
+    LAYOUT_NEWLINE_BEFORE: i32,
+    #[field(public, static, final)]
+    LAYOUT_NEWLINE_AFTER: i32,
+    #[field(public, static, final)]
+    LAYOUT_SHRINK: i32,
+    #[field(public, static, final)]
+    LAYOUT_EXPAND: i32,
+    #[field(public, static, final)]
+    LAYOUT_VSHRINK: i32,
+    #[field(public, static, final)]
+    LAYOUT_VEXPAND: i32,
+    #[field(public, static, final)]
+    LAYOUT_2: i32,
+    #[field(public, static, final)]
+    PLAIN: i32,
+    #[field(public, static, final)]
+    HYPERLINK: i32,
+    #[field(public, static, final)]
+    BUTTON: i32,
+    #[field(private)]
+    owner: ClassInstanceRef<Displayable>,
+    #[field(private)]
+    label: ClassInstanceRef<String>,
+    #[field(private)]
+    layout: i32,
+    #[field(private)]
+    preferredWidth: i32,
+    #[field(private)]
+    preferredHeight: i32,
+    #[field(private)]
+    commands: ClassInstanceRef<Vector>,
+    #[field(private)]
+    defaultCommand: ClassInstanceRef<Command>,
+    #[field(private)]
+    itemCommandListener: ClassInstanceRef<ItemCommandListener>,
+}
 
+#[java_methods]
 impl Item {
     pub const INPUT_HANDLED: i32 = 1;
     pub const INPUT_CHANGED: i32 = 2;
     pub const TEXT_COLOR: i32 = 0x17212b;
     pub const LINK_COLOR: i32 = 0x175ca8;
 
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Item",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "addCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::add_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "removeCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::remove_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getLabel", "()Ljava/lang/String;", Self::get_label, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setLabel", "(Ljava/lang/String;)V", Self::set_label, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getLayout", "()I", Self::get_layout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setLayout", "(I)V", Self::set_layout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMinimumWidth", "()I", Self::get_minimum_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMinimumHeight", "()I", Self::get_minimum_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getPreferredWidth", "()I", Self::get_preferred_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getPreferredHeight", "()I", Self::get_preferred_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setPreferredSize", "(II)V", Self::set_preferred_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setDefaultCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::set_default_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setItemCommandListener",
-                    "(Ljavax/microedition/lcdui/ItemCommandListener;)V",
-                    Self::set_item_command_listener,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("notifyStateChanged", "()V", Self::notify_state_changed, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getOwner",
-                    "()Ljavax/microedition/lcdui/Displayable;",
-                    Self::get_owner,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "setOwner",
-                    "(Ljavax/microedition/lcdui/Displayable;)V",
-                    Self::set_owner,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("getCommandCount", "()I", Self::get_command_count, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "getCommandAt",
-                    "(I)Ljavax/microedition/lcdui/Command;",
-                    Self::get_command_at,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "dispatchDefaultCommand",
-                    "()V",
-                    Self::dispatch_default_command,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("hasPreferredSize", "()Z", Self::has_preferred_size, MethodAccessFlags::empty()),
-                JavaMethodProto::new("canBeAlertIndicator", "()Z", Self::can_be_alert_indicator, MethodAccessFlags::empty()),
-                JavaMethodProto::new("invalidate", "(Z)V", Self::invalidate, MethodAccessFlags::empty()),
-                JavaMethodProto::new("measureWidth", "(I)I", Self::measure_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new("measureHeight", "(I)I", Self::measure_height, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "paintItem",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
-                    Self::paint_item,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("minimumContentWidth", "()I", Self::minimum_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new("minimumContentHeight", "()I", Self::minimum_content_height, MethodAccessFlags::empty()),
-                JavaMethodProto::new("preferredContentWidth", "()I", Self::preferred_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "preferredContentHeight",
-                    "(I)I",
-                    Self::preferred_content_height,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
-                    Self::paint_content,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
-                JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "getFocusContentBounds",
-                    "(I)[I",
-                    Self::get_focus_content_bounds,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("getFocusBounds", "(II)[I", Self::focus_bounds, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "paintAppearance",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIII)V",
-                    Self::paint_appearance,
-                    MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "dispatchCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::dispatch_command,
-                    MethodAccessFlags::empty(),
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "LAYOUT_DEFAULT",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_LEFT",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_RIGHT",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_CENTER",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_TOP",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_BOTTOM",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_VCENTER",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_NEWLINE_BEFORE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_NEWLINE_AFTER",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_SHRINK",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_EXPAND",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_VSHRINK",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_VEXPAND",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "LAYOUT_2",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "PLAIN",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "HYPERLINK",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "BUTTON",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("owner", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("label", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("layout", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("preferredWidth", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("preferredHeight", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("commands", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("defaultCommand", "Ljavax/microedition/lcdui/Command;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new(
-                    "itemCommandListener",
-                    "Ljavax/microedition/lcdui/ItemCommandListener;",
-                    FieldAccessFlags::PRIVATE,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::<clinit>");
 
@@ -274,6 +111,7 @@ impl Item {
         Ok(())
     }
 
+    #[method(constructor)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::<init>({this:?})");
 
@@ -289,6 +127,7 @@ impl Item {
         Ok(())
     }
 
+    #[method]
     async fn get_owner(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Displayable>> {
         tracing::debug!("javax.microedition.lcdui.Item::getOwner({this:?})");
 
@@ -296,6 +135,7 @@ impl Item {
             .await
     }
 
+    #[method]
     async fn set_owner(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -314,6 +154,7 @@ impl Item {
         .await
     }
 
+    #[method]
     async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getCommandCount({this:?})");
 
@@ -323,6 +164,7 @@ impl Item {
         jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await
     }
 
+    #[method]
     async fn get_command_at(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -338,6 +180,7 @@ impl Item {
             .await
     }
 
+    #[method]
     async fn dispatch_default_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::dispatchDefaultCommand({this:?})");
 
@@ -363,6 +206,7 @@ impl Item {
         Ok(())
     }
 
+    #[method]
     async fn has_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Item::hasPreferredSize({this:?})");
 
@@ -371,6 +215,7 @@ impl Item {
         Ok(width != -1 || height != -1)
     }
 
+    #[method]
     async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Item::canBeAlertIndicator({this:?})");
 
@@ -418,6 +263,7 @@ impl Item {
         Ok(())
     }
 
+    #[method]
     async fn invalidate(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout_changed: bool) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::invalidate({this:?}, {layout_changed})");
 
@@ -439,6 +285,7 @@ impl Item {
         Ok(())
     }
 
+    #[method(public)]
     async fn add_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::addCommand({this:?}, {command:?})");
 
@@ -473,6 +320,7 @@ impl Item {
         Ok(())
     }
 
+    #[method(public)]
     async fn remove_command(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -528,12 +376,14 @@ impl Item {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Item::getLabel({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Item", "label", "Ljava/lang/String;").await
     }
 
+    #[method(public)]
     async fn set_label(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::setLabel({this:?}, {label:?})");
 
@@ -544,12 +394,14 @@ impl Item {
             .await
     }
 
+    #[method(public)]
     async fn get_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getLayout({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Item", "layout", "I").await
     }
 
+    #[method(public)]
     async fn set_layout(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, layout: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::setLayout({this:?}, {layout})");
 
@@ -563,6 +415,7 @@ impl Item {
             .await
     }
 
+    #[method(public)]
     async fn get_minimum_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getMinimumWidth({this:?})");
 
@@ -577,6 +430,7 @@ impl Item {
         Ok(content_width.max(label_width))
     }
 
+    #[method(public)]
     async fn get_minimum_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getMinimumHeight({this:?})");
 
@@ -591,6 +445,7 @@ impl Item {
         Ok(label_height + content_height + if label_height > 0 && content_height > 0 { LABEL_CONTENT_GAP } else { 0 })
     }
 
+    #[method(public)]
     async fn get_preferred_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getPreferredWidth({this:?})");
 
@@ -613,6 +468,7 @@ impl Item {
         Ok(content_width.max(label_width).max(minimum_width))
     }
 
+    #[method(public)]
     async fn get_preferred_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::getPreferredHeight({this:?})");
 
@@ -630,6 +486,7 @@ impl Item {
         Ok(Self::natural_height(jvm, context, &this, preferred_width).await?.max(minimum_height))
     }
 
+    #[method(public)]
     async fn set_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::setPreferredSize({this:?}, {width}, {height})");
 
@@ -666,6 +523,7 @@ impl Item {
             .await
     }
 
+    #[method(public)]
     async fn set_default_command(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -710,6 +568,7 @@ impl Item {
             .await
     }
 
+    #[method(public)]
     async fn set_item_command_listener(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -731,6 +590,7 @@ impl Item {
             .await
     }
 
+    #[method(public)]
     async fn notify_state_changed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::notifyStateChanged({this:?})");
 
@@ -751,6 +611,7 @@ impl Item {
         .await
     }
 
+    #[method]
     async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::measureWidth({this:?}, {available_width})");
 
@@ -764,6 +625,7 @@ impl Item {
         Ok(preferred_width.min(available_width.max(0)))
     }
 
+    #[method]
     async fn measure_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::measureHeight({this:?}, {width})");
 
@@ -785,6 +647,7 @@ impl Item {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method]
     async fn paint_item(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -914,24 +777,28 @@ impl Item {
         restore_result
     }
 
+    #[method]
     async fn minimum_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::minimumContentWidth({_this:?})");
 
         Ok(0)
     }
 
+    #[method]
     async fn minimum_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::minimumContentHeight({_this:?})");
 
         Ok(0)
     }
 
+    #[method]
     async fn preferred_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::preferredContentWidth({_this:?})");
 
         Ok(0)
     }
 
+    #[method]
     async fn preferred_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::preferredContentHeight({_this:?}, {_width})");
 
@@ -939,6 +806,7 @@ impl Item {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method]
     async fn paint_content(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -955,6 +823,7 @@ impl Item {
         Ok(())
     }
 
+    #[method]
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Item::isFocusable({this:?})");
 
@@ -964,6 +833,7 @@ impl Item {
         Ok(jvm.invoke_virtual::<_, i32>(&commands, "java/util/Vector", "size", "()I", ()).await? > 0)
     }
 
+    #[method]
     async fn handle_item_key(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Item::handleItemKey({_this:?}, {_key})");
 
@@ -971,6 +841,7 @@ impl Item {
     }
 
     // Null selects the whole Item; otherwise the pair is content-local [top, bottom).
+    #[method]
     async fn get_focus_content_bounds(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -982,6 +853,7 @@ impl Item {
         Ok(None.into())
     }
 
+    #[method(name = "getFocusBounds")]
     async fn focus_bounds(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -1017,6 +889,7 @@ impl Item {
         Ok(result.into())
     }
 
+    #[method]
     async fn dispatch_command(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -1082,6 +955,7 @@ impl Item {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(static)]
     async fn paint_appearance(
         jvm: &Jvm,
         _context: &mut WieJvmContext,

@@ -1,85 +1,89 @@
-use alloc::vec;
+use jvm::{ClassInstanceRef, Jvm, Result};
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::lang::String;
 
-use jvm::{Jvm, Result};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use wie_jvm_support::WieJvmContext;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use crate::classes::javax::microedition::media::PlayerListener;
 
 // interface javax.microedition.media.Player
-pub struct Player;
+#[java_class(
+    name = "javax/microedition/media/Player",
+    implements("javax/microedition/media/Controllable"),
+    public,
+    interface,
+    abstract
+)]
+pub struct Player {
+    #[field(public, static, final)]
+    UNREALIZED: i32,
+    #[field(public, static, final)]
+    REALIZED: i32,
+    #[field(public, static, final)]
+    PREFETCHED: i32,
+    #[field(public, static, final)]
+    STARTED: i32,
+    #[field(public, static, final)]
+    CLOSED: i32,
+    #[field(public, static, final)]
+    TIME_UNKNOWN: i64,
+}
 
+#[java_methods]
 impl Player {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/media/Player",
-            parent_class: None,
-            interfaces: vec!["javax/microedition/media/Controllable"],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new_abstract("realize", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("prefetch", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("start", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("stop", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("deallocate", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("close", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("setMediaTime", "(J)J", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getMediaTime", "()J", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getState", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("getDuration", "()J", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract(
-                    "getContentType",
-                    "()Ljava/lang/String;",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract("setLoopCount", "(I)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract(
-                    "addPlayerListener",
-                    "(Ljavax/microedition/media/PlayerListener;)V",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract(
-                    "removePlayerListener",
-                    "(Ljavax/microedition/media/PlayerListener;)V",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "UNREALIZED",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "REALIZED",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "PREFETCHED",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STARTED",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "CLOSED",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "TIME_UNKNOWN",
-                    "J",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn realize(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
 
+    #[method(public)]
+    async fn prefetch(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
+
+    #[method(public)]
+    async fn start(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
+
+    #[method(public)]
+    async fn stop(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
+
+    #[method(public)]
+    async fn deallocate(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
+
+    #[method(public)]
+    async fn close(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
+
+    #[method(public)]
+    async fn set_media_time(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, media_time: i64) -> Result<i64>;
+
+    #[method(public)]
+    async fn get_media_time(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<i64>;
+
+    #[method(public)]
+    async fn get_state(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<i32>;
+
+    #[method(public)]
+    async fn get_duration(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<i64>;
+
+    #[method(public)]
+    async fn get_content_type(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<ClassInstanceRef<String>>;
+
+    #[method(public)]
+    async fn set_loop_count(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, count: i32) -> Result<()>;
+
+    #[method(public)]
+    async fn add_player_listener(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        listener: ClassInstanceRef<PlayerListener>,
+    ) -> Result<()>;
+
+    #[method(public)]
+    async fn remove_player_listener(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        listener: ClassInstanceRef<PlayerListener>,
+    ) -> Result<()>;
+
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> Result<()> {
         tracing::debug!("javax.microedition.media.Player::<clinit>");
 

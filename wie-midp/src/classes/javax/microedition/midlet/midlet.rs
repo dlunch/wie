@@ -1,77 +1,34 @@
-use alloc::{format, vec};
+use alloc::format;
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::Display;
 
 // abstract class javax.microedition.midlet.MIDlet
-pub struct MIDlet;
+#[java_class(name = "javax/microedition/midlet/MIDlet", public, abstract)]
+pub struct MIDlet {
+    #[field(private, static)]
+    currentMIDlet: ClassInstanceRef<Self>,
+    #[field(private)]
+    display: ClassInstanceRef<Display>,
+}
 
+#[java_methods]
 impl MIDlet {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/midlet/MIDlet",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "checkPermission",
-                    "(Ljava/lang/String;)I",
-                    Self::check_permission,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "getAppProperty",
-                    "(Ljava/lang/String;)Ljava/lang/String;",
-                    Self::get_app_property,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new_abstract("startApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("pauseApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("destroyApp", "(Z)V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new(
-                    "notifyPaused",
-                    "()V",
-                    Self::notify_paused,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "platformRequest",
-                    "(Ljava/lang/String;)Z",
-                    Self::platform_request,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "notifyDestroyed",
-                    "()V",
-                    Self::notify_destroyed,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "resumeRequest",
-                    "()V",
-                    Self::resume_request,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "currentMIDlet",
-                    "Ljavax/microedition/midlet/MIDlet;",
-                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
-                ),
-                JavaFieldProto::new("display", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(protected)]
+    async fn start_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
 
+    #[method(protected)]
+    async fn pause_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(protected)]
+    async fn destroy_app(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()>;
+
+    #[method(constructor, protected)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.midlet.MIDlet::<init>({this:?})");
 
@@ -99,12 +56,14 @@ impl MIDlet {
         Ok(())
     }
 
+    #[method(public, final)]
     async fn check_permission(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, permission: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.midlet.MIDlet::checkPermission({this:?}, {permission:?})");
 
         Ok(1)
     }
 
+    #[method(public, final)]
     async fn get_app_property(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -121,18 +80,21 @@ impl MIDlet {
             .await
     }
 
+    #[method(public, final)]
     async fn notify_destroyed(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyDestroyed({this:?})");
 
         Ok(())
     }
 
+    #[method(public, final)]
     async fn notify_paused(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyPaused({this:?})");
 
         Ok(())
     }
 
+    #[method(public, final)]
     async fn platform_request(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -144,6 +106,7 @@ impl MIDlet {
         Ok(false)
     }
 
+    #[method(public, final)]
     async fn resume_request(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub javax.microedition.midlet.MIDlet::resumeRequest({this:?})");
 

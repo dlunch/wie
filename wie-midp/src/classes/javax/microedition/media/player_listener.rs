@@ -1,79 +1,47 @@
-use alloc::vec;
+use jvm::{ClassInstanceRef, Jvm, Result, runtime::JavaLangString};
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::lang::{Object, String};
 
-use jvm::{Jvm, Result, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use wie_jvm_support::WieJvmContext;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use crate::classes::javax::microedition::media::Player;
 
 // interface javax.microedition.media.PlayerListener
-pub struct PlayerListener;
+#[java_class(name = "javax/microedition/media/PlayerListener", public, interface, abstract)]
+pub struct PlayerListener {
+    #[field(public, static, final)]
+    STARTED: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    STOPPED: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    END_OF_MEDIA: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    DURATION_UPDATED: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    DEVICE_UNAVAILABLE: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    DEVICE_AVAILABLE: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    VOLUME_CHANGED: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    ERROR: ClassInstanceRef<String>,
+    #[field(public, static, final)]
+    CLOSED: ClassInstanceRef<String>,
+}
 
+#[java_methods]
 impl PlayerListener {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/media/PlayerListener",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new_abstract(
-                    "playerUpdate",
-                    "(Ljavax/microedition/media/Player;Ljava/lang/String;Ljava/lang/Object;)V",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "STARTED",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STOPPED",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "END_OF_MEDIA",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DURATION_UPDATED",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DEVICE_UNAVAILABLE",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DEVICE_AVAILABLE",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "VOLUME_CHANGED",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "ERROR",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "CLOSED",
-                    "Ljava/lang/String;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn player_update(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        player: ClassInstanceRef<Player>,
+        event: ClassInstanceRef<String>,
+        event_data: ClassInstanceRef<Object>,
+    ) -> Result<()>;
 
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> Result<()> {
         tracing::debug!("javax.microedition.media.PlayerListener::<clinit>");
 

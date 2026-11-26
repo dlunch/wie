@@ -2,105 +2,45 @@ use alloc::{borrow::Cow, boxed::Box, format, vec, vec::Vec};
 use core::marker::PhantomData;
 
 use bytemuck::{Zeroable, cast_slice, cast_vec};
-
 use jvm::{
     Array, ArrayRawBufferMut, ClassInstanceRef, Jvm, Result as JvmResult,
     runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
 };
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 
 use wie_backend::canvas::{
     ArgbPixel, Canvas, Color, Image as BackendImage, ImageBuffer, ImageBufferCanvas, PixelType, Rgb332Pixel, Rgb565Pixel, decode_image,
 };
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::Graphics;
 
 // class javax.microedition.lcdui.Image
-pub struct Image;
+#[java_class(name = "javax/microedition/lcdui/Image", public)]
+pub struct Image {
+    #[field(private)]
+    w: i32,
+    #[field(private)]
+    h: i32,
+    #[field(private)]
+    imgData: ClassInstanceRef<Array<i8>>,
+    #[field(private)]
+    bpl: i32,
+    #[field(private)]
+    mutable: bool,
+}
 
+#[java_methods]
 impl Image {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Image",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                // SKVM exposes a public no-argument constructor.
-                JavaMethodProto::new("<init>", "()V", Self::init_empty, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(II[BI)V", Self::init, MethodAccessFlags::empty()),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isMutable", "()Z", Self::is_mutable, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getRGB", "([IIIIIII)V", Self::get_rgb, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "createRGBImage",
-                    "([IIIZ)Ljavax/microedition/lcdui/Image;",
-                    Self::create_rgb_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getGraphics",
-                    "()Ljavax/microedition/lcdui/Graphics;",
-                    Self::get_graphics,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(II)Ljavax/microedition/lcdui/Image;",
-                    Self::create_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "([BII)Ljavax/microedition/lcdui/Image;",
-                    Self::create_image_from_data,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(Ljava/lang/String;)Ljavax/microedition/lcdui/Image;",
-                    Self::create_image_from_name,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(Ljavax/microedition/lcdui/Image;)Ljavax/microedition/lcdui/Image;",
-                    Self::create_image_from_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(Ljavax/microedition/lcdui/Image;IIIII)Ljavax/microedition/lcdui/Image;",
-                    Self::create_image_from_region,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(Ljava/io/InputStream;)Ljavax/microedition/lcdui/Image;",
-                    Self::create_image_from_stream,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("w", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("h", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("imgData", "[B", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("bpl", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("mutable", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init_empty(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Image::<init>({this:?})");
 
         jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await
     }
 
+    #[method(constructor)]
     async fn init(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -123,6 +63,7 @@ impl Image {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn create_image(jvm: &Jvm, _: &mut WieJvmContext, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.Image::createImage({width}, {height})");
 
@@ -141,6 +82,7 @@ impl Image {
         Ok(image)
     }
 
+    #[method(name = "createRGBImage", public, static)]
     async fn create_rgb_image(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -173,6 +115,7 @@ impl Image {
         Self::create_image_instance(jvm, width as _, height as _, cast_slice(&pixels), 4).await
     }
 
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_name(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.Image::createImage({name:?})");
 
@@ -197,6 +140,7 @@ impl Image {
         .await
     }
 
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_data(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -224,6 +168,7 @@ impl Image {
         Self::create_image_instance(jvm, image.width(), image.height(), &image.raw(), image.bytes_per_pixel()).await
     }
 
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_image(jvm: &Jvm, _: &mut WieJvmContext, image: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.Image::createImage({image:?})");
 
@@ -233,6 +178,7 @@ impl Image {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_region(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -304,6 +250,7 @@ impl Image {
         }
     }
 
+    #[method(name = "createImage", public, static)]
     async fn create_image_from_stream(jvm: &Jvm, _: &mut WieJvmContext, stream: ClassInstanceRef<InputStream>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.Image::createImage({stream:?})");
 
@@ -320,6 +267,7 @@ impl Image {
         Self::create_image_instance(jvm, image.width(), image.height(), &image.raw(), image.bytes_per_pixel()).await
     }
 
+    #[method(public)]
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("javax.microedition.lcdui.Image::getGraphics({this:?})");
 
@@ -339,18 +287,21 @@ impl Image {
         Ok(instance.into())
     }
 
+    #[method(public)]
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Image::getWidth({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Image", "w", "I").await
     }
 
+    #[method(public)]
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Image::getHeight({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Image", "h", "I").await
     }
 
+    #[method(public)]
     async fn is_mutable(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Image::isMutable({this:?})");
 
@@ -358,6 +309,7 @@ impl Image {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(name = "getRGB", public)]
     async fn get_rgb(
         jvm: &Jvm,
         _: &mut WieJvmContext,
