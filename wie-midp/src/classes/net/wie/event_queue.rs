@@ -423,16 +423,15 @@ impl EventQueue {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, sync::Arc, vec};
+    use alloc::{boxed::Box, sync::Arc};
     use core::sync::atomic::{AtomicBool, Ordering};
 
     use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
 
     use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
     use wie_backend::{DefaultTaskRunner, Event, KeyCode, System};
-    use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJvmContext};
     use wie_util::Result;
 
     use crate::{
@@ -445,9 +444,17 @@ mod test {
 
     use super::{EventQueue, EventQueueEvent, KeyboardEventType};
 
-    struct IdleCallback;
+    #[java_class(name = "net/wie/IdleCallback", implements("java/lang/Runnable"), public)]
+    struct IdleCallback {
+        #[field(private)]
+        count: i32,
+        #[field(private)]
+        lastRun: i64,
+    }
 
+    #[java_methods]
     impl IdleCallback {
+        #[method(public)]
         async fn run(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             let count: i32 = jvm.get_field(&this, "net/wie/IdleCallback", "count", "I").await?;
             let now = context.system().platform().now().raw() as i64;
@@ -470,17 +477,6 @@ mod test {
 
     #[test]
     fn recurring_callback_waits_while_the_backend_queue_is_empty() -> Result<()> {
-        let callback_proto = WieJavaClassProto {
-            name: "net/wie/IdleCallback",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec!["java/lang/Runnable"],
-            methods: vec![JavaMethodProto::new("run", "()V", IdleCallback::run, MethodAccessFlags::PUBLIC)],
-            fields: vec![
-                JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("lastRun", "J", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         let clock = TestClock::new();
         let mut system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "", "", DefaultTaskRunner);
         let completed = Arc::new(AtomicBool::new(false));
@@ -491,7 +487,7 @@ mod test {
             let jvm = JvmSupport::new_jvm(
                 &system_task,
                 None,
-                Box::new([get_protos().into(), Box::new([callback_proto])]),
+                Box::new([get_protos().into(), Box::new([IdleCallback::as_proto()])]),
                 &[],
                 RustJavaJvmImplementation,
             )
@@ -529,9 +525,26 @@ mod test {
         Ok(())
     }
 
-    struct RecurringCallback;
+    #[java_class(
+        name = "net/wie/RecurringCallback",
+        extends = "javax/microedition/lcdui/Canvas",
+        implements("java/lang/Runnable"),
+        public
+    )]
+    struct RecurringCallback {
+        #[field(private)]
+        count: i32,
+        #[field(private)]
+        paintCount: i32,
+        #[field(private)]
+        repeat: bool,
+        #[field(private)]
+        repaintOnPaint: bool,
+    }
 
+    #[java_methods]
     impl RecurringCallback {
+        #[method(protected)]
         async fn paint(
             jvm: &Jvm,
             _context: &mut WieJvmContext,
@@ -551,6 +564,7 @@ mod test {
                 .await
         }
 
+        #[method(public)]
         async fn run(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             let count: i32 = jvm.get_field(&this, "net/wie/RecurringCallback", "count", "I").await?;
             let mut graphics: ClassInstanceRef<Graphics> = jvm
@@ -582,39 +596,19 @@ mod test {
         }
     }
 
+    #[java_class(name = "net/wie/QueueTestMidlet", extends = "javax/microedition/midlet/MIDlet", public)]
+    struct QueueTestMidlet;
+
+    #[java_methods]
+    impl QueueTestMidlet {}
+
     #[test]
     fn input_precedes_recurring_callbacks_and_pending_paint() -> Result<()> {
-        let callback_proto = WieJavaClassProto {
-            name: "net/wie/RecurringCallback",
-            parent_class: Some("javax/microedition/lcdui/Canvas"),
-            interfaces: vec!["java/lang/Runnable"],
-            methods: vec![
-                JavaMethodProto::new("run", "()V", RecurringCallback::run, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    RecurringCallback::paint,
-                    MethodAccessFlags::PROTECTED,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("repeat", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("repaintOnPaint", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
-        let midlet_proto = WieJavaClassProto {
-            name: "net/wie/QueueTestMidlet",
-            parent_class: Some("javax/microedition/midlet/MIDlet"),
-            interfaces: vec![],
-            methods: vec![],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         run_jvm_test_with_system(
-            Box::new([get_protos().into(), Box::new([callback_proto, midlet_proto])]),
+            Box::new([
+                get_protos().into(),
+                Box::new([RecurringCallback::as_proto(), QueueTestMidlet::as_proto()]),
+            ]),
             Box::new(TestPlatform::new()),
             |jvm, system| async move {
                 let queue: ClassInstanceRef<EventQueue> = jvm
