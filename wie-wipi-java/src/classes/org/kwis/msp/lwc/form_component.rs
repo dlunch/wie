@@ -1,10 +1,7 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::net::wie::KeyboardEventType;
 
 use crate::classes::{
@@ -13,26 +10,15 @@ use crate::classes::{
 };
 
 // class org.kwis.msp.lwc.FormComponent
-pub struct FormComponent;
+#[java_class(name = "org/kwis/msp/lwc/FormComponent", extends = "org/kwis/msp/lwc/ContainerComponent", public)]
+pub struct FormComponent {
+    #[field(private)]
+    vertical: bool,
+}
 
+#[java_methods]
 impl FormComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/FormComponent",
-            parent_class: Some("org/kwis/msp/lwc/ContainerComponent"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Z)V", Self::init_with_orientation, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("calcPreferredSize", "(I)V", Self::calc_preferred_size, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("layout", "()V", Self::layout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-            ],
-            fields: vec![JavaFieldProto::new("vertical", "Z", FieldAccessFlags::PRIVATE)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.FormComponent::<init>({this:?})");
 
@@ -40,6 +26,7 @@ impl FormComponent {
             .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_orientation(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, vertical: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.FormComponent::<init>({this:?}, {vertical})");
         let _: () = jvm
@@ -49,6 +36,7 @@ impl FormComponent {
             .await
     }
 
+    #[method(protected)]
     async fn calc_preferred_size(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.FormComponent::calcPreferredSize({this:?}, {width})");
         let vertical: bool = jvm.get_field(&this, "org/kwis/msp/lwc/FormComponent", "vertical", "Z").await?;
@@ -75,6 +63,7 @@ impl FormComponent {
             .await
     }
 
+    #[method(public)]
     async fn layout(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.FormComponent::layout({this:?})");
         let vertical: bool = jvm.get_field(&this, "org/kwis/msp/lwc/FormComponent", "vertical", "Z").await?;
@@ -103,6 +92,7 @@ impl FormComponent {
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, kind: i32, key: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lwc.FormComponent::keyNotify({this:?}, {kind}, {key})");
         if jvm

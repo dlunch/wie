@@ -1,21 +1,8 @@
-use alloc::vec;
-
-use jvm_types::ClassAccessFlags;
-
-use wie_jvm_support::WieJavaClassProto;
+use jvm_class_proto::{java_class, java_methods};
 
 // interface javax.microedition.media.Control
+#[java_class(name = "javax/microedition/media/Control", public, interface, abstract)]
 pub struct Control;
 
-impl Control {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/media/Control",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
-}
+#[java_methods]
+impl Control {}

@@ -1,26 +1,15 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class com.skt.m.ResourceAllocException
+#[java_class(name = "com/skt/m/ResourceAllocException", extends = "java/lang/Exception", public)]
 pub struct ResourceAllocException;
 
+#[java_methods]
 impl ResourceAllocException {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/ResourceAllocException",
-            parent_class: Some("java/lang/Exception"),
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC)],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.skt.m.ResourceAllocException::<init>({this:?})");
 

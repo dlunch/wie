@@ -272,9 +272,8 @@ mod tests {
         sync::atomic::{AtomicBool, Ordering},
     };
 
-    use jvm::{JavaError, JavaValue, runtime::JavaLangString};
-    use jvm_class_proto::{JavaClassProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+    use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
+    use jvm_class_proto::{java_class, java_methods};
 
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
@@ -431,6 +430,15 @@ mod tests {
         Ok(())
     }
 
+    #[java_class(name = "net/wie/test/AbstractMethod", public, abstract)]
+    struct AbstractMethod;
+
+    #[java_methods]
+    impl AbstractMethod {
+        #[method(public)]
+        async fn call(jvm: &Jvm, _: &mut (), this: ClassInstanceRef<Self>) -> JvmResult<()>;
+    }
+
     #[test]
     fn abstract_method_target_throws_abstract_method_error() -> Result<()> {
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
@@ -457,22 +465,7 @@ mod tests {
             )
             .await?;
             let class = implementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto {
-                        name: "net/wie/test/AbstractMethod",
-                        parent_class: Some("java/lang/Object"),
-                        interfaces: vec![],
-                        methods: vec![JavaMethodProto::new_abstract(
-                            "call",
-                            "()V",
-                            MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                        )],
-                        fields: vec![],
-                        access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-                    },
-                    Box::new(()),
-                )
+                .define_class_rust(&jvm, AbstractMethod::as_proto(), Box::new(()))
                 .await
                 .unwrap();
             let method = class.method("call", "()V", false).unwrap();

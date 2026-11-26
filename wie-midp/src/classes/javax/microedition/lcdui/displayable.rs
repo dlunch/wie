@@ -1,14 +1,12 @@
-use alloc::{format, vec, vec::Vec};
+use alloc::{format, vec::Vec};
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{lang::String, util::Vector};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Display, Font, Graphics, Item, Ticker};
-
 use crate::classes::net::wie::{CommandEvent, EventQueue, KeyboardEventType, MIDPKeyCode};
 
 const COMMAND_BACK: i32 = 2;
@@ -40,139 +38,44 @@ struct CommandLayout {
 }
 
 // class javax.microedition.lcdui.Displayable
-pub struct Displayable;
+#[java_class(name = "javax/microedition/lcdui/Displayable", public, abstract)]
+pub struct Displayable {
+    #[field(private)]
+    title: ClassInstanceRef<String>,
+    #[field(private)]
+    ticker: ClassInstanceRef<Ticker>,
+    #[field(private)]
+    commands: ClassInstanceRef<Vector>,
+    #[field(private)]
+    commandListener: ClassInstanceRef<CommandListener>,
+    #[field(private)]
+    currentDisplay: ClassInstanceRef<Display>,
+    #[field(private)]
+    notifiedWidth: i32,
+    #[field(private)]
+    notifiedHeight: i32,
+    #[field(private)]
+    sizeKnown: bool,
+    #[field(private)]
+    sizeDirty: bool,
+    #[field(private)]
+    sizeNotifying: bool,
+    #[field(private)]
+    commandMenuOpen: bool,
+    // Game key state polled by GameCanvas: one bit per game action, at the position of the action's value.
+    #[field(private)]
+    heldGameKeys: i32,
+    #[field(private)]
+    pressedGameKeys: i32,
+    #[field(private)]
+    commandMenuIndex: i32,
+    #[field(private)]
+    isInFullScreenMode: bool,
+}
 
+#[java_methods]
 impl Displayable {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Displayable",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
-                JavaMethodProto::new("getTitle", "()Ljava/lang/String;", Self::get_title, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setTitle", "(Ljava/lang/String;)V", Self::set_title, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getTicker",
-                    "()Ljavax/microedition/lcdui/Ticker;",
-                    Self::get_ticker,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setTicker",
-                    "(Ljavax/microedition/lcdui/Ticker;)V",
-                    Self::set_ticker,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("isShown", "()Z", Self::is_shown, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "addCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::add_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "removeCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::remove_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setCommandListener",
-                    "(Ljavax/microedition/lcdui/CommandListener;)V",
-                    Self::set_command_listener,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("sizeChanged", "(II)V", Self::size_changed, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "setDisplay",
-                    "(Ljavax/microedition/lcdui/Display;)V",
-                    Self::set_display,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "getDisplay",
-                    "()Ljavax/microedition/lcdui/Display;",
-                    Self::get_display,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("isFullScreen", "()Z", Self::is_full_screen, MethodAccessFlags::empty()),
-                JavaMethodProto::new("setFullScreen", "(Z)V", Self::set_full_screen, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "dispatchCommand",
-                    "(Ljavax/microedition/lcdui/Command;)Z",
-                    Self::dispatch_command,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("requestRepaint", "()V", Self::request_repaint, MethodAccessFlags::empty()),
-                JavaMethodProto::new("decorationChanged", "()V", Self::decoration_changed, MethodAccessFlags::empty()),
-                JavaMethodProto::new("notifySizeChanged", "()V", Self::notify_size_changed, MethodAccessFlags::empty()),
-                JavaMethodProto::new("getCommandCount", "()I", Self::get_command_count, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "getCommandAt",
-                    "(I)Ljavax/microedition/lcdui/Command;",
-                    Self::get_command_at,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("dispatchCommandAt", "(I)V", Self::dispatch_command_at, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "checkItemMutation",
-                    "(Ljavax/microedition/lcdui/Item;)V",
-                    Self::check_item_mutation,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "itemInvalidated",
-                    "(Ljavax/microedition/lcdui/Item;Z)V",
-                    Self::item_invalidated,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "itemStateChanged",
-                    "(Ljavax/microedition/lcdui/Item;)V",
-                    Self::item_state_changed,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("routeKeyEvent", "(II)V", Self::route_key_event, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "paintCommands",
-                    "(Ljavax/microedition/lcdui/Graphics;III)V",
-                    Self::paint_commands,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "handlePaintEvent",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    Self::handle_paint_event,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::PROTECTED),
-            ],
-            fields: vec![
-                JavaFieldProto::new("title", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("ticker", "Ljavax/microedition/lcdui/Ticker;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("commands", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("commandListener", "Ljavax/microedition/lcdui/CommandListener;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("currentDisplay", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("notifiedWidth", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("notifiedHeight", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("sizeKnown", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("sizeDirty", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("sizeNotifying", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("commandMenuOpen", "Z", FieldAccessFlags::PRIVATE),
-                // Game key state polled by GameCanvas: one bit per game action, at the position of the action's value.
-                JavaFieldProto::new("heldGameKeys", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("pressedGameKeys", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("commandMenuIndex", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("isInFullScreenMode", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::<init>({this:?})");
 
@@ -194,6 +97,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_title(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Displayable::getTitle({this:?})");
 
@@ -201,6 +105,7 @@ impl Displayable {
             .await
     }
 
+    #[method(public)]
     async fn set_title(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, title: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::setTitle({this:?}, {title:?})");
 
@@ -210,6 +115,7 @@ impl Displayable {
             .await
     }
 
+    #[method(public)]
     async fn get_ticker(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Ticker>> {
         tracing::debug!("javax.microedition.lcdui.Displayable::getTicker({this:?})");
 
@@ -222,6 +128,7 @@ impl Displayable {
         .await
     }
 
+    #[method(public)]
     async fn set_ticker(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, ticker: ClassInstanceRef<Ticker>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::setTicker({this:?}, {ticker:?})");
 
@@ -261,6 +168,7 @@ impl Displayable {
             .await
     }
 
+    #[method(public)]
     async fn is_shown(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Displayable::isShown({this:?})");
 
@@ -288,6 +196,7 @@ impl Displayable {
         Ok(!current.is_null() && current.identity() == this.identity())
     }
 
+    #[method(public)]
     async fn add_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::addCommand({this:?}, {command:?})");
 
@@ -321,6 +230,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method(public)]
     async fn remove_command(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -355,6 +265,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_command_listener(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -373,12 +284,14 @@ impl Displayable {
         .await
     }
 
+    #[method(protected)]
     async fn size_changed(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _width: i32, _height: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::sizeChanged({_this:?}, {_width}, {_height})");
 
         Ok(())
     }
 
+    #[method]
     async fn set_display(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -411,6 +324,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn get_display(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Display>> {
         tracing::debug!("javax.microedition.lcdui.Displayable::getDisplay({this:?})");
 
@@ -423,6 +337,7 @@ impl Displayable {
         .await
     }
 
+    #[method]
     async fn is_full_screen(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Displayable::isFullScreen({this:?})");
 
@@ -430,6 +345,7 @@ impl Displayable {
             .await
     }
 
+    #[method]
     async fn set_full_screen(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::setFullScreen({this:?}, {mode})");
 
@@ -460,6 +376,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn request_repaint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::requestRepaint({this:?})");
 
@@ -480,6 +397,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn decoration_changed(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::decorationChanged({this:?})");
 
@@ -512,6 +430,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Displayable::getCommandCount({this:?})");
 
@@ -521,6 +440,7 @@ impl Displayable {
         jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await
     }
 
+    #[method]
     async fn get_command_at(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -536,6 +456,7 @@ impl Displayable {
             .await
     }
 
+    #[method]
     async fn dispatch_command_at(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::dispatchCommandAt({this:?}, {index})");
 
@@ -557,6 +478,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn dispatch_command(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -593,6 +515,7 @@ impl Displayable {
         Ok(!listener.is_null())
     }
 
+    #[method]
     async fn check_item_mutation(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -604,6 +527,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn item_invalidated(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -616,6 +540,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn item_state_changed(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -627,6 +552,7 @@ impl Displayable {
         Err(jvm.exception("java/lang/IllegalStateException", "Item is not owned by a Form").await)
     }
 
+    #[method(public)]
     async fn get_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Displayable::getWidth({this:?})");
 
@@ -634,6 +560,7 @@ impl Displayable {
         Ok(width)
     }
 
+    #[method(public)]
     async fn get_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Displayable::getHeight({this:?})");
 
@@ -692,6 +619,7 @@ impl Displayable {
         Ok((width.max(0), content_height))
     }
 
+    #[method]
     async fn notify_size_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::notifySizeChanged({this:?})");
 
@@ -880,6 +808,7 @@ impl Displayable {
         Ok(CommandLayout { right, remaining })
     }
 
+    #[method]
     async fn route_key_event(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::routeKeyEvent({this:?}, {event_type}, {code})");
 
@@ -1015,6 +944,7 @@ impl Displayable {
         .await
     }
 
+    #[method]
     async fn paint_commands(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -1264,11 +1194,13 @@ impl Displayable {
         Ok(())
     }
 
+    #[method]
     async fn handle_key_event(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Displayable::handleKeyEvent({this:?}, {event_type}, {code})");
         Ok(())
     }
 
+    #[method]
     async fn handle_paint_event(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -1279,6 +1211,7 @@ impl Displayable {
         Ok(())
     }
 
+    #[method(protected)]
     async fn handle_notify_event(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,

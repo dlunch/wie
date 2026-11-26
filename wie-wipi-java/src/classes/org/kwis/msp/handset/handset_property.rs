@@ -1,40 +1,16 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class org.kwis.msp.handset.HandsetProperty
+#[java_class(name = "org/kwis/msp/handset/HandsetProperty", public)]
 pub struct HandsetProperty;
 
+#[java_methods]
 impl HandsetProperty {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/handset/HandsetProperty",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "getSystemProperty",
-                    "(Ljava/lang/String;)Ljava/lang/String;",
-                    Self::get_system_property,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setSystemProperty",
-                    "(Ljava/lang/String;Ljava/lang/String;)Z",
-                    Self::set_system_property,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(public, static)]
     async fn get_system_property(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<String>> {
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
         tracing::debug!("org.kwis.msp.handset.HandsetProperty::getSystemProperty({name})");
@@ -55,6 +31,7 @@ impl HandsetProperty {
         Ok(result.into())
     }
 
+    #[method(public, static)]
     async fn set_system_property(_: &Jvm, _: &mut WieJvmContext, id: ClassInstanceRef<String>, value: ClassInstanceRef<String>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::setSystemProperty({id:?}, {value:?})");
 

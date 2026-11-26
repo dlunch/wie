@@ -1,11 +1,10 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
 use wie_backend::canvas::Image as BackendImage;
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{Graphics, Image, game::TiledLayer};
 
@@ -113,103 +112,41 @@ fn transform_point(transform: i32, width: i32, height: i32, x: i32, y: i32) -> (
 }
 
 // class javax.microedition.lcdui.game.Sprite
-pub struct Sprite;
+#[java_class(name = "javax/microedition/lcdui/game/Sprite", extends = "javax/microedition/lcdui/game/Layer", public)]
+pub struct Sprite {
+    #[field(private)]
+    image: ClassInstanceRef<Image>,
+    #[field(private)]
+    frameWidth: i32,
+    #[field(private)]
+    frameHeight: i32,
+    #[field(private)]
+    rawFrameCount: i32,
+    // Null while the default sequence of all raw frames in order is in use.
+    #[field(private)]
+    frameSequence: ClassInstanceRef<Array<i32>>,
+    #[field(private)]
+    frame: i32,
+    #[field(private)]
+    transform: i32,
+    // The reference pixel and collision rectangle are relative to the untransformed frame.
+    #[field(private)]
+    refX: i32,
+    #[field(private)]
+    refY: i32,
+    #[field(private)]
+    collisionX: i32,
+    #[field(private)]
+    collisionY: i32,
+    #[field(private)]
+    collisionWidth: i32,
+    #[field(private)]
+    collisionHeight: i32,
+}
 
+#[java_methods]
 impl Sprite {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/game/Sprite",
-            parent_class: Some("javax/microedition/lcdui/game/Layer"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Image;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/lcdui/Image;II)V",
-                    Self::init_with_frames,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/lcdui/game/Sprite;)V",
-                    Self::init_with_sprite,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("defineReferencePixel", "(II)V", Self::define_reference_pixel, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setRefPixelPosition", "(II)V", Self::set_ref_pixel_position, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getRefPixelX", "()I", Self::get_ref_pixel_x, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getRefPixelY", "()I", Self::get_ref_pixel_y, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setFrame", "(I)V", Self::set_frame, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getFrame", "()I", Self::get_frame, MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL),
-                JavaMethodProto::new("getRawFrameCount", "()I", Self::get_raw_frame_count, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getFrameSequenceLength",
-                    "()I",
-                    Self::get_frame_sequence_length,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("nextFrame", "()V", Self::next_frame, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("prevFrame", "()V", Self::prev_frame, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    Self::paint,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new("setFrameSequence", "([I)V", Self::set_frame_sequence, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setImage",
-                    "(Ljavax/microedition/lcdui/Image;II)V",
-                    Self::set_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "defineCollisionRectangle",
-                    "(IIII)V",
-                    Self::define_collision_rectangle,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setTransform", "(I)V", Self::set_transform, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "collidesWith",
-                    "(Ljavax/microedition/lcdui/game/Sprite;Z)Z",
-                    Self::collides_with_sprite,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "collidesWith",
-                    "(Ljavax/microedition/lcdui/game/TiledLayer;Z)Z",
-                    Self::collides_with_tiled_layer,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "collidesWith",
-                    "(Ljavax/microedition/lcdui/Image;IIZ)Z",
-                    Self::collides_with_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("image", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("frameWidth", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("frameHeight", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("rawFrameCount", "I", FieldAccessFlags::PRIVATE),
-                // Null while the default sequence of all raw frames in order is in use.
-                JavaFieldProto::new("frameSequence", "[I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("frame", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("transform", "I", FieldAccessFlags::PRIVATE),
-                // The reference pixel and collision rectangle are relative to the untransformed frame.
-                JavaFieldProto::new("refX", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("refY", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("collisionX", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("collisionY", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("collisionWidth", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("collisionHeight", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::<init>({this:?}, {image:?})");
 
@@ -227,6 +164,7 @@ impl Sprite {
             .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_frames(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -249,6 +187,7 @@ impl Sprite {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_sprite(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, sprite: ClassInstanceRef<Sprite>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::<init>({this:?}, {sprite:?})");
 
@@ -289,6 +228,7 @@ impl Sprite {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_image(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -341,6 +281,7 @@ impl Sprite {
         Ok(())
     }
 
+    #[method(public)]
     async fn define_reference_pixel(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::defineReferencePixel({this:?}, {x}, {y})");
 
@@ -350,6 +291,7 @@ impl Sprite {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_ref_pixel_position(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::setRefPixelPosition({this:?}, {x}, {y})");
 
@@ -358,6 +300,7 @@ impl Sprite {
             .await
     }
 
+    #[method(public)]
     async fn get_ref_pixel_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::getRefPixelX({this:?})");
 
@@ -365,6 +308,7 @@ impl Sprite {
         Ok(x.wrapping_add(Self::ref_pixel_offset(jvm, &this).await?.0))
     }
 
+    #[method(public)]
     async fn get_ref_pixel_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::getRefPixelY({this:?})");
 
@@ -372,6 +316,7 @@ impl Sprite {
         Ok(y.wrapping_add(Self::ref_pixel_offset(jvm, &this).await?.1))
     }
 
+    #[method(public)]
     async fn set_frame(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, sequence_index: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::setFrame({this:?}, {sequence_index})");
 
@@ -383,18 +328,21 @@ impl Sprite {
         jvm.put_field(&mut this, CLASS, "frame", "I", sequence_index).await
     }
 
+    #[method(public, final)]
     async fn get_frame(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::getFrame({this:?})");
 
         jvm.get_field(&this, CLASS, "frame", "I").await
     }
 
+    #[method(public)]
     async fn get_raw_frame_count(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::getRawFrameCount({this:?})");
 
         jvm.get_field(&this, CLASS, "rawFrameCount", "I").await
     }
 
+    #[method(public)]
     async fn get_frame_sequence_length(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::getFrameSequenceLength({this:?})");
 
@@ -406,6 +354,7 @@ impl Sprite {
         }
     }
 
+    #[method(public)]
     async fn next_frame(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::nextFrame({this:?})");
 
@@ -414,6 +363,7 @@ impl Sprite {
         jvm.put_field(&mut this, CLASS, "frame", "I", (frame + 1) % length).await
     }
 
+    #[method(public)]
     async fn prev_frame(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::prevFrame({this:?})");
 
@@ -422,6 +372,7 @@ impl Sprite {
         jvm.put_field(&mut this, CLASS, "frame", "I", (frame + length - 1) % length).await
     }
 
+    #[method(public)]
     async fn set_frame_sequence(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -450,6 +401,7 @@ impl Sprite {
         jvm.put_field(&mut this, CLASS, "frameSequence", "[I", copy).await
     }
 
+    #[method(public)]
     async fn define_collision_rectangle(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -479,6 +431,7 @@ impl Sprite {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_transform(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, transform: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::setTransform({this:?}, {transform})");
 
@@ -491,6 +444,7 @@ impl Sprite {
         Self::set_geometry(jvm, &mut this, frame_width, frame_height, transform).await
     }
 
+    #[method(public, final)]
     async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.Sprite::paint({this:?}, {g:?})");
 
@@ -523,6 +477,7 @@ impl Sprite {
         .await
     }
 
+    #[method(name = "collidesWith", public, final)]
     async fn collides_with_sprite(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -557,6 +512,7 @@ impl Sprite {
             .any(|(x, y)| placement.is_opaque(&*pixels, x, y) && other.is_opaque(&*other_pixels, x, y)))
     }
 
+    #[method(name = "collidesWith", public, final)]
     async fn collides_with_tiled_layer(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -610,6 +566,7 @@ impl Sprite {
         }))
     }
 
+    #[method(name = "collidesWith", public, final)]
     async fn collides_with_image(
         jvm: &Jvm,
         _: &mut WieJvmContext,

@@ -1,108 +1,53 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::media::Player as MidpPlayer;
 
 use crate::classes::org::kwis::msp::media::{BaseClip, Clip};
 
 // class org.kwis.msp.media.Player
+#[java_class(name = "org/kwis/msp/media/Player", public)]
 pub struct Player;
 
+#[java_methods]
 impl Player {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/media/Player",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "pause",
-                    "(Lorg/kwis/msp/media/BaseClip;)Z",
-                    Self::pause,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "stop",
-                    "(Lorg/kwis/msp/media/BaseClip;)Z",
-                    Self::stop,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "resume",
-                    "(Lorg/kwis/msp/media/BaseClip;)Z",
-                    Self::resume,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "play",
-                    "(Lorg/kwis/msp/media/BaseClip;Z)Z",
-                    Self::play,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "record",
-                    "(Lorg/kwis/msp/media/BaseClip;)Z",
-                    Self::record,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "play",
-                    "(Lorg/kwis/msp/media/Clip;Z)Z",
-                    Self::play_clip,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "stop",
-                    "(Lorg/kwis/msp/media/Clip;)Z",
-                    Self::stop_clip,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "resume",
-                    "(Lorg/kwis/msp/media/Clip;)Z",
-                    Self::resume,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(public, static)]
     async fn pause(_: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<BaseClip>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::pause({clip:?})");
 
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn stop(_: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<BaseClip>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::stop({clip:?})");
 
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn resume(_: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<BaseClip>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::resume({clip:?})");
 
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn play(_: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<BaseClip>, repeat: bool) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::play({clip:?}, {repeat})");
 
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn record(_: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<BaseClip>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::record({clip:?})");
 
         Ok(false)
     }
 
+    #[method(name = "play", public, static)]
     async fn play_clip(jvm: &Jvm, _context: &mut WieJvmContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::play({clip:?}, {repeat})");
 
@@ -123,6 +68,7 @@ impl Player {
         Ok(true)
     }
 
+    #[method(name = "stop", public, static)]
     async fn stop_clip(jvm: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::stop({clip:?})");
 
@@ -139,6 +85,13 @@ impl Player {
 
             return Ok(true);
         }
+
+        Ok(false)
+    }
+
+    #[method(name = "resume", public, static)]
+    async fn resume_clip(_: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
+        tracing::warn!("stub org.kwis.msp.media.Player::resume({clip:?})");
 
         Ok(false)
     }

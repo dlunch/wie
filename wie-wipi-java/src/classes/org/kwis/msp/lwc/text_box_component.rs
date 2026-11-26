@@ -1,39 +1,21 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::org::kwis::msp::{lcdui::Graphics, lwc::TextComponent};
 
 // class org.kwis.msp.lwc.TextBoxComponent
-pub struct TextBoxComponent;
+#[java_class(name = "org/kwis/msp/lwc/TextBoxComponent", extends = "org/kwis/msp/lwc/TextComponent", public)]
+pub struct TextBoxComponent {
+    #[field(private)]
+    initialHeight: i32,
+}
 
+#[java_methods]
 impl TextBoxComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/TextBoxComponent",
-            parent_class: Some("org/kwis/msp/lwc/TextComponent"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("calcPreferredSize", "(I)V", Self::calc_preferred_size, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                    Self::paint_content,
-                    MethodAccessFlags::PUBLIC,
-                ),
-            ],
-            fields: vec![JavaFieldProto::new("initialHeight", "I", FieldAccessFlags::PRIVATE)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -53,6 +35,7 @@ impl TextBoxComponent {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_height(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -77,6 +60,7 @@ impl TextBoxComponent {
             .await
     }
 
+    #[method(protected)]
     async fn calc_preferred_size(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextBoxComponent::calcPreferredSize({this:?}, {width})");
         let (natural_width, height) = TextComponent::measure_text(jvm, &this, Some(width)).await?;
@@ -88,6 +72,7 @@ impl TextBoxComponent {
             .await
     }
 
+    #[method(public)]
     async fn paint_content(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.TextBoxComponent::paintContent({this:?}, {g:?})");
         TextComponent::draw_text(jvm, this, g, true).await

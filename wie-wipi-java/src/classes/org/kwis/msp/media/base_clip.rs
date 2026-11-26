@@ -1,37 +1,23 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::io::InputStream;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::media::Player;
 
 // not in reference, but called by some apps..
 // class org.kwis.msp.media.BaseClip
-pub struct BaseClip;
+#[java_class(name = "org/kwis/msp/media/BaseClip", public)]
+pub struct BaseClip {
+    #[field(private)]
+    stream: ClassInstanceRef<InputStream>,
+    #[field(private)]
+    player: ClassInstanceRef<Player>,
+}
 
+#[java_methods]
 impl BaseClip {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/media/BaseClip",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("putData", "([BII)I", Self::put_data, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setBuffer", "([BI)Z", Self::set_buffer, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("clearData", "()V", Self::clear_data, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("availableDataSize", "()I", Self::available_data_size, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("stream", "Ljava/io/InputStream;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("player", "Ljavax/microedition/media/Player;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.BaseClip::<init>({this:?})");
 
@@ -40,12 +26,14 @@ impl BaseClip {
         Ok(())
     }
 
+    #[method(public)]
     async fn available_data_size(_jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.media.BaseClip::availableDataSize({this:?})");
 
         Ok(10000000 as _)
     }
 
+    #[method(public)]
     async fn put_data(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -66,6 +54,7 @@ impl BaseClip {
         Ok(length)
     }
 
+    #[method(public)]
     async fn clear_data(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.BaseClip::clearData({this:?})");
 
@@ -93,6 +82,7 @@ impl BaseClip {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_buffer(
         jvm: &Jvm,
         _: &mut WieJvmContext,

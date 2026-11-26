@@ -5,11 +5,10 @@ use alloc::{
 };
 
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{lang::String, util::Vector};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::{
     javax::microedition::lcdui::{Font, Graphics, Image, Item, List},
@@ -38,105 +37,28 @@ struct ElementContent {
 }
 
 // class javax.microedition.lcdui.ChoiceGroup
-pub struct ChoiceGroup;
+#[java_class(
+    name = "javax/microedition/lcdui/ChoiceGroup",
+    extends = "javax/microedition/lcdui/Item",
+    implements("javax/microedition/lcdui/Choice"),
+    public
+)]
+pub struct ChoiceGroup {
+    #[field(private)]
+    choiceType: i32,
+    #[field(private)]
+    elements: ClassInstanceRef<Vector>,
+    #[field(private)]
+    fitPolicy: i32,
+    #[field(private)]
+    highlightedIndex: i32,
+    #[field(private)]
+    popupOpen: bool,
+}
 
+#[java_methods]
 impl ChoiceGroup {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/ChoiceGroup",
-            parent_class: Some("javax/microedition/lcdui/Item"),
-            interfaces: vec!["javax/microedition/lcdui/Choice"],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
-                    Self::init_with_elements,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/lcdui/List;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
-                    Self::init_for_list,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("size", "()I", Self::size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getString", "(I)Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getImage",
-                    "(I)Ljavax/microedition/lcdui/Image;",
-                    Self::get_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "append",
-                    "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I",
-                    Self::append,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "insert",
-                    "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
-                    Self::insert,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("delete", "(I)V", Self::delete, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("deleteAll", "()V", Self::delete_all, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "set",
-                    "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
-                    Self::set,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("isSelected", "(I)Z", Self::is_selected, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getSelectedIndex", "()I", Self::get_selected_index, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getSelectedFlags", "([Z)I", Self::get_selected_flags, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setSelectedIndex", "(IZ)V", Self::set_selected_index, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setSelectedFlags", "([Z)V", Self::set_selected_flags, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setFitPolicy", "(I)V", Self::set_fit_policy, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getFitPolicy", "()I", Self::get_fit_policy, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setFont",
-                    "(ILjavax/microedition/lcdui/Font;)V",
-                    Self::set_font,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getFont", "(I)Ljavax/microedition/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("minimumContentWidth", "()I", Self::minimum_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new("minimumContentHeight", "()I", Self::minimum_content_height, MethodAccessFlags::empty()),
-                JavaMethodProto::new("preferredContentWidth", "()I", Self::preferred_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "preferredContentHeight",
-                    "(I)I",
-                    Self::preferred_content_height,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
-                    Self::paint_content,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
-                JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "getFocusContentBounds",
-                    "(I)[I",
-                    Self::get_focus_content_bounds,
-                    MethodAccessFlags::empty(),
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("choiceType", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("elements", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("fitPolicy", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("highlightedIndex", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("popupOpen", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -157,6 +79,7 @@ impl ChoiceGroup {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_elements(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -174,6 +97,7 @@ impl ChoiceGroup {
         Self::initialize(jvm, this, label, choice_type, string_elements, image_elements).await
     }
 
+    #[method(constructor)]
     async fn init_for_list(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -643,6 +567,7 @@ impl ChoiceGroup {
         Ok(())
     }
 
+    #[method(public)]
     async fn size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::size({this:?})");
 
@@ -652,6 +577,7 @@ impl ChoiceGroup {
         jvm.invoke_virtual(&elements, "java/util/Vector", "size", "()I", ()).await
     }
 
+    #[method(public)]
     async fn get_string(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getString({this:?}, {index})");
 
@@ -659,6 +585,7 @@ impl ChoiceGroup {
         jvm.get_field(&element, "net/wie/ChoiceElement", "text", "Ljava/lang/String;").await
     }
 
+    #[method(public)]
     async fn get_image(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getImage({this:?}, {index})");
 
@@ -667,6 +594,7 @@ impl ChoiceGroup {
             .await
     }
 
+    #[method(public)]
     async fn append(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -692,6 +620,7 @@ impl ChoiceGroup {
         Ok(index)
     }
 
+    #[method(public)]
     async fn insert(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -755,6 +684,7 @@ impl ChoiceGroup {
             .await
     }
 
+    #[method(public)]
     async fn delete(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::delete({this:?}, {index})");
 
@@ -794,6 +724,7 @@ impl ChoiceGroup {
             .await
     }
 
+    #[method(public)]
     async fn delete_all(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::deleteAll({this:?})");
 
@@ -810,6 +741,7 @@ impl ChoiceGroup {
             .await
     }
 
+    #[method(public)]
     async fn set(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -852,6 +784,7 @@ impl ChoiceGroup {
             .await
     }
 
+    #[method(public)]
     async fn is_selected(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::isSelected({this:?}, {index})");
 
@@ -859,6 +792,7 @@ impl ChoiceGroup {
         jvm.get_field(&element, "net/wie/ChoiceElement", "selected", "Z").await
     }
 
+    #[method(public)]
     async fn get_selected_index(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getSelectedIndex({this:?})");
 
@@ -869,6 +803,7 @@ impl ChoiceGroup {
         Self::selected_index(jvm, &this).await
     }
 
+    #[method(public)]
     async fn get_selected_flags(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -901,6 +836,7 @@ impl ChoiceGroup {
         Ok(selected_count)
     }
 
+    #[method(public)]
     async fn set_selected_index(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -932,6 +868,7 @@ impl ChoiceGroup {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_selected_flags(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -975,6 +912,7 @@ impl ChoiceGroup {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_fit_policy(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, fit_policy: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::setFitPolicy({this:?}, {fit_policy})");
 
@@ -988,12 +926,14 @@ impl ChoiceGroup {
             .await
     }
 
+    #[method(public)]
     async fn get_fit_policy(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getFitPolicy({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/ChoiceGroup", "fitPolicy", "I").await
     }
 
+    #[method(public)]
     async fn set_font(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -1011,6 +951,7 @@ impl ChoiceGroup {
             .await
     }
 
+    #[method(public)]
     async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::getFont({this:?}, {index})");
 
@@ -1026,6 +967,7 @@ impl ChoiceGroup {
         }
     }
 
+    #[method]
     async fn minimum_content_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::minimumContentWidth({this:?})");
 
@@ -1049,6 +991,7 @@ impl ChoiceGroup {
         Ok(width + if choice_type == 4 { POPUP_INSET * 2 } else { 0 })
     }
 
+    #[method]
     async fn minimum_content_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::minimumContentHeight({this:?})");
 
@@ -1078,6 +1021,7 @@ impl ChoiceGroup {
         Ok(height + if choice_type == 4 { POPUP_INSET * 2 } else { 0 })
     }
 
+    #[method]
     async fn preferred_content_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::preferredContentWidth({this:?})");
 
@@ -1100,6 +1044,7 @@ impl ChoiceGroup {
         Ok(width + if choice_type == 4 { POPUP_INSET * 2 } else { 0 })
     }
 
+    #[method]
     async fn preferred_content_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::preferredContentHeight({this:?}, {width})");
 
@@ -1131,6 +1076,7 @@ impl ChoiceGroup {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method]
     async fn paint_content(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -1221,6 +1167,7 @@ impl ChoiceGroup {
         Ok(())
     }
 
+    #[method]
     async fn get_focus_content_bounds(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -1258,6 +1205,7 @@ impl ChoiceGroup {
         Ok(bounds.into())
     }
 
+    #[method]
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::isFocusable({this:?})");
 
@@ -1270,6 +1218,7 @@ impl ChoiceGroup {
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "isFocusable", "()Z", ()).await
     }
 
+    #[method]
     async fn handle_item_key(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::handleItemKey({this:?}, {key})");
 
@@ -1592,7 +1541,7 @@ mod test {
                     )
                     .await?;
                 assert_eq!(appended, index as i32);
-                let stored = jvm
+                let stored: ClassInstanceRef<String> = jvm
                     .invoke_virtual(
                         &list,
                         "javax/microedition/lcdui/Choice",

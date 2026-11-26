@@ -1,32 +1,16 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class org.kwis.msp.lwc.TextFieldComponent
+#[java_class(name = "org/kwis/msp/lwc/TextFieldComponent", extends = "org/kwis/msp/lwc/TextComponent", public)]
 pub struct TextFieldComponent;
 
+#[java_methods]
 impl TextFieldComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/TextFieldComponent",
-            parent_class: Some("org/kwis/msp/lwc/TextComponent"),
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "<init>",
-                "(Ljava/lang/String;I)V",
-                Self::init,
-                MethodAccessFlags::PUBLIC,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut WieJvmContext,

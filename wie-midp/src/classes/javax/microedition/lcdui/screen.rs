@@ -1,36 +1,22 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::Graphics;
 
 // class javax.microedition.lcdui.Screen
+#[java_class(
+    name = "javax/microedition/lcdui/Screen",
+    extends = "javax/microedition/lcdui/Displayable",
+    public,
+    abstract
+)]
 pub struct Screen;
 
+#[java_methods]
 impl Screen {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Screen",
-            parent_class: Some("javax/microedition/lcdui/Displayable"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "handlePaintEvent",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    Self::handle_paint_event,
-                    MethodAccessFlags::empty(),
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Screen::<init>({this:?})");
 
@@ -41,6 +27,7 @@ impl Screen {
         Ok(())
     }
 
+    #[method]
     async fn handle_paint_event(
         jvm: &Jvm,
         _context: &mut WieJvmContext,

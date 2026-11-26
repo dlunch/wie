@@ -1,20 +1,8 @@
-use alloc::vec;
-
-use jvm_types::ClassAccessFlags;
-use wie_jvm_support::WieJavaClassProto;
+use jvm_class_proto::{java_class, java_methods};
 
 // interface org.kwis.msp.media.PlayListener
+#[java_class(name = "org/kwis/msp/media/PlayListener", public, interface, abstract)]
 pub struct PlayListener;
 
-impl PlayListener {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/media/PlayListener",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
-}
+#[java_methods]
+impl PlayListener {}

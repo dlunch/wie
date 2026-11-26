@@ -1,11 +1,10 @@
-use alloc::{string::String as RustString, vec};
+use alloc::string::String as RustString;
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::{
     javax::microedition::lcdui::{Display, Graphics},
@@ -13,59 +12,20 @@ use crate::classes::{
 };
 
 // abstract class javax.microedition.lcdui.Canvas
+#[java_class(
+    name = "javax/microedition/lcdui/Canvas",
+    extends = "javax/microedition/lcdui/Displayable",
+    public,
+    abstract
+)]
 pub struct Canvas;
 
+#[java_methods]
 impl Canvas {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Canvas",
-            parent_class: Some("javax/microedition/lcdui/Displayable"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("repaint", "()V", Self::repaint, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new_abstract(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getKeyCode", "(I)I", Self::get_key_code, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("setFullScreenMode", "(Z)V", Self::set_full_screen_mode, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("hasPointerEvents", "()Z", Self::has_pointer_events, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "hasPointerMotionEvents",
-                    "()Z",
-                    Self::has_pointer_motion_events,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("hasRepeatEvents", "()Z", Self::has_repeat_events, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getKeyName", "(I)Ljava/lang/String;", Self::get_key_name, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("pointerPressed", "(II)V", Self::pointer_pressed, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("pointerReleased", "(II)V", Self::pointer_released, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("pointerDragged", "(II)V", Self::pointer_dragged, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("showNotify", "()V", Self::show_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("hideNotify", "()V", Self::hide_notify, MethodAccessFlags::PROTECTED),
-                // Protected so vendor canvases in other Java packages can translate key codes.
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "handlePaintEvent",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    Self::handle_paint_event,
-                    MethodAccessFlags::empty(),
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(protected)]
+    async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()>;
 
+    #[method(constructor, protected)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::<init>({this:?})");
 
@@ -76,6 +36,7 @@ impl Canvas {
         Ok(())
     }
 
+    #[method(public)]
     async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?})");
 
@@ -99,6 +60,7 @@ impl Canvas {
         Ok(())
     }
 
+    #[method(name = "repaint", public)]
     async fn repaint_with_area(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -133,6 +95,7 @@ impl Canvas {
         Ok(())
     }
 
+    #[method(public)]
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::serviceRepaints({this:?})");
 
@@ -154,6 +117,7 @@ impl Canvas {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_game_action(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({this:?}, {key})");
 
@@ -173,6 +137,7 @@ impl Canvas {
         Ok(action)
     }
 
+    #[method(public)]
     async fn get_key_code(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, action: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Canvas::getKeyCode({this:?}, {action})");
 
@@ -192,24 +157,28 @@ impl Canvas {
         Ok(key as i32)
     }
 
+    #[method(protected)]
     async fn key_pressed(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::keyPressed({this:?}, {key})");
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_repeated(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::keyRepeated({this:?}, {key})");
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_released(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::keyReleased({this:?}, {key})");
 
         Ok(())
     }
 
+    #[method(public)]
     async fn set_full_screen_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::setFullScreenMode({this:?}, {mode})");
 
@@ -217,30 +186,35 @@ impl Canvas {
             .await
     }
 
+    #[method(public)]
     async fn is_double_buffered(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub javax.microedition.lcdui.Canvas::isDoubleBuffered({this:?})");
 
         Ok(true)
     }
 
+    #[method(public)]
     async fn has_pointer_events(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub javax.microedition.lcdui.Canvas::hasPointerEvents({this:?})");
 
         Ok(false)
     }
 
+    #[method(public)]
     async fn has_pointer_motion_events(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub javax.microedition.lcdui.Canvas::hasPointerMotionEvents({this:?})");
 
         Ok(false)
     }
 
+    #[method(public)]
     async fn has_repeat_events(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Canvas::hasRepeatEvents({this:?})");
 
         Ok(true)
     }
 
+    #[method(public)]
     async fn get_key_name(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Canvas::getKeyName({this:?}, {key_code})");
 
@@ -265,36 +239,43 @@ impl Canvas {
         Ok(JavaLangString::from_rust_string(jvm, &name).await?.into())
     }
 
+    #[method(protected)]
     async fn pointer_pressed(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::pointerPressed({this:?}, {x}, {y})");
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn pointer_released(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::pointerReleased({this:?}, {x}, {y})");
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn pointer_dragged(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::pointerDragged({this:?}, {x}, {y})");
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::showNotify({this:?})");
 
         Ok(())
     }
 
+    #[method(protected)]
     async fn hide_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::hideNotify({this:?})");
 
         Ok(())
     }
 
+    // Protected so vendor canvases in other Java packages can translate key codes.
+    #[method(protected)]
     async fn handle_key_event(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -370,6 +351,7 @@ impl Canvas {
         Ok(())
     }
 
+    #[method]
     async fn handle_paint_event(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -394,73 +376,92 @@ impl Canvas {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec, vec::Vec};
+    use alloc::{boxed::Box, vec::Vec};
+
     use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
-    use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
     use test_utils::run_jvm_test;
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+
+    use wie_jvm_support::WieJvmContext;
     use wie_util::Result;
 
     use crate::{
         classes::{
-            javax::microedition::lcdui::{Canvas, Command, Display, Graphics, Image},
+            javax::microedition::lcdui::{Canvas, Command, Display, Displayable, Graphics, Image},
             net::wie::{KeyboardEventType, MIDPKeyCode},
         },
         get_protos,
     };
 
-    struct RecordingCanvas;
-    struct RecordingGameCanvas;
+    #[java_class(
+        name = "javax/microedition/lcdui/TestRecordingCanvas",
+        extends = "javax/microedition/lcdui/Canvas",
+        public
+    )]
+    struct RecordingCanvas {
+        #[field(public)]
+        shown: bool,
+        #[field(public)]
+        redirectDisplay: ClassInstanceRef<Display>,
+        #[field(public)]
+        redirect: ClassInstanceRef<Displayable>,
+        #[field(public)]
+        translateX: i32,
+        #[field(public)]
+        translateY: i32,
+        #[field(public)]
+        clipX: i32,
+        #[field(public)]
+        clipY: i32,
+        #[field(public)]
+        clipWidth: i32,
+        #[field(public)]
+        clipHeight: i32,
+        #[field(public)]
+        paintCount: i32,
+        #[field(public)]
+        repaintDuringPaint: bool,
+        #[field(public)]
+        sizeChangedCount: i32,
+        #[field(public)]
+        lastWidth: i32,
+        #[field(public)]
+        lastHeight: i32,
+        #[field(public)]
+        pressed: i32,
+        #[field(public)]
+        repeated: i32,
+        #[field(public)]
+        released: i32,
+    }
+    #[java_class(
+        name = "javax/microedition/lcdui/TestRecordingGameCanvas",
+        extends = "javax/microedition/lcdui/game/GameCanvas",
+        public
+    )]
+    struct RecordingGameCanvas {
+        #[field(public)]
+        sizeChangedCount: i32,
+        #[field(public)]
+        lastWidth: i32,
+        #[field(public)]
+        lastHeight: i32,
+        #[field(public)]
+        pressed: i32,
+        #[field(public)]
+        repeated: i32,
+        #[field(public)]
+        released: i32,
+    }
 
+    #[java_methods]
     impl RecordingCanvas {
-        fn as_proto() -> WieJavaClassProto {
-            JavaClassProto {
-                name: "javax/microedition/lcdui/TestRecordingCanvas",
-                parent_class: Some("javax/microedition/lcdui/Canvas"),
-                interfaces: vec![],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new(
-                        "paint",
-                        "(Ljavax/microedition/lcdui/Graphics;)V",
-                        Self::paint,
-                        MethodAccessFlags::PROTECTED,
-                    ),
-                    JavaMethodProto::new("sizeChanged", "(II)V", Self::size_changed, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("showNotify", "()V", Self::show_notify, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("hideNotify", "()V", Self::hide_notify, MethodAccessFlags::PROTECTED),
-                ],
-                fields: vec![
-                    JavaFieldProto::new("shown", "Z", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("redirectDisplay", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("redirect", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("translateX", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("translateY", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("clipX", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("clipY", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("clipWidth", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("clipHeight", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("repaintDuringPaint", "Z", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("sizeChangedCount", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("lastWidth", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("lastHeight", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("pressed", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("repeated", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("released", "I", FieldAccessFlags::PUBLIC),
-                ],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "<init>", "()V", ()).await
         }
 
+        #[method(protected)]
         async fn paint(
             jvm: &Jvm,
             _context: &mut WieJvmContext,
@@ -513,6 +514,7 @@ mod test {
                 .await
         }
 
+        #[method(protected)]
         async fn size_changed(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
             let count: i32 = jvm
                 .get_field(&this, "javax/microedition/lcdui/TestRecordingCanvas", "sizeChangedCount", "I")
@@ -531,26 +533,31 @@ mod test {
                 .await
         }
 
+        #[method(protected)]
         async fn key_pressed(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, code: i32) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "pressed", "I", code)
                 .await
         }
 
+        #[method(protected)]
         async fn key_repeated(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, code: i32) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "repeated", "I", code)
                 .await
         }
 
+        #[method(protected)]
         async fn key_released(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, code: i32) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "released", "I", code)
                 .await
         }
 
+        #[method(protected)]
         async fn show_notify(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "shown", "Z", true)
                 .await
         }
 
+        #[method(protected)]
         async fn hide_notify(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingCanvas", "shown", "Z", false)
                 .await?;
@@ -585,36 +592,15 @@ mod test {
         }
     }
 
+    #[java_methods]
     impl RecordingGameCanvas {
-        fn as_proto() -> WieJavaClassProto {
-            JavaClassProto {
-                name: "javax/microedition/lcdui/TestRecordingGameCanvas",
-                parent_class: Some("javax/microedition/lcdui/game/GameCanvas"),
-                interfaces: vec![],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new("sizeChanged", "(II)V", Self::size_changed, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, MethodAccessFlags::PROTECTED),
-                    JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
-                ],
-                fields: vec![
-                    JavaFieldProto::new("sizeChangedCount", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("lastWidth", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("lastHeight", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("pressed", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("repeated", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("released", "I", FieldAccessFlags::PUBLIC),
-                ],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.invoke_special(&this, "javax/microedition/lcdui/game/GameCanvas", "<init>", "(Z)V", (false,))
                 .await
         }
 
+        #[method(protected)]
         async fn size_changed(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
             let count: i32 = jvm
                 .get_field(&this, "javax/microedition/lcdui/TestRecordingGameCanvas", "sizeChangedCount", "I")
@@ -633,16 +619,19 @@ mod test {
                 .await
         }
 
+        #[method(protected)]
         async fn key_pressed(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, code: i32) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingGameCanvas", "pressed", "I", code)
                 .await
         }
 
+        #[method(protected)]
         async fn key_repeated(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, code: i32) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingGameCanvas", "repeated", "I", code)
                 .await
         }
 
+        #[method(protected)]
         async fn key_released(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, code: i32) -> JvmResult<()> {
             jvm.put_field(&mut this, "javax/microedition/lcdui/TestRecordingGameCanvas", "released", "I", code)
                 .await

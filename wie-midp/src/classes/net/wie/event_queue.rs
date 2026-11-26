@@ -2,14 +2,13 @@ use alloc::{string::ToString, vec, vec::Vec};
 
 use futures::TryFutureExt;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::lang::Runnable;
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::{lang::Runnable, util::Vector};
 
 use wie_backend::{Event, KeyCode, YieldFuture};
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
-use crate::classes::javax::microedition::midlet::MIDlet;
+use crate::classes::javax::microedition::{lcdui::Display, midlet::MIDlet};
 
 #[repr(i32)]
 #[allow(clippy::enum_variant_names)]
@@ -147,35 +146,17 @@ impl MIDPKeyCode {
 }
 
 // class net.wie.EventQueue
-pub struct EventQueue;
+#[java_class(name = "net/wie/EventQueue", public)]
+pub struct EventQueue {
+    #[field(private, static)]
+    eventQueue: ClassInstanceRef<Self>,
+    #[field(private)]
+    callSeriallyEvents: ClassInstanceRef<Vector>,
+}
 
+#[java_methods]
 impl EventQueue {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/EventQueue",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("dispatchCallbacks", "()V", Self::dispatch_callbacks, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "getEventQueue",
-                    "()Lnet/wie/EventQueue;",
-                    Self::get_event_queue,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
-                JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::<init>({this:?})");
 
@@ -195,6 +176,7 @@ impl EventQueue {
     }
 
     // TODO this resembles WIPI's architecture for now, but we need to change it to event listener
+    #[method(public)]
     async fn get_next_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -275,7 +257,7 @@ impl EventQueue {
 
                 break true;
             } else {
-                let events = jvm
+                let events: ClassInstanceRef<Vector> = jvm
                     .get_field(this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
                     .await?;
                 let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
@@ -305,6 +287,7 @@ impl EventQueue {
         Ok(received)
     }
 
+    #[method(public)]
     async fn dispatch_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -317,7 +300,7 @@ impl EventQueue {
             .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
             .await?;
 
-        let display = jvm
+        let display: ClassInstanceRef<Display> = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Display",
                 "getDisplay",
@@ -386,6 +369,7 @@ impl EventQueue {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn get_event_queue(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::debug!("net.wie.EventQueue::getEventQueue()");
 
@@ -403,6 +387,7 @@ impl EventQueue {
         Ok(event_queue)
     }
 
+    #[method(public)]
     async fn call_serially(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -411,15 +396,16 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::callSerially({this:?}, {event:?})");
 
-        let call_serially_events = jvm
+        let call_serially_events: ClassInstanceRef<Vector> = jvm
             .get_field(&this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
             .await?;
         jvm.invoke_virtual(&call_serially_events, "java/util/Vector", "addElement", "(Ljava/lang/Object;)V", (event,))
             .await
     }
 
+    #[method]
     async fn dispatch_callbacks(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        let events = jvm
+        let events: ClassInstanceRef<Vector> = jvm
             .get_field(&this, "net/wie/EventQueue", "callSeriallyEvents", "Ljava/util/Vector;")
             .await?;
         let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
@@ -437,16 +423,15 @@ impl EventQueue {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, sync::Arc, vec};
+    use alloc::{boxed::Box, sync::Arc};
     use core::sync::atomic::{AtomicBool, Ordering};
 
     use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
 
     use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
     use wie_backend::{DefaultTaskRunner, Event, KeyCode, System};
-    use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJvmContext};
     use wie_util::Result;
 
     use crate::{
@@ -459,9 +444,17 @@ mod test {
 
     use super::{EventQueue, EventQueueEvent, KeyboardEventType};
 
-    struct IdleCallback;
+    #[java_class(name = "net/wie/IdleCallback", implements("java/lang/Runnable"), public)]
+    struct IdleCallback {
+        #[field(private)]
+        count: i32,
+        #[field(private)]
+        lastRun: i64,
+    }
 
+    #[java_methods]
     impl IdleCallback {
+        #[method(public)]
         async fn run(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             let count: i32 = jvm.get_field(&this, "net/wie/IdleCallback", "count", "I").await?;
             let now = context.system().platform().now().raw() as i64;
@@ -470,7 +463,7 @@ mod test {
                 assert!(now - last_run >= 16, "idle callbacks must retain the timed wait");
                 context.system().event_queue().push(Event::Keydown(KeyCode::NUM1));
             } else {
-                let queue = jvm
+                let queue: ClassInstanceRef<EventQueue> = jvm
                     .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                     .await?;
                 let _: () = jvm
@@ -484,17 +477,6 @@ mod test {
 
     #[test]
     fn recurring_callback_waits_while_the_backend_queue_is_empty() -> Result<()> {
-        let callback_proto = WieJavaClassProto {
-            name: "net/wie/IdleCallback",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec!["java/lang/Runnable"],
-            methods: vec![JavaMethodProto::new("run", "()V", IdleCallback::run, MethodAccessFlags::PUBLIC)],
-            fields: vec![
-                JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("lastRun", "J", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         let clock = TestClock::new();
         let mut system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "", "", DefaultTaskRunner);
         let completed = Arc::new(AtomicBool::new(false));
@@ -505,12 +487,12 @@ mod test {
             let jvm = JvmSupport::new_jvm(
                 &system_task,
                 None,
-                Box::new([get_protos().into(), Box::new([callback_proto])]),
+                Box::new([get_protos().into(), Box::new([IdleCallback::as_proto()])]),
                 &[],
                 RustJavaJvmImplementation,
             )
             .await?;
-            let queue = jvm
+            let queue: ClassInstanceRef<EventQueue> = jvm
                 .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                 .await
                 .unwrap();
@@ -543,9 +525,26 @@ mod test {
         Ok(())
     }
 
-    struct RecurringCallback;
+    #[java_class(
+        name = "net/wie/RecurringCallback",
+        extends = "javax/microedition/lcdui/Canvas",
+        implements("java/lang/Runnable"),
+        public
+    )]
+    struct RecurringCallback {
+        #[field(private)]
+        count: i32,
+        #[field(private)]
+        paintCount: i32,
+        #[field(private)]
+        repeat: bool,
+        #[field(private)]
+        repaintOnPaint: bool,
+    }
 
+    #[java_methods]
     impl RecurringCallback {
+        #[method(protected)]
         async fn paint(
             jvm: &Jvm,
             _context: &mut WieJvmContext,
@@ -565,6 +564,7 @@ mod test {
                 .await
         }
 
+        #[method(public)]
         async fn run(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
             let count: i32 = jvm.get_field(&this, "net/wie/RecurringCallback", "count", "I").await?;
             let mut graphics: ClassInstanceRef<Graphics> = jvm
@@ -596,39 +596,19 @@ mod test {
         }
     }
 
+    #[java_class(name = "net/wie/QueueTestMidlet", extends = "javax/microedition/midlet/MIDlet", public)]
+    struct QueueTestMidlet;
+
+    #[java_methods]
+    impl QueueTestMidlet {}
+
     #[test]
     fn input_precedes_recurring_callbacks_and_pending_paint() -> Result<()> {
-        let callback_proto = WieJavaClassProto {
-            name: "net/wie/RecurringCallback",
-            parent_class: Some("javax/microedition/lcdui/Canvas"),
-            interfaces: vec!["java/lang/Runnable"],
-            methods: vec![
-                JavaMethodProto::new("run", "()V", RecurringCallback::run, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    RecurringCallback::paint,
-                    MethodAccessFlags::PROTECTED,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("repeat", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("repaintOnPaint", "Z", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
-        let midlet_proto = WieJavaClassProto {
-            name: "net/wie/QueueTestMidlet",
-            parent_class: Some("javax/microedition/midlet/MIDlet"),
-            interfaces: vec![],
-            methods: vec![],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         run_jvm_test_with_system(
-            Box::new([get_protos().into(), Box::new([callback_proto, midlet_proto])]),
+            Box::new([
+                get_protos().into(),
+                Box::new([RecurringCallback::as_proto(), QueueTestMidlet::as_proto()]),
+            ]),
             Box::new(TestPlatform::new()),
             |jvm, system| async move {
                 let queue: ClassInstanceRef<EventQueue> = jvm

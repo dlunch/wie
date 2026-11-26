@@ -1,56 +1,32 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::org::kwis::msp::lcdui::Image;
 
 // class org.kwis.msp.lwc.LabelComponent
+#[java_class(name = "org/kwis/msp/lwc/LabelComponent", extends = "org/kwis/msp/lwc/Component", public)]
 pub struct LabelComponent;
 
+#[java_methods]
 impl LabelComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/LabelComponent",
-            parent_class: Some("org/kwis/msp/lwc/Component"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init_with_label, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;Lorg/kwis/msp/lcdui/Image;)V",
-                    Self::init_with_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;Ljava/lang/String;)V",
-                    Self::init_with_image_resource,
-                    MethodAccessFlags::PUBLIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.LabelComponent::<init>({this:?})");
 
         jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await
     }
 
+    #[method(constructor, public)]
     async fn init_with_label(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.LabelComponent::<init>({this:?}, {label:?})");
 
         jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await
     }
 
+    #[method(constructor, public)]
     async fn init_with_image(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -63,6 +39,7 @@ impl LabelComponent {
         jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await
     }
 
+    #[method(constructor, public)]
     async fn init_with_image_resource(
         jvm: &Jvm,
         _: &mut WieJvmContext,

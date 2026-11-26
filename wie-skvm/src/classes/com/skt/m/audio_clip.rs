@@ -1,30 +1,39 @@
-use alloc::vec;
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-use wie_jvm_support::WieJavaClassProto;
+use wie_jvm_support::WieJvmContext;
 
 // interface com.skt.m.AudioClip
+#[java_class(name = "com/skt/m/AudioClip", public, interface, abstract)]
 pub struct AudioClip;
 
+#[java_methods]
 impl AudioClip {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/AudioClip",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new_abstract("open", "([BII)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("close", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("loop", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("pause", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("play", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("resume", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("stop", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn open(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        data: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+        length: i32,
+    ) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn r#loop(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn pause(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn play(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn resume(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
+
+    #[method(public)]
+    async fn stop(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()>;
 }

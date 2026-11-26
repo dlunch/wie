@@ -1,36 +1,21 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class com.skt.m.ProgressBar
-pub struct ProgressBar;
+#[java_class(name = "com/skt/m/ProgressBar", public, final)]
+pub struct ProgressBar {
+    #[field(private)]
+    maxValue: i32,
+    #[field(private)]
+    value: i32,
+}
 
+#[java_methods]
 impl ProgressBar {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/ProgressBar",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMaxValue", "()I", Self::get_max_value, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getValue", "()I", Self::get_value, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setMaxValue", "(I)V", Self::set_max_value, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setValue", "(I)V", Self::set_value, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("maxValue", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("value", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("com.skt.m.ProgressBar::<init>({this:?}, {name:?})");
 
@@ -39,14 +24,17 @@ impl ProgressBar {
         jvm.put_field(&mut this, "com/skt/m/ProgressBar", "value", "I", 0).await
     }
 
+    #[method(public)]
     async fn get_max_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         jvm.get_field(&this, "com/skt/m/ProgressBar", "maxValue", "I").await
     }
 
+    #[method(public)]
     async fn get_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         jvm.get_field(&this, "com/skt/m/ProgressBar", "value", "I").await
     }
 
+    #[method(public)]
     async fn set_max_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
         let current: i32 = jvm.get_field(&this, "com/skt/m/ProgressBar", "value", "I").await?;
         jvm.put_field(&mut this, "com/skt/m/ProgressBar", "maxValue", "I", value).await?;
@@ -56,6 +44,7 @@ impl ProgressBar {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
         let max_value: i32 = jvm.get_field(&this, "com/skt/m/ProgressBar", "maxValue", "I").await?;
         jvm.put_field(&mut this, "com/skt/m/ProgressBar", "value", "I", value.min(max_value))

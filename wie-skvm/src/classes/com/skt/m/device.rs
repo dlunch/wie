@@ -1,143 +1,38 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
 // class com.skt.m.Device
-pub struct Device;
+#[java_class(name = "com/skt/m/Device", public)]
+pub struct Device {
+    #[field(public, static, final)]
+    COLOR_MODE_4G: i32,
+    #[field(public, static, final)]
+    COLOR_MODE_256C: i32,
+    #[field(public, static, final)]
+    COLOR_MODE_64KC: i32,
+    #[field(public, static, final)]
+    SIS_NORMAL: i32,
+    #[field(public, static, final)]
+    SIS_CALL: i32,
+    #[field(public, static, final)]
+    SIS_WAP: i32,
+    #[field(public, static, final)]
+    SIS_PWR_ON: i32,
+    #[field(public, static, final)]
+    SIS_PWR_OFF: i32,
+    #[field(public, static, final)]
+    MELODY_MYBELL: i32,
+    #[field(public, static, final)]
+    MELODY_MUSICBELL: i32,
+}
 
+#[java_methods]
 impl Device {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/Device",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "setBacklightEnabled",
-                    "(Z)V",
-                    Self::set_backlight_enabled,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "isBacklightEnabled",
-                    "()Z",
-                    Self::is_backlight_enabled,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setKeyToneEnabled",
-                    "(Z)V",
-                    Self::set_key_tone_enabled,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "isKeyToneEnabled",
-                    "()Z",
-                    Self::is_key_tone_enabled,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("beep", "(II)V", Self::beep, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "invokeWapBrowser",
-                    "(Ljava/lang/String;)V",
-                    Self::invoke_wap_browser,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "enableRestoreLCD",
-                    "(Z)V",
-                    Self::enable_restore_lcd,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setKeyRepeatTime",
-                    "(II)V",
-                    Self::set_key_repeat_time,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setColorMode",
-                    "(I)V",
-                    Self::set_color_mode,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setSISImage",
-                    "(ILjava/lang/String;[B)Z",
-                    Self::set_sis_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "setMelody",
-                    "(ILjava/lang/String;[B)Z",
-                    Self::set_melody,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("setNAI", "(I)V", Self::set_nai, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "COLOR_MODE_4G",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "COLOR_MODE_256C",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "COLOR_MODE_64KC",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIS_NORMAL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIS_CALL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIS_WAP",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIS_PWR_ON",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIS_PWR_OFF",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "MELODY_MYBELL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "MELODY_MUSICBELL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Device::<clinit>()");
 
@@ -155,42 +50,49 @@ impl Device {
         Ok(())
     }
 
+    #[method(public, static)]
     async fn set_color_mode(_jvm: &Jvm, _context: &mut WieJvmContext, mode: i32) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::setColorMode({mode})");
 
         Ok(())
     }
 
+    #[method(public, static)]
     async fn is_backlight_enabled(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.Device::isBacklightEnabled()");
 
         Ok(true)
     }
 
+    #[method(public, static)]
     async fn set_backlight_enabled(_jvm: &Jvm, _context: &mut WieJvmContext, enabled: bool) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::setBacklightEnabled({enabled:?})");
 
         Ok(())
     }
 
+    #[method(public, static)]
     async fn set_key_tone_enabled(_jvm: &Jvm, _context: &mut WieJvmContext, enabled: bool) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::setKeyToneEnabled({enabled:?})");
 
         Ok(())
     }
 
+    #[method(public, static)]
     async fn is_key_tone_enabled(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.Device::isKeyToneEnabled()");
 
         Ok(true)
     }
 
+    #[method(public, static)]
     async fn beep(_jvm: &Jvm, _context: &mut WieJvmContext, frequency: i32, duration: i32) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::beep({frequency}, {duration})");
 
         Ok(())
     }
 
+    #[method(public, static)]
     async fn invoke_wap_browser(jvm: &Jvm, context: &mut WieJvmContext, url: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::invokeWapBrowser({url:?})");
 
@@ -208,18 +110,21 @@ impl Device {
         Ok(())
     }
 
+    #[method(name = "enableRestoreLCD", public, static)]
     async fn enable_restore_lcd(_jvm: &Jvm, _context: &mut WieJvmContext, enabled: bool) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::enableRestoreLCD({enabled:?})");
 
         Ok(())
     }
 
+    #[method(public, static)]
     async fn set_key_repeat_time(_jvm: &Jvm, _context: &mut WieJvmContext, delay: i32, interval: i32) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::setKeyRepeatTime({delay}, {interval})");
 
         Ok(())
     }
 
+    #[method(name = "setSISImage", public, static)]
     async fn set_sis_image(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -232,6 +137,7 @@ impl Device {
         Ok(false)
     }
 
+    #[method(public, static)]
     async fn set_melody(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -244,6 +150,7 @@ impl Device {
         Ok(false)
     }
 
+    #[method(name = "setNAI", public, static)]
     async fn set_nai(_jvm: &Jvm, _context: &mut WieJvmContext, nai: i32) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::setNAI({nai})");
 
@@ -253,22 +160,28 @@ impl Device {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, sync::Arc, vec};
+    use alloc::{boxed::Box, sync::Arc};
     use core::sync::atomic::{AtomicU32, Ordering};
 
     use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-    use jvm_class_proto::JavaMethodProto;
-    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
     use test_utils::{TestPlatform, TestPlatformEvent, run_jvm_test_with_system};
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::WieJvmContext;
     use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
     use super::Device;
 
-    async fn destroy_app(_: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<MIDlet>, unconditional: bool) -> JvmResult<()> {
-        assert!(unconditional);
-        context.system().platform().write_stdout(b"destroyed");
-        Ok(())
+    #[java_class(name = "test/BrowserMidlet", extends = "javax/microedition/midlet/MIDlet", public)]
+    struct BrowserMidlet;
+
+    #[java_methods]
+    impl BrowserMidlet {
+        #[method(protected)]
+        async fn destroy_app(_: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<MIDlet>, unconditional: bool) -> JvmResult<()> {
+            assert!(unconditional);
+            context.system().platform().write_stdout(b"destroyed");
+            Ok(())
+        }
     }
 
     #[test]
@@ -282,16 +195,8 @@ mod tests {
             }
             TestPlatformEvent::Exit => assert_eq!(recorded.fetch_add(1, Ordering::SeqCst), 1),
         });
-        let midlet_proto = WieJavaClassProto {
-            name: "test/BrowserMidlet",
-            parent_class: Some("javax/microedition/midlet/MIDlet"),
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new("destroyApp", "(Z)V", destroy_app, MethodAccessFlags::PROTECTED)],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         run_jvm_test_with_system(
-            Box::new([wie_midp::get_protos().into(), [Device::as_proto(), midlet_proto].into()]),
+            Box::new([wie_midp::get_protos().into(), [Device::as_proto(), BrowserMidlet::as_proto()].into()]),
             Box::new(platform),
             move |jvm, _system| async move {
                 let midlet = jvm.instantiate_class("test/BrowserMidlet").await?;

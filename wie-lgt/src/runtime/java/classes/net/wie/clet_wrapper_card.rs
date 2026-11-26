@@ -1,36 +1,22 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_midp::classes::javax::microedition::lcdui::Graphics;
+use wie_wipi_java::classes::org::kwis::msp::lcdui::Graphics;
 
 use super::CletWrapperContext;
 
 // class net.wie.CletWrapperCard
-pub struct CletWrapperCard;
+#[java_class(name = "net/wie/CletWrapperCard", extends = "org/kwis/msp/lcdui/Card", public)]
+pub struct CletWrapperCard {
+    #[field(private)]
+    paintClet: i32,
+    #[field(private)]
+    handleCletEvent: i32,
+}
 
+#[java_methods]
 impl CletWrapperCard {
-    pub fn as_proto() -> JavaClassProto<CletWrapperContext> {
-        JavaClassProto {
-            name: "net/wie/CletWrapperCard",
-            parent_class: Some("org/kwis/msp/lcdui/Card"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(II)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("notifyEvent", "(III)V", Self::notify_event, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("paintClet", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("handleCletEvent", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _context: &mut CletWrapperContext,
@@ -49,6 +35,7 @@ impl CletWrapperCard {
         Ok(())
     }
 
+    #[method(protected)]
     async fn paint(
         jvm: &Jvm,
         context: &mut CletWrapperContext,
@@ -62,6 +49,7 @@ impl CletWrapperCard {
         context.call_function(jvm, paint_clet as _, &[]).await
     }
 
+    #[method(protected)]
     async fn key_notify(jvm: &Jvm, context: &mut CletWrapperContext, this: ClassInstanceRef<Self>, r#type: i32, key: i32) -> JvmResult<bool> {
         tracing::debug!("net.wie.CletWrapperCard::keyNotify({this:?}, {type}, {key})");
 
@@ -72,6 +60,7 @@ impl CletWrapperCard {
         Ok(true)
     }
 
+    #[method(public)]
     async fn notify_event(
         jvm: &Jvm,
         context: &mut CletWrapperContext,

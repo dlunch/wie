@@ -1,13 +1,11 @@
 use alloc::{
     boxed::Box,
     string::{String as RustString, ToString},
-    vec,
 };
 use core::mem::size_of;
 
 use jvm::{ClassInstance, ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{
     lang::{Class, ClassLoader, String},
     util::Vector,
@@ -19,39 +17,20 @@ use wie_util::{Result, read_generic, read_null_terminated_string_bytes};
 
 use crate::runtime::{java::jvm_support::LgtJvmSupport, with_arm_context};
 
-type ClassLoaderProto = JavaClassProto<ArmCore>;
-
 // class net.wie.LgtClassLoader
-pub struct LgtClassLoader;
+#[java_class(name = "net/wie/LgtClassLoader", extends = "java/lang/ClassLoader", public)]
+pub struct LgtClassLoader {
+    #[field(private)]
+    generatedClasses: i32,
+    #[field(private)]
+    nativeStrings: ClassInstanceRef<Vector>,
+    #[field(private, static)]
+    instance: ClassInstanceRef<Self>,
+}
 
+#[java_methods]
 impl LgtClassLoader {
-    pub fn as_proto() -> ClassLoaderProto {
-        ClassLoaderProto {
-            name: "net/wie/LgtClassLoader",
-            parent_class: Some("java/lang/ClassLoader"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;I)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "findClass",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
-                    Self::find_class,
-                    MethodAccessFlags::PROTECTED,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("generatedClasses", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new(
-                    "instance",
-                    "Lnet/wie/LgtClassLoader;",
-                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut ArmCore,
@@ -89,6 +68,7 @@ impl LgtClassLoader {
         Ok(None)
     }
 
+    #[method(protected)]
     async fn find_class(
         jvm: &Jvm,
         core: &mut ArmCore,

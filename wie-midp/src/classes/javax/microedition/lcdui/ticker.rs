@@ -1,12 +1,9 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::canvas::string_width;
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::{
     lcdui::{Display, Graphics},
@@ -20,34 +17,17 @@ const BLACK: i32 = 0;
 const LEFT_TOP: i32 = 4 | 16;
 
 // class javax.microedition.lcdui.Ticker
-pub struct Ticker;
+#[java_class(name = "javax/microedition/lcdui/Ticker", public)]
+pub struct Ticker {
+    #[field(private)]
+    text: ClassInstanceRef<String>,
+    #[field(private)]
+    scrollOffset: i32,
+}
 
+#[java_methods]
 impl Ticker {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Ticker",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("advance", "(I)Z", Self::advance, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;III)V",
-                    Self::paint,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("text", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("scrollOffset", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Ticker::<init>({this:?}, {text:?})");
 
@@ -64,6 +44,7 @@ impl Ticker {
         Ok(())
     }
 
+    #[method]
     async fn advance(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Ticker::advance({this:?}, {width})");
 
@@ -89,6 +70,7 @@ impl Ticker {
         Ok(true)
     }
 
+    #[method]
     async fn paint(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -146,6 +128,7 @@ impl Ticker {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_string(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Ticker::getString({this:?})");
 
@@ -153,6 +136,7 @@ impl Ticker {
             .await
     }
 
+    #[method(public)]
     async fn set_string(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Ticker::setString({this:?}, {text:?})");
 
@@ -202,21 +186,24 @@ impl Ticker {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec, vec::Vec};
+    use alloc::{boxed::Box, vec::Vec};
 
     use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-    use jvm_class_proto::JavaMethodProto;
-    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
 
     use wie_backend::{Event, System};
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::WieJvmContext;
     use wie_util::Result;
 
     use crate::{
-        classes::javax::microedition::{
-            lcdui::{Display, Displayable, Image, Ticker},
-            midlet::MIDlet,
+        classes::{
+            javax::microedition::{
+                lcdui::{Display, Displayable, Image, Ticker},
+                midlet::MIDlet,
+            },
+            net::wie::EventQueue,
         },
         get_protos,
     };
@@ -226,27 +213,17 @@ mod test {
     const TICKER: &str = "javax/microedition/lcdui/Ticker";
     const FORM: &str = "javax/microedition/lcdui/Form";
 
+    #[java_class(name = "test/TickerMidlet", extends = "javax/microedition/midlet/MIDlet", public)]
     struct TickerMidlet;
 
+    #[java_methods]
     impl TickerMidlet {
-        fn as_proto() -> WieJavaClassProto {
-            WieJavaClassProto {
-                name: "test/TickerMidlet",
-                parent_class: Some("javax/microedition/midlet/MIDlet"),
-                interfaces: vec![],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new("startApp", "()V", Self::start_app, MethodAccessFlags::PROTECTED),
-                ],
-                fields: vec![],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.invoke_special(&this, "javax/microedition/midlet/MIDlet", "<init>", "()V", ()).await
         }
 
+        #[method(protected)]
         async fn start_app(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<()> {
             Ok(())
         }
@@ -255,7 +232,7 @@ mod test {
     async fn pump(jvm: &Jvm, system: &System, clock: &TestClock, millis: u64) -> JvmResult<()> {
         clock.advance(millis);
         system.event_queue().push(Event::Redraw);
-        let queue = jvm
+        let queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
@@ -342,7 +319,7 @@ mod test {
                 );
 
                 let _frame = jvm.push_native_frame(&[]);
-                let original = jvm.invoke_virtual(&ticker, TICKER, "getString", "()Ljava/lang/String;", ()).await?;
+                let original: ClassInstanceRef<String> = jvm.invoke_virtual(&ticker, TICKER, "getString", "()Ljava/lang/String;", ()).await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &original).await?, "News\r\nNext\nEnd\r!");
                 let normalized = JavaLangString::from_rust_string(&jvm, "News Next End !").await?;
                 let _: () = jvm

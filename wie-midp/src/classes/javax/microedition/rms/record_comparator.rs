@@ -1,45 +1,31 @@
-use alloc::vec;
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm::{Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // interface javax.microedition.rms.RecordComparator
-pub struct RecordComparator;
+#[java_class(name = "javax/microedition/rms/RecordComparator", public, interface, abstract)]
+pub struct RecordComparator {
+    #[field(public, static, final)]
+    PRECEDES: i32,
+    #[field(public, static, final)]
+    EQUIVALENT: i32,
+    #[field(public, static, final)]
+    FOLLOWS: i32,
+}
 
+#[java_methods]
 impl RecordComparator {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/rms/RecordComparator",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new_abstract("compare", "([B[B)I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "PRECEDES",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "EQUIVALENT",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "FOLLOWS",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn compare(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        record1: ClassInstanceRef<Array<i8>>,
+        record2: ClassInstanceRef<Array<i8>>,
+    ) -> JvmResult<i32>;
 
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.rms.RecordComparator::<clinit>()");
         for (name, value) in [("PRECEDES", -1), ("EQUIVALENT", 0), ("FOLLOWS", 1)] {

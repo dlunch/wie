@@ -1,12 +1,11 @@
-use alloc::{format, string::String as RustString, vec, vec::Vec};
+use alloc::{format, string::String as RustString, vec::Vec};
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::text_layout::wrap;
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{AlertType, Command, CommandListener, Display, Displayable, Font, Gauge, Graphics, Image, Item};
 use crate::classes::net::wie::{KeyboardEventType, MIDPKeyCode};
@@ -27,147 +26,33 @@ struct AlertContentLayout {
 }
 
 // class javax.microedition.lcdui.Alert
-pub struct Alert;
+#[java_class(name = "javax/microedition/lcdui/Alert", extends = "javax/microedition/lcdui/Screen", public)]
+pub struct Alert {
+    #[field(public, static, final)]
+    FOREVER: i32,
+    #[field(public, static, final)]
+    DISMISS_COMMAND: ClassInstanceRef<Command>,
+    #[field(private)]
+    text: ClassInstanceRef<String>,
+    #[field(private)]
+    r#type: ClassInstanceRef<AlertType>,
+    #[field(private)]
+    image: ClassInstanceRef<Image>,
+    #[field(private)]
+    displayImage: ClassInstanceRef<Image>,
+    #[field(private)]
+    indicator: ClassInstanceRef<Gauge>,
+    #[field(private)]
+    timeout: i32,
+    #[field(private)]
+    nextDisplayable: ClassInstanceRef<Displayable>,
+    #[field(private)]
+    scrollY: i32,
+}
 
+#[java_methods]
 impl Alert {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Alert",
-            parent_class: Some("javax/microedition/lcdui/Screen"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljava/lang/String;Ljava/lang/String;Ljavax/microedition/lcdui/Image;Ljavax/microedition/lcdui/AlertType;)V",
-                    Self::init_with_contents,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getDefaultTimeout", "()I", Self::get_default_timeout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getTimeout", "()I", Self::get_timeout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setTimeout", "(I)V", Self::set_timeout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getType",
-                    "()Ljavax/microedition/lcdui/AlertType;",
-                    Self::get_type,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setType",
-                    "(Ljavax/microedition/lcdui/AlertType;)V",
-                    Self::set_type,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getImage",
-                    "()Ljavax/microedition/lcdui/Image;",
-                    Self::get_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setImage",
-                    "(Ljavax/microedition/lcdui/Image;)V",
-                    Self::set_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "getIndicator",
-                    "()Ljavax/microedition/lcdui/Gauge;",
-                    Self::get_indicator,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setIndicator",
-                    "(Ljavax/microedition/lcdui/Gauge;)V",
-                    Self::set_indicator,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "addCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::add_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "removeCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::remove_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setCommandListener",
-                    "(Ljavax/microedition/lcdui/CommandListener;)V",
-                    Self::set_command_listener,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("decorationChanged", "()V", Self::decoration_changed, MethodAccessFlags::empty()),
-                JavaMethodProto::new("getCommandCount", "()I", Self::get_command_count, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "getCommandAt",
-                    "(I)Ljavax/microedition/lcdui/Command;",
-                    Self::get_command_at,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "setNextDisplayable",
-                    "(Ljavax/microedition/lcdui/Displayable;)V",
-                    Self::set_next_displayable,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("dispatchCommandAt", "(I)V", Self::dispatch_command_at, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "setDisplay",
-                    "(Ljavax/microedition/lcdui/Display;)V",
-                    Self::set_display,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "checkItemMutation",
-                    "(Ljavax/microedition/lcdui/Item;)V",
-                    Self::check_item_mutation,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "itemInvalidated",
-                    "(Ljavax/microedition/lcdui/Item;Z)V",
-                    Self::item_invalidated,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "handlePaintEvent",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    Self::handle_paint_event,
-                    MethodAccessFlags::empty(),
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "FOREVER",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DISMISS_COMMAND",
-                    "Ljavax/microedition/lcdui/Command;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("text", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("type", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("image", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("displayImage", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("indicator", "Ljavax/microedition/lcdui/Gauge;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("timeout", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("scrollY", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::<clinit>");
 
@@ -189,6 +74,7 @@ impl Alert {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, title: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::<init>({this:?}, {title:?})");
 
@@ -202,6 +88,7 @@ impl Alert {
         .await
     }
 
+    #[method(constructor, public)]
     async fn init_with_contents(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -398,18 +285,21 @@ impl Alert {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_default_timeout(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Alert::getDefaultTimeout({_this:?})");
 
         Ok(2000)
     }
 
+    #[method(public)]
     async fn get_timeout(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Alert::getTimeout({this:?})");
 
         Self::effective_timeout(jvm, context, this).await
     }
 
+    #[method(public)]
     async fn set_timeout(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, timeout: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setTimeout({this:?}, {timeout})");
 
@@ -421,6 +311,7 @@ impl Alert {
         Self::invalidate_current(jvm, context, this, true).await
     }
 
+    #[method(public)]
     async fn get_type(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<AlertType>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getType({this:?})");
 
@@ -428,6 +319,7 @@ impl Alert {
             .await
     }
 
+    #[method(public)]
     async fn set_type(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -446,12 +338,14 @@ impl Alert {
         Self::invalidate_current(jvm, context, this, true).await
     }
 
+    #[method(public)]
     async fn get_string(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getString({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Alert", "text", "Ljava/lang/String;").await
     }
 
+    #[method(public)]
     async fn set_string(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setString({this:?}, {text:?})");
         jvm.put_field(&mut this, "javax/microedition/lcdui/Alert", "text", "Ljava/lang/String;", text)
@@ -459,6 +353,7 @@ impl Alert {
         Self::invalidate_current(jvm, context, this, true).await
     }
 
+    #[method(public)]
     async fn get_image(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getImage({this:?})");
 
@@ -466,6 +361,7 @@ impl Alert {
             .await
     }
 
+    #[method(public)]
     async fn set_image(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::setImage({this:?}, {image:?})");
 
@@ -489,6 +385,7 @@ impl Alert {
         Self::invalidate_current(jvm, context, this, true).await
     }
 
+    #[method(public)]
     async fn get_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Gauge>> {
         tracing::debug!("javax.microedition.lcdui.Alert::getIndicator({this:?})");
 
@@ -496,6 +393,7 @@ impl Alert {
             .await
     }
 
+    #[method(public)]
     async fn set_indicator(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -555,6 +453,7 @@ impl Alert {
         Self::invalidate_current(jvm, context, this, true).await
     }
 
+    #[method(public)]
     async fn add_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::addCommand({this:?}, {command:?})");
 
@@ -574,6 +473,7 @@ impl Alert {
         .await
     }
 
+    #[method(public)]
     async fn remove_command(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -598,6 +498,7 @@ impl Alert {
         .await
     }
 
+    #[method(public)]
     async fn set_command_listener(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -620,6 +521,7 @@ impl Alert {
         invalidation_result
     }
 
+    #[method]
     async fn decoration_changed(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::decorationChanged({this:?})");
 
@@ -631,6 +533,7 @@ impl Alert {
         invalidation_result
     }
 
+    #[method]
     async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Alert::getCommandCount({this:?})");
 
@@ -640,6 +543,7 @@ impl Alert {
         Ok(count.max(1))
     }
 
+    #[method]
     async fn get_command_at(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -667,6 +571,7 @@ impl Alert {
         .await
     }
 
+    #[method]
     async fn dispatch_command_at(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::dispatchCommandAt({this:?}, {index})");
 
@@ -745,6 +650,7 @@ impl Alert {
         Ok(())
     }
 
+    #[method]
     async fn set_next_displayable(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -763,6 +669,7 @@ impl Alert {
         .await
     }
 
+    #[method]
     async fn set_display(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -792,6 +699,7 @@ impl Alert {
         .await
     }
 
+    #[method]
     async fn item_invalidated(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -804,6 +712,7 @@ impl Alert {
         Self::invalidate_current(jvm, context, this, true).await
     }
 
+    #[method]
     async fn handle_key_event(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::handleKeyEvent({this:?}, {event_type}, {code})");
 
@@ -846,6 +755,7 @@ impl Alert {
         .await
     }
 
+    #[method]
     async fn handle_paint_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -939,6 +849,7 @@ impl Alert {
         Ok(())
     }
 
+    #[method]
     async fn check_item_mutation(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -955,13 +866,13 @@ impl Alert {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec};
+    use alloc::boxed::Box;
 
     use jvm::{Array, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
-    use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-
+    use jvm_class_proto::{java_class, java_methods};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::{TestClock, TestPlatform, run_jvm_test, run_jvm_test_with_system};
+
     use wie_backend::{Event, System};
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_util::Result;
@@ -972,42 +883,35 @@ mod test {
                 lcdui::{Alert, Command, Display, Displayable, Gauge, Graphics, Image},
                 midlet::MIDlet,
             },
-            net::wie::{KeyboardEventType, MIDPKeyCode},
+            net::wie::{EventQueue, KeyboardEventType, MIDPKeyCode},
         },
         get_protos,
     };
 
-    struct RecordingAlertCommandListener;
+    #[java_class(
+        name = "javax/microedition/lcdui/TestAlertCommandListener",
+        implements("javax/microedition/lcdui/CommandListener"),
+        public
+    )]
+    struct RecordingAlertCommandListener {
+        #[field(public)]
+        count: i32,
+        #[field(public)]
+        lastCommand: ClassInstanceRef<Command>,
+        #[field(public)]
+        lastDisplayable: ClassInstanceRef<Displayable>,
+    }
+    #[java_class(name = "javax/microedition/midlet/TestAlertMidlet", extends = "javax/microedition/midlet/MIDlet", public)]
     struct AlertTestMidlet;
 
+    #[java_methods]
     impl RecordingAlertCommandListener {
-        fn as_proto() -> WieJavaClassProto {
-            JavaClassProto {
-                name: "javax/microedition/lcdui/TestAlertCommandListener",
-                parent_class: Some("java/lang/Object"),
-                interfaces: vec!["javax/microedition/lcdui/CommandListener"],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new(
-                        "commandAction",
-                        "(Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
-                        Self::command_action,
-                        MethodAccessFlags::PUBLIC,
-                    ),
-                ],
-                fields: vec![
-                    JavaFieldProto::new("count", "I", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("lastCommand", "Ljavax/microedition/lcdui/Command;", FieldAccessFlags::PUBLIC),
-                    JavaFieldProto::new("lastDisplayable", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PUBLIC),
-                ],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await
         }
 
+        #[method(public)]
         async fn command_action(
             jvm: &Jvm,
             _context: &mut WieJvmContext,
@@ -1040,25 +944,14 @@ mod test {
         }
     }
 
+    #[java_methods]
     impl AlertTestMidlet {
-        fn as_proto() -> WieJavaClassProto {
-            JavaClassProto {
-                name: "javax/microedition/midlet/TestAlertMidlet",
-                parent_class: Some("javax/microedition/midlet/MIDlet"),
-                interfaces: vec![],
-                methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                    JavaMethodProto::new("startApp", "()V", Self::start_app, MethodAccessFlags::PROTECTED),
-                ],
-                fields: vec![],
-                access_flags: ClassAccessFlags::PUBLIC,
-            }
-        }
-
+        #[method(constructor, public)]
         async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
             jvm.invoke_special(&this, "javax/microedition/midlet/MIDlet", "<init>", "()V", ()).await
         }
 
+        #[method(protected)]
         async fn start_app(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<()> {
             Ok(())
         }
@@ -1145,7 +1038,7 @@ mod test {
             param1: 19,
             param2: 23,
         });
-        let queue = jvm
+        let queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
@@ -1224,7 +1117,7 @@ mod test {
                 )
                 .await?;
             assert_eq!(dismiss.identity(), effective.identity());
-            let label = jvm
+            let label: ClassInstanceRef<String> = jvm
                 .invoke_virtual(&dismiss, "javax/microedition/lcdui/Command", "getLabel", "()Ljava/lang/String;", ())
                 .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &label).await?, "");

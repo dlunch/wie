@@ -1,108 +1,24 @@
-use alloc::vec;
-
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
 // class com.skt.m.SISImage
-pub struct SISImage;
+#[java_class(name = "com/skt/m/SISImage", public)]
+pub struct SISImage {
+    #[field(public, static, final)]
+    IMG_LEVEL_BW: i32,
+    #[field(public, static, final)]
+    IMG_LEVEL_4G: i32,
+    #[field(public, static, final)]
+    IMG_LEVEL_256C: i32,
+}
 
+#[java_methods]
 impl SISImage {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/SISImage",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PRIVATE),
-                JavaMethodProto::new(
-                    "createBuffer",
-                    "(II)V",
-                    Self::create_buffer,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createSISImage",
-                    "([BII)Lcom/skt/m/SISImage;",
-                    Self::create_sis_image_from_data,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "createSISImage",
-                    "(Ljava/lang/String;)Lcom/skt/m/SISImage;",
-                    Self::create_sis_image_from_name,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "freeBuffer",
-                    "()V",
-                    Self::free_buffer,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getRequiredBufferSize",
-                    "([BII)I",
-                    Self::get_required_buffer_size,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("getBestID", "()I", Self::get_best_id, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getDelay", "(I)I", Self::get_delay, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getFrame",
-                    "(I)Ljavax/microedition/lcdui/Image;",
-                    Self::get_frame,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getImageLevel", "()I", Self::get_image_level, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMaxFrameID", "()I", Self::get_max_frame_id, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMaxObjectID", "()I", Self::get_max_object_id, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getObject",
-                    "(IZ)Ljavax/microedition/lcdui/Image;",
-                    Self::get_object,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "paintFrame",
-                    "(Ljavax/microedition/lcdui/Graphics;III)V",
-                    Self::paint_frame,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "paintObject",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIZ)V",
-                    Self::paint_object,
-                    MethodAccessFlags::PUBLIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "IMG_LEVEL_BW",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "IMG_LEVEL_4G",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "IMG_LEVEL_256C",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.skt.m.SISImage::<clinit>()");
 
@@ -113,11 +29,13 @@ impl SISImage {
         Ok(())
     }
 
+    #[method(constructor, private)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.skt.m.SISImage::<init>({this:?})");
         jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await
     }
 
+    #[method(public, static)]
     async fn create_buffer(jvm: &Jvm, _context: &mut WieJvmContext, object_buffer_size: i32, other_buffer_size: i32) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.SISImage::createBuffer({object_buffer_size}, {other_buffer_size})");
 
@@ -128,6 +46,7 @@ impl SISImage {
         Ok(())
     }
 
+    #[method(name = "createSISImage", public, static)]
     async fn create_sis_image_from_data(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -151,6 +70,7 @@ impl SISImage {
         Ok(jvm.new_class("com/skt/m/SISImage", "()V", ()).await?.into())
     }
 
+    #[method(name = "createSISImage", public, static)]
     async fn create_sis_image_from_name(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -165,11 +85,13 @@ impl SISImage {
         Ok(jvm.new_class("com/skt/m/SISImage", "()V", ()).await?.into())
     }
 
+    #[method(public, static)]
     async fn free_buffer(_jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.SISImage::freeBuffer()");
         Ok(())
     }
 
+    #[method(public, static)]
     async fn get_required_buffer_size(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -193,16 +115,19 @@ impl SISImage {
         Ok(0)
     }
 
+    #[method(name = "getBestID", public)]
     async fn get_best_id(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.SISImage::getBestID({this:?})");
         Ok(0)
     }
 
+    #[method(public)]
     async fn get_delay(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, frame_id: i32) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.SISImage::getDelay({this:?}, {frame_id})");
         Ok(0)
     }
 
+    #[method(public)]
     async fn get_frame(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, frame_id: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::warn!("stub com.skt.m.SISImage::getFrame({this:?}, {frame_id})");
 
@@ -213,26 +138,31 @@ impl SISImage {
         Ok(ClassInstanceRef::new(None))
     }
 
+    #[method(public)]
     async fn get_height(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.SISImage::getHeight({this:?})");
         Ok(0)
     }
 
+    #[method(public)]
     async fn get_image_level(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.SISImage::getImageLevel({this:?})");
         Ok(0)
     }
 
+    #[method(name = "getMaxFrameID", public)]
     async fn get_max_frame_id(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.SISImage::getMaxFrameID({this:?})");
         Ok(0)
     }
 
+    #[method(name = "getMaxObjectID", public)]
     async fn get_max_object_id(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.SISImage::getMaxObjectID({this:?})");
         Ok(0)
     }
 
+    #[method(public)]
     async fn get_object(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -249,11 +179,13 @@ impl SISImage {
         Ok(ClassInstanceRef::new(None))
     }
 
+    #[method(public)]
     async fn get_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.SISImage::getWidth({this:?})");
         Ok(0)
     }
 
+    #[method(public)]
     async fn paint_frame(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -277,6 +209,7 @@ impl SISImage {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(public)]
     async fn paint_object(
         jvm: &Jvm,
         _context: &mut WieJvmContext,

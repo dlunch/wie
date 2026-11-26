@@ -1,10 +1,7 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::{
     javax::microedition::lcdui::{Command, CommandListener},
     net::wie::MIDPKeyCode,
@@ -24,41 +21,31 @@ const KEY_CODES: [(&str, i32, i32); 9] = [
 ];
 
 // abstract class com.nokia.mid.ui.FullCanvas
-pub struct FullCanvas;
+#[java_class(name = "com/nokia/mid/ui/FullCanvas", extends = "javax/microedition/lcdui/Canvas", public, abstract)]
+pub struct FullCanvas {
+    #[field(public, static, final)]
+    KEY_UP_ARROW: i32,
+    #[field(public, static, final)]
+    KEY_DOWN_ARROW: i32,
+    #[field(public, static, final)]
+    KEY_LEFT_ARROW: i32,
+    #[field(public, static, final)]
+    KEY_RIGHT_ARROW: i32,
+    #[field(public, static, final)]
+    KEY_SOFTKEY3: i32,
+    #[field(public, static, final)]
+    KEY_SOFTKEY1: i32,
+    #[field(public, static, final)]
+    KEY_SOFTKEY2: i32,
+    #[field(public, static, final)]
+    KEY_SEND: i32,
+    #[field(public, static, final)]
+    KEY_END: i32,
+}
 
+#[java_methods]
 impl FullCanvas {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/nokia/mid/ui/FullCanvas",
-            parent_class: Some("javax/microedition/lcdui/Canvas"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "addCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::add_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setCommandListener",
-                    "(Ljavax/microedition/lcdui/CommandListener;)V",
-                    Self::set_command_listener,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getKeyCode", "(I)I", Self::get_key_code, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::PROTECTED),
-            ],
-            fields: KEY_CODES
-                .iter()
-                .map(|(name, _, _)| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-                .collect(),
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.nokia.mid.ui.FullCanvas::<clinit>()");
 
@@ -68,6 +55,7 @@ impl FullCanvas {
         Ok(())
     }
 
+    #[method(constructor, protected)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.nokia.mid.ui.FullCanvas::<init>({this:?})");
 
@@ -76,6 +64,7 @@ impl FullCanvas {
             .await
     }
 
+    #[method(public)]
     async fn add_command(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
         tracing::debug!("com.nokia.mid.ui.FullCanvas::addCommand({this:?}, {command:?})");
 
@@ -84,6 +73,7 @@ impl FullCanvas {
             .await)
     }
 
+    #[method(public)]
     async fn set_command_listener(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -97,6 +87,7 @@ impl FullCanvas {
             .await)
     }
 
+    #[method(public)]
     async fn get_game_action(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, code: i32) -> JvmResult<i32> {
         tracing::debug!("com.nokia.mid.ui.FullCanvas::getGameAction({this:?}, {code})");
 
@@ -108,6 +99,7 @@ impl FullCanvas {
             .await
     }
 
+    #[method(public)]
     async fn get_key_code(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, action: i32) -> JvmResult<i32> {
         tracing::debug!("com.nokia.mid.ui.FullCanvas::getKeyCode({this:?}, {action})");
 
@@ -120,6 +112,7 @@ impl FullCanvas {
             .unwrap_or(code))
     }
 
+    #[method(protected)]
     async fn handle_key_event(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
         tracing::debug!("com.nokia.mid.ui.FullCanvas::handleKeyEvent({this:?}, {event_type}, {code})");
 
@@ -134,47 +127,50 @@ impl FullCanvas {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, vec};
+    use alloc::boxed::Box;
 
     use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
-    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use jvm_class_proto::{java_class, java_methods};
 
     use test_utils::run_jvm_test;
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use wie_jvm_support::WieJvmContext;
     use wie_midp::classes::{
         javax::microedition::lcdui::Graphics,
         net::wie::{KeyboardEventType, MIDPKeyCode},
     };
 
-    async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<()>) -> JvmResult<()> {
-        jvm.invoke_special(&this, "com/nokia/mid/ui/FullCanvas", "<init>", "()V", ()).await
+    #[java_class(name = "test/FullCanvas", extends = "com/nokia/mid/ui/FullCanvas", public)]
+    struct TestFullCanvas {
+        #[field(public)]
+        pressed: i32,
     }
 
-    async fn paint(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<()>, _: ClassInstanceRef<Graphics>) -> JvmResult<()> {
-        Ok(())
-    }
+    #[java_methods]
+    impl TestFullCanvas {
+        #[method(constructor, public)]
+        async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<()>) -> JvmResult<()> {
+            jvm.invoke_special(&this, "com/nokia/mid/ui/FullCanvas", "<init>", "()V", ()).await
+        }
 
-    async fn key_pressed(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<()>, code: i32) -> JvmResult<()> {
-        jvm.put_field(&mut this, "test/FullCanvas", "pressed", "I", code).await
+        #[method(protected)]
+        async fn paint(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<()>, _: ClassInstanceRef<Graphics>) -> JvmResult<()> {
+            Ok(())
+        }
+
+        #[method(protected)]
+        async fn key_pressed(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<()>, code: i32) -> JvmResult<()> {
+            jvm.put_field(&mut this, "test/FullCanvas", "pressed", "I", code).await
+        }
     }
 
     #[test]
     fn full_canvas_initializes_and_translates_key_events() {
-        let canvas_proto = WieJavaClassProto {
-            name: "test/FullCanvas",
-            parent_class: Some("com/nokia/mid/ui/FullCanvas"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("paint", "(Ljavax/microedition/lcdui/Graphics;)V", paint, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyPressed", "(I)V", key_pressed, MethodAccessFlags::PROTECTED),
-            ],
-            fields: vec![JavaFieldProto::new("pressed", "I", FieldAccessFlags::PUBLIC)],
-            access_flags: ClassAccessFlags::PUBLIC,
-        };
         run_jvm_test(
-            Box::new([wie_midp::get_protos().into(), crate::get_protos().into(), [canvas_proto].into()]),
+            Box::new([
+                wie_midp::get_protos().into(),
+                crate::get_protos().into(),
+                [TestFullCanvas::as_proto()].into(),
+            ]),
             |jvm| async move {
                 let canvas = jvm.new_class("test/FullCanvas", "()V", ()).await?;
                 let title = JavaLangString::from_rust_string(&jvm, "Fullscreen canvas").await?;

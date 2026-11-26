@@ -1,51 +1,26 @@
 use alloc::{vec, vec::Vec};
 
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::org::kwis::msp::{lcdui::Graphics, lwc::Component};
 
 // class org.kwis.msp.lwc.ContainerComponent
-pub struct ContainerComponent;
+#[java_class(name = "org/kwis/msp/lwc/ContainerComponent", extends = "org/kwis/msp/lwc/Component", public, abstract)]
+pub struct ContainerComponent {
+    #[field(protected)]
+    cmps: ClassInstanceRef<Array<Component>>,
+    #[field(protected)]
+    ncomp: i32,
+    #[field(protected)]
+    cmpFocus: ClassInstanceRef<Component>,
+}
 
+#[java_methods]
 impl ContainerComponent {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "org/kwis/msp/lwc/ContainerComponent",
-            parent_class: Some("org/kwis/msp/lwc/Component"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new(
-                    "addComponent",
-                    "(Lorg/kwis/msp/lwc/Component;)I",
-                    Self::add_component,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("removeComponent", "(I)V", Self::remove_component_index, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "removeComponent",
-                    "(Lorg/kwis/msp/lwc/Component;)V",
-                    Self::remove_component,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("canHandleInput", "()Z", Self::can_handle_input, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("focusNotify", "(Z)V", Self::focus_notify, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
-            ],
-            fields: vec![
-                JavaFieldProto::new("cmps", "[Lorg/kwis/msp/lwc/Component;", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("ncomp", "I", FieldAccessFlags::PROTECTED),
-                JavaFieldProto::new("cmpFocus", "Lorg/kwis/msp/lwc/Component;", FieldAccessFlags::PROTECTED),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
-        }
-    }
-
+    #[method(constructor, protected)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ContainerComponent::<init>({this:?})");
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await?;
@@ -60,7 +35,7 @@ impl ContainerComponent {
         .await
     }
 
-    pub async fn children<T>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Vec<ClassInstanceRef<Component>>> {
+    pub async fn children<T: Sync>(jvm: &Jvm, this: &ClassInstanceRef<T>) -> JvmResult<Vec<ClassInstanceRef<Component>>> {
         let array: ClassInstanceRef<Array<Component>> = jvm
             .get_field(this, "org/kwis/msp/lwc/ContainerComponent", "cmps", "[Lorg/kwis/msp/lwc/Component;")
             .await?;
@@ -121,6 +96,7 @@ impl ContainerComponent {
             .await
     }
 
+    #[method(public)]
     async fn add_component(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -174,6 +150,7 @@ impl ContainerComponent {
         Ok(index)
     }
 
+    #[method(name = "removeComponent", public)]
     async fn remove_component_index(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ContainerComponent::removeComponent({this:?}, {index})");
         let mut children = Self::children(jvm, &this).await?;
@@ -211,6 +188,7 @@ impl ContainerComponent {
         jvm.invoke_virtual(&this, "org/kwis/msp/lwc/Component", "repaint", "()V", ()).await
     }
 
+    #[method(public)]
     async fn remove_component(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -231,6 +209,7 @@ impl ContainerComponent {
         Ok(())
     }
 
+    #[method(public)]
     async fn can_handle_input(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lwc.ContainerComponent::canHandleInput({this:?})");
         let focus: ClassInstanceRef<Component> = jvm
@@ -239,6 +218,7 @@ impl ContainerComponent {
         Ok(!focus.is_null())
     }
 
+    #[method(public)]
     async fn focus_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, focused: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ContainerComponent::focusNotify({this:?}, {focused})");
         let _: () = jvm
@@ -266,6 +246,7 @@ impl ContainerComponent {
         Ok(())
     }
 
+    #[method(protected)]
     async fn key_notify(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, key: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lwc.ContainerComponent::keyNotify({this:?}, {event_type}, {key})");
         let focus: ClassInstanceRef<Component> = jvm
@@ -278,6 +259,7 @@ impl ContainerComponent {
             .await
     }
 
+    #[method(protected)]
     async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lwc.ContainerComponent::paint({this:?}, {graphics:?})");
         let _: () = jvm.invoke_virtual(&this, "org/kwis/msp/lwc/Component", "validate", "()V", ()).await?;

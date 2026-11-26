@@ -1,11 +1,8 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::{
     javax::microedition::lcdui::{Command, Graphics, Item, ItemCommandListener},
@@ -20,96 +17,29 @@ const TRACK_BORDER: i32 = 0x596773;
 const TRACK_FILL: i32 = 0x2f7eb8;
 
 // class javax.microedition.lcdui.Gauge
-pub struct Gauge;
+#[java_class(name = "javax/microedition/lcdui/Gauge", extends = "javax/microedition/lcdui/Item", public)]
+pub struct Gauge {
+    #[field(public, static, final)]
+    INDEFINITE: i32,
+    #[field(public, static, final)]
+    CONTINUOUS_IDLE: i32,
+    #[field(public, static, final)]
+    INCREMENTAL_IDLE: i32,
+    #[field(public, static, final)]
+    CONTINUOUS_RUNNING: i32,
+    #[field(public, static, final)]
+    INCREMENTAL_UPDATING: i32,
+    #[field(private)]
+    interactive: bool,
+    #[field(private)]
+    maxValue: i32,
+    #[field(private)]
+    value: i32,
+}
 
+#[java_methods]
 impl Gauge {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Gauge",
-            parent_class: Some("javax/microedition/lcdui/Item"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;ZII)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getMaxValue", "()I", Self::get_max_value, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setMaxValue", "(I)V", Self::set_max_value, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getValue", "()I", Self::get_value, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setValue", "(I)V", Self::set_value, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isInteractive", "()Z", Self::is_interactive, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setLabel", "(Ljava/lang/String;)V", Self::set_label, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setLayout", "(I)V", Self::set_layout, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "addCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::add_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "setItemCommandListener",
-                    "(Ljavax/microedition/lcdui/ItemCommandListener;)V",
-                    Self::set_item_command_listener,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setPreferredSize", "(II)V", Self::set_preferred_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "setDefaultCommand",
-                    "(Ljavax/microedition/lcdui/Command;)V",
-                    Self::set_default_command,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("minimumContentWidth", "()I", Self::minimum_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new("minimumContentHeight", "()I", Self::minimum_content_height, MethodAccessFlags::empty()),
-                JavaMethodProto::new("preferredContentWidth", "()I", Self::preferred_content_width, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "preferredContentHeight",
-                    "(I)I",
-                    Self::preferred_content_height,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new(
-                    "paintContent",
-                    "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
-                    Self::paint_content,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("canBeAlertIndicator", "()Z", Self::can_be_alert_indicator, MethodAccessFlags::empty()),
-                JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
-                JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "INDEFINITE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "CONTINUOUS_IDLE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "INCREMENTAL_IDLE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "CONTINUOUS_RUNNING",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "INCREMENTAL_UPDATING",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("interactive", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("maxValue", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("value", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::<clinit>()");
 
@@ -124,6 +54,7 @@ impl Gauge {
         Ok(())
     }
 
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -168,12 +99,14 @@ impl Gauge {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_max_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::getMaxValue({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "maxValue", "I").await
     }
 
+    #[method(public)]
     async fn set_max_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, max_value: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::setMaxValue({this:?}, {max_value})");
 
@@ -197,12 +130,14 @@ impl Gauge {
             .await
     }
 
+    #[method(public)]
     async fn get_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::getValue({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "value", "I").await
     }
 
+    #[method(public)]
     async fn set_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::setValue({this:?}, {value})");
 
@@ -225,12 +160,14 @@ impl Gauge {
             .await
     }
 
+    #[method(public)]
     async fn is_interactive(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Gauge::isInteractive({this:?})");
 
         jvm.get_field(&this, "javax/microedition/lcdui/Gauge", "interactive", "Z").await
     }
 
+    #[method(public)]
     async fn set_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::setLabel({this:?}, {label:?})");
 
@@ -238,6 +175,7 @@ impl Gauge {
             .await
     }
 
+    #[method(public)]
     async fn set_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::setLayout({this:?}, {layout})");
 
@@ -245,6 +183,7 @@ impl Gauge {
             .await
     }
 
+    #[method(public)]
     async fn add_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::addCommand({this:?}, {command:?})");
 
@@ -258,6 +197,7 @@ impl Gauge {
         .await
     }
 
+    #[method(public)]
     async fn set_item_command_listener(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -276,6 +216,7 @@ impl Gauge {
         .await
     }
 
+    #[method(public)]
     async fn set_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Gauge::setPreferredSize({this:?}, {width}, {height})");
 
@@ -283,6 +224,7 @@ impl Gauge {
             .await
     }
 
+    #[method(public)]
     async fn set_default_command(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -301,24 +243,28 @@ impl Gauge {
         .await
     }
 
+    #[method]
     async fn minimum_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::minimumContentWidth({_this:?})");
 
         Ok(GAUGE_MINIMUM_WIDTH)
     }
 
+    #[method]
     async fn minimum_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::minimumContentHeight({_this:?})");
 
         Ok(GAUGE_HEIGHT)
     }
 
+    #[method]
     async fn preferred_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::preferredContentWidth({_this:?})");
 
         Ok(GAUGE_PREFERRED_WIDTH)
     }
 
+    #[method]
     async fn preferred_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _width: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::preferredContentHeight({_this:?}, {_width})");
 
@@ -326,6 +272,7 @@ impl Gauge {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method]
     async fn paint_content(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -400,6 +347,7 @@ impl Gauge {
         .await
     }
 
+    #[method]
     async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Gauge::canBeAlertIndicator({this:?})");
 
@@ -410,6 +358,7 @@ impl Gauge {
             .await
     }
 
+    #[method]
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.Gauge::isFocusable({this:?})");
 
@@ -420,6 +369,7 @@ impl Gauge {
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "isFocusable", "()Z", ()).await
     }
 
+    #[method]
     async fn handle_item_key(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Gauge::handleItemKey({this:?}, {key})");
 

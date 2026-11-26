@@ -1,15 +1,12 @@
-use alloc::{boxed::Box, string::String as RustString, vec, vec::Vec};
+use alloc::{boxed::Box, string::String as RustString, vec::Vec};
 
 use bytemuck::cast_vec;
-
 use jvm::{Array, ClassInstanceRef, JavaChar, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
-
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{JavaDescriptor, TypeConverter, java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::canvas::{ArgbPixel, Canvas as BackendCanvas, Clip, PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{Font, Image};
 
@@ -36,6 +33,12 @@ impl TypeConverter<Anchor> for Anchor {
     }
 }
 
+impl JavaDescriptor for Anchor {
+    fn descriptor() -> RustString {
+        "I".into()
+    }
+}
+
 impl From<Anchor> for TextAlignment {
     fn from(anchor: Anchor) -> Self {
         if anchor.contains(Anchor::HCENTER) {
@@ -49,97 +52,38 @@ impl From<Anchor> for TextAlignment {
 }
 
 // class javax.microedition.lcdui.Graphics
-pub struct Graphics;
+#[java_class(name = "javax/microedition/lcdui/Graphics", public)]
+pub struct Graphics {
+    #[field(private)]
+    img: ClassInstanceRef<Image>,
+    #[field(private)]
+    width: i32,
+    #[field(private)]
+    height: i32,
+    #[field(private)]
+    clipX: i32,
+    #[field(private)]
+    clipY: i32,
+    #[field(private)]
+    clipWidth: i32,
+    #[field(private)]
+    clipHeight: i32,
+    #[field(private)]
+    translateX: i32,
+    #[field(private)]
+    translateY: i32,
+    #[field(private)]
+    color: i32,
+    #[field(private)]
+    xorMode: bool,
+    #[field(private)]
+    font: ClassInstanceRef<Font>,
+}
 
 #[allow(clippy::too_many_arguments)]
+#[java_methods]
 impl Graphics {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Graphics",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/lcdui/Image;)V",
-                    Self::init_with_image,
-                    MethodAccessFlags::empty(),
-                ),
-                JavaMethodProto::new("reset", "()V", Self::reset, MethodAccessFlags::empty()),
-                // WIPI wrapper bridge only; this is not part of the MIDP Graphics API.
-                JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, MethodAccessFlags::PRIVATE),
-                JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setColor", "(I)V", Self::set_color, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setFont", "(Ljavax/microedition/lcdui/Font;)V", Self::set_font, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("fillRoundRect", "(IIIIII)V", Self::fill_round_rect, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("fillArc", "(IIIIII)V", Self::fill_arc, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "drawSubstring",
-                    "(Ljava/lang/String;IIIII)V",
-                    Self::draw_substring,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "drawImage",
-                    "(Ljavax/microedition/lcdui/Image;III)V",
-                    Self::draw_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "drawRegion",
-                    "(Ljavax/microedition/lcdui/Image;IIIIIIII)V",
-                    Self::draw_region,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getColor", "()I", Self::get_color, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("translate", "(II)V", Self::translate, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("drawRGB", "([IIIIIIIZ)V", Self::draw_rgb, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getGrayScale", "()I", Self::get_gray_scale, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getRedComponent", "()I", Self::get_red_component, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getGreenComponent", "()I", Self::get_green_component, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getBlueComponent", "()I", Self::get_blue_component, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getDisplayColor", "(I)I", Self::get_display_color, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setStrokeStyle", "(I)V", Self::set_stroke_style, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getStrokeStyle", "()I", Self::get_stroke_style, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("copyArea", "(IIIIIII)V", Self::copy_area, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("fillTriangle", "(IIIIII)V", Self::fill_triangle, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("width", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("height", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("clipX", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("clipY", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("clipWidth", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("clipHeight", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("translateX", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("translateY", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("color", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("xorMode", "Z", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("font", "Ljavax/microedition/lcdui/Font;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor)]
     async fn init_with_image(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::<init>({this:?}, {image:?})");
 
@@ -170,6 +114,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method]
     async fn reset(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::reset({this:?})");
 
@@ -204,6 +149,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getFont({this:?})");
 
@@ -211,6 +157,7 @@ impl Graphics {
             .await
     }
 
+    #[method(public)]
     async fn set_color(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, rgb: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setColor({this:?}, {rgb})");
 
@@ -219,6 +166,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(name = "setColor", public)]
     async fn set_color_by_rgb(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, r: i32, g: i32, b: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setColor({this:?}, {r}, {g}, {b})");
 
@@ -229,6 +177,8 @@ impl Graphics {
         Ok(())
     }
 
+    // WIPI wrapper bridge only; this is not part of the MIDP Graphics API.
+    #[method(name = "setXORMode", private)]
     async fn set_xor_mode(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setXORMode({this:?}, {xor_mode})");
 
@@ -238,6 +188,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_font(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setFont({this:?}, {font:?})");
 
@@ -257,6 +208,7 @@ impl Graphics {
         .await
     }
 
+    #[method(public)]
     async fn set_clip(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -285,6 +237,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn clip_rect(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -321,6 +274,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn fill_round_rect(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -361,6 +315,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn fill_arc(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -401,6 +356,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn fill_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::fillRect({this:?}, {x}, {y}, {width}, {height})");
 
@@ -429,6 +385,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::drawRect({this:?}, {x}, {y}, {width}, {height})");
 
@@ -458,6 +415,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_char(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -493,6 +451,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_chars(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -531,6 +490,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_string(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -569,6 +529,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_substring(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -607,6 +568,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_line(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::drawLine({this:?}, {x1}, {y1}, {x2}, {y2})");
 
@@ -628,6 +590,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_image(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -676,6 +639,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_region(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -742,6 +706,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_round_rect(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -783,6 +748,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn draw_arc(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -824,6 +790,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_color(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getColor({this:?})");
 
@@ -832,6 +799,7 @@ impl Graphics {
         Ok(color)
     }
 
+    #[method(public)]
     async fn get_clip_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getClipX({this:?})");
 
@@ -841,6 +809,7 @@ impl Graphics {
         Ok(clip_x - translate_x)
     }
 
+    #[method(public)]
     async fn get_clip_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getClipY({this:?})");
 
@@ -850,6 +819,7 @@ impl Graphics {
         Ok(clip_y - translate_y)
     }
 
+    #[method(public)]
     async fn get_clip_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getClipWidth({this:?})");
 
@@ -858,6 +828,7 @@ impl Graphics {
         Ok(clip_width)
     }
 
+    #[method(public)]
     async fn get_clip_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getClipHeight({this:?})");
 
@@ -866,6 +837,7 @@ impl Graphics {
         Ok(clip_height)
     }
 
+    #[method(public)]
     async fn get_translate_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateX({this:?})");
 
@@ -874,6 +846,7 @@ impl Graphics {
         Ok(translate_x)
     }
 
+    #[method(public)]
     async fn get_translate_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateY({this:?})");
 
@@ -882,6 +855,7 @@ impl Graphics {
         Ok(translate_y)
     }
 
+    #[method(public)]
     async fn translate(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::translate({this:?}, {x}, {y})");
 
@@ -896,6 +870,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(name = "drawRGB", public)]
     async fn draw_rgb(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -952,6 +927,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_gray_scale(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setGrayScale({this:?}, {value})");
 
@@ -962,6 +938,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn get_gray_scale(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getGrayScale({this:?})");
 
@@ -970,6 +947,7 @@ impl Graphics {
         Ok((((color >> 16) & 0xff) + ((color >> 8) & 0xff) + (color & 0xff)) / 3)
     }
 
+    #[method(public)]
     async fn get_red_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getRedComponent({this:?})");
 
@@ -978,6 +956,7 @@ impl Graphics {
         Ok((color >> 16) & 0xff)
     }
 
+    #[method(public)]
     async fn get_green_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getGreenComponent({this:?})");
 
@@ -986,6 +965,7 @@ impl Graphics {
         Ok((color >> 8) & 0xff)
     }
 
+    #[method(public)]
     async fn get_blue_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getBlueComponent({this:?})");
 
@@ -994,24 +974,28 @@ impl Graphics {
         Ok(color & 0xff)
     }
 
+    #[method(public)]
     async fn get_display_color(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, color: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getDisplayColor({this:?}, {color})");
 
         Ok(color & 0xffffff)
     }
 
+    #[method(public)]
     async fn set_stroke_style(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, style: i32) -> JvmResult<()> {
         tracing::warn!("stub javax.microedition.lcdui.Graphics::setStrokeStyle({this:?}, {style})");
 
         Ok(())
     }
 
+    #[method(public)]
     async fn get_stroke_style(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Graphics::getStrokeStyle({this:?})");
 
         Ok(0) // SOLID
     }
 
+    #[method(public)]
     async fn copy_area(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -1066,6 +1050,7 @@ impl Graphics {
         Ok(())
     }
 
+    #[method(public)]
     async fn fill_triangle(
         _: &Jvm,
         _: &mut WieJvmContext,

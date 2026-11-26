@@ -1,34 +1,19 @@
-use alloc::vec;
-
 use bytemuck::cast_slice;
 use encoding_rs::EUC_KR;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::com::xce::io::ByteToCharConverter;
 
 // class com.xce.io.ByteToCharEUC_KR
+#[java_class(name = "com/xce/io/ByteToCharEUC_KR", extends = "com/xce/io/ByteToCharConverter", public)]
 pub struct ByteToCharEucKr;
 
+#[java_methods]
 impl ByteToCharEucKr {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/xce/io/ByteToCharEUC_KR",
-            parent_class: Some("com/xce/io/ByteToCharConverter"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("convert", "([BII[CII)I", Self::convert, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getNumberOfChars", "([BII)I", Self::get_number_of_chars, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.ByteToCharEUC_KR::<init>({this:?})");
 
@@ -36,6 +21,7 @@ impl ByteToCharEucKr {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(public)]
     async fn convert(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -62,6 +48,7 @@ impl ByteToCharEucKr {
         ByteToCharConverter::decode(jvm, this, &bytes, output, output_offset, output_capacity, false).await
     }
 
+    #[method(public)]
     async fn get_number_of_chars(
         jvm: &Jvm,
         _context: &mut WieJvmContext,

@@ -1,26 +1,16 @@
-use alloc::vec;
+use jvm::{ClassInstanceRef, Jvm, Result};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use wie_jvm_support::WieJvmContext;
 
-use wie_jvm_support::WieJavaClassProto;
+use crate::classes::javax::microedition::lcdui::Item;
 
 // interface javax.microedition.lcdui.ItemStateListener
+#[java_class(name = "javax/microedition/lcdui/ItemStateListener", public, interface, abstract)]
 pub struct ItemStateListener;
 
+#[java_methods]
 impl ItemStateListener {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/ItemStateListener",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract(
-                "itemStateChanged",
-                "(Ljavax/microedition/lcdui/Item;)V",
-                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-            )],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn item_state_changed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, item: ClassInstanceRef<Item>) -> Result<()>;
 }

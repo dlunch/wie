@@ -8,7 +8,7 @@ mod runtime;
 
 use alloc::{boxed::Box, format, string::ToString};
 
-use jvm::{JavaError, JavaValue, Jvm, runtime::JavaLangString};
+use jvm::{ClassInstance, JavaError, JavaValue, Jvm, runtime::JavaLangString};
 use rustjava_runtime::Runtime;
 
 use wie_backend::System;
@@ -82,7 +82,7 @@ impl JvmSupport {
                     .await
                     .unwrap();
 
-                let trace = jvm
+                let trace: Box<dyn ClassInstance> = jvm
                     .invoke_virtual(&string_writer, "java/io/StringWriter", "toString", "()Ljava/lang/String;", [])
                     .await
                     .unwrap();

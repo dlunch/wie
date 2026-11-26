@@ -1,87 +1,33 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
 use wie_backend::canvas::{Clip, PixelType, Rgb8Pixel};
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
 // class com.skt.m.Graphics2D
-pub struct Graphics2D;
+#[java_class(name = "com/skt/m/Graphics2D", public)]
+pub struct Graphics2D {
+    #[field(public, static, final)]
+    DRAW_COPY: i32,
+    #[field(public, static, final)]
+    DRAW_AND: i32,
+    #[field(public, static, final)]
+    DRAW_OR: i32,
+    #[field(public, static, final)]
+    DRAW_XOR: i32,
+    #[field(private)]
+    graphics: ClassInstanceRef<Graphics>,
+}
 
+#[java_methods]
 impl Graphics2D {
     const DRAW_COPY: i32 = 0;
     const DRAW_AND: i32 = 1;
     const DRAW_OR: i32 = 2;
     const DRAW_XOR: i32 = 3;
 
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "com/skt/m/Graphics2D",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Graphics;)V", Self::init, MethodAccessFlags::PRIVATE),
-                JavaMethodProto::new(
-                    "getGraphics2D",
-                    "(Ljavax/microedition/lcdui/Graphics;)Lcom/skt/m/Graphics2D;",
-                    Self::get_graphics2d,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "captureLCD",
-                    "(IIII)Ljavax/microedition/lcdui/Image;",
-                    Self::capture_lcd,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "drawImage",
-                    "(IILjavax/microedition/lcdui/Image;IIIII)V",
-                    Self::draw_image,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "createMaskableImage",
-                    "(II)Ljavax/microedition/lcdui/Image;",
-                    Self::create_maskable_image,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("getPixel", "(II)I", Self::get_pixel, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getPixelMask", "(II)Z", Self::get_pixel_mask, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("invertRect", "(IIII)V", Self::invert_rect, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setPixel", "(III)V", Self::set_pixel, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setPixelMask", "(IIZ)V", Self::set_pixel_mask, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "DRAW_COPY",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DRAW_AND",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DRAW_OR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "DRAW_XOR",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new("graphics", "Ljavax/microedition/lcdui/Graphics;", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Graphics2D::<clinit>()");
 
@@ -97,6 +43,7 @@ impl Graphics2D {
         Ok(())
     }
 
+    #[method(constructor, private)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Graphics2D::<init>({this:?}, {graphics:?})");
 
@@ -118,6 +65,7 @@ impl Graphics2D {
         Ok(())
     }
 
+    #[method(name = "getGraphics2D", public, static)]
     async fn get_graphics2d(jvm: &Jvm, _context: &mut WieJvmContext, graphics: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::debug!("com.skt.m.Graphics2D::getGraphics2D({graphics:?})");
 
@@ -132,6 +80,7 @@ impl Graphics2D {
         Ok(instance.into())
     }
 
+    #[method(name = "captureLCD", public, static)]
     async fn capture_lcd(jvm: &Jvm, _context: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("com.skt.m.Graphics2D::captureLCD({x}, {y}, {width}, {height})");
 
@@ -174,6 +123,7 @@ impl Graphics2D {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[method(public)]
     async fn draw_image(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -230,6 +180,7 @@ impl Graphics2D {
         .await
     }
 
+    #[method(public, static)]
     async fn create_maskable_image(jvm: &Jvm, _context: &mut WieJvmContext, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("com.skt.m.Graphics2D::createMaskableImage({width}, {height})");
 
@@ -251,6 +202,7 @@ impl Graphics2D {
         Ok(image)
     }
 
+    #[method(public)]
     async fn get_pixel(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<i32> {
         tracing::debug!("com.skt.m.Graphics2D::getPixel({this:?}, {x}, {y})");
 
@@ -272,11 +224,13 @@ impl Graphics2D {
             .unwrap_or(0))
     }
 
+    #[method(public)]
     async fn get_pixel_mask(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<bool> {
         tracing::warn!("stub com.skt.m.Graphics2D::getPixelMask({this:?}, {x}, {y})");
         Ok(false)
     }
 
+    #[method(public)]
     async fn invert_rect(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -321,6 +275,7 @@ impl Graphics2D {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_pixel(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32, color: i32) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Graphics2D::setPixel({this:?}, {x}, {y}, {color})");
 
@@ -346,6 +301,7 @@ impl Graphics2D {
         Ok(())
     }
 
+    #[method(public)]
     async fn set_pixel_mask(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32, mask: bool) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Graphics2D::setPixelMask({this:?}, {x}, {y}, {mask})");
         Ok(())

@@ -1,70 +1,30 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::util::Vector;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{Graphics, game::Layer};
 
 // class javax.microedition.lcdui.game.LayerManager
-pub struct LayerManager;
+#[java_class(name = "javax/microedition/lcdui/game/LayerManager", public)]
+pub struct LayerManager {
+    // Index 0 is the layer closest to the user.
+    #[field(private)]
+    layers: ClassInstanceRef<Vector>,
+    #[field(private)]
+    viewX: i32,
+    #[field(private)]
+    viewY: i32,
+    #[field(private)]
+    viewWidth: i32,
+    #[field(private)]
+    viewHeight: i32,
+}
 
+#[java_methods]
 impl LayerManager {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/game/LayerManager",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "append",
-                    "(Ljavax/microedition/lcdui/game/Layer;)V",
-                    Self::append,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "insert",
-                    "(Ljavax/microedition/lcdui/game/Layer;I)V",
-                    Self::insert,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "getLayerAt",
-                    "(I)Ljavax/microedition/lcdui/game/Layer;",
-                    Self::get_layer_at,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("getSize", "()I", Self::get_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "remove",
-                    "(Ljavax/microedition/lcdui/game/Layer;)V",
-                    Self::remove,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;II)V",
-                    Self::paint,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("setViewWindow", "(IIII)V", Self::set_view_window, MethodAccessFlags::PUBLIC),
-            ],
-            fields: vec![
-                // Index 0 is the layer closest to the user.
-                JavaFieldProto::new("layers", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("viewX", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("viewY", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("viewWidth", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("viewHeight", "I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.LayerManager::<init>({this:?})");
 
@@ -87,6 +47,7 @@ impl LayerManager {
         Ok(())
     }
 
+    #[method(public)]
     async fn append(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, layer: ClassInstanceRef<Layer>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.LayerManager::append({this:?}, {layer:?})");
 
@@ -105,6 +66,7 @@ impl LayerManager {
             .await
     }
 
+    #[method(public)]
     async fn insert(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, layer: ClassInstanceRef<Layer>, index: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.LayerManager::insert({this:?}, {layer:?}, {index})");
 
@@ -135,6 +97,7 @@ impl LayerManager {
         .await
     }
 
+    #[method(public)]
     async fn get_layer_at(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Layer>> {
         tracing::debug!("javax.microedition.lcdui.game.LayerManager::getLayerAt({this:?}, {index})");
 
@@ -148,6 +111,7 @@ impl LayerManager {
             .await
     }
 
+    #[method(public)]
     async fn get_size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.LayerManager::getSize({this:?})");
 
@@ -155,6 +119,7 @@ impl LayerManager {
         jvm.invoke_virtual(&layers, "java/util/Vector", "size", "()I", ()).await
     }
 
+    #[method(public)]
     async fn remove(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, layer: ClassInstanceRef<Layer>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.LayerManager::remove({this:?}, {layer:?})");
 
@@ -170,6 +135,7 @@ impl LayerManager {
         Ok(())
     }
 
+    #[method(public)]
     async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.LayerManager::paint({this:?}, {g:?}, {x}, {y})");
 
@@ -247,6 +213,7 @@ impl LayerManager {
         .await
     }
 
+    #[method(public)]
     async fn set_view_window(
         jvm: &Jvm,
         _: &mut WieJvmContext,
