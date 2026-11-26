@@ -33,10 +33,10 @@ async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId)
         JavaSvcId::JavaJump3 => return EmulatedFunction::call(&java_jump_3, core, &mut ()).await,
         JavaSvcId::GetJavaMethod => EmulatedFunction::call(&get_java_method, core, &mut ()).await?.write(core, lr),
         JavaSvcId::GetField => EmulatedFunction::call(&get_field, core, &mut ()).await?.write(core, lr),
-        JavaSvcId::JbUnk4 => EmulatedFunction::call(&jb_unk4, core, &mut ()).await?.write(core, lr),
-        JavaSvcId::JbUnk5 => EmulatedFunction::call(&jb_unk5, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::Safepoint => EmulatedFunction::call(&safepoint, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::StackOverflow => EmulatedFunction::call(&stack_overflow, core, &mut ()).await?.write(core, lr),
         JavaSvcId::MonitorEnter => EmulatedFunction::call(&monitor_enter, core, jvm).await?.write(core, lr),
-        JavaSvcId::JbUnk8 => EmulatedFunction::call(&monitor_exit, core, jvm).await?.write(core, lr),
+        JavaSvcId::MonitorExit => EmulatedFunction::call(&monitor_exit, core, jvm).await?.write(core, lr),
         JavaSvcId::RegisterClass => EmulatedFunction::call(&register_class, core, jvm).await?.write(core, lr),
         JavaSvcId::RegisterJavaString => EmulatedFunction::call(&register_java_string, core, jvm).await?.write(core, lr),
         JavaSvcId::CallNative => return EmulatedFunction::call(&call_native, core, &mut ()).await,
@@ -53,10 +53,10 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> Result<u32> {
         fn_java_jump_3: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump3)?,
         fn_get_java_method: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetJavaMethod)?,
         fn_get_field: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetField)?,
-        fn_unk4: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk4)?,
-        fn_unk5: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk5)?,
-        fn_unk7: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::MonitorEnter)?,
-        fn_unk8: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk8)?,
+        fn_safepoint: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::Safepoint)?,
+        fn_stack_overflow: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::StackOverflow)?,
+        fn_monitor_enter: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::MonitorEnter)?,
+        fn_monitor_exit: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::MonitorExit)?,
         fn_register_class: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterClass)?,
         fn_register_java_string: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterJavaString)?,
         fn_call_native: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::CallNative)?,
@@ -100,6 +100,14 @@ pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord
         Ok(x) => x,
         Err(x) => return Err(JvmSupport::to_wie_err(jvm, x).await),
     };
+
+    JavaMethod::handle_exception(core, jvm, exception).await
+}
+
+pub async fn java_throw_instance(core: &mut ArmCore, jvm: &mut Jvm, ptr_exception: u32, a1: u32) -> Result<JavaMethodResult> {
+    tracing::debug!("java_throw_instance({ptr_exception:#x}, {a1})");
+
+    let exception = Box::new(JavaClassInstance::from_raw(ptr_exception, core));
 
     JavaMethod::handle_exception(core, jvm, exception).await
 }
@@ -252,14 +260,14 @@ async fn get_field(core: &mut ArmCore, _: &mut (), ptr_class: u32, field_name: u
     }
 }
 
-async fn jb_unk4(_: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk4({a0:#x}, {a1:#x})");
+async fn safepoint(_: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<u32> {
+    tracing::warn!("stub safepoint({a0:#x}, {a1:#x})");
 
     Ok(0)
 }
 
-async fn jb_unk5(_: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk5({a0:#x}, {a1:#x})");
+async fn stack_overflow(_: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<u32> {
+    tracing::warn!("stub stack_overflow({a0:#x}, {a1:#x})");
 
     Ok(0)
 }

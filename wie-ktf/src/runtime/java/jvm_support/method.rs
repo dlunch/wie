@@ -68,7 +68,7 @@ impl JavaMethod {
                 fn_body_native_or_exception_table: fn_body_native,
                 ptr_name,
                 exception_table_count: 0,
-                unk3: 0,
+                frame_size: 0,
                 index_in_vtable: 0, // to be filled later
                 access_flags: access_flags.bits(),
                 unk6: 0,

@@ -11,6 +11,7 @@ pub enum InitSvcId {
     JavaClassLoad = 5,
     Alloc = 6,
     VisitGcRoot = 7,
+    JavaThrowInstance = 8,
 }
 
 impl TryFrom<SvcId> for InitSvcId {
@@ -26,6 +27,7 @@ impl TryFrom<SvcId> for InitSvcId {
             5 => Self::JavaClassLoad,
             6 => Self::Alloc,
             7 => Self::VisitGcRoot,
+            8 => Self::JavaThrowInstance,
             _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF init SVC id {}", value.0))),
         })
     }
@@ -45,10 +47,10 @@ pub enum JavaSvcId {
     JavaJump3 = 9,
     GetJavaMethod = 10,
     GetField = 11,
-    JbUnk4 = 12,
-    JbUnk5 = 13,
+    Safepoint = 12,
+    StackOverflow = 13,
     MonitorEnter = 14,
-    JbUnk8 = 15,
+    MonitorExit = 15,
     RegisterClass = 16,
     RegisterJavaString = 17,
     CallNative = 18,
@@ -64,10 +66,10 @@ impl TryFrom<SvcId> for JavaSvcId {
             9 => Self::JavaJump3,
             10 => Self::GetJavaMethod,
             11 => Self::GetField,
-            12 => Self::JbUnk4,
-            13 => Self::JbUnk5,
+            12 => Self::Safepoint,
+            13 => Self::StackOverflow,
             14 => Self::MonitorEnter,
-            15 => Self::JbUnk8,
+            15 => Self::MonitorExit,
             16 => Self::RegisterClass,
             17 => Self::RegisterJavaString,
             18 => Self::CallNative,

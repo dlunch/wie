@@ -15,7 +15,7 @@ use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as Ra
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::array_element_size;
-use wie_util::{write_generic, write_null_terminated_string_bytes};
+use wie_util::{read_generic, write_generic, write_null_terminated_string_bytes};
 
 use super::{KtfJvmSupport, Result, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition};
 
@@ -36,6 +36,8 @@ impl JavaArrayClassDefinition {
     pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> Result<Self> {
         let java_lang_object = jvm.resolve_class("java/lang/Object").await.unwrap();
         let java_lang_object_raw = KtfJvmSupport::class_definition_raw(&*java_lang_object.definition)?;
+
+        let java_lang_object_class: RawJavaClass = read_generic(core, java_lang_object_raw)?;
 
         let ptr_raw = KtfJvmSupport::alloc_class(core)?;
 
@@ -82,8 +84,8 @@ impl JavaArrayClassDefinition {
                 ptr_next: ptr_raw + 4,
                 unk1: 0,
                 ptr_descriptor,
-                ptr_vtable: 0,
-                vtable_count: 0,
+                ptr_vtable: java_lang_object_class.ptr_vtable,
+                vtable_count: java_lang_object_class.vtable_count,
                 unk_flag: 8,
             },
         )?;

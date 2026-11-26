@@ -46,7 +46,8 @@ pub type KtfJvmWord = u32;
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct KtfJvmThreadContext {
-    unk: [u32; 8],
+    unk: [u32; 7],
+    stack_limit: u32,
     current_java_exception_handler: u32,
 }
 
@@ -263,12 +264,15 @@ mod test {
     };
 
     use wie_backend::{DefaultTaskRunner, System};
-    use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
+    use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, EmulatedFunction};
     use wie_jvm_support::native::encode_method_arguments;
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
-    use crate::runtime::java::{JavaSvcFunctions, handle_java_svc, interface::get_wipi_jb_interface};
+    use crate::runtime::java::{
+        JavaSvcFunctions, handle_java_svc,
+        interface::{get_wipi_jb_interface, java_throw_instance},
+    };
 
     use super::{
         ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, KtfClassLoader,
@@ -934,6 +938,10 @@ mod test {
             JavaMethod::handle_exception(core, jvm, exception).await
         }
 
+        async fn throw_instance(core: &mut ArmCore, jvm: &mut Jvm) -> Result<JavaMethodResult> {
+            EmulatedFunction::call(&java_throw_instance, core, jvm).await
+        }
+
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
 
         let done = Arc::new(AtomicBool::new(false));
@@ -1070,6 +1078,8 @@ mod test {
                 .await
                 .unwrap();
 
+            core.register_svc_handler(6, throw_instance, &jvm)?;
+            let throw_instance = core.make_svc_stub(6, 0u32)?;
             core.register_svc_handler(5, throw_from_nested_call, &(jvm, ptr_exception))?;
             let throwing = core.make_svc_stub(5, 0u32)?;
             let ptr_interface = get_wipi_jb_interface(&mut core)?;
@@ -1085,6 +1095,7 @@ mod test {
                 (interface.fn_java_jump_2, vec![0, 0, throwing]),
                 (interface.fn_java_jump_3, vec![0, 0, 0, throwing]),
                 (interface.fn_call_native, vec![throwing, 0x10500]),
+                (interface.fn_java_jump_2, vec![ptr_exception, 0, throw_instance]),
             ] {
                 let result: u32 = core.run_function(entry, &args).await?;
                 assert_eq!(result, caller.r4);
