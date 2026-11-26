@@ -28,16 +28,14 @@ use crate::{
 };
 
 pub fn register_init_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
-    // Apps look this table up repeatedly, so it is built once.
-    let user_memory = get_user_memory_interface(core)?;
-    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(jvm.clone(), user_memory))
+    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, jvm)
 }
 
-async fn handle_init_svc(core: &mut ArmCore, (jvm, user_memory): &mut (Jvm, u32), id: SvcId) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
 
     match InitSvcId::try_from(id)? {
-        InitSvcId::GetInterface => get_interface(core, *user_memory)?.write(core, lr),
+        InitSvcId::GetInterface => get_interface(core, core.read_param(0)?).await?.write(core, lr),
         InitSvcId::JavaThrow => EmulatedFunction::call(&java_throw, core, jvm).await?.write(core, lr),
         InitSvcId::JavaThrowInstance => EmulatedFunction::call(&java_throw_instance, core, jvm).await?.write(core, lr),
         InitSvcId::JavaIsInstance => EmulatedFunction::call(&java_is_instance, core, jvm).await?.write(core, lr),
@@ -159,19 +157,13 @@ pub async fn load_native(
     Ok(exe_interface.ptr_functions)
 }
 
-fn get_interface(core: &mut ArmCore, user_memory: u32) -> Result<u32> {
-    let name = read_null_terminated_string_bytes(core, core.read_param(0)?)?;
-    let name = String::from_utf8_lossy(&name);
-    tracing::debug!(
-        "get_interface({name:?}, {:#x}, {:#x}, {:#x}, {:#x})",
-        core.read_param(1)?,
-        core.read_param(2)?,
-        core.read_param(3)?,
-        core.read_param(4)?
-    );
+async fn get_interface(core: &mut ArmCore, ptr_name: u32) -> Result<u32> {
+    tracing::trace!("get_interface({ptr_name:#x})");
 
-    match name.as_ref() {
-        "MXUserMemInterf" => Ok(user_memory),
+    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
+
+    match name.as_str() {
+        "MXUserMemInterf" => get_user_memory_interface(core),
         "WIPIC_knlInterface" => get_wipic_knl_interface(core),
         "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
