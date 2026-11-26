@@ -4,3 +4,8 @@
 # Downloads its game data again unless the handset has no phone number.
 pid = "PD005362"
 phone_number = ""
+
+[[app]]
+# Keys its save data on the phone number; existing saves were written on a handset without one.
+pid = "PD005489"
+phone_number = ""
