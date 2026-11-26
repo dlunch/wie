@@ -839,6 +839,8 @@ mod test {
         system.spawn(async move || {
             let (jvm, mut core) = init_jvm(&mut system_clone).await?;
             let runtime = jvm.new_class("java/lang/Runtime", "()V", ()).await.unwrap();
+            let pi: f64 = jvm.get_static_field("java/lang/Math", "PI", "D").await.unwrap();
+            assert_eq!(pi, core::f64::consts::PI);
             let mut source = jvm.instantiate_array("I", 4).await.unwrap();
             let mut destination = jvm.instantiate_array("I", 4).await.unwrap();
             jvm.store_array(&mut source, 0, vec![11i32, 22, 33, 44]).await.unwrap();

@@ -5,10 +5,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 
 use jvm::{Jvm, runtime::JavaLangString};
-use wipi_types::ktf::java::WIPIJBInterface;
+use wipi_types::ktf::java::{JavaClass as RawJavaClass, WIPIJBInterface};
 
 use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, EmulatedFunction, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
@@ -19,6 +19,8 @@ use crate::runtime::java::jvm_support::{
     SUPPORT_CONTEXT_BASE,
 };
 use crate::runtime::{SVC_CATEGORY_JAVA_INTERFACE, svc_ids::JavaSvcId};
+
+const CLASS_INITIALIZED: u16 = 8;
 
 pub fn register_java_interface_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
     core.register_svc_handler(SVC_CATEGORY_JAVA_INTERFACE, handle_java_interface_svc, jvm)
@@ -162,12 +164,11 @@ async fn get_java_method(core: &mut ArmCore, _: &mut (), ptr_class: u32, ptr_ful
 #[allow(clippy::double_must_use)] // temporary until https://github.com/rust-lang/rust-clippy/issues/17529 fix lands
 #[async_recursion::async_recursion]
 async fn find_java_method(class: &JavaClassDefinition, name: &str, descriptor: &str) -> Result<Option<JavaMethod>> {
-    let method = class.method(name, descriptor, false)?;
-    let method = if method.is_none() {
-        class.method(name, descriptor, true)?
-    } else {
-        method
-    }; // TODO it's not good pattern...
+    // A class cannot declare a static and an instance method with the same name and descriptor.
+    let method = match class.method(name, descriptor, false)? {
+        Some(x) => Some(x),
+        None => class.method(name, descriptor, true)?,
+    };
 
     if method.is_none()
         && let Some(x) = class.parent_class()?
@@ -211,6 +212,11 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
     // KTF AOT also calls this entry point to initialize classes before static field access.
     let class = jvm.resolve_class(&class_name).await.unwrap();
     jvm.ensure_initialized(&class).await.unwrap();
+
+    // AOT code skips this call once the class is marked initialized.
+    let flag_address = ptr_class + offset_of!(RawJavaClass, unk_flag) as u32;
+    let flag: u16 = read_generic(core, flag_address)?;
+    write_generic(core, flag_address, flag | CLASS_INITIALIZED)?;
 
     Ok(())
 }

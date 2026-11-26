@@ -40,6 +40,7 @@ impl JavaMethod {
         core: &mut ArmCore,
         jvm: &Jvm,
         ptr_class: u32,
+        class_name: &str,
         proto: JavaMethodProto<C>,
         context: Context,
         java_functions: JavaSvcFunctions,
@@ -57,7 +58,7 @@ impl JavaMethod {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
 
         let access_flags = proto.access_flags;
-        let (fn_body, fn_body_native) = Self::register_java_method(core, jvm, ptr_raw, proto, context, java_functions)?;
+        let (fn_body, fn_body_native) = Self::register_java_method(core, jvm, ptr_raw, class_name, proto, context, java_functions)?;
 
         write_generic(
             core,
@@ -263,6 +264,7 @@ impl JavaMethod {
         core: &mut ArmCore,
         jvm: &Jvm,
         ptr_method: u32,
+        class_name: &str,
         proto: JavaMethodProto<C>,
         context: Context,
         java_functions: JavaSvcFunctions,
@@ -276,8 +278,7 @@ impl JavaMethod {
 
         let mut parameter_types = parameter_types.to_vec();
         if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
-            // TODO proper flag handling
-            parameter_types.insert(0, JavaType::Class("".into())); // TODO name
+            parameter_types.insert(0, JavaType::Class(class_name.into()));
         }
 
         let proxy = JavaMethodProxy {

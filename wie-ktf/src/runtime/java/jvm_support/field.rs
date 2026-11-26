@@ -30,7 +30,13 @@ impl JavaField {
         let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
         core.write_bytes(ptr_name, &full_name_bytes)?;
 
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaField>() as u32)?;
+        // Wide static values continue into a second word after the record.
+        let is_wide_static = proto.access_flags.contains(FieldAccessFlags::STATIC) && matches!(proto.descriptor.as_str(), "J" | "D");
+        let size = size_of::<RawJavaField>() + if is_wide_static { size_of::<u32>() } else { 0 };
+        let ptr_raw = Allocator::alloc(core, size as u32)?;
+        if is_wide_static {
+            write_generic(core, ptr_raw + size_of::<RawJavaField>() as u32, 0u32)?;
+        }
 
         write_generic(
             core,
