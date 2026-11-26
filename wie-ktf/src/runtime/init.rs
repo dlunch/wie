@@ -19,7 +19,10 @@ use crate::{
             jvm_support::{KtfJvmSupport, KtfJvmSupportContext, SUPPORT_CONTEXT_BASE},
         },
         svc_ids::InitSvcId,
-        wipi_c::{interface::get_wipic_knl_interface, register_wipic_svc_handler},
+        wipi_c::{
+            interface::{get_user_memory_interface, get_wipic_knl_interface},
+            register_wipic_svc_handler,
+        },
         with_arm_context,
     },
 };
@@ -160,6 +163,7 @@ async fn get_interface(core: &mut ArmCore, ptr_name: u32) -> Result<u32> {
     let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
 
     match name.as_str() {
+        "MXUserMemInterf" => get_user_memory_interface(core),
         "WIPIC_knlInterface" => get_wipic_knl_interface(core),
         "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {

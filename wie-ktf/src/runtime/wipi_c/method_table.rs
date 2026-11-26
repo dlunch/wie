@@ -13,8 +13,9 @@ use wie_wipi_c::{
 };
 
 use crate::runtime::{
-    SVC_CATEGORY_WIPIC,
-    svc_ids::{WIPICFsMethodId, WIPICGraphicsMethodId, WIPICKernelMethodId, WIPICTableId},
+    SVC_CATEGORY_INIT, SVC_CATEGORY_WIPIC,
+    svc_ids::{InitSvcId, WIPICFsMethodId, WIPICGraphicsMethodId, WIPICKernelMethodId, WIPICTableId},
+    wipi_c::{plugin, user_memory},
 };
 
 fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
@@ -63,7 +64,7 @@ pub fn get_kernel_interface(core: &mut ArmCore) -> Result<WIPICKnlInterface> {
         reserved1: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved1))?,
         reserved2: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved2))?,
         reserved3: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved3))?,
-        reserved4: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved4))?,
+        reserved4: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetInterface)?,
         reserved5: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved5))?,
         reserved6: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved6))?,
         reserved7: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICKernelMethodId::Reserved7))?,
@@ -173,8 +174,8 @@ pub fn get_util_method_table() -> Vec<WIPICMethodBody> {
     vec![
         util::htonl.into_body(),
         util::htons.into_body(),
-        gen_stub(2, "MC_utilNtohl"),
-        gen_stub(3, "MC_utilNtohs"),
+        util::ntohl.into_body(),
+        util::ntohs.into_body(),
         util::inet_addr.into_body(),
         gen_stub(5, "MC_utilInetAddrStr"),
         gen_stub(6, "OEMC_utilHashbySHA1"),
@@ -298,6 +299,21 @@ pub fn get_media_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
+async fn net_reserved1(_: &mut dyn WIPICContext, fd: i32, address: u32, port: u32, a3: u32, cb: u32, param: u32) -> Result<i32> {
+    tracing::warn!("stub MC_netReserved1({fd}, {address:#x}, {port}, {a3:#x}, {cb:#x}, {param:#x})");
+    Ok(-1)
+}
+
+async fn net_reserved2(_: &mut dyn WIPICContext, fd: i32, buffer: u32, length: i32) -> Result<i32> {
+    tracing::warn!("stub MC_netReserved2({fd}, {buffer:#x}, {length})");
+    Ok(-1)
+}
+
+async fn net_reserved3(_: &mut dyn WIPICContext, fd: i32, buffer: u32, length: i32) -> Result<i32> {
+    tracing::warn!("stub MC_netReserved3({fd}, {buffer:#x}, {length})");
+    Ok(-1)
+}
+
 pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
     vec![
         net::connect.into_body(),
@@ -330,6 +346,9 @@ pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(27, "MC_netHttpGetType"),
         gen_stub(28, "MC_netHttpGetEncoding"),
         gen_stub(29, "MC_netHttpClose"),
+        net_reserved1.into_body(),
+        net_reserved2.into_body(),
+        net_reserved3.into_body(),
     ]
 }
 
@@ -367,6 +386,23 @@ pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
         database::get_number_of_records.into_body(),
         database::get_record_size.into_body(),
         gen_stub(12, "MC_dbListDataBases"),
+    ]
+}
+
+pub fn get_plugin_method_table() -> Vec<WIPICMethodBody> {
+    let mut table = get_stub_method_table(5);
+    table[18] = plugin::unk18.into_body();
+    table[19] = plugin::unk19.into_body();
+
+    table
+}
+
+pub fn get_user_memory_method_table() -> Vec<WIPICMethodBody> {
+    vec![
+        user_memory::reset.into_body(),
+        user_memory::alloc.into_body(),
+        gen_stub(2, "MXUserMemInterf"),
+        gen_stub(3, "MXUserMemInterf"),
     ]
 }
 
@@ -425,7 +461,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICKernelMethodId::Reserved1 => None,
             WIPICKernelMethodId::Reserved2 => Some(gen_stub(34, "MC_knlReserved2")),
             WIPICKernelMethodId::Reserved3 => Some(gen_stub(35, "MC_knlReserved3")),
-            WIPICKernelMethodId::Reserved4 => Some(gen_stub(36, "MC_knlReserved4")),
+            WIPICKernelMethodId::Reserved4 => None,
             WIPICKernelMethodId::Reserved5 => Some(gen_stub(37, "MC_knlReserved5")),
             WIPICKernelMethodId::Reserved6 => Some(gen_stub(38, "MC_knlReserved6")),
             WIPICKernelMethodId::Reserved7 => Some(gen_stub(39, "MC_knlReserved7")),
@@ -455,6 +491,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICKernelMethodId::GetPlatformVersion => Some(gen_stub(63, "OEMC_knlGetPlatformVersion")),
             WIPICKernelMethodId::GetToken => Some(gen_stub(64, "OEMC_knlGetToken")),
         },
+        WIPICTableId::UserMemory => get_user_memory_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Util => get_util_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Misc => get_misc_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Graphics => match WIPICGraphicsMethodId::try_from(function_id).ok()? {
@@ -521,13 +558,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
         },
         WIPICTableId::Interface3 => get_im_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Database => get_database_method_table().into_iter().nth(function_id as usize),
-        WIPICTableId::Interface5 => {
-            if function_id < 64 {
-                Some(gen_stub(5, "stub"))
-            } else {
-                None
-            }
-        }
+        WIPICTableId::Interface5 => get_plugin_method_table().into_iter().nth(function_id as usize),
         WIPICTableId::Fs => match WIPICFsMethodId::try_from(function_id).ok()? {
             WIPICFsMethodId::Open => Some(fs::open.into_body()),
             WIPICFsMethodId::Read => Some(fs::read.into_body()),

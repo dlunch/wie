@@ -483,9 +483,11 @@ pub async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32
 pub async fn destroy_offscreen_framebuffer(context: &mut dyn WIPICContext, framebuffer: WIPICIndirectPtr) -> Result<()> {
     tracing::debug!("MC_grpDestroyOffScreenFrameBuffer({:#x})", framebuffer.0);
 
-    context.free(framebuffer)?;
+    if framebuffer.0 == 0 {
+        return Ok(());
+    }
 
-    Ok(())
+    context.free(framebuffer)
 }
 
 #[allow(clippy::too_many_arguments)]
