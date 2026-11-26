@@ -299,8 +299,18 @@ pub fn get_media_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
-async fn net_connect_extended(_: &mut dyn WIPICContext, fd: i32, address: u32, port: u32, arg: u32, callback: u32, param: u32) -> Result<i32> {
-    tracing::warn!("stub MC_netReserved1({fd}, {address:#x}, {port}, {arg:#x}, {callback:#x}, {param:#x})");
+async fn net_reserved1(_: &mut dyn WIPICContext, fd: i32, address: u32, port: u32, a3: u32, cb: u32, param: u32) -> Result<i32> {
+    tracing::warn!("stub MC_netReserved1({fd}, {address:#x}, {port}, {a3:#x}, {cb:#x}, {param:#x})");
+    Ok(-1)
+}
+
+async fn net_reserved2(_: &mut dyn WIPICContext, fd: i32, buffer: u32, length: i32) -> Result<i32> {
+    tracing::warn!("stub MC_netReserved2({fd}, {buffer:#x}, {length})");
+    Ok(-1)
+}
+
+async fn net_reserved3(_: &mut dyn WIPICContext, fd: i32, buffer: u32, length: i32) -> Result<i32> {
+    tracing::warn!("stub MC_netReserved3({fd}, {buffer:#x}, {length})");
     Ok(-1)
 }
 
@@ -336,9 +346,9 @@ pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(27, "MC_netHttpGetType"),
         gen_stub(28, "MC_netHttpGetEncoding"),
         gen_stub(29, "MC_netHttpClose"),
-        net_connect_extended.into_body(),
-        net::socket_write.into_body(),
-        net::socket_read.into_body(),
+        net_reserved1.into_body(),
+        net_reserved2.into_body(),
+        net_reserved3.into_body(),
     ]
 }
 
