@@ -197,11 +197,12 @@ pub async fn list_records(context: &mut dyn WIPICContext, db_id: i32, buffer: u3
     let database = system.platform().database_repository().open(&name, system.pid()).await;
     let mut ids = database.get_record_ids().await;
     ids.retain(|id| *id != 0);
-    if (length as usize) < ids.len() * size_of::<u32>() {
+    if (length as usize) < ids.len() {
         return Ok(M_E_SHORTBUF);
     }
+    ids.sort_unstable();
     for (index, id) in ids.iter().enumerate() {
-        write_generic(context, buffer + index as u32 * 4, *id)?;
+        write_generic(context, buffer + (index * size_of::<u32>()) as u32, *id)?;
     }
     Ok(ids.len() as i32)
 }
@@ -305,8 +306,7 @@ mod tests {
         context.write_bytes(0x2000, &[9]).unwrap();
         assert_eq!(update_record(&mut context, first, id, 0x2000, 1).await.unwrap(), 0);
         assert_eq!(get_number_of_records(&mut context, first).await.unwrap(), 1);
-        assert_eq!(list_records(&mut context, first, 0x2200, 3).await.unwrap(), -18);
-        assert_eq!(list_records(&mut context, first, 0x2200, 4).await.unwrap(), 1);
+        assert_eq!(list_records(&mut context, first, 0x2200, 1).await.unwrap(), 1);
         assert_eq!(read_generic::<u32, _>(&context, 0x2200).unwrap(), id as u32);
         let second = open(&mut context, 0x1000, 99, 1, 1).await.unwrap();
         assert_eq!(get_record_size(&mut context, second).await.unwrap(), 4);
@@ -329,6 +329,9 @@ mod tests {
         context.write_bytes(0x2000, &[4, 3, 2, 1]).unwrap();
         let next_id = insert_record(&mut context, reopened, 0x2000, 4).await.unwrap();
         assert_ne!(next_id, id);
+        assert_eq!(list_records(&mut context, reopened, 0x2200, 1).await.unwrap(), -18);
+        assert_eq!(list_records(&mut context, reopened, 0x2200, 2).await.unwrap(), 2);
+        assert_eq!(read_generic::<[u32; 2], _>(&context, 0x2200).unwrap(), [id as u32, next_id as u32]);
         assert_eq!(delete_record(&mut context, reopened, id).await.unwrap(), 0);
         assert_eq!(delete_record(&mut context, reopened, id).await.unwrap(), -22);
         assert_eq!(insert_record(&mut context, reopened, 0x2000, 4).await.unwrap(), id);
