@@ -7,6 +7,7 @@ commands.allow = [
     "list_apps",
     "import_app",
     "delete_app",
+    "delete_app_storage",
     "read_settings",
     "write_settings",
     "start_app",

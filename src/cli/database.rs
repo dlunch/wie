@@ -39,6 +39,10 @@ impl DatabaseRepository {
 
         self.base_path.join(app_id).join("db").join(normalized_name)
     }
+
+    pub fn root(&self, app_id: &str) -> PathBuf {
+        self.get_path_for_database("_", app_id).parent().unwrap().to_owned()
+    }
 }
 
 #[async_trait::async_trait]

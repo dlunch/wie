@@ -1,4 +1,4 @@
-import { Check, CircleHelp, EllipsisVertical, Globe2, Plus, Settings, Trash2, Upload, X, createIcons } from "lucide";
+import { CircleHelp, EllipsisVertical, Globe2, Plus, Settings, Trash2, Upload, X, createIcons } from "lucide";
 
 import type { LibraryApp, Wie } from "./backend";
 import { t } from "./i18n";
@@ -6,7 +6,6 @@ import type { SettingsController } from "./settings";
 
 const APPS_PER_PAGE = 12;
 const icons = {
-  Check,
   CircleHelp,
   EllipsisVertical,
   Globe2,
@@ -21,12 +20,12 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const libraryPages = document.getElementById("library-pages") as HTMLDivElement;
   const pageIndicators = document.getElementById("page-indicators") as HTMLDivElement;
-  const menuWrap = document.querySelector(".library-menu-wrap") as HTMLDivElement;
   const menuToggle = document.getElementById("library-menu-toggle") as HTMLButtonElement;
   const menu = document.getElementById("library-menu") as HTMLDivElement;
   const menuAddApp = document.getElementById("menu-add-app") as HTMLButtonElement;
-  const menuManageApps = document.getElementById("menu-manage-apps") as HTMLButtonElement;
-  const manageAppsLabel = document.getElementById("manage-apps-label") as HTMLSpanElement;
+  const appMenu = document.getElementById("app-menu") as HTMLDivElement;
+  const menuDeleteApp = document.getElementById("menu-delete-app") as HTMLButtonElement;
+  const menuDeleteStorage = document.getElementById("menu-delete-storage") as HTMLButtonElement;
   const menuSettings = document.getElementById("menu-settings") as HTMLButtonElement;
   const menuHelp = document.getElementById("menu-help") as HTMLButtonElement;
   const importDialog = document.getElementById("import-dialog") as HTMLDialogElement;
@@ -34,6 +33,8 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   const archiveInput = document.getElementById("archive-input") as HTMLInputElement;
   const importStatus = document.getElementById("import-status") as HTMLParagraphElement;
   const deleteDialog = document.getElementById("delete-dialog") as HTMLDialogElement;
+  const deleteHeading = document.getElementById("delete-heading") as HTMLElement;
+  const deleteDescription = document.getElementById("delete-description") as HTMLElement;
   const deleteAppTitle = document.getElementById("delete-app-title") as HTMLElement;
   const confirmDelete = document.getElementById("confirm-delete") as HTMLButtonElement;
   const helpDialog = document.getElementById("help-dialog") as HTMLDialogElement;
@@ -44,9 +45,9 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   hideHelp.checked = settings.get("helpDismissed");
 
   let apps = await backend.listApps();
-  let manageMode = false;
+  let activeMenu: { popup: HTMLDivElement; toggle: HTMLButtonElement; app?: LibraryApp } | undefined;
   let appStarting = false;
-  let pendingDelete: LibraryApp;
+  let pendingDelete: { app: LibraryApp; storage: boolean };
   const iconUrls = new Set<string>();
   let dragPointer: number | undefined;
   let dragStartX = 0;
@@ -62,8 +63,33 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   };
 
   const closeMenu = () => {
-    menu.classList.remove("visible");
-    menuToggle.setAttribute("aria-expanded", "false");
+    if (!activeMenu) {
+      return;
+    }
+    activeMenu.popup.classList.remove("visible");
+    activeMenu.toggle.setAttribute("aria-expanded", "false");
+    activeMenu = undefined;
+  };
+
+  const toggleMenu = (popup: HTMLDivElement, toggle: HTMLButtonElement, app?: LibraryApp) => {
+    const wasOpen = activeMenu?.toggle === toggle;
+    closeMenu();
+    if (wasOpen) {
+      return;
+    }
+
+    activeMenu = { popup, toggle, app };
+    popup.classList.add("visible");
+    toggle.setAttribute("aria-expanded", "true");
+    if (app) {
+      const bounds = toggle.getBoundingClientRect();
+      const { offsetWidth: width, offsetHeight: height } = popup;
+      const left = Math.max(0, Math.min(bounds.right - width, window.innerWidth - width));
+      const top = bounds.bottom + height <= window.innerHeight ? bounds.bottom : Math.max(0, bounds.top - height);
+      popup.style.left = `${left}px`;
+      popup.style.top = `${top}px`;
+    }
+    popup.querySelector<HTMLElement>('[role="menuitem"]')!.focus({ preventScroll: true });
   };
 
   const openImportDialog = () => {
@@ -75,7 +101,6 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
 
   const updateLabels = () => {
     importStatus.textContent = importStatusText();
-    manageAppsLabel.textContent = t(manageMode ? "manageDone" : "deleteApps");
     const pages = libraryPages.querySelectorAll<HTMLElement>(".library-page");
     pages.forEach((page, index) => {
       page.setAttribute("aria-label", t("libraryPage", { page: index + 1, count: pages.length }));
@@ -84,8 +109,8 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
     addButton.title = t("addApp");
     addButton.setAttribute("aria-label", t("addApp"));
     addButton.querySelector(".app-title")!.textContent = t("addApp");
-    libraryPages.querySelectorAll<HTMLButtonElement>(".delete-app-button").forEach((button, index) => {
-      button.title = t("deleteApp", { title: apps[index].title });
+    libraryPages.querySelectorAll<HTMLButtonElement>(".app-menu-toggle").forEach((button, index) => {
+      button.title = t("appMenu", { title: apps[index].title });
       button.setAttribute("aria-label", button.title);
     });
     Array.from(pageIndicators.children).forEach((indicator, index) => {
@@ -94,21 +119,13 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   };
 
   const renderLibrary = (targetPageIndex = currentPageIndex) => {
+    closeMenu();
     for (const iconUrl of iconUrls) {
       URL.revokeObjectURL(iconUrl);
     }
     iconUrls.clear();
     libraryPages.replaceChildren();
     pageIndicators.replaceChildren();
-    libraryView.classList.toggle("manage-mode", manageMode);
-    menuManageApps.disabled = apps.length === 0;
-    menuManageApps.setAttribute("aria-pressed", String(manageMode));
-
-    const oldManageIcon = menuManageApps.querySelector("svg, i");
-    const manageIcon = document.createElement("i");
-    manageIcon.dataset.lucide = manageMode ? "check" : "trash-2";
-    oldManageIcon?.replaceWith(manageIcon);
-
     const entries: Array<LibraryApp | undefined> = [...apps, undefined];
     const pageCount = Math.ceil(entries.length / APPS_PER_PAGE);
     currentPageIndex = Math.max(0, Math.min(targetPageIndex, pageCount - 1));
@@ -145,7 +162,6 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
         launchButton.className = "app-launch";
         launchButton.type = "button";
         launchButton.title = app.title;
-        launchButton.disabled = manageMode;
 
         const icon = document.createElement("span");
         icon.className = "app-icon";
@@ -204,19 +220,18 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
           }
         });
 
-        const deleteButton = document.createElement("button");
-        deleteButton.className = "delete-app-button";
-        deleteButton.type = "button";
-        const trash = document.createElement("i");
-        trash.dataset.lucide = "trash-2";
-        deleteButton.appendChild(trash);
-        deleteButton.addEventListener("click", () => {
-          pendingDelete = app;
-          deleteAppTitle.textContent = app.title;
-          deleteDialog.showModal();
-        });
+        const appMenuToggle = document.createElement("button");
+        appMenuToggle.className = "icon-button app-menu-toggle";
+        appMenuToggle.type = "button";
+        appMenuToggle.setAttribute("aria-haspopup", "menu");
+        appMenuToggle.setAttribute("aria-expanded", "false");
+        appMenuToggle.setAttribute("aria-controls", "app-menu");
+        const ellipsis = document.createElement("i");
+        ellipsis.dataset.lucide = "ellipsis-vertical";
+        appMenuToggle.appendChild(ellipsis);
+        appMenuToggle.addEventListener("click", () => toggleMenu(appMenu, appMenuToggle, app));
 
-        entry.append(launchButton, deleteButton);
+        entry.append(launchButton, appMenuToggle);
         page.appendChild(entry);
       }
 
@@ -242,6 +257,8 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
     createIcons({ icons, root: welcomeDialog });
   };
 
+  document.addEventListener("scroll", closeMenu, { capture: true });
+  window.addEventListener("resize", closeMenu);
   libraryPages.addEventListener("scroll", () => {
     currentPageIndex = Math.round(libraryPages.scrollLeft / libraryPages.firstElementChild!.clientWidth);
     for (const [index, indicator] of Array.from(pageIndicators.children).entries()) {
@@ -312,22 +329,38 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
     { capture: true },
   );
 
-  menuToggle.addEventListener("click", () => {
-    const visible = menu.classList.toggle("visible");
-    menuToggle.setAttribute("aria-expanded", String(visible));
+  menuToggle.addEventListener("click", () => toggleMenu(menu, menuToggle));
+  document.addEventListener("click", event => {
+    const target = event.target as Element;
+    if (activeMenu && !activeMenu.toggle.contains(target) &&
+      (!activeMenu.popup.contains(target) || target.closest('[role="menuitem"]'))) {
+      closeMenu();
+    }
   });
-  document.addEventListener("click", (event) => {
-    if (!menuWrap.contains(event.target as Node)) {
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && activeMenu) {
+      activeMenu.toggle.focus({ preventScroll: true });
       closeMenu();
     }
   });
 
-  menuAddApp.addEventListener("click", openImportDialog);
-  menuManageApps.addEventListener("click", () => {
-    manageMode = !manageMode;
+  const openDeleteDialog = (storage: boolean) => {
+    if (!activeMenu?.app) {
+      return;
+    }
+
+    pendingDelete = { app: activeMenu.app, storage };
+    activeMenu.toggle.focus({ preventScroll: true });
     closeMenu();
-    renderLibrary();
-  });
+    deleteAppTitle.textContent = pendingDelete.app.title;
+    deleteHeading.textContent = t(storage ? "deleteStorage" : "deleteApp");
+    deleteDescription.textContent = t(storage ? "deleteStorageConfirmation" : "deleteConfirmation");
+    deleteDialog.showModal();
+  };
+
+  menuDeleteApp.addEventListener("click", () => openDeleteDialog(false));
+  menuDeleteStorage.addEventListener("click", () => openDeleteDialog(true));
+  menuAddApp.addEventListener("click", openImportDialog);
   menuSettings.addEventListener("click", () => {
     closeMenu();
     settings.open();
@@ -422,17 +455,19 @@ export const initializeLibrary = async (backend: Wie, launchApp: (app: LibraryAp
   });
 
   confirmDelete.addEventListener("click", async () => {
+    const { app, storage } = pendingDelete;
     confirmDelete.disabled = true;
     try {
-      await backend.deleteApp(pendingDelete.id);
-      apps = await backend.listApps();
-      if (apps.length === 0) {
-        manageMode = false;
+      if (storage) {
+        await backend.deleteAppStorage(app.id);
+      } else {
+        await backend.deleteApp(app.id);
+        apps = await backend.listApps();
+        renderLibrary();
       }
       deleteDialog.close();
-      renderLibrary();
     } catch (error) {
-      window.alert(t("deleteFailed", { error: String(error) }));
+      window.alert(t(storage ? "deleteStorageFailed" : "deleteFailed", { error: String(error) }));
     } finally {
       confirmDelete.disabled = false;
     }

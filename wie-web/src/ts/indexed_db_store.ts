@@ -76,7 +76,7 @@ export class IndexedDBStore {
     });
   }
 
-  public delete(key: IDBValidKey): Promise<void> {
+  public delete(key: IDBValidKey | IDBKeyRange): Promise<void> {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(this.store_name, "readwrite");
       const store = transaction.objectStore(this.store_name);

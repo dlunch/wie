@@ -259,6 +259,13 @@ mod tests {
                 assert_eq!(filesystem.read(pid, "save", 0, bytes.len(), &mut bytes).await, Some(data.len()));
                 assert_eq!(&bytes[..data.len()], data);
             }
+
+            store::delete_app_storage(&filesystem.store, &first.id).unwrap();
+            assert!(!repository.exists("save", &first.id).await);
+            assert_eq!(repository.open("save", &first.id).await.get(1).await, None);
+            assert!(!filesystem.exists(&first.id, "save").await);
+            assert!(repository.exists("save", &second.id).await);
+            assert!(filesystem.exists(&second.id, "save").await);
         });
     }
 }

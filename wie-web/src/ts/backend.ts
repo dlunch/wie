@@ -33,6 +33,7 @@ export interface Wie {
   listApps(): Promise<LibraryApp[]>;
   importApp(file: File): Promise<void>;
   deleteApp(id: string): Promise<void>;
+  deleteAppStorage(id: string): Promise<void>;
   readSettings(): Promise<Settings>;
   writeSettings(settings: Settings): Promise<void>;
   startApp(id: string, onEvent: (event: SessionEvent) => void): Promise<PlayerSession | undefined>;

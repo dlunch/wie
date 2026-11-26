@@ -20,3 +20,12 @@ pub(crate) fn open(root: &Path) -> Result<Store> {
     transaction.commit()?;
     Ok(Arc::new(Mutex::new(connection)))
 }
+
+pub fn delete_app_storage(store: &Store, pid: &str) -> Result<()> {
+    let mut connection = store.lock().unwrap();
+    let transaction = connection.transaction()?;
+    transaction.execute("DELETE FROM record_stores WHERE pid = ?1", [pid])?;
+    transaction.execute("DELETE FROM files WHERE pid = ?1", [pid])?;
+    transaction.commit()?;
+    Ok(())
+}

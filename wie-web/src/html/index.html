@@ -60,17 +60,13 @@
           </select>
         </label>
         <div class="library-menu-wrap">
-          <button id="library-menu-toggle" class="icon-button" type="button" title="메뉴" data-i18n-title="menu" aria-label="메뉴" data-i18n-aria-label="menu" aria-expanded="false">
+          <button id="library-menu-toggle" class="icon-button" type="button" title="메뉴" data-i18n-title="menu" aria-label="메뉴" data-i18n-aria-label="menu" aria-haspopup="menu" aria-expanded="false" aria-controls="library-menu">
             <i data-lucide="ellipsis-vertical"></i>
           </button>
           <div id="library-menu" class="library-menu" role="menu">
             <button id="menu-add-app" type="button" role="menuitem">
               <i data-lucide="plus"></i>
               <span data-i18n-text="addApp">앱 추가</span>
-            </button>
-            <button id="menu-manage-apps" type="button" role="menuitem">
-              <i data-lucide="trash-2"></i>
-              <span id="manage-apps-label">앱 삭제</span>
             </button>
             <button id="menu-settings" type="button" role="menuitem">
               <i data-lucide="settings"></i>
@@ -99,6 +95,17 @@
         </div>
         <div id="page-indicators" class="page-indicators" aria-label="라이브러리 페이지" data-i18n-aria-label="libraryPages"></div>
       </main>
+
+      <div id="app-menu" class="library-menu" role="menu">
+        <button id="menu-delete-app" type="button" role="menuitem">
+          <i data-lucide="trash-2"></i>
+          <span data-i18n-text="deleteApp">앱 삭제</span>
+        </button>
+        <button id="menu-delete-storage" type="button" role="menuitem">
+          <i data-lucide="trash-2"></i>
+          <span data-i18n-text="deleteStorage">저장 공간 삭제</span>
+        </button>
+      </div>
 
       <div class="library-ad">
         <ins
@@ -222,7 +229,7 @@
         <ol class="welcome-steps">
           <li><strong data-i18n-text="addApp">앱 추가</strong><span data-i18n-text="welcomeAdd">WIPI ZIP 또는 J2ME JAR 파일을 선택합니다.</span></li>
           <li><strong data-i18n-text="launchApp">앱 실행</strong><span data-i18n-text="welcomeLaunch">라이브러리에서 추가된 앱 아이콘을 누릅니다.</span></li>
-          <li><strong data-i18n-text="manageApps">앱 관리</strong><span data-i18n-text="welcomeManage">오른쪽 위 메뉴에서 앱을 삭제하거나 설정을 변경합니다.</span></li>
+          <li><strong data-i18n-text="manageApps">앱 관리</strong><span data-i18n-text="welcomeManage">앱 이름 옆 메뉴에서 앱이나 저장 공간을 삭제합니다.</span></li>
         </ol>
         <footer class="dialog-actions welcome-actions">
           <button class="secondary-command" value="cancel" data-i18n-text="close">닫기</button>
@@ -249,15 +256,15 @@
     </dialog>
     <input id="archive-input" type="file" accept=".zip,.jar,application/zip,application/java-archive" multiple hidden />
 
-    <dialog id="delete-dialog" class="app-dialog">
+    <dialog id="delete-dialog" class="app-dialog" aria-labelledby="delete-heading" aria-describedby="delete-app-title delete-description">
       <form method="dialog">
         <header class="dialog-header">
-          <h2 data-i18n-text="deleteApps">앱 삭제</h2>
+          <h2 id="delete-heading"></h2>
           <button class="icon-button dialog-close" value="cancel" title="닫기" data-i18n-title="close" aria-label="닫기" data-i18n-aria-label="close">
             <i data-lucide="x"></i>
           </button>
         </header>
-        <p><strong id="delete-app-title"></strong><br /><span data-i18n-text="deleteConfirmation">이 앱을 라이브러리에서 삭제합니다.</span></p>
+        <p><strong id="delete-app-title"></strong><br /><span id="delete-description"></span></p>
         <footer class="dialog-actions">
           <button class="secondary-command" value="cancel" data-i18n-text="cancel">취소</button>
           <button id="confirm-delete" data-i18n-text="delete" class="danger-command" type="button">삭제</button>
