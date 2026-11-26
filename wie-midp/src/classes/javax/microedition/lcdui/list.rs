@@ -12,55 +12,66 @@ use crate::classes::{
     net::wie::{KeyboardEventType, MIDPKeyCode},
 };
 
-const LIST: &str = "javax/microedition/lcdui/List";
-const GROUP: &str = "javax/microedition/lcdui/ChoiceGroup";
-const GROUP_FIELD: &str = "Ljavax/microedition/lcdui/ChoiceGroup;";
-const COMMAND_FIELD: &str = "Ljavax/microedition/lcdui/Command;";
-const DISPLAYABLE: &str = "javax/microedition/lcdui/Displayable";
-const SCREEN: &str = "javax/microedition/lcdui/Screen";
-const WITH_ELEMENTS: &str = "(Ljava/lang/String;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V";
-
-macro_rules! choice_method {
-    ($name:literal, $descriptor:literal, ($($arg:ident: $ty:ty),*) -> $result:ty) => {{
-        async fn forward(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<List>, $($arg: $ty),*) -> JvmResult<$result> {
-            tracing::debug!(concat!("javax.microedition.lcdui.List::", $name, "{:?}"), (&this, $(&$arg,)*));
-            let group: ClassInstanceRef<ChoiceGroup> = jvm.get_field(&this, LIST, "choices", GROUP_FIELD).await?;
-            jvm.invoke_virtual(&group, GROUP, $name, $descriptor, ($($arg,)*)).await
-        }
-        JavaMethodProto::new($name, $descriptor, forward, MethodAccessFlags::PUBLIC)
-    }};
-}
-
 // class javax.microedition.lcdui.List
 pub struct List;
 
 impl List {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
-            name: LIST,
-            parent_class: Some(SCREEN),
+            name: "javax/microedition/lcdui/List",
+            parent_class: Some("javax/microedition/lcdui/Screen"),
             interfaces: vec!["javax/microedition/lcdui/Choice"],
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("<init>", WITH_ELEMENTS, Self::init_with_elements, MethodAccessFlags::PUBLIC),
-                choice_method!("size", "()I", () -> i32),
-                choice_method!("getString", "(I)Ljava/lang/String;", (index: i32) -> ClassInstanceRef<String>),
-                choice_method!("getImage", "(I)Ljavax/microedition/lcdui/Image;", (index: i32) -> ClassInstanceRef<Image>),
-                choice_method!("append", "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I", (text: ClassInstanceRef<String>, image: ClassInstanceRef<Image>) -> i32),
-                choice_method!("insert", "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V", (index: i32, text: ClassInstanceRef<String>, image: ClassInstanceRef<Image>) -> ()),
-                choice_method!("delete", "(I)V", (index: i32) -> ()),
-                choice_method!("deleteAll", "()V", () -> ()),
-                choice_method!("set", "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V", (index: i32, text: ClassInstanceRef<String>, image: ClassInstanceRef<Image>) -> ()),
-                choice_method!("isSelected", "(I)Z", (index: i32) -> bool),
-                choice_method!("getSelectedIndex", "()I", () -> i32),
-                choice_method!("getSelectedFlags", "([Z)I", (flags: ClassInstanceRef<Array<bool>>) -> i32),
-                choice_method!("setSelectedIndex", "(IZ)V", (index: i32, selected: bool) -> ()),
-                choice_method!("setSelectedFlags", "([Z)V", (flags: ClassInstanceRef<Array<bool>>) -> ()),
-                choice_method!("setFitPolicy", "(I)V", (policy: i32) -> ()),
-                choice_method!("getFitPolicy", "()I", () -> i32),
-                choice_method!("setFont", "(ILjavax/microedition/lcdui/Font;)V", (index: i32, font: ClassInstanceRef<Font>) -> ()),
-                choice_method!("getFont", "(I)Ljavax/microedition/lcdui/Font;", (index: i32) -> ClassInstanceRef<Font>),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Ljava/lang/String;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
+                    Self::init_with_elements,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("size", "()I", Self::size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getString", "(I)Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "getImage",
+                    "(I)Ljavax/microedition/lcdui/Image;",
+                    Self::get_image,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
+                    "append",
+                    "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I",
+                    Self::append,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
+                    "insert",
+                    "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
+                    Self::insert,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("delete", "(I)V", Self::delete, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("deleteAll", "()V", Self::delete_all, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "set",
+                    "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
+                    Self::set,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("isSelected", "(I)Z", Self::is_selected, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getSelectedIndex", "()I", Self::get_selected_index, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getSelectedFlags", "([Z)I", Self::get_selected_flags, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setSelectedIndex", "(IZ)V", Self::set_selected_index, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setSelectedFlags", "([Z)V", Self::set_selected_flags, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setFitPolicy", "(I)V", Self::set_fit_policy, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getFitPolicy", "()I", Self::get_fit_policy, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "setFont",
+                    "(ILjavax/microedition/lcdui/Font;)V",
+                    Self::set_font,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("getFont", "(I)Ljavax/microedition/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "setSelectCommand",
                     "(Ljavax/microedition/lcdui/Command;)V",
@@ -96,11 +107,11 @@ impl List {
             fields: vec![
                 JavaFieldProto::new(
                     "SELECT_COMMAND",
-                    COMMAND_FIELD,
+                    "Ljavax/microedition/lcdui/Command;",
                     FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
                 ),
-                JavaFieldProto::new("selectCommand", COMMAND_FIELD, FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("choices", GROUP_FIELD, FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("selectCommand", "Ljavax/microedition/lcdui/Command;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("choices", "Ljavax/microedition/lcdui/ChoiceGroup;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("scrollY", "I", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
@@ -113,14 +124,26 @@ impl List {
         let command = jvm
             .new_class("javax/microedition/lcdui/Command", "(Ljava/lang/String;II)V", (label, 1, 0))
             .await?;
-        jvm.put_static_field(LIST, "SELECT_COMMAND", COMMAND_FIELD, command).await
+        jvm.put_static_field(
+            "javax/microedition/lcdui/List",
+            "SELECT_COMMAND",
+            "Ljavax/microedition/lcdui/Command;",
+            command,
+        )
+        .await
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, title: ClassInstanceRef<String>, list_type: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.List::<init>({this:?}, {title:?}, {list_type})");
         let strings = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
-        jvm.invoke_special(&this, LIST, "<init>", WITH_ELEMENTS, (title, list_type, strings, None))
-            .await
+        jvm.invoke_special(
+            &this,
+            "javax/microedition/lcdui/List",
+            "<init>",
+            "(Ljava/lang/String;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
+            (title, list_type, strings, None),
+        )
+        .await
     }
 
     async fn init_with_elements(
@@ -136,21 +159,359 @@ impl List {
         if !(1..=3).contains(&list_type) {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid List type").await);
         }
-        let _: () = jvm.invoke_special(&this, SCREEN, "<init>", "()V", ()).await?;
+        let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Screen", "<init>", "()V", ()).await?;
         let group = jvm
             .new_class(
-                GROUP,
+                "javax/microedition/lcdui/ChoiceGroup",
                 "(Ljavax/microedition/lcdui/List;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
                 (this.clone(), list_type, strings, images),
             )
             .await?;
-        jvm.put_field(&mut this, LIST, "choices", GROUP_FIELD, group).await?;
+        jvm.put_field(
+            &mut this,
+            "javax/microedition/lcdui/List",
+            "choices",
+            "Ljavax/microedition/lcdui/ChoiceGroup;",
+            group,
+        )
+        .await?;
         if list_type == 3 {
-            let select: ClassInstanceRef<Command> = jvm.get_static_field(LIST, "SELECT_COMMAND", COMMAND_FIELD).await?;
-            jvm.put_field(&mut this, LIST, "selectCommand", COMMAND_FIELD, select).await?;
+            let select: ClassInstanceRef<Command> = jvm
+                .get_static_field("javax/microedition/lcdui/List", "SELECT_COMMAND", "Ljavax/microedition/lcdui/Command;")
+                .await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/List",
+                "selectCommand",
+                "Ljavax/microedition/lcdui/Command;",
+                select,
+            )
+            .await?;
         }
-        jvm.invoke_special(&this, DISPLAYABLE, "setTitle", "(Ljava/lang/String;)V", (title,))
+        jvm.invoke_special(
+            &this,
+            "javax/microedition/lcdui/Displayable",
+            "setTitle",
+            "(Ljava/lang/String;)V",
+            (title,),
+        )
+        .await
+    }
+
+    async fn size(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.List::size({this:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "size", "()I", ())
             .await
+    }
+
+    async fn get_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.List::getString({this:?}, {index})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "getString",
+            "(I)Ljava/lang/String;",
+            (index,),
+        )
+        .await
+    }
+
+    async fn get_image(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("javax.microedition.lcdui.List::getImage({this:?}, {index})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "getImage",
+            "(I)Ljavax/microedition/lcdui/Image;",
+            (index,),
+        )
+        .await
+    }
+
+    async fn append(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        text: ClassInstanceRef<String>,
+        image: ClassInstanceRef<Image>,
+    ) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.List::append({this:?}, {text:?}, {image:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "append",
+            "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I",
+            (text, image),
+        )
+        .await
+    }
+
+    async fn insert(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        index: i32,
+        text: ClassInstanceRef<String>,
+        image: ClassInstanceRef<Image>,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::insert({this:?}, {index}, {text:?}, {image:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "insert",
+            "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
+            (index, text, image),
+        )
+        .await
+    }
+
+    async fn delete(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::delete({this:?}, {index})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "delete", "(I)V", (index,))
+            .await
+    }
+
+    async fn delete_all(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::deleteAll({this:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "deleteAll", "()V", ())
+            .await
+    }
+
+    async fn set(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        index: i32,
+        text: ClassInstanceRef<String>,
+        image: ClassInstanceRef<Image>,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::set({this:?}, {index}, {text:?}, {image:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "set",
+            "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
+            (index, text, image),
+        )
+        .await
+    }
+
+    async fn is_selected(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.List::isSelected({this:?}, {index})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "isSelected", "(I)Z", (index,))
+            .await
+    }
+
+    async fn get_selected_index(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.List::getSelectedIndex({this:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "getSelectedIndex", "()I", ())
+            .await
+    }
+
+    async fn get_selected_flags(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        flags: ClassInstanceRef<Array<bool>>,
+    ) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.List::getSelectedFlags({this:?}, {flags:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "getSelectedFlags", "([Z)I", (flags,))
+            .await
+    }
+
+    async fn set_selected_index(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32, selected: bool) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::setSelectedIndex({this:?}, {index}, {selected})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "setSelectedIndex",
+            "(IZ)V",
+            (index, selected),
+        )
+        .await
+    }
+
+    async fn set_selected_flags(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        flags: ClassInstanceRef<Array<bool>>,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::setSelectedFlags({this:?}, {flags:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "setSelectedFlags", "([Z)V", (flags,))
+            .await
+    }
+
+    async fn set_fit_policy(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, policy: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::setFitPolicy({this:?}, {policy})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "setFitPolicy", "(I)V", (policy,))
+            .await
+    }
+
+    async fn get_fit_policy(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.List::getFitPolicy({this:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "getFitPolicy", "()I", ())
+            .await
+    }
+
+    async fn set_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32, font: ClassInstanceRef<Font>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.List::setFont({this:?}, {index}, {font:?})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "setFont",
+            "(ILjavax/microedition/lcdui/Font;)V",
+            (index, font),
+        )
+        .await
+    }
+
+    async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Font>> {
+        tracing::debug!("javax.microedition.lcdui.List::getFont({this:?}, {index})");
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        jvm.invoke_virtual(
+            &group,
+            "javax/microedition/lcdui/ChoiceGroup",
+            "getFont",
+            "(I)Ljavax/microedition/lcdui/Font;",
+            (index,),
+        )
+        .await
     }
 
     async fn set_select_command(
@@ -160,43 +521,102 @@ impl List {
         command: ClassInstanceRef<Command>,
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.List::setSelectCommand({this:?}, {command:?})");
-        let group: ClassInstanceRef<ChoiceGroup> = jvm.get_field(&this, LIST, "choices", GROUP_FIELD).await?;
-        if jvm.get_field::<i32>(&group, GROUP, "choiceType", "I").await? == 3 {
-            let default: ClassInstanceRef<Command> = jvm.get_static_field(LIST, "SELECT_COMMAND", COMMAND_FIELD).await?;
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
+        if jvm
+            .get_field::<i32>(&group, "javax/microedition/lcdui/ChoiceGroup", "choiceType", "I")
+            .await?
+            == 3
+        {
+            let default: ClassInstanceRef<Command> = jvm
+                .get_static_field("javax/microedition/lcdui/List", "SELECT_COMMAND", "Ljavax/microedition/lcdui/Command;")
+                .await?;
             if !command.is_null() && command.identity() != default.identity() {
                 let _: () = jvm
                     .invoke_special(
                         &this,
-                        DISPLAYABLE,
+                        "javax/microedition/lcdui/Displayable",
                         "addCommand",
                         "(Ljavax/microedition/lcdui/Command;)V",
                         (command.clone(),),
                     )
                     .await?;
             }
-            jvm.put_field(&mut this, LIST, "selectCommand", COMMAND_FIELD, command).await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/List",
+                "selectCommand",
+                "Ljavax/microedition/lcdui/Command;",
+                command,
+            )
+            .await?;
         }
         Ok(())
     }
 
     async fn remove_command(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.List::removeCommand({this:?}, {command:?})");
-        let select: ClassInstanceRef<Command> = jvm.get_field(&this, LIST, "selectCommand", COMMAND_FIELD).await?;
+        let select: ClassInstanceRef<Command> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "selectCommand",
+                "Ljavax/microedition/lcdui/Command;",
+            )
+            .await?;
         if !command.is_null() && !select.is_null() && command.identity() == select.identity() {
-            jvm.put_field(&mut this, LIST, "selectCommand", COMMAND_FIELD, None).await?;
+            jvm.put_field(
+                &mut this,
+                "javax/microedition/lcdui/List",
+                "selectCommand",
+                "Ljavax/microedition/lcdui/Command;",
+                None,
+            )
+            .await?;
         }
-        jvm.invoke_special(&this, DISPLAYABLE, "removeCommand", "(Ljavax/microedition/lcdui/Command;)V", (command,))
-            .await
+        jvm.invoke_special(
+            &this,
+            "javax/microedition/lcdui/Displayable",
+            "removeCommand",
+            "(Ljavax/microedition/lcdui/Command;)V",
+            (command,),
+        )
+        .await
     }
 
     async fn dispatch_command(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<bool> {
         tracing::debug!("javax.microedition.lcdui.List::dispatchCommand({this:?}, {command:?})");
-        let select: ClassInstanceRef<Command> = jvm.get_field(&this, LIST, "selectCommand", COMMAND_FIELD).await?;
-        if !select.is_null() && command.identity() == select.identity() && jvm.invoke_special::<_, i32>(&this, LIST, "size", "()I", ()).await? == 0 {
+        let select: ClassInstanceRef<Command> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "selectCommand",
+                "Ljavax/microedition/lcdui/Command;",
+            )
+            .await?;
+        if !select.is_null()
+            && command.identity() == select.identity()
+            && jvm
+                .invoke_special::<_, i32>(&this, "javax/microedition/lcdui/List", "size", "()I", ())
+                .await?
+                == 0
+        {
             return Ok(false);
         }
-        jvm.invoke_special(&this, DISPLAYABLE, "dispatchCommand", "(Ljavax/microedition/lcdui/Command;)Z", (command,))
-            .await
+        jvm.invoke_special(
+            &this,
+            "javax/microedition/lcdui/Displayable",
+            "dispatchCommand",
+            "(Ljavax/microedition/lcdui/Command;)Z",
+            (command,),
+        )
+        .await
     }
 
     async fn item_invalidated(
@@ -207,7 +627,8 @@ impl List {
         layout_changed: bool,
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.List::itemInvalidated({this:?}, {item:?}, {layout_changed})");
-        jvm.invoke_virtual(&this, DISPLAYABLE, "requestRepaint", "()V", ()).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
+            .await
     }
 
     // Both input and paint use the current row bounds, since the application can edit
@@ -220,24 +641,28 @@ impl List {
         height: i32,
         page_delta: i32,
     ) -> JvmResult<(i32, bool)> {
-        let bounds: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(group, GROUP, "getFocusContentBounds", "(I)[I", (width,)).await?;
+        let bounds: ClassInstanceRef<Array<i32>> = jvm
+            .invoke_virtual(group, "javax/microedition/lcdui/ChoiceGroup", "getFocusContentBounds", "(I)[I", (width,))
+            .await?;
         if bounds.is_null() {
             return Ok((0, false));
         }
         let bounds = jvm.load_array::<i32>(&bounds, 0, 2).await?;
         let top = bounds[0];
         let last_page = bounds[1] - height;
-        let previous: i32 = jvm.get_field(this, LIST, "scrollY", "I").await?;
+        let previous: i32 = jvm.get_field(this, "javax/microedition/lcdui/List", "scrollY", "I").await?;
         let (scroll, paged) = if last_page > top {
             // Page through an oversized row before moving focus to its neighbor.
             let current = previous.clamp(top, last_page);
             let next = current.saturating_add(page_delta).clamp(top, last_page);
             (next, next != current)
         } else {
-            let content_height: i32 = jvm.invoke_virtual(group, GROUP, "preferredContentHeight", "(I)I", (width,)).await?;
+            let content_height: i32 = jvm
+                .invoke_virtual(group, "javax/microedition/lcdui/ChoiceGroup", "preferredContentHeight", "(I)I", (width,))
+                .await?;
             (previous.clamp(last_page, top).clamp(0, (content_height - height).max(0)), false)
         };
-        jvm.put_field(this, LIST, "scrollY", "I", scroll).await?;
+        jvm.put_field(this, "javax/microedition/lcdui/List", "scrollY", "I", scroll).await?;
         Ok((scroll, paged))
     }
 
@@ -247,22 +672,50 @@ impl List {
         if event_type != KeyboardEventType::KeyPressed as i32 && !(vertical && event_type == KeyboardEventType::KeyRepeated as i32) {
             return Ok(());
         }
-        let group: ClassInstanceRef<ChoiceGroup> = jvm.get_field(&this, LIST, "choices", GROUP_FIELD).await?;
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
         if vertical {
-            let width: i32 = jvm.invoke_special(&this, DISPLAYABLE, "getWidth", "()I", ()).await?;
-            let height: i32 = jvm.invoke_special(&this, DISPLAYABLE, "getHeight", "()I", ()).await?;
+            let width: i32 = jvm
+                .invoke_special(&this, "javax/microedition/lcdui/Displayable", "getWidth", "()I", ())
+                .await?;
+            let height: i32 = jvm
+                .invoke_special(&this, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
+                .await?;
             let delta = if code == MIDPKeyCode::UP as i32 { -height } else { height };
             let (_, paged) = Self::scroll_to_focus(jvm, &mut this, &group, width, height, delta).await?;
             if paged {
-                return jvm.invoke_virtual(&this, DISPLAYABLE, "requestRepaint", "()V", ()).await;
+                return jvm
+                    .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
+                    .await;
             }
         }
-        let _: i32 = jvm.invoke_virtual(&group, GROUP, "handleItemKey", "(I)I", (code,)).await?;
+        let _: i32 = jvm
+            .invoke_virtual(&group, "javax/microedition/lcdui/ChoiceGroup", "handleItemKey", "(I)I", (code,))
+            .await?;
         if code == MIDPKeyCode::FIRE as i32 {
-            let command: ClassInstanceRef<Command> = jvm.get_field(&this, LIST, "selectCommand", COMMAND_FIELD).await?;
+            let command: ClassInstanceRef<Command> = jvm
+                .get_field(
+                    &this,
+                    "javax/microedition/lcdui/List",
+                    "selectCommand",
+                    "Ljavax/microedition/lcdui/Command;",
+                )
+                .await?;
             if !command.is_null() {
                 let _: bool = jvm
-                    .invoke_virtual(&this, LIST, "dispatchCommand", "(Ljavax/microedition/lcdui/Command;)Z", (command,))
+                    .invoke_virtual(
+                        &this,
+                        "javax/microedition/lcdui/List",
+                        "dispatchCommand",
+                        "(Ljavax/microedition/lcdui/Command;)Z",
+                        (command,),
+                    )
                     .await?;
             }
         }
@@ -279,19 +732,30 @@ impl List {
         let _: () = jvm
             .invoke_special(
                 &this,
-                SCREEN,
+                "javax/microedition/lcdui/Screen",
                 "handlePaintEvent",
                 "(Ljavax/microedition/lcdui/Graphics;)V",
                 (graphics.clone(),),
             )
             .await?;
-        let width: i32 = jvm.invoke_special(&this, DISPLAYABLE, "getWidth", "()I", ()).await?;
-        let height: i32 = jvm.invoke_special(&this, DISPLAYABLE, "getHeight", "()I", ()).await?;
-        let group: ClassInstanceRef<ChoiceGroup> = jvm.get_field(&this, LIST, "choices", GROUP_FIELD).await?;
+        let width: i32 = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Displayable", "getWidth", "()I", ())
+            .await?;
+        let height: i32 = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
+            .await?;
+        let group: ClassInstanceRef<ChoiceGroup> = jvm
+            .get_field(
+                &this,
+                "javax/microedition/lcdui/List",
+                "choices",
+                "Ljavax/microedition/lcdui/ChoiceGroup;",
+            )
+            .await?;
         let (scroll, _) = Self::scroll_to_focus(jvm, &mut this, &group, width, height, 0).await?;
         jvm.invoke_virtual(
             &group,
-            GROUP,
+            "javax/microedition/lcdui/ChoiceGroup",
             "paintContent",
             "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
             (graphics, 0, -scroll, width, height, true),
