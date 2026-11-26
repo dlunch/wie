@@ -1,33 +1,25 @@
-use alloc::vec;
+use jvm::{Array, ClassInstanceRef, Jvm, Result};
+use jvm_class_proto::{java_class, java_methods};
+use rustjava_runtime::classes::java::lang::String;
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use wie_jvm_support::WieJvmContext;
 
-use wie_jvm_support::WieJavaClassProto;
+use crate::classes::javax::microedition::media::Control;
 
 // interface javax.microedition.media.Controllable
+#[java_class(name = "javax/microedition/media/Controllable", public, interface, abstract)]
 pub struct Controllable;
 
+#[java_methods]
 impl Controllable {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/media/Controllable",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new_abstract(
-                    "getControl",
-                    "(Ljava/lang/String;)Ljavax/microedition/media/Control;",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-                JavaMethodProto::new_abstract(
-                    "getControls",
-                    "()[Ljavax/microedition/media/Control;",
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn get_control(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        control_type: ClassInstanceRef<String>,
+    ) -> Result<ClassInstanceRef<Control>>;
+
+    #[method(public)]
+    async fn get_controls(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<ClassInstanceRef<Array<Control>>>;
 }

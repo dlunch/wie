@@ -1,35 +1,47 @@
-use alloc::vec;
+use jvm::{Array, ClassInstanceRef, Jvm, Result};
+use jvm_class_proto::{java_class, java_methods};
 
-use jvm_class_proto::JavaMethodProto;
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-
-use wie_jvm_support::WieJavaClassProto;
+use wie_jvm_support::WieJvmContext;
 
 // interface javax.microedition.rms.RecordEnumeration
+#[java_class(name = "javax/microedition/rms/RecordEnumeration", public, interface, abstract)]
 pub struct RecordEnumeration;
 
+#[java_methods]
 impl RecordEnumeration {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/rms/RecordEnumeration",
-            parent_class: None,
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new_abstract("numRecords", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("nextRecord", "()[B", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("nextRecordId", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("previousRecord", "()[B", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("previousRecordId", "()I", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("hasNextElement", "()Z", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("hasPreviousElement", "()Z", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("reset", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("rebuild", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("keepUpdated", "(Z)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("isKeptUpdated", "()Z", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("destroy", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
-        }
-    }
+    #[method(public)]
+    async fn num_records(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<i32>;
+
+    #[method(public)]
+    async fn next_record(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<ClassInstanceRef<Array<i8>>>;
+
+    #[method(public)]
+    async fn next_record_id(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<i32>;
+
+    #[method(public)]
+    async fn previous_record(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<ClassInstanceRef<Array<i8>>>;
+
+    #[method(public)]
+    async fn previous_record_id(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<i32>;
+
+    #[method(public)]
+    async fn has_next_element(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<bool>;
+
+    #[method(public)]
+    async fn has_previous_element(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<bool>;
+
+    #[method(public)]
+    async fn reset(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
+
+    #[method(public)]
+    async fn rebuild(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
+
+    #[method(public)]
+    async fn keep_updated(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, keep_updated: bool) -> Result<()>;
+
+    #[method(public)]
+    async fn is_kept_updated(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<bool>;
+
+    #[method(public)]
+    async fn destroy(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()>;
 }

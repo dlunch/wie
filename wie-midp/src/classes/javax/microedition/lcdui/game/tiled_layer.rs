@@ -1,10 +1,9 @@
 use alloc::{vec, vec::Vec};
 
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::{Graphics, Image};
 
@@ -40,71 +39,34 @@ impl Tiles {
 }
 
 // class javax.microedition.lcdui.game.TiledLayer
-pub struct TiledLayer;
+#[java_class(
+    name = "javax/microedition/lcdui/game/TiledLayer",
+    extends = "javax/microedition/lcdui/game/Layer",
+    public
+)]
+pub struct TiledLayer {
+    #[field(private)]
+    image: ClassInstanceRef<Image>,
+    #[field(private)]
+    tileWidth: i32,
+    #[field(private)]
+    tileHeight: i32,
+    #[field(private)]
+    tileCount: i32,
+    #[field(private)]
+    columns: i32,
+    #[field(private)]
+    rows: i32,
+    #[field(private)]
+    cells: ClassInstanceRef<Array<i32>>,
+    #[field(private)]
+    animatedTiles: ClassInstanceRef<Array<i32>>,
+}
 
 #[allow(clippy::too_many_arguments)]
+#[java_methods]
 impl TiledLayer {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/game/TiledLayer",
-            parent_class: Some("javax/microedition/lcdui/game/Layer"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(IILjavax/microedition/lcdui/Image;II)V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("createAnimatedTile", "(I)I", Self::create_animated_tile, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setAnimatedTile", "(II)V", Self::set_animated_tile, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getAnimatedTile", "(I)I", Self::get_animated_tile, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("setCell", "(III)V", Self::set_cell, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getCell", "(II)I", Self::get_cell, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("fillCells", "(IIIII)V", Self::fill_cells, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getCellWidth",
-                    "()I",
-                    Self::get_cell_width,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "getCellHeight",
-                    "()I",
-                    Self::get_cell_height,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new(
-                    "getColumns",
-                    "()I",
-                    Self::get_columns,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-                JavaMethodProto::new("getRows", "()I", Self::get_rows, MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL),
-                JavaMethodProto::new(
-                    "setStaticTileSet",
-                    "(Ljavax/microedition/lcdui/Image;II)V",
-                    Self::set_static_tile_set,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new(
-                    "paint",
-                    "(Ljavax/microedition/lcdui/Graphics;)V",
-                    Self::paint,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new("image", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("tileWidth", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("tileHeight", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("tileCount", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("columns", "I", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("rows", "I", FieldAccessFlags::PRIVATE),
-                // Row-major tile indices: 0 is empty, positive is a static tile, negative is an animated tile.
-                JavaFieldProto::new("cells", "[I", FieldAccessFlags::PRIVATE),
-                // Static tile shown by animated tile -(index + 1).
-                JavaFieldProto::new("animatedTiles", "[I", FieldAccessFlags::PRIVATE),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(constructor, public)]
     async fn init(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -140,6 +102,7 @@ impl TiledLayer {
         .await
     }
 
+    #[method(public)]
     async fn set_static_tile_set(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -186,6 +149,7 @@ impl TiledLayer {
         Ok(())
     }
 
+    #[method(public)]
     async fn create_animated_tile(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, static_tile_index: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::createAnimatedTile({this:?}, {static_tile_index})");
 
@@ -205,6 +169,7 @@ impl TiledLayer {
         Ok(-(count as i32))
     }
 
+    #[method(public)]
     async fn set_animated_tile(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -225,6 +190,7 @@ impl TiledLayer {
             .await
     }
 
+    #[method(public)]
     async fn get_animated_tile(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, animated_tile_index: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::getAnimatedTile({this:?}, {animated_tile_index})");
 
@@ -237,6 +203,7 @@ impl TiledLayer {
         Ok(jvm.load_array(&animated_tiles, (-animated_tile_index - 1) as usize, 1).await?[0])
     }
 
+    #[method(public)]
     async fn set_cell(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, column: i32, row: i32, tile_index: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::setCell({this:?}, {column}, {row}, {tile_index})");
 
@@ -244,6 +211,7 @@ impl TiledLayer {
             .await
     }
 
+    #[method(public)]
     async fn get_cell(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, column: i32, row: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::getCell({this:?}, {column}, {row})");
 
@@ -257,6 +225,7 @@ impl TiledLayer {
         Ok(jvm.load_array(&cells, (row * columns + column) as usize, 1).await?[0])
     }
 
+    #[method(public)]
     async fn fill_cells(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -294,30 +263,35 @@ impl TiledLayer {
         Ok(())
     }
 
+    #[method(public, final)]
     async fn get_cell_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::getCellWidth({this:?})");
 
         jvm.get_field(&this, CLASS, "tileWidth", "I").await
     }
 
+    #[method(public, final)]
     async fn get_cell_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::getCellHeight({this:?})");
 
         jvm.get_field(&this, CLASS, "tileHeight", "I").await
     }
 
+    #[method(public, final)]
     async fn get_columns(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::getColumns({this:?})");
 
         jvm.get_field(&this, CLASS, "columns", "I").await
     }
 
+    #[method(public, final)]
     async fn get_rows(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::getRows({this:?})");
 
         jvm.get_field(&this, CLASS, "rows", "I").await
     }
 
+    #[method(public, final)]
     async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.game.TiledLayer::paint({this:?}, {g:?})");
 

@@ -1,63 +1,28 @@
-use alloc::vec;
-
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::javax::microedition::lcdui::Display;
 
 // class javax.microedition.lcdui.AlertType
-pub struct AlertType;
+#[java_class(name = "javax/microedition/lcdui/AlertType", public)]
+pub struct AlertType {
+    #[field(public, static, final)]
+    ALARM: ClassInstanceRef<Self>,
+    #[field(public, static, final)]
+    CONFIRMATION: ClassInstanceRef<Self>,
+    #[field(public, static, final)]
+    ERROR: ClassInstanceRef<Self>,
+    #[field(public, static, final)]
+    INFO: ClassInstanceRef<Self>,
+    #[field(public, static, final)]
+    WARNING: ClassInstanceRef<Self>,
+}
 
+#[java_methods]
 impl AlertType {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/AlertType",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PRIVATE),
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new(
-                    "playSound",
-                    "(Ljavax/microedition/lcdui/Display;)Z",
-                    Self::play_sound,
-                    MethodAccessFlags::PUBLIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "ALARM",
-                    "Ljavax/microedition/lcdui/AlertType;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "CONFIRMATION",
-                    "Ljavax/microedition/lcdui/AlertType;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "ERROR",
-                    "Ljavax/microedition/lcdui/AlertType;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "INFO",
-                    "Ljavax/microedition/lcdui/AlertType;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "WARNING",
-                    "Ljavax/microedition/lcdui/AlertType;",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(descriptor = "(Ljava/lang/String;)V", constructor, private)]
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Alert::<init>({this:?}, {type})");
 
@@ -66,6 +31,7 @@ impl AlertType {
         Ok(())
     }
 
+    #[method(public)]
     async fn play_sound(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
@@ -77,6 +43,7 @@ impl AlertType {
         Ok(false)
     }
 
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.AlertType::<clinit>()");
 

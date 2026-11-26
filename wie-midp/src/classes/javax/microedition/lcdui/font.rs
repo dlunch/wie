@@ -1,120 +1,42 @@
-use alloc::{string::String as RustString, vec};
+use alloc::string::String as RustString;
 
 use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::canvas::string_width;
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 // class javax.microedition.lcdui.Font
-pub struct Font;
+#[java_class(name = "javax/microedition/lcdui/Font", public, final)]
+pub struct Font {
+    #[field(public, static, final)]
+    FACE_SYSTEM: i32,
+    #[field(public, static, final)]
+    FACE_MONOSPACE: i32,
+    #[field(public, static, final)]
+    FACE_PROPORTIONAL: i32,
+    #[field(public, static, final)]
+    STYLE_PLAIN: i32,
+    #[field(public, static, final)]
+    STYLE_BOLD: i32,
+    #[field(public, static, final)]
+    STYLE_ITALIC: i32,
+    #[field(public, static, final)]
+    STYLE_UNDERLINED: i32,
+    #[field(public, static, final)]
+    SIZE_SMALL: i32,
+    #[field(public, static, final)]
+    SIZE_MEDIUM: i32,
+    #[field(public, static, final)]
+    SIZE_LARGE: i32,
+}
 
+#[java_methods]
 impl Font {
     pub const HEIGHT: i32 = 12;
 
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "javax/microedition/lcdui/Font",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getBaselinePosition", "()I", Self::get_baseline_position, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "substringWidth",
-                    "(Ljava/lang/String;II)I",
-                    Self::substring_width,
-                    MethodAccessFlags::PUBLIC,
-                ),
-                JavaMethodProto::new("charWidth", "(C)I", Self::char_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("charsWidth", "([CII)I", Self::chars_width, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getFont",
-                    "(III)Ljavax/microedition/lcdui/Font;",
-                    Self::get_font,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "getFont",
-                    "(I)Ljavax/microedition/lcdui/Font;",
-                    Self::get_font_by_specifier,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new("getFace", "()I", Self::get_face, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getStyle", "()I", Self::get_style, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("getSize", "()I", Self::get_size, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isPlain", "()Z", Self::is_plain, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isBold", "()Z", Self::is_bold, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isItalic", "()Z", Self::is_italic, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("isUnderlined", "()Z", Self::is_underlined, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new(
-                    "getDefaultFont",
-                    "()Ljavax/microedition/lcdui/Font;",
-                    Self::get_default_font,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![
-                JavaFieldProto::new(
-                    "FACE_SYSTEM",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "FACE_MONOSPACE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "FACE_PROPORTIONAL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STYLE_PLAIN",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STYLE_BOLD",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STYLE_ITALIC",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "STYLE_UNDERLINED",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIZE_SMALL",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIZE_MEDIUM",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-                JavaFieldProto::new(
-                    "SIZE_LARGE",
-                    "I",
-                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
-                ),
-            ],
-            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
-        }
-    }
-
+    #[method(static_initializer)]
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Font::<clinit>");
 
@@ -133,24 +55,28 @@ impl Font {
         Ok(())
     }
 
+    #[method(constructor)]
     async fn init(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::warn!("stub javax.microedition.lcdui.Font::<init>({this:?})");
 
         Ok(())
     }
 
+    #[method(descriptor = "()I", public)]
     async fn get_height(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getHeight");
 
         Ok(Self::HEIGHT) // TODO: hardcoded
     }
 
+    #[method(public)]
     async fn get_baseline_position(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getBaselinePosition({this:?})");
 
         Ok(10)
     }
 
+    #[method(public, static)]
     async fn get_default_font(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getDefaultFont");
 
@@ -159,6 +85,7 @@ impl Font {
         Ok(instance.into())
     }
 
+    #[method(public, static)]
     async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, face: i32, style: i32, size: i32) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getFont({face:?}, {style:?}, {size:?})");
 
@@ -167,6 +94,7 @@ impl Font {
         Ok(instance.into())
     }
 
+    #[method(name = "getFont", public, static)]
     async fn get_font_by_specifier(jvm: &Jvm, _: &mut WieJvmContext, font_specifier: i32) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getFont({font_specifier})");
 
@@ -174,48 +102,56 @@ impl Font {
             .await
     }
 
+    #[method(public)]
     async fn get_face(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getFace({this:?})");
 
         Ok(0) // FACE_SYSTEM
     }
 
+    #[method(public)]
     async fn get_style(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getStyle({this:?})");
 
         Ok(0) // STYLE_PLAIN
     }
 
+    #[method(public)]
     async fn get_size(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getSize({this:?})");
 
         Ok(0) // SIZE_MEDIUM
     }
 
+    #[method(public)]
     async fn is_plain(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub javax.microedition.lcdui.Font::isPlain({this:?})");
 
         Ok(true)
     }
 
+    #[method(public)]
     async fn is_bold(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub javax.microedition.lcdui.Font::isBold({this:?})");
 
         Ok(false)
     }
 
+    #[method(public)]
     async fn is_italic(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub javax.microedition.lcdui.Font::isItalic({this:?})");
 
         Ok(false)
     }
 
+    #[method(public)]
     async fn is_underlined(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub javax.microedition.lcdui.Font::isUnderlined({this:?})");
 
         Ok(false)
     }
 
+    #[method(public)]
     async fn string_width(jvm: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::stringWidth({string:?})");
 
@@ -224,6 +160,7 @@ impl Font {
         Ok(string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 
+    #[method(public)]
     async fn substring_width(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -240,6 +177,7 @@ impl Font {
         Ok(string_width(context.system().platform().font(), &substring, 10.0) as _)
     }
 
+    #[method(public)]
     async fn char_width(_: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::charWidth({char:?})");
 
@@ -248,6 +186,7 @@ impl Font {
         Ok(string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 
+    #[method(public)]
     async fn chars_width(
         jvm: &Jvm,
         context: &mut WieJvmContext,

@@ -1,42 +1,20 @@
-use alloc::{boxed::Box, vec};
+use alloc::boxed::Box;
 
 use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_class_proto::{JavaMethodProto, MethodBody};
-use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use jvm_class_proto::{MethodBody, java_class, java_methods};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_jvm_support::WieJvmContext;
 
 use crate::classes::{javax::microedition::midlet::MIDlet, net::wie::EventQueue};
 
 // class net.wie.Launcher
+#[java_class(name = "net/wie/Launcher", public)]
 pub struct Launcher;
 
+#[java_methods]
 impl Launcher {
-    pub fn as_proto() -> WieJavaClassProto {
-        WieJavaClassProto {
-            name: "net/wie/Launcher",
-            parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new(
-                    "start",
-                    "(Ljava/lang/String;)V",
-                    Self::start,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-                JavaMethodProto::new(
-                    "startMIDlet",
-                    "(Ljavax/microedition/midlet/MIDlet;)V",
-                    Self::start_midlet,
-                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-                ),
-            ],
-            fields: vec![],
-            access_flags: ClassAccessFlags::PUBLIC,
-        }
-    }
-
+    #[method(public, static)]
     async fn start(jvm: &Jvm, _context: &mut WieJvmContext, main_class: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("net.wie.Launcher::start({main_class:?})");
 
@@ -48,6 +26,7 @@ impl Launcher {
             .await
     }
 
+    #[method(name = "startMIDlet", public, static)]
     async fn start_midlet(jvm: &Jvm, context: &mut WieJvmContext, midlet: ClassInstanceRef<MIDlet>) -> JvmResult<()> {
         tracing::debug!("net.wie.Launcher::startMIDlet({midlet:?})");
 
