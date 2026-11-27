@@ -77,6 +77,35 @@ impl RecordStore {
         Ok(1000000 as _)
     }
 
+    #[method(public)]
+    async fn get_name(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.rms.RecordStore::getName({this:?})");
+
+        jvm.get_field(&this, "javax/microedition/rms/RecordStore", "dbName", "Ljava/lang/String;")
+            .await
+    }
+
+    #[method(public)]
+    async fn get_size(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.rms.RecordStore::getSize({this:?})");
+
+        let database = Self::get_database(jvm, context, &this).await?;
+
+        let mut size = 0;
+        for record_id in database.get_record_ids().await {
+            size += database.get(record_id).await.map_or(0, |data| data.len());
+        }
+
+        Ok(size as _)
+    }
+
+    #[method(public)]
+    async fn get_last_modified(_jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i64> {
+        tracing::warn!("stub javax.microedition.rms.RecordStore::getLastModified({this:?})");
+
+        Ok(context.system().platform().now().raw() as _)
+    }
+
     #[method(name = "getNextRecordID", public)]
     async fn get_next_record_id(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.rms.RecordStore::getNextRecordID({this:?})");
@@ -334,6 +363,15 @@ mod test {
                 .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getRecord", "(I)[B", (record_id,))
                 .await?;
             assert_eq!(jvm.load_array::<i8>(&loaded, 0, 2).await?, [1, 2]);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&store, "javax/microedition/rms/RecordStore", "getSize", "()I", ())
+                    .await?,
+                2
+            );
+            let store_name: ClassInstanceRef<String> = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getName", "()Ljava/lang/String;", ())
+                .await?;
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &store_name).await?, "delete-record");
 
             let _: () = jvm
                 .invoke_virtual(
