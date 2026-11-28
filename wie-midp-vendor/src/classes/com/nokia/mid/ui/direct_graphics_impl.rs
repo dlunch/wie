@@ -307,8 +307,7 @@ impl DirectGraphicsImpl {
         }
         let mut packed = Vec::new();
         for row in 0..height {
-            let start = i64::from(offset) + i64::from(row) * i64::from(stride);
-            let start = usize::try_from(start).unwrap_or(usize::MAX);
+            let start = (i64::from(offset) + i64::from(row) * i64::from(stride)) as usize;
             packed.extend(jvm.load_array::<i32>(&pixels, start, width as usize).await?);
         }
         let mut rgb = jvm.instantiate_array("I", packed.len()).await?;
