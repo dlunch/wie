@@ -5,12 +5,9 @@ use jvm::{
     runtime::{JavaIoInputStream, JavaLangString},
 };
 use jvm_class_proto::{java_class, java_methods};
-use rustjava_runtime::classes::java::{
-    io::InputStream,
-    lang::{Class, String},
-};
+use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 
-use wie_jvm_support::WieJvmContext;
+use wie_jvm_support::{JvmSupport, WieJvmContext};
 use wie_midp::classes::javax::microedition::media::Player;
 
 use crate::classes::org::kwis::msp::media::PlayListener;
@@ -51,18 +48,8 @@ impl Clip {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?}, {resource_name:?})");
 
-        let class: ClassInstanceRef<Class> = jvm
-            .invoke_virtual(&r#type, "java/lang/String", "getClass", "()Ljava/lang/Class;", ())
-            .await?;
-        let resource_stream: ClassInstanceRef<InputStream> = jvm
-            .invoke_virtual(
-                &class,
-                "java/lang/Class",
-                "getResourceAsStream",
-                "(Ljava/lang/String;)Ljava/io/InputStream;",
-                (resource_name.clone(),),
-            )
-            .await?;
+        let name = JavaLangString::to_rust_string(jvm, &resource_name).await?;
+        let resource_stream: ClassInstanceRef<InputStream> = JvmSupport::open_resource(jvm, &name).await?.into();
         let data = JavaIoInputStream::read_until_end(jvm, &resource_stream).await?;
 
         let mut data_array = jvm.instantiate_array("B", data.len()).await?;

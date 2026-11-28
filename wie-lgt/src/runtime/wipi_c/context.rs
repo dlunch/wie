@@ -8,12 +8,13 @@ use alloc::{
 
 use jvm::{
     ClassInstance, Jvm,
-    runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
+    runtime::{JavaIoInputStream, JavaLangString},
 };
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_jvm_support::JvmSupport;
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
@@ -113,8 +114,7 @@ impl WIPICContext for LgtWIPICContext {
     }
 
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
-        let class_loader = JavaLangClassLoader::get_system_class_loader(&self.jvm).await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
+        let stream = JvmSupport::open_resource(&self.jvm, name).await.unwrap();
 
         if let Some(stream) = stream {
             let available: i32 = self
@@ -130,8 +130,7 @@ impl WIPICContext for LgtWIPICContext {
     }
 
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
-        let class_loader = JavaLangClassLoader::get_system_class_loader(&self.jvm).await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
+        let stream = JvmSupport::open_resource(&self.jvm, name).await.unwrap();
 
         if let Some(stream) = stream {
             return Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await.unwrap());

@@ -8,7 +8,10 @@ mod runtime;
 
 use alloc::{boxed::Box, format, string::ToString};
 
-use jvm::{ClassInstance, JavaError, JavaValue, Jvm, runtime::JavaLangString};
+use jvm::{
+    ClassInstance, JavaError, JavaValue, Jvm, Result as JvmResult,
+    runtime::{JavaLangClassLoader, JavaLangString},
+};
 use rustjava_runtime::Runtime;
 
 use wie_backend::System;
@@ -65,6 +68,12 @@ impl JvmSupport {
         .map_err(|x| WieError::FatalError(format!("Failed to create JVM: {x}")))?;
 
         Ok(jvm)
+    }
+
+    // Platform APIs name app resources from the archive root, optionally with a leading '/'; class loader names carry none.
+    pub async fn open_resource(jvm: &Jvm, name: &str) -> JvmResult<Option<Box<dyn ClassInstance>>> {
+        let class_loader = JavaLangClassLoader::get_system_class_loader(jvm).await?;
+        JavaLangClassLoader::get_resource_as_stream(jvm, &class_loader, name.trim_start_matches('/')).await
     }
 
     pub async fn to_wie_err(jvm: &Jvm, err: JavaError) -> WieError {

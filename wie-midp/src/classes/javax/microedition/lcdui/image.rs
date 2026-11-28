@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use bytemuck::{Zeroable, cast_slice, cast_vec};
 use jvm::{
     Array, ArrayRawBufferMut, ClassInstanceRef, Jvm, Result as JvmResult,
-    runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
+    runtime::{JavaIoInputStream, JavaLangString},
 };
 use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{io::InputStream, lang::String};
@@ -12,7 +12,7 @@ use rustjava_runtime::classes::java::{io::InputStream, lang::String};
 use wie_backend::canvas::{
     ArgbPixel, Canvas, Color, Image as BackendImage, ImageBuffer, ImageBufferCanvas, PixelType, Rgb332Pixel, Rgb565Pixel, decode_image,
 };
-use wie_jvm_support::WieJvmContext;
+use wie_jvm_support::{JvmSupport, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::Graphics;
 
@@ -122,9 +122,7 @@ impl Image {
 
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
-        let class_loader = JavaLangClassLoader::get_system_class_loader(jvm).await?;
-        let stream = JavaLangClassLoader::get_resource_as_stream(jvm, &class_loader, &name).await?;
-        let Some(stream) = stream else {
+        let Some(stream) = JvmSupport::open_resource(jvm, &name).await? else {
             let exception = jvm
                 .exception("java/io/FileNotFoundException", &format!("Resource not found: {name}"))
                 .await;

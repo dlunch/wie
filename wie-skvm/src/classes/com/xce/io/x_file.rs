@@ -1,14 +1,11 @@
-use jvm::{
-    Array, ClassInstanceRef, Jvm, Result as JvmResult,
-    runtime::{JavaLangClassLoader, JavaLangString},
-};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{java_class, java_methods};
 use rustjava_runtime::classes::java::{
     io::{FileDescriptor, InputStream, OutputStream, RandomAccessFile},
     lang::String,
 };
 
-use wie_jvm_support::WieJvmContext;
+use wie_jvm_support::{JvmSupport, WieJvmContext};
 
 pub(super) const STDSTREAM: i32 = 0;
 pub(super) const NORMAL: i32 = 1;
@@ -165,8 +162,7 @@ impl XFile {
 
         if mode == READ_RESOURCE {
             let resource_name = JavaLangString::to_rust_string(jvm, &name).await?;
-            let class_loader = JavaLangClassLoader::get_system_class_loader(jvm).await?;
-            let Some(resource_stream) = JavaLangClassLoader::get_resource_as_stream(jvm, &class_loader, &resource_name).await? else {
+            let Some(resource_stream) = JvmSupport::open_resource(jvm, &resource_name).await? else {
                 return Err(jvm.exception("java/io/IOException", "Resource not found").await);
             };
 
@@ -711,6 +707,10 @@ mod tests {
                 panic!("FileOutputStream accepted a read-only XFile");
             };
             assert!(jvm.is_instance(&*exception, "java/io/IOException"));
+
+            let absolute_name = JavaLangString::from_rust_string(&jvm, "/data.bin").await?;
+            jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (absolute_name, READ_RESOURCE))
+                .await?;
 
             let name = JavaLangString::from_rust_string(&jvm, "data.bin").await?;
             let resource: ClassInstanceRef<XFile> = jvm
