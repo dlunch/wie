@@ -144,6 +144,8 @@ impl SktEmulator {
             ("m.CARRIER", "SKT"),
             ("m.SK_VM", "10"),
             ("com.xce.wipi.version", ""),
+            // SK-VM resolves a relative Class resource name from the JAR root, whatever the receiver class.
+            ("rustjava.class.resource.mode", "root"),
         ];
         let properties = properties
             .into_iter()
