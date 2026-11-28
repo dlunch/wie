@@ -23,11 +23,7 @@ impl DirectUtils {
         tracing::debug!("com.nokia.mid.ui.DirectUtils::getDirectGraphics({graphics:?})");
 
         Ok(jvm
-            .new_class(
-                "com/nokia/mid/ui/DirectGraphicsImpl",
-                "(Ljavax/microedition/lcdui/Graphics;)V",
-                (graphics,),
-            )
+            .new_class("net/wie/NokiaDirectGraphics", "(Ljavax/microedition/lcdui/Graphics;)V", (graphics,))
             .await?
             .into())
     }

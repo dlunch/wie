@@ -6,26 +6,28 @@ use jvm_class_proto::{java_class, java_methods};
 use wie_jvm_support::WieJvmContext;
 use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
-use super::direct_graphics::{FLIP_HORIZONTAL, FLIP_VERTICAL, ROTATE_90, ROTATE_180, ROTATE_270, TYPE_INT_888_RGB, TYPE_INT_8888_ARGB};
+use crate::classes::com::nokia::mid::ui::direct_graphics::{
+    FLIP_HORIZONTAL, FLIP_VERTICAL, ROTATE_90, ROTATE_180, ROTATE_270, TYPE_INT_888_RGB, TYPE_INT_8888_ARGB,
+};
 
-// class com.nokia.mid.ui.DirectGraphicsImpl
-#[java_class(name = "com/nokia/mid/ui/DirectGraphicsImpl", implements("com/nokia/mid/ui/DirectGraphics"), final)]
-pub struct DirectGraphicsImpl {
+// class net.wie.NokiaDirectGraphics
+#[java_class(name = "net/wie/NokiaDirectGraphics", implements("com/nokia/mid/ui/DirectGraphics"), final)]
+pub struct NokiaDirectGraphics {
     #[field(private)]
     graphics: ClassInstanceRef<Graphics>,
 }
 
 #[allow(clippy::too_many_arguments)]
 #[java_methods]
-impl DirectGraphicsImpl {
+impl NokiaDirectGraphics {
     #[method(constructor)]
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
-        tracing::debug!("com.nokia.mid.ui.DirectGraphicsImpl::<init>({this:?}, {graphics:?})");
+        tracing::debug!("net.wie.NokiaDirectGraphics::<init>({this:?}, {graphics:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
         jvm.put_field(
             &mut this,
-            "com/nokia/mid/ui/DirectGraphicsImpl",
+            "net/wie/NokiaDirectGraphics",
             "graphics",
             "Ljavax/microedition/lcdui/Graphics;",
             graphics,
@@ -35,15 +37,10 @@ impl DirectGraphicsImpl {
 
     #[method(name = "setARGBColor", public)]
     async fn set_argb_color(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, argb: i32) -> JvmResult<()> {
-        tracing::debug!("com.nokia.mid.ui.DirectGraphicsImpl::setARGBColor({this:?}, {argb})");
+        tracing::debug!("net.wie.NokiaDirectGraphics::setARGBColor({this:?}, {argb})");
 
         let graphics: ClassInstanceRef<Graphics> = jvm
-            .get_field(
-                &this,
-                "com/nokia/mid/ui/DirectGraphicsImpl",
-                "graphics",
-                "Ljavax/microedition/lcdui/Graphics;",
-            )
+            .get_field(&this, "net/wie/NokiaDirectGraphics", "graphics", "Ljavax/microedition/lcdui/Graphics;")
             .await?;
         // MIDP drawing uses only the RGB part of the Nokia color.
         jvm.invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (argb & 0xffffff,))
@@ -52,14 +49,14 @@ impl DirectGraphicsImpl {
 
     #[method(public)]
     async fn get_alpha_component(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub com.nokia.mid.ui.DirectGraphicsImpl::getAlphaComponent({this:?})");
+        tracing::warn!("stub net.wie.NokiaDirectGraphics::getAlphaComponent({this:?})");
 
         Ok(0xff)
     }
 
     #[method(public)]
     async fn get_native_pixel_format(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("com.nokia.mid.ui.DirectGraphicsImpl::getNativePixelFormat({this:?})");
+        tracing::debug!("net.wie.NokiaDirectGraphics::getNativePixelFormat({this:?})");
 
         Ok(TYPE_INT_8888_ARGB)
     }
@@ -75,7 +72,7 @@ impl DirectGraphicsImpl {
         anchor: i32,
         manipulation: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("com.nokia.mid.ui.DirectGraphicsImpl::drawImage({this:?}, {image:?}, {x}, {y}, {anchor}, {manipulation})");
+        tracing::debug!("net.wie.NokiaDirectGraphics::drawImage({this:?}, {image:?}, {x}, {y}, {anchor}, {manipulation})");
 
         if image.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "image is null").await);
@@ -92,12 +89,7 @@ impl DirectGraphicsImpl {
         let vertical = usize::from(manipulation & FLIP_VERTICAL != 0);
         let transform = transforms[horizontal + 2 * vertical];
         let graphics: ClassInstanceRef<Graphics> = jvm
-            .get_field(
-                &this,
-                "com/nokia/mid/ui/DirectGraphicsImpl",
-                "graphics",
-                "Ljavax/microedition/lcdui/Graphics;",
-            )
+            .get_field(&this, "net/wie/NokiaDirectGraphics", "graphics", "Ljavax/microedition/lcdui/Graphics;")
             .await?;
         let width: i32 = jvm
             .invoke_virtual(&image, "javax/microedition/lcdui/Image", "getWidth", "()I", ())
@@ -138,7 +130,7 @@ impl DirectGraphicsImpl {
         y3: i32,
         argb: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("com.nokia.mid.ui.DirectGraphicsImpl::drawTriangle({this:?}, {x1}, {y1}, {x2}, {y2}, {x3}, {y3}, {argb})");
+        tracing::debug!("net.wie.NokiaDirectGraphics::drawTriangle({this:?}, {x1}, {y1}, {x2}, {y2}, {x3}, {y3}, {argb})");
 
         Self::draw_outline(jvm, &this, &[x1, x2, x3], &[y1, y2, y3], argb).await
     }
@@ -155,7 +147,7 @@ impl DirectGraphicsImpl {
         count: i32,
         argb: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("com.nokia.mid.ui.DirectGraphicsImpl::drawPolygon({this:?}, {xs:?}, {x_offset}, {ys:?}, {y_offset}, {count}, {argb})");
+        tracing::debug!("net.wie.NokiaDirectGraphics::drawPolygon({this:?}, {xs:?}, {x_offset}, {ys:?}, {y_offset}, {count}, {argb})");
 
         if xs.is_null() || ys.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "coordinate array is null").await);
@@ -170,12 +162,7 @@ impl DirectGraphicsImpl {
             return Ok(());
         }
         let graphics: ClassInstanceRef<Graphics> = jvm
-            .get_field(
-                this,
-                "com/nokia/mid/ui/DirectGraphicsImpl",
-                "graphics",
-                "Ljavax/microedition/lcdui/Graphics;",
-            )
+            .get_field(this, "net/wie/NokiaDirectGraphics", "graphics", "Ljavax/microedition/lcdui/Graphics;")
             .await?;
         let previous_color: i32 = jvm
             .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getColor", "()I", ())
@@ -213,15 +200,10 @@ impl DirectGraphicsImpl {
         y3: i32,
         argb: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("com.nokia.mid.ui.DirectGraphicsImpl::fillTriangle({this:?}, {x1}, {y1}, {x2}, {y2}, {x3}, {y3}, {argb})");
+        tracing::debug!("net.wie.NokiaDirectGraphics::fillTriangle({this:?}, {x1}, {y1}, {x2}, {y2}, {x3}, {y3}, {argb})");
 
         let graphics: ClassInstanceRef<Graphics> = jvm
-            .get_field(
-                &this,
-                "com/nokia/mid/ui/DirectGraphicsImpl",
-                "graphics",
-                "Ljavax/microedition/lcdui/Graphics;",
-            )
+            .get_field(&this, "net/wie/NokiaDirectGraphics", "graphics", "Ljavax/microedition/lcdui/Graphics;")
             .await?;
         let previous_color: i32 = jvm
             .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getColor", "()I", ())
@@ -254,7 +236,7 @@ impl DirectGraphicsImpl {
         count: i32,
         argb: i32,
     ) -> JvmResult<()> {
-        tracing::warn!("stub com.nokia.mid.ui.DirectGraphicsImpl::fillPolygon({this:?}, {xs:?}, {x_offset}, {ys:?}, {y_offset}, {count}, {argb})");
+        tracing::warn!("stub net.wie.NokiaDirectGraphics::fillPolygon({this:?}, {xs:?}, {x_offset}, {ys:?}, {y_offset}, {count}, {argb})");
 
         Ok(())
     }
@@ -276,19 +258,14 @@ impl DirectGraphicsImpl {
         format: i32,
     ) -> JvmResult<()> {
         tracing::debug!(
-            "com.nokia.mid.ui.DirectGraphicsImpl::drawPixels({this:?}, {pixels:?}, {transparency}, {offset}, {stride}, {x}, {y}, {width}, {height}, {manipulation}, {format})"
+            "net.wie.NokiaDirectGraphics::drawPixels({this:?}, {pixels:?}, {transparency}, {offset}, {stride}, {x}, {y}, {width}, {height}, {manipulation}, {format})"
         );
 
         if !matches!(format, TYPE_INT_888_RGB | TYPE_INT_8888_ARGB) || width < 0 || height < 0 {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "invalid pixel format or size").await);
         }
         let graphics: ClassInstanceRef<Graphics> = jvm
-            .get_field(
-                &this,
-                "com/nokia/mid/ui/DirectGraphicsImpl",
-                "graphics",
-                "Ljavax/microedition/lcdui/Graphics;",
-            )
+            .get_field(&this, "net/wie/NokiaDirectGraphics", "graphics", "Ljavax/microedition/lcdui/Graphics;")
             .await?;
         let alpha = transparency && format == TYPE_INT_8888_ARGB;
         if manipulation == 0 || width == 0 || height == 0 {
@@ -322,7 +299,7 @@ impl DirectGraphicsImpl {
             .await?;
         jvm.invoke_virtual(
             &this,
-            "com/nokia/mid/ui/DirectGraphicsImpl",
+            "net/wie/NokiaDirectGraphics",
             "drawImage",
             "(Ljavax/microedition/lcdui/Image;IIII)V",
             (image, x, y, 0, manipulation),
@@ -344,20 +321,13 @@ impl DirectGraphicsImpl {
         height: i32,
         format: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "com.nokia.mid.ui.DirectGraphicsImpl::getPixels({this:?}, {pixels:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {format})"
-        );
+        tracing::debug!("net.wie.NokiaDirectGraphics::getPixels({this:?}, {pixels:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {format})");
 
         if !matches!(format, TYPE_INT_888_RGB | TYPE_INT_8888_ARGB) || width < 0 || height < 0 {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "invalid pixel format or size").await);
         }
         let mut graphics: ClassInstanceRef<Graphics> = jvm
-            .get_field(
-                &this,
-                "com/nokia/mid/ui/DirectGraphicsImpl",
-                "graphics",
-                "Ljavax/microedition/lcdui/Graphics;",
-            )
+            .get_field(&this, "net/wie/NokiaDirectGraphics", "graphics", "Ljavax/microedition/lcdui/Graphics;")
             .await?;
         let image = Graphics::image(jvm, &mut graphics).await?;
         let translate_x: i32 = jvm
@@ -405,7 +375,7 @@ impl DirectGraphicsImpl {
         format: i32,
     ) -> JvmResult<()> {
         tracing::warn!(
-            "stub com.nokia.mid.ui.DirectGraphicsImpl::drawPixels({this:?}, {pixels:?}, {mask:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {manipulation}, {format})"
+            "stub net.wie.NokiaDirectGraphics::drawPixels({this:?}, {pixels:?}, {mask:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {manipulation}, {format})"
         );
 
         Ok(())
@@ -427,7 +397,7 @@ impl DirectGraphicsImpl {
         format: i32,
     ) -> JvmResult<()> {
         tracing::warn!(
-            "stub com.nokia.mid.ui.DirectGraphicsImpl::getPixels({this:?}, {pixels:?}, {mask:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {format})"
+            "stub net.wie.NokiaDirectGraphics::getPixels({this:?}, {pixels:?}, {mask:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {format})"
         );
 
         Ok(())
@@ -450,7 +420,7 @@ impl DirectGraphicsImpl {
         format: i32,
     ) -> JvmResult<()> {
         tracing::warn!(
-            "stub com.nokia.mid.ui.DirectGraphicsImpl::drawPixels({this:?}, {pixels:?}, {transparency}, {offset}, {stride}, {x}, {y}, {width}, {height}, {manipulation}, {format})"
+            "stub net.wie.NokiaDirectGraphics::drawPixels({this:?}, {pixels:?}, {transparency}, {offset}, {stride}, {x}, {y}, {width}, {height}, {manipulation}, {format})"
         );
 
         Ok(())
@@ -471,7 +441,7 @@ impl DirectGraphicsImpl {
         format: i32,
     ) -> JvmResult<()> {
         tracing::warn!(
-            "stub com.nokia.mid.ui.DirectGraphicsImpl::getPixels({this:?}, {pixels:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {format})"
+            "stub net.wie.NokiaDirectGraphics::getPixels({this:?}, {pixels:?}, {offset}, {stride}, {x}, {y}, {width}, {height}, {format})"
         );
 
         Ok(())
