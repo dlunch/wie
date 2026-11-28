@@ -2,7 +2,7 @@ use alloc::{
     borrow::ToOwned,
     boxed::Box,
     collections::BTreeMap,
-    format, str,
+    format,
     string::{String, ToString},
     vec,
     vec::Vec,
@@ -25,12 +25,11 @@ pub struct SktEmulator {
 
 impl SktEmulator {
     pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
-        let msd_file = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
-        let msd = SktMsd::parse(msd_file.0, msd_file.1);
+        let (msd_filename, msd) = SktMsd::from_archive(&files).unwrap();
 
         tracing::info!("Loading app {}, mclass {}", msd.id, msd.main_class);
 
-        let jar_filename = msd_file.0.replace(".msd", ".jar");
+        let jar_filename = msd_filename.replace(".msd", ".jar");
 
         Self::load(
             platform,
@@ -50,7 +49,7 @@ impl SktEmulator {
             .ok_or_else(|| WieError::FatalError("JAR manifest not found".into()))?;
         // Manifest values wrap onto continuation lines that start with a space.
         let manifest = String::from_utf8_lossy(&manifest).replace("\r\n ", "").replace("\n ", "");
-        let msd = SktMsd::parse(jar_filename, manifest.as_bytes());
+        let msd = SktMsd::parse(jar_filename, &manifest);
         let main_class_name = (!msd.main_class.is_empty()).then_some(msd.main_class);
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
@@ -62,15 +61,13 @@ impl SktEmulator {
     }
 
     pub fn archive_title(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
-        let (filename, data) = files.iter().find(|(filename, _)| filename.ends_with(".msd"))?;
-        let title = SktMsd::parse(filename, data).name;
-        (!title.is_empty()).then_some(title)
+        let (_, msd) = SktMsd::from_archive(files)?;
+        (!msd.name.is_empty()).then_some(msd.name)
     }
 
     pub fn archive_id(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
-        let (filename, data) = files.iter().find(|(filename, _)| filename.ends_with(".msd"))?;
-        let id = SktMsd::parse(filename, data).id;
-        (!id.is_empty()).then_some(id)
+        let (_, msd) = SktMsd::from_archive(files)?;
+        (!msd.id.is_empty()).then_some(msd.id)
     }
 
     pub fn archive_icon(files: &BTreeMap<String, Vec<u8>>) -> Option<Vec<u8>> {
@@ -213,39 +210,36 @@ struct SktMsd {
 }
 
 impl SktMsd {
-    pub fn parse(filename: &str, data: &[u8]) -> Self {
+    fn from_archive(files: &BTreeMap<String, Vec<u8>>) -> Option<(&str, Self)> {
+        let (filename, data) = files.iter().find(|(filename, _)| filename.ends_with(".msd"))?;
+        let (text, _) = EUC_KR.decode_without_bom_handling(data);
+        Some((filename, Self::parse(filename, &text)))
+    }
+
+    fn parse(filename: &str, text: &str) -> Self {
         let mut name = String::new();
         let mut main_class = String::new();
         let mut id = filename[..filename.find('.').unwrap()].into();
         let mut properties = BTreeMap::new();
 
-        let mut lines = data.split(|x| *x == b'\n');
+        for line in text.lines() {
+            let Some((key, value)) = line.split_once(':') else { continue };
+            let key = key.trim();
+            let value = value.trim();
 
-        for line in &mut lines {
-            if line.starts_with(b"MIDlet-Name:") {
-                name = EUC_KR.decode(&line[12..]).0.trim().to_string();
-            } else if line.starts_with(b"MIDlet-1:")
-                && let Some(value) = line[9..].split(|x| *x == b',').nth(2)
-                && let Ok(value) = str::from_utf8(value)
-            {
-                main_class = value.trim().to_string();
-            }
-            if line.starts_with(b"DD-ProgName:")
-                && let Ok(value) = str::from_utf8(&line[12..])
-            {
-                id = value.trim().to_string();
-            }
-
-            let sep = line.iter().position(|x| *x == b':');
-            if let Some(sep) = sep {
-                let key = &line[..sep];
-                let value = &line[sep + 1..];
-
-                if let (Ok(key), Ok(value)) = (str::from_utf8(key), str::from_utf8(value)) {
-                    tracing::info!("Adding property {}={}", key.trim(), value.trim());
-                    properties.insert(key.trim().to_string(), value.trim().to_string());
+            match key {
+                "MIDlet-Name" => name = value.to_string(),
+                "MIDlet-1" => {
+                    if let Some(class) = value.split(',').nth(2) {
+                        main_class = class.trim().to_string();
+                    }
                 }
+                "DD-ProgName" => id = value.to_string(),
+                _ => {}
             }
+
+            tracing::info!("Adding property {key}={value}");
+            properties.insert(key.to_string(), value.to_string());
         }
 
         Self {
@@ -285,14 +279,16 @@ mod tests {
 
     #[test]
     fn parse_msd_name() {
-        let msd = SktMsd::parse(
-            "0051758461.msd",
-            b"MIDlet-Name: \xbf\xb5\xbf\xf5\xbc\xad\xb1\xe2_\xbc\xd6\xc6\xbc\xbe\xc6\xc0\xc7\xb9\xd9\xb6\xf7\r\nMIDlet-1: title,,rpg.GameMIDlet\r\nDD-ProgName: 0051758461\r\n",
-        );
+        let files = BTreeMap::from([(
+            "0051758461.msd".into(),
+            b"MIDlet-Name: \xbf\xb5\xbf\xf5\xbc\xad\xb1\xe2_\xbc\xd6\xc6\xbc\xbe\xc6\xc0\xc7\xb9\xd9\xb6\xf7\r\nMIDlet-1: title,,rpg.GameMIDlet\r\nDD-ProgName: 0051758461\r\n".to_vec(),
+        )]);
+        let (_, msd) = SktMsd::from_archive(&files).unwrap();
 
         assert_eq!(msd.name, "영웅서기_솔티아의바람");
         assert_eq!(msd.id, "0051758461");
         assert_eq!(msd.main_class, "rpg.GameMIDlet");
+        assert_eq!(msd.properties["MIDlet-Name"], msd.name);
     }
 
     #[test]
