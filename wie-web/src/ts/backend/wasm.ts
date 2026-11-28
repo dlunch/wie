@@ -1,10 +1,12 @@
-import { WieWeb, appPlatform } from "@pkg";
+import init, { WieWeb, appPlatform } from "@pkg";
 import * as Sentry from "@sentry/browser";
 
 import type { PlayerSession, SessionEvent } from "../backend";
 import { AudioPlayer } from "../midi";
 import { rustPanic } from "../panic";
 import type { EmulatorHost } from "./tauri-host";
+
+await init();
 
 export interface WasmSession extends PlayerSession {
   suspend(suspended: boolean): void;

@@ -36,7 +36,7 @@ class WasmPackPlugin {
       if (!needsBuild) return;
       needsBuild = false;
       await new Promise<void>((resolve, reject) => {
-        const args = ["build", this.crateDir, "--target", "bundler", ...(dev ? ["--dev"] : ["--profile", "web"])];
+        const args = ["build", this.crateDir, "--target", "web", ...(dev ? ["--dev"] : ["--profile", "web"])];
         const proc = spawn("wasm-pack", args, { stdio: "inherit", env });
         proc.on("exit", code => code === 0 ? resolve() : reject(new Error(`wasm-pack exited with code ${code}`)));
         proc.on("error", reject);
